@@ -1,0 +1,3405 @@
+{
+  "departamento": "3000000000",
+  "descripcion_larga": "Administración General de Recursos y  Servicios",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00003",
+  "unidad_administrativa": "300",
+  "doaf": "315",
+  "num_posicion_gerente": "10300005",
+  "posicion_director": "10300130",
+  "subordinados": [
+    {
+      "departamento": "00300000000",
+      "descripcion_larga": "Dirección General de Evaluación",
+      "nivel_direccion": "General",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "003",
+      "doaf": "900",
+      "num_posicion_gerente": "20235156",
+      "posicion_director": "10300009",
+      "subordinados": [
+        {
+          "departamento": "00301000000",
+          "descripcion_larga": "Dirección de Evaluación de la Confiabilidad",
+          "nivel_direccion": "Central",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "003",
+          "doaf": "900",
+          "num_posicion_gerente": "10300739",
+          "posicion_director": "20235156",
+          "subordinados": [
+            {
+              "departamento": "00301010000",
+              "descripcion_larga": "Dirección de Evaluación de la Confiabilidad 1",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235907",
+              "posicion_director": "10300739",
+              "subordinados": [
+                {
+                  "departamento": "00301010200",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 1",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20209824",
+                  "posicion_director": "20235907",
+                  "subordinados": [
+                    {
+                      "departamento": "00301010201",
+                      "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 1",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10304249",
+                      "posicion_director": "20209824",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00301010100",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 2",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235174",
+                  "posicion_director": "20235907",
+                  "subordinados": [
+                    {
+                      "departamento": "00301010101",
+                      "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 2",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10320371",
+                      "posicion_director": "20235174",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00301010300",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 3",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10301291",
+                  "posicion_director": "20235907",
+                  "subordinados": [
+                    {
+                      "departamento": "00301010301",
+                      "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 3",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10306321",
+                      "posicion_director": "10301291",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00301010400",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 4",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10349065",
+                  "posicion_director": "20235907",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00301020000",
+              "descripcion_larga": "Dirección de Evaluación de la Confiabilidad 2",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235158",
+              "posicion_director": "10300739",
+              "subordinados": [
+                {
+                  "departamento": "00301020300",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 5",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305233",
+                  "posicion_director": "20235158",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00301020100",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 6",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235834",
+                  "posicion_director": "20235158",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00301020200",
+                  "descripcion_larga": "Subdirección de Evaluación de la Confiabilidad 7",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235873",
+                  "posicion_director": "20235158",
+                  "subordinados": [
+                    {
+                      "departamento": "00301020201",
+                      "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 1",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10320371",
+                      "posicion_director": "20235838",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00301020001",
+                  "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20209775",
+                  "posicion_director": "20235110",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00301020002",
+                  "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10346036",
+                  "posicion_director": "20235110",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00301030000",
+              "descripcion_larga": "Dirección de Evaluación de la Confiabilidad 3",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20234105",
+              "posicion_director": "10300739",
+              "subordinados": [
+                {
+                  "departamento": "00301030002",
+                  "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235893",
+                  "posicion_director": "20234105",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00301030001",
+                  "descripcion_larga": "Departamento de Evaluación de la Confiabilidad 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10346036",
+                  "posicion_director": "20234105",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "00302000000",
+          "descripcion_larga": "Dirección de Procedimientos Aduaneros",
+          "nivel_direccion": "Central",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "003",
+          "doaf": "900",
+          "num_posicion_gerente": "20234980",
+          "posicion_director": "20235156",
+          "subordinados": [
+            {
+              "departamento": "00302010000",
+              "descripcion_larga": "Dirección de Procedimientos Aduaneros 1",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235109",
+              "posicion_director": "20234980",
+              "subordinados": [
+                {
+                  "departamento": "00302010100",
+                  "descripcion_larga": "Subdirección de Procedimientos Aduaneros 2",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10300796",
+                  "posicion_director": "20235109",
+                  "subordinados": [
+                    {
+                      "departamento": "00302010101",
+                      "descripcion_larga": "Departamento de Procedimientos Aduaneros 1",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "20209829",
+                      "posicion_director": "10300796",
+                      "subordinados": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "departamento": "00302020000",
+              "descripcion_larga": "Dirección de Procedimientos Aduaneros 2",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235164",
+              "posicion_director": "20235154",
+              "subordinados": [
+                {
+                  "departamento": "00302020100",
+                  "descripcion_larga": "Subdirección de Procedimientos Aduaneros 2",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20233640",
+                  "posicion_director": "20235164",
+                  "subordinados": [
+                    {
+                      "departamento": "00302020101",
+                      "descripcion_larga": "Departamento de Procedimientos Aduaneros 1",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10305387",
+                      "posicion_director": "20233640",
+                      "subordinados": []
+                    },
+                    {
+                      "departamento": "00302020102",
+                      "descripcion_larga": "Departamento de Procedimientos Aduaneros 2",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "20210342",
+                      "posicion_director": "20233640",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00302020200",
+                  "descripcion_larga": "Subdirección de Procedimientos Aduaneros 3",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10300583",
+                  "posicion_director": "20235164",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00302020300",
+                  "descripcion_larga": "Subdirección de Procedimientos Aduaneros 4",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20207515",
+                  "posicion_director": "20235164",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00302000100",
+              "descripcion_larga": "Subdirección de Procedimientos Aduaneros 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20233640",
+              "posicion_director": "20234980",
+              "subordinados": [
+                {
+                  "departamento": "00302000101",
+                  "descripcion_larga": "Departamento de Procedimientos Aduaneros 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20210342",
+                  "posicion_director": "20233640",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00302000300",
+              "descripcion_larga": "Subdirección de Procedimientos Aduaneros 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "10302551",
+              "posicion_director": "20234980",
+              "subordinados": []
+            },
+            {
+              "departamento": "00302030000",
+              "descripcion_larga": "Subdirección de Procedimientos Aduaneros 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10300583",
+              "posicion_director": "20235164",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "00303000000",
+          "descripcion_larga": "Dirección de Procedimientos Penales y Especiales",
+          "nivel_direccion": "Central",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "003",
+          "doaf": "900",
+          "num_posicion_gerente": "10329541",
+          "posicion_director": "20235156",
+          "subordinados": [
+            {
+              "departamento": "00303020000",
+              "descripcion_larga": "Dirección de Procedimientos Especiales",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235868",
+              "posicion_director": "10329541",
+              "subordinados": [
+                {
+                  "departamento": "00303020200",
+                  "descripcion_larga": "Subdirección de Procedimientos Especiales 1",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235230",
+                  "posicion_director": "20235868",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00303020100",
+                  "descripcion_larga": "Subdirección de Procedimientos Especiales 2",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10349170",
+                  "posicion_director": "20235868",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00303010000",
+              "descripcion_larga": "Dirección de Procedimientos Penales",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235832",
+              "posicion_director": "10329541",
+              "subordinados": [
+                {
+                  "departamento": "00303010100",
+                  "descripcion_larga": "Subdirección de Procedimientos Penales 1",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235871",
+                  "posicion_director": "20235832",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00303010200",
+                  "descripcion_larga": "Subdirección de Procedimientos Penales 2",
+                  "nivel_direccion": "(en blanco)",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235897",
+                  "posicion_director": "20235832",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00303040000",
+              "descripcion_larga": "Dirección de Procedimientos Penales y Especiales 4",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "10345887",
+              "posicion_director": "20235157",
+              "subordinados": [
+                {
+                  "departamento": "00303040100",
+                  "descripcion_larga": "Subdirección de Evaluación 3",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10303072",
+                  "posicion_director": "10345887",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00303030000",
+              "descripcion_larga": "Dirección de Unidad de Transparencia",
+              "nivel_direccion": "Director",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235833",
+              "posicion_director": "10329541",
+              "subordinados": [
+                {
+                  "departamento": "00303030200",
+                  "descripcion_larga": "Subdirección de Procedimientos Penales y Especiales 5",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10349070",
+                  "posicion_director": "20235833",
+                  "subordinados": [
+                    {
+                      "departamento": "00303030201",
+                      "descripcion_larga": "Departamento de Procedimientos Penales y Especiales 3",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10333965",
+                      "posicion_director": "10349070",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00303030100",
+                  "descripcion_larga": "Subdirección de Unidad de Transparencia 1",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10343189",
+                  "posicion_director": "20235833",
+                  "subordinados": [
+                    {
+                      "departamento": "00303030101",
+                      "descripcion_larga": "Departamento de Unidad de Transparencia 1",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "10333965",
+                      "posicion_director": "10343189",
+                      "subordinados": []
+                    },
+                    {
+                      "departamento": "00303030102",
+                      "descripcion_larga": "Departamento de Unidad de Transparencia 2",
+                      "nivel_direccion": "Jefe Depto",
+                      "unidad_negocio": "00003",
+                      "unidad_administrativa": "003",
+                      "doaf": "900",
+                      "num_posicion_gerente": "20235835",
+                      "posicion_director": "10343189",
+                      "subordinados": []
+                    }
+                  ]
+                },
+                {
+                  "departamento": "00303030001",
+                  "descripcion_larga": "Departamento de Procedimientos Penales y Especiales 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20209829",
+                  "posicion_director": "20235833",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00303030002",
+                  "descripcion_larga": "Departamento de Procedimientos Penales y Especiales 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235835",
+                  "posicion_director": "20235833",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "00300010000",
+          "descripcion_larga": "Dirección de Evaluación 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "003",
+          "doaf": "900",
+          "num_posicion_gerente": "10342038",
+          "posicion_director": "20235156",
+          "subordinados": [
+            {
+              "departamento": "00300010100",
+              "descripcion_larga": "Subdirección de Evaluación 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "10302664",
+              "posicion_director": "10342038",
+              "subordinados": [
+                {
+                  "departamento": "00300010101",
+                  "descripcion_larga": "Departamento de Evaluación 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10345966",
+                  "posicion_director": "10302664",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00300010102",
+                  "descripcion_larga": "Departamento de Evaluación 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305765",
+                  "posicion_director": "10302664",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00300010103",
+                  "descripcion_larga": "Departamento de Evaluación 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10345969",
+                  "posicion_director": "10302664",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "00300010104",
+                  "descripcion_larga": "Departamento de Evaluación 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10333967",
+                  "posicion_director": "10302664",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "00300010200",
+              "descripcion_larga": "Subdirección de Evaluación 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "003",
+              "doaf": "900",
+              "num_posicion_gerente": "20235174",
+              "posicion_director": "10342038",
+              "subordinados": [
+                {
+                  "departamento": "00300010201",
+                  "descripcion_larga": "Departamento de Evaluación 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "003",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10343155",
+                  "posicion_director": "20235174",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "00304000000",
+          "descripcion_larga": "Dirección de la Coordinación de Procedimientos Penales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "003",
+          "doaf": "900",
+          "num_posicion_gerente": "20235157",
+          "posicion_director": "20235156",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "300C000000",
+      "descripcion_larga": "Administración Central de Apoyo Jurídico de Recursos y Servicios",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "300",
+      "doaf": "315",
+      "num_posicion_gerente": "10300035",
+      "posicion_director": "10300005",
+      "subordinados": [
+        {
+          "departamento": "300C010000",
+          "descripcion_larga": "Administración de Apoyo Jurídico de Recursos y Servicios 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300555",
+          "posicion_director": "10300035",
+          "subordinados": [
+            {
+              "departamento": "300C010100",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10349103",
+              "posicion_director": "10300555",
+              "subordinados": [
+                {
+                  "departamento": "300C010101",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306687",
+                  "posicion_director": "10349103",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C010102",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10308235",
+                  "posicion_director": "10349103",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C010103",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334572",
+                  "posicion_director": "10349103",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C010104",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10316508",
+                  "posicion_director": "10349103",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300C020000",
+          "descripcion_larga": "Administración de Apoyo Jurídico de Recursos y Servicios 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10304901",
+          "posicion_director": "10300035",
+          "subordinados": [
+            {
+              "departamento": "300C020100",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10349084",
+              "posicion_director": "10304901",
+              "subordinados": [
+                {
+                  "departamento": "300C020101",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334570",
+                  "posicion_director": "10349084",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C020102",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346175",
+                  "posicion_director": "10349084",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C020200",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300932",
+              "posicion_director": "10304901",
+              "subordinados": [
+                {
+                  "departamento": "300C020201",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334575",
+                  "posicion_director": "10300932",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C020202",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334584",
+                  "posicion_director": "10300932",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300C030000",
+          "descripcion_larga": "Administración de Apoyo Jurídico de Recursos y Servicios 3",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300339",
+          "posicion_director": "10300035",
+          "subordinados": [
+            {
+              "departamento": "300C030100",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301412",
+              "posicion_director": "10300339",
+              "subordinados": []
+            },
+            {
+              "departamento": "300C030200",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341880",
+              "posicion_director": "10300339",
+              "subordinados": [
+                {
+                  "departamento": "300C030201",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10301893",
+                  "posicion_director": "10341880",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C030300",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301045",
+              "posicion_director": "10300339",
+              "subordinados": [
+                {
+                  "departamento": "300C030301",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346172",
+                  "posicion_director": "10301045",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C030302",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346178",
+                  "posicion_director": "10301045",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C030303",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334579",
+                  "posicion_director": "10301045",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C030400",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 4",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301063",
+              "posicion_director": "10300339",
+              "subordinados": [
+                {
+                  "departamento": "300C030401",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334576",
+                  "posicion_director": "10301063",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C030500",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 5",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301405",
+              "posicion_director": "10300339",
+              "subordinados": [
+                {
+                  "departamento": "300C030501",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346176",
+                  "posicion_director": "10301405",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C030600",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 6",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10303685",
+              "posicion_director": "10300339",
+              "subordinados": [
+                {
+                  "departamento": "300C030601",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346171",
+                  "posicion_director": "10303685",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C030602",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334569",
+                  "posicion_director": "10303685",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C030700",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 7",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10331996",
+              "posicion_director": "10300339",
+              "subordinados": [
+                {
+                  "departamento": "300C030701",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306775",
+                  "posicion_director": "10331996",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C030702",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304905",
+                  "posicion_director": "10331996",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300C040000",
+          "descripcion_larga": "Administración de Apoyo Jurídico de Recursos y Servicios 4",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300660",
+          "posicion_director": "10300035",
+          "subordinados": [
+            {
+              "departamento": "300C040100",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341858",
+              "posicion_director": "10300660",
+              "subordinados": [
+                {
+                  "departamento": "300C040101",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304906",
+                  "posicion_director": "10341858",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C040102",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10305537",
+                  "posicion_director": "10341858",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C040200",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10323801",
+              "posicion_director": "10300660",
+              "subordinados": [
+                {
+                  "departamento": "300C040201",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346177",
+                  "posicion_director": "10323801",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C040202",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10341958",
+                  "posicion_director": "10323801",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C040203",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346174",
+                  "posicion_director": "10323801",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C040300",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10334580",
+              "posicion_director": "10300660",
+              "subordinados": [
+                {
+                  "departamento": "300C040301",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346173",
+                  "posicion_director": "10334580",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300C050000",
+          "descripcion_larga": "Administración de Apoyo Jurídico de Recursos y Servicios 5",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10301053",
+          "posicion_director": "10300035",
+          "subordinados": [
+            {
+              "departamento": "300C050100",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10304928",
+              "posicion_director": "10301053",
+              "subordinados": [
+                {
+                  "departamento": "300C050101",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303709",
+                  "posicion_director": "10304928",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C050200",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300850",
+              "posicion_director": "10301053",
+              "subordinados": [
+                {
+                  "departamento": "300C050201",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303686",
+                  "posicion_director": "10300850",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C050202",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10305899",
+                  "posicion_director": "10300850",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C050203",
+                  "descripcion_larga": "Departamento de Apoyo Jurídico de Recursos y Servicios 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304045",
+                  "posicion_director": "10300850",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C050300",
+              "descripcion_larga": "Subadministración de Apoyo Jurídico de Recursos y Servicios 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301040",
+              "posicion_director": "10301053",
+              "subordinados": [
+                {
+                  "departamento": "300C050301",
+                  "descripcion_larga": "Departamento de Normatividad",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304228",
+                  "posicion_director": "10301040",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300C060000",
+          "descripcion_larga": "Administración de lo Contencioso",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300413",
+          "posicion_director": "10300035",
+          "subordinados": [
+            {
+              "departamento": "300C060100",
+              "descripcion_larga": "Subadministración de lo Contencioso 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302351",
+              "posicion_director": "10300413",
+              "subordinados": [
+                {
+                  "departamento": "300C060101",
+                  "descripcion_larga": "Departamento de lo Contencioso 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303695",
+                  "posicion_director": "10302351",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300C060200",
+              "descripcion_larga": "Subadministración de lo Contencioso 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300954",
+              "posicion_director": "10300413",
+              "subordinados": [
+                {
+                  "departamento": "300C060201",
+                  "descripcion_larga": "Departamento de lo Contencioso 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304961",
+                  "posicion_director": "10300954",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C060202",
+                  "descripcion_larga": "Departamento de lo Contencioso 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10333964",
+                  "posicion_director": "10300954",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C060203",
+                  "descripcion_larga": "Departamento de lo Contencioso 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10334577",
+                  "posicion_director": "10300954",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C060204",
+                  "descripcion_larga": "Departamento de lo Contencioso 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346327",
+                  "posicion_director": "10300954",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300C060205",
+                  "descripcion_larga": "Departamento de lo Contencioso 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306002",
+                  "posicion_director": "10300954",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300C000001",
+          "descripcion_larga": "Departamento de Control de Gestión",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10346017",
+          "posicion_director": "10300035",
+          "subordinados": []
+        },
+        {
+          "departamento": "300C000002",
+          "descripcion_larga": "Departamento de Correspondencia y Archivo",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10306724",
+          "posicion_director": "10300035",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "300D000000",
+      "descripcion_larga": "Administración Central de Destino de Bienes",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "300",
+      "doaf": "315",
+      "num_posicion_gerente": "10300404",
+      "posicion_director": "10300005",
+      "subordinados": [
+        {
+          "departamento": "300D010000",
+          "descripcion_larga": "Administración de Destino de Bienes 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300297",
+          "posicion_director": "10300404",
+          "subordinados": [
+            {
+              "departamento": "300D010100",
+              "descripcion_larga": "Subadministración Jurídico de Destino de Bienes 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301395",
+              "posicion_director": "10300297",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D010200",
+              "descripcion_larga": "Subadministración Jurídico de Destino de Bienes 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10306746",
+              "posicion_director": "10300297",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D010300",
+              "descripcion_larga": "Subadministración Jurídico de Destino de Bienes 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302224",
+              "posicion_director": "10300297",
+              "subordinados": [
+                {
+                  "departamento": "300D010301",
+                  "descripcion_larga": "Departamento Jurídico de Destino de Bienes 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10333800",
+                  "posicion_director": "10302224",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300D020000",
+          "descripcion_larga": "Administración de Destino de Bienes 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300156",
+          "posicion_director": "10300404",
+          "subordinados": [
+            {
+              "departamento": "300D020100",
+              "descripcion_larga": "Subadministración de Proyectos y Evaluación de Servicios",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10333818",
+              "posicion_director": "10300156",
+              "subordinados": [
+                {
+                  "departamento": "300D020101",
+                  "descripcion_larga": "Departamento de Proyectos y Evaluación de Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10343411",
+                  "posicion_director": "10333818",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300D020102",
+                  "descripcion_larga": "Departamento de Proyectos y Evaluación de Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10333766",
+                  "posicion_director": "10333818",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300D030000",
+          "descripcion_larga": "Administración para el Destino de Bienes 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10322435",
+          "posicion_director": "10300404",
+          "subordinados": [
+            {
+              "departamento": "300D030100",
+              "descripcion_larga": "Subadministración de Asignaciones, Donaciones y Destrucciones 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302612",
+              "posicion_director": "10322435",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D030200",
+              "descripcion_larga": "Subadministración de Asignaciones, Donaciones y Destrucciones 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10333785",
+              "posicion_director": "10322435",
+              "subordinados": [
+                {
+                  "departamento": "300D030201",
+                  "descripcion_larga": "Departamento de Análisis, Transferencia y Retiro de Bienes 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10333794",
+                  "posicion_director": "10333785",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300D030300",
+              "descripcion_larga": "Subadministración de Asignaciones, Donaciones y Destrucciones 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301042",
+              "posicion_director": "10322435",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "300D040000",
+          "descripcion_larga": "Administración para el Destino de Bienes 3",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10333713",
+          "posicion_director": "10300404",
+          "subordinados": [
+            {
+              "departamento": "300D040100",
+              "descripcion_larga": "Subadministración de Análisis, Transferencia y Retiro de Bienes 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302034",
+              "posicion_director": "10333713",
+              "subordinados": [
+                {
+                  "departamento": "300D040101",
+                  "descripcion_larga": "Departamento de Análisis, Transferencia y Retiro de Bienes 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10333774",
+                  "posicion_director": "10302034",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300D000200",
+          "descripcion_larga": "Subadministración de Proyectos para el Control de Bienes 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10341893",
+          "posicion_director": "10300404",
+          "subordinados": [
+            {
+              "departamento": "300D000202",
+              "descripcion_larga": "Departamento de Implementación y Optimización de Controles de Bienes 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10343412",
+              "posicion_director": "10341893",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D000205",
+              "descripcion_larga": "Departamento de Implementación y Optimización de Controles de Bienes 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10333782",
+              "posicion_director": "10341893",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D000201",
+              "descripcion_larga": "Departamento de Proyectos para el Control de Bienes 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10333786",
+              "posicion_director": "10341893",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D000203",
+              "descripcion_larga": "Departamento de Proyectos para el Control de Bienes 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10333753",
+              "posicion_director": "10341893",
+              "subordinados": []
+            },
+            {
+              "departamento": "300D000204",
+              "descripcion_larga": "Departamento de Proyectos para el Control de Bienes 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10333769",
+              "posicion_director": "10341893",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "300D000100",
+          "descripcion_larga": "Subadministración de Seguimiento y Control de Gestión 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10333777",
+          "posicion_director": "10300404",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "300B000000",
+      "descripcion_larga": "Administración Central de Recursos Financieros",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "300",
+      "doaf": "315",
+      "num_posicion_gerente": "10300033",
+      "posicion_director": "10300005",
+      "subordinados": [
+        {
+          "departamento": "300B060000",
+          "descripcion_larga": "Administración de Planeación y  Programación de Viáticos y  Pasajes",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300318",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B060200",
+              "descripcion_larga": "Subadministración de Planeación y  Programación de Viáticos y  Pasajes",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10334527",
+              "posicion_director": "10300318",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B060100",
+              "descripcion_larga": "Subadministración de Planeación y  Programación de Viáticos y  Pasajes 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300985",
+              "posicion_director": "10300318",
+              "subordinados": [
+                {
+                  "departamento": "300B060103",
+                  "descripcion_larga": "Departamento de Análisis y Seguimiento de Viáticos y Pasajes 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306087",
+                  "posicion_director": "10300985",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B060101",
+                  "descripcion_larga": "Departamento de Análisis y  Seguimiento de Viáticos y Pasajes 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10342987",
+                  "posicion_director": "10300985",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B060102",
+                  "descripcion_larga": "Departamento de Análisis y  Seguimiento de Viáticos y Pasajes 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304851",
+                  "posicion_director": "10300985",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B060104",
+                  "descripcion_larga": "Departamento de Análisis y  Seguimiento de Viáticos y Pasajes 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303692",
+                  "posicion_director": "10300985",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B060105",
+                  "descripcion_larga": "Departamento de Análisis y  Seguimiento de Viáticos y Pasajes 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304033",
+                  "posicion_director": "10300985",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300B070000",
+          "descripcion_larga": "Administración de Planeación y  Programas Especiales 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300124",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B070300",
+              "descripcion_larga": "Subadministración de Planeación y Programas Especiales 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301072",
+              "posicion_director": "10300124",
+              "subordinados": [
+                {
+                  "departamento": "300B070301",
+                  "descripcion_larga": "Departamento de Planeación y Programas Especiales 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303680",
+                  "posicion_director": "10301072",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B070100",
+              "descripcion_larga": "Subadministración de Planeación y  Programas Especiales 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300969",
+              "posicion_director": "10300124",
+              "subordinados": [
+                {
+                  "departamento": "300B070101",
+                  "descripcion_larga": "Departamento de Planeación y  Programas Especiales 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10302358",
+                  "posicion_director": "10300969",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B070200",
+              "descripcion_larga": "Subadministración de Planeación y  Programas Especiales 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341817",
+              "posicion_director": "10300124",
+              "subordinados": [
+                {
+                  "departamento": "300B070201",
+                  "descripcion_larga": "Departamento de Planeación y  Programas Especiales 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10341871",
+                  "posicion_director": "10341817",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300B020000",
+          "descripcion_larga": "Administración de Recursos Financieros 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10301678",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B020800",
+              "descripcion_larga": "Subadministración de Fondos Financieros",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341857",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020801",
+                  "descripcion_larga": "Departamento de Fondos Financieros 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10346026",
+                  "posicion_director": "10341857",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020802",
+                  "descripcion_larga": "Departamento de Fondos Financieros 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "20230330",
+                  "posicion_director": "10341857",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B020300",
+              "descripcion_larga": "Subadministración de Fondos Financieros 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301062",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020302",
+                  "descripcion_larga": "Departamento de Control Bancario 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304414",
+                  "posicion_director": "10301062",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020303",
+                  "descripcion_larga": "Departamento de Control Bancario 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303715",
+                  "posicion_director": "10301062",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020301",
+                  "descripcion_larga": "Departamento de Fondos Financieros 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306861",
+                  "posicion_director": "10301062",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B020600",
+              "descripcion_larga": "Subadministración de Pagos Externos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301037",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020601",
+                  "descripcion_larga": "Departamento de Pagos Externos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304189",
+                  "posicion_director": "10301037",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B020700",
+              "descripcion_larga": "Subadministración de Pagos Externos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300216",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020701",
+                  "descripcion_larga": "Departamento de Pagos Externos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10305288",
+                  "posicion_director": "10300216",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020702",
+                  "descripcion_larga": "Departamento de Pagos Externos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306375",
+                  "posicion_director": "10300216",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020703",
+                  "descripcion_larga": "Departamento de Pagos Externos 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10341889",
+                  "posicion_director": "10300216",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B021000",
+              "descripcion_larga": "Subadministración de Pagos Externos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302300",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B021001",
+                  "descripcion_larga": "Departamento de Pagos Externos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303701",
+                  "posicion_director": "10302300",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B021002",
+                  "descripcion_larga": "Departamento de Pagos Externos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304401",
+                  "posicion_director": "10302300",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B021100",
+              "descripcion_larga": "Subadministración de Pagos Externos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302356",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B021101",
+                  "descripcion_larga": "Departamento de Pagos Externos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10341890",
+                  "posicion_director": "10302356",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B020100",
+              "descripcion_larga": "Subadministración de Pagos Externos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10342005",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020101",
+                  "descripcion_larga": "Departamento de Pagos Externos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10345932",
+                  "posicion_director": "10342005",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020102",
+                  "descripcion_larga": "Departamento de Pagos Externos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303657",
+                  "posicion_director": "10342005",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020103",
+                  "descripcion_larga": "Departamento de Pagos Externos 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304399",
+                  "posicion_director": "10342005",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B020200",
+              "descripcion_larga": "Subadministración de Pagos Externos 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301065",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020201",
+                  "descripcion_larga": "Departamento de Pagos Externos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304397",
+                  "posicion_director": "10301065",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020202",
+                  "descripcion_larga": "Departamento de Pagos Externos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10306490",
+                  "posicion_director": "10301065",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020203",
+                  "descripcion_larga": "Departamento de Pagos Externos 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303659",
+                  "posicion_director": "10301065",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020204",
+                  "descripcion_larga": "Departamento de Pagos Externos 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10305505",
+                  "posicion_director": "10301065",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020205",
+                  "descripcion_larga": "Departamento de Pagos Externos 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10302309",
+                  "posicion_director": "10301065",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B020206",
+                  "descripcion_larga": "Departamento de Pagos Externos 6",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10341869",
+                  "posicion_director": "10301065",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B021200",
+              "descripcion_larga": "Subadministración de Pagos Externos 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10343451",
+              "posicion_director": "10301678",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B020400",
+              "descripcion_larga": "Subadministración de Pagos Externos 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10346121",
+              "posicion_director": "10301678",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B021300",
+              "descripcion_larga": "Subadministración de Pagos Externos 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10302365",
+              "posicion_director": "10301678",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B020500",
+              "descripcion_larga": "Subadministración de Pagos Internos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10304798",
+              "posicion_director": "10301678",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B020900",
+              "descripcion_larga": "Subadministración de Pagos Internos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10342036",
+              "posicion_director": "10301678",
+              "subordinados": [
+                {
+                  "departamento": "300B020901",
+                  "descripcion_larga": "Departamento de Pago de Viáticos y  Pasajes",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10343404",
+                  "posicion_director": "10342036",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300B030000",
+          "descripcion_larga": "Administración de Recursos Financieros 3",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10318583",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B030100",
+              "descripcion_larga": "Subadministración de Estados Financieros y  Otros Informes 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300300",
+              "posicion_director": "10318583",
+              "subordinados": [
+                {
+                  "departamento": "300B030101",
+                  "descripcion_larga": "Departamento de Estados Financieros y Otros Informes 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10301415",
+                  "posicion_director": "10300300",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B030102",
+                  "descripcion_larga": "Departamento de Estados Financieros y Otros Informes 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304848",
+                  "posicion_director": "10300300",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B030103",
+                  "descripcion_larga": "Departamento de Normatividad Contable y  Cuenta Pública 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304965",
+                  "posicion_director": "10300300",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B030400",
+              "descripcion_larga": "Subadministración de Estudios de Costos 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341851",
+              "posicion_director": "10318583",
+              "subordinados": [
+                {
+                  "departamento": "300B030401",
+                  "descripcion_larga": "Departamento de Estudios de Costos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304400",
+                  "posicion_director": "10341851",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B030402",
+                  "descripcion_larga": "Departamento de Estudios de Costos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303723",
+                  "posicion_director": "10341851",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B030403",
+                  "descripcion_larga": "Departamento de Estudios de Costos 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10331290",
+                  "posicion_director": "10341851",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B030404",
+                  "descripcion_larga": "Departamento de Estudios de Costos 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10327144",
+                  "posicion_director": "10341851",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B030500",
+              "descripcion_larga": "Subadministración de Glosa Financiera",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301220",
+              "posicion_director": "10318583",
+              "subordinados": [
+                {
+                  "departamento": "300B030501",
+                  "descripcion_larga": "Departamento de Glosa de Cuentas a Pagar",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10305222",
+                  "posicion_director": "10301220",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300B040000",
+          "descripcion_larga": "Administración de Recursos Financieros 4",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10306387",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B040500",
+              "descripcion_larga": "Subadministración de Fideicomisos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300817",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040501",
+                  "descripcion_larga": "Departamento de Aplicación de Recursos de Fideicomisos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304854",
+                  "posicion_director": "10300817",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040502",
+                  "descripcion_larga": "Departamento de Ingresos e Inversiones de Fideicomisos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10335454",
+                  "posicion_director": "10300817",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040200",
+              "descripcion_larga": "Subadministración de Fideicomisos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341995",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040201",
+                  "descripcion_larga": "Departamento de Aplicación de Recursos de Fideicomisos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303664",
+                  "posicion_director": "10341995",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040202",
+                  "descripcion_larga": "Departamento de Ingresos e Inversiones de Fideicomisos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304841",
+                  "posicion_director": "10341995",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040800",
+              "descripcion_larga": "Subadministración de Gestión y Evaluación Financiera de Proyectos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300288",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040801",
+                  "descripcion_larga": "Departamento de Gestión y Evaluación Financiera de Proyectos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10302304",
+                  "posicion_director": "10300288",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040802",
+                  "descripcion_larga": "Departamento de Gestión y Evaluación Financiera de Proyectos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304403",
+                  "posicion_director": "10300288",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040803",
+                  "descripcion_larga": "Departamento de Gestión y Evaluación Financiera de Proyectos 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10345958",
+                  "posicion_director": "10300288",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040804",
+                  "descripcion_larga": "Departamento de Gestión y Evaluación Financiera de Proyectos 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10342988",
+                  "posicion_director": "10300288",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040300",
+              "descripcion_larga": "Subadministración de Gestión y  Evaluación Financiera de Proyectos 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10343378",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040301",
+                  "descripcion_larga": "Departamento de Gestión y  Evaluación Financiera de Proyectos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10304887",
+                  "posicion_director": "10343378",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040302",
+                  "descripcion_larga": "Departamento de Gestión y  Evaluación Financiera de Proyectos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10330763",
+                  "posicion_director": "10343378",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040600",
+              "descripcion_larga": "Subadministración de Seguimiento y Control Financiero de Fideicomisos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300742",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040601",
+                  "descripcion_larga": "Departamento de Seguimiento y Control Financiero de Fideicomisos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303711",
+                  "posicion_director": "10300742",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040700",
+              "descripcion_larga": "Subadministración de Seguimiento y Control Financiero de Fideicomisos 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301894",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040701",
+                  "descripcion_larga": "Departamento de Seguimiento y Control Financiero de Fideicomisos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10341856",
+                  "posicion_director": "10301894",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "300B040702",
+                  "descripcion_larga": "Departamento de Seguimiento y Control Financiero de Fideicomisos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10303713",
+                  "posicion_director": "10301894",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040400",
+              "descripcion_larga": "Subadministración de Seguimiento y  Control Financiero de Fideicomisos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10349102",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040401",
+                  "descripcion_larga": "Departamento de Seguimiento y  Control Financiero de Fideicomisos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10310397",
+                  "posicion_director": "10349102",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "300B040900",
+              "descripcion_larga": "Subadministración de Seguimiento y  Control Financiero de Fideicomisos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10301120",
+              "posicion_director": "10306387",
+              "subordinados": [
+                {
+                  "departamento": "300B040901",
+                  "descripcion_larga": "Departamento de Seguimiento y  Control Financiero de Fideicomisos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00003",
+                  "unidad_administrativa": "300",
+                  "doaf": "315",
+                  "num_posicion_gerente": "10342986",
+                  "posicion_director": "10301120",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "300B050000",
+          "descripcion_larga": "Administración de Recursos Financieros 5",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300180",
+          "posicion_director": "10300033",
+          "subordinados": []
+        },
+        {
+          "departamento": "300B000200",
+          "descripcion_larga": "Subadministración de Normatividad y  Procesos Financieros",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10342008",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B000201",
+              "descripcion_larga": "Departamento de Normatividad y  Procesos Financieros 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10300328",
+              "posicion_director": "10342008",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B000202",
+              "descripcion_larga": "Departamento de Normatividad y  Procesos Financieros 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341872",
+              "posicion_director": "10342008",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "300B000100",
+          "descripcion_larga": "Subadministración de Seguimiento y  Control de Gestión 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10301241",
+          "posicion_director": "10300033",
+          "subordinados": [
+            {
+              "departamento": "300B000101",
+              "descripcion_larga": "Departamento de Control de Gestión 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10341870",
+              "posicion_director": "10301241",
+              "subordinados": []
+            },
+            {
+              "departamento": "300B000102",
+              "descripcion_larga": "Departamento de Correspondencia y  Archivo",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "300",
+              "doaf": "315",
+              "num_posicion_gerente": "10304946",
+              "posicion_director": "10301241",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "3000010000",
+      "descripcion_larga": "Administración de Gestión Interna 1",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "300",
+      "doaf": "315",
+      "num_posicion_gerente": "10300146",
+      "posicion_director": "10300005",
+      "subordinados": [
+        {
+          "departamento": "3000010500",
+          "descripcion_larga": "Subadministración de Gestión Interna",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10300738",
+          "posicion_director": "10300146",
+          "subordinados": []
+        },
+        {
+          "departamento": "3000010200",
+          "descripcion_larga": "Subadministración de Seguimiento y  Control de Gestión 2",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10301201",
+          "posicion_director": "10300146",
+          "subordinados": []
+        },
+        {
+          "departamento": "3000010001",
+          "descripcion_larga": "Departamento de Control de Gestión 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10301838",
+          "posicion_director": "10300146",
+          "subordinados": []
+        },
+        {
+          "departamento": "3000010003",
+          "descripcion_larga": "Departamento de Control de Gestión 3",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10304410",
+          "posicion_director": "10300146",
+          "subordinados": []
+        },
+        {
+          "departamento": "3000010004",
+          "descripcion_larga": "Departamento de Correspondencia y  Archivo 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10302754",
+          "posicion_director": "10300146",
+          "subordinados": []
+        },
+        {
+          "departamento": "3000010005",
+          "descripcion_larga": "Departamento de Correspondencia y  Archivo 2",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10333808",
+          "posicion_director": "10300146",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "293F040000",
+      "descripcion_larga": "Administración de Operación de Recursos y Servicios 4",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "293",
+      "doaf": "315",
+      "num_posicion_gerente": "10300573",
+      "posicion_director": "10301185",
+      "subordinados": [
+        {
+          "departamento": "299F040200",
+          "descripcion_larga": "Subadministración de Recursos y Servicios de Tuxtla Gutiérrez, con sede en Chiapas",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "299",
+          "doaf": "299",
+          "num_posicion_gerente": "10300935",
+          "posicion_director": "10300573",
+          "subordinados": [
+            {
+              "departamento": "299F040202",
+              "descripcion_larga": "Departamento de Bienes y Servicios",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "299",
+              "doaf": "299",
+              "num_posicion_gerente": "10304885",
+              "posicion_director": "10300935",
+              "subordinados": []
+            },
+            {
+              "departamento": "299F040203",
+              "descripcion_larga": "Departamento de Destino de Bienes 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "299",
+              "doaf": "299",
+              "num_posicion_gerente": "10342395",
+              "posicion_director": "10300935",
+              "subordinados": []
+            },
+            {
+              "departamento": "299F040205",
+              "descripcion_larga": "Departamento de Servicios Financieros",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "299",
+              "doaf": "299",
+              "num_posicion_gerente": "10306686",
+              "posicion_director": "10300935",
+              "subordinados": []
+            },
+            {
+              "departamento": "299F040204",
+              "descripcion_larga": "Departamento de Servicios al Personal",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "299",
+              "doaf": "299",
+              "num_posicion_gerente": "10304886",
+              "posicion_director": "10300935",
+              "subordinados": []
+            },
+            {
+              "departamento": "299F040201",
+              "descripcion_larga": "Departamento de Servicios de Módulo de Tapachula",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "299",
+              "doaf": "299",
+              "num_posicion_gerente": "10303650",
+              "posicion_director": "10300935",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "296F090000",
+      "descripcion_larga": "Administración de Operación de Recursos y Servicios 9",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "296",
+      "doaf": "296",
+      "num_posicion_gerente": "10302354",
+      "posicion_director": "10301185",
+      "subordinados": [
+        {
+          "departamento": "296F090200",
+          "descripcion_larga": "Subadministración de Bienes y Servicios",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10305992",
+          "posicion_director": "10302354",
+          "subordinados": [
+            {
+              "departamento": "296F090203",
+              "descripcion_larga": "Departamento de Administración y Mantenimiento de Inmuebles 7",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "296",
+              "doaf": "296",
+              "num_posicion_gerente": "10304810",
+              "posicion_director": "10305992",
+              "subordinados": []
+            },
+            {
+              "departamento": "296F090201",
+              "descripcion_larga": "Departamento de Adquisiciones y Abastecimiento",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "296",
+              "doaf": "296",
+              "num_posicion_gerente": "10312694",
+              "posicion_director": "10305992",
+              "subordinados": []
+            },
+            {
+              "departamento": "296F090202",
+              "descripcion_larga": "Departamento de Servicios Generales",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "296",
+              "doaf": "296",
+              "num_posicion_gerente": "10300888",
+              "posicion_director": "10305992",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "296F090300",
+          "descripcion_larga": "Subadministración de Servicios Financieros",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10342322",
+          "posicion_director": "10302354",
+          "subordinados": [
+            {
+              "departamento": "296F090301",
+              "descripcion_larga": "Departamento de Cuentas por Pagar 7",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "296",
+              "doaf": "296",
+              "num_posicion_gerente": "10312309",
+              "posicion_director": "10342322",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "296F090100",
+          "descripcion_larga": "Subadministración de Servicios al Personal",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10300846",
+          "posicion_director": "10302354",
+          "subordinados": [
+            {
+              "departamento": "296F090101",
+              "descripcion_larga": "Departamento de Gestión de Servicios",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "296",
+              "doaf": "296",
+              "num_posicion_gerente": "10305484",
+              "posicion_director": "10300846",
+              "subordinados": []
+            },
+            {
+              "departamento": "296F090102",
+              "descripcion_larga": "Departamento de Selección y Contratación",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "296",
+              "doaf": "296",
+              "num_posicion_gerente": "10342325",
+              "posicion_director": "10300846",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "296F090004",
+          "descripcion_larga": "Departamento de Destino de Bienes 7",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10312340",
+          "posicion_director": "10302354",
+          "subordinados": []
+        },
+        {
+          "departamento": "296F090002",
+          "descripcion_larga": "Departamento de Módulo de Mexicali",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10342323",
+          "posicion_director": "10302354",
+          "subordinados": []
+        },
+        {
+          "departamento": "296F090001",
+          "descripcion_larga": "Departamento de Presencias 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10341996",
+          "posicion_director": "10302354",
+          "subordinados": []
+        },
+        {
+          "departamento": "296F090003",
+          "descripcion_larga": "Departamento de Presencias 2",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "296",
+          "doaf": "296",
+          "num_posicion_gerente": "10308134",
+          "posicion_director": "10302354",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "201G050000",
+      "descripcion_larga": "Administración del Ciclo de Capital Humano 5",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "201",
+      "doaf": "317",
+      "num_posicion_gerente": "10300197",
+      "posicion_director": "10300211",
+      "subordinados": [
+        {
+          "departamento": "201G050300",
+          "descripcion_larga": "Subadministración de Planeación y Ejecución de la Formación",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "201",
+          "doaf": "317",
+          "num_posicion_gerente": "10343457",
+          "posicion_director": "10300197",
+          "subordinados": [
+            {
+              "departamento": "201G050302",
+              "descripcion_larga": "Departamento de Planeación de la Formación",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "201",
+              "doaf": "317",
+              "num_posicion_gerente": "10334588",
+              "posicion_director": "10343457",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "201G050100",
+          "descripcion_larga": "Subadministración del Centro de Formación Tributaria y de Comercio Exterior",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "201",
+          "doaf": "317",
+          "num_posicion_gerente": "10301057",
+          "posicion_director": "10300197",
+          "subordinados": [
+            {
+              "departamento": "201G050101",
+              "descripcion_larga": "Departamento de Operación de la Formación 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "201",
+              "doaf": "317",
+              "num_posicion_gerente": "10302574",
+              "posicion_director": "10301057",
+              "subordinados": []
+            },
+            {
+              "departamento": "201G050102",
+              "descripcion_larga": "Departamento de Operación de la Formación 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "201",
+              "doaf": "317",
+              "num_posicion_gerente": "10346316",
+              "posicion_director": "10301057",
+              "subordinados": []
+            },
+            {
+              "departamento": "201G050103",
+              "descripcion_larga": "Departamento de Operación de la Formación 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00003",
+              "unidad_administrativa": "201",
+              "doaf": "317",
+              "num_posicion_gerente": "10331031",
+              "posicion_director": "10301057",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "3000000100",
+      "descripcion_larga": "Subadministración de Gestión Interna",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "300",
+      "doaf": "315",
+      "num_posicion_gerente": "10301881",
+      "posicion_director": "10300005",
+      "subordinados": [
+        {
+          "departamento": "3000000101",
+          "descripcion_larga": "Departamento de Gestión Interna 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10341855",
+          "posicion_director": "10301881",
+          "subordinados": []
+        },
+        {
+          "departamento": "3000000102",
+          "descripcion_larga": "Departamento de Gestión Interna 2",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "300",
+          "doaf": "315",
+          "num_posicion_gerente": "10304839",
+          "posicion_director": "10301881",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "11503010100",
+      "descripcion_larga": "Subadministración de Operación Aduanera",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "115",
+      "doaf": "900",
+      "num_posicion_gerente": "(en blanco)",
+      "posicion_director": "(en blanco)",
+      "subordinados": []
+    },
+    {
+      "departamento": "295F070600",
+      "descripcion_larga": "Subadministración de Recursos y Servicios de Aguascalientes, con sede en Aguascalientes",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "295",
+      "doaf": "295",
+      "num_posicion_gerente": "10300911",
+      "posicion_director": "10306365",
+      "subordinados": [
+        {
+          "departamento": "295F070603",
+          "descripcion_larga": "Departamento de Bienes y Servicios",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10304869",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070608",
+          "descripcion_larga": "Departamento de Coordinación de Presencias",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10333740",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070604",
+          "descripcion_larga": "Departamento de Destino de Bienes 3",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10342407",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070609",
+          "descripcion_larga": "Departamento de Destino de Bienes 4",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10343262",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070605",
+          "descripcion_larga": "Departamento de Servicios Financieros",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10320186",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070601",
+          "descripcion_larga": "Departamento de Servicios al Personal",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10304870",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070607",
+          "descripcion_larga": "Departamento de Servicios de Módulo de León",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10328328",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070602",
+          "descripcion_larga": "Departamento de Servicios de Módulo de San Luis Potosí",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10304820",
+          "posicion_director": "10300911",
+          "subordinados": []
+        },
+        {
+          "departamento": "295F070606",
+          "descripcion_larga": "Departamento de Servicios de Módulo de Zacatecas",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "295",
+          "doaf": "295",
+          "num_posicion_gerente": "10320189",
+          "posicion_director": "10300911",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "298F070700",
+      "descripcion_larga": "Subadministración de Recursos y Servicios de Colima, con sede en Colima",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "298",
+      "doaf": "298",
+      "num_posicion_gerente": "10301074",
+      "posicion_director": "10306365",
+      "subordinados": [
+        {
+          "departamento": "298F070702",
+          "descripcion_larga": "Departamento de Bienes y Servicios",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "298",
+          "doaf": "298",
+          "num_posicion_gerente": "10342421",
+          "posicion_director": "10301074",
+          "subordinados": []
+        },
+        {
+          "departamento": "298F070703",
+          "descripcion_larga": "Departamento de Destino de Bienes 3",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "298",
+          "doaf": "298",
+          "num_posicion_gerente": "10312366",
+          "posicion_director": "10301074",
+          "subordinados": []
+        },
+        {
+          "departamento": "298F070704",
+          "descripcion_larga": "Departamento de Servicios Financieros",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "298",
+          "doaf": "298",
+          "num_posicion_gerente": "10306535",
+          "posicion_director": "10301074",
+          "subordinados": []
+        },
+        {
+          "departamento": "298F070701",
+          "descripcion_larga": "Departamento de Servicios al Personal",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "298",
+          "doaf": "298",
+          "num_posicion_gerente": "10303649",
+          "posicion_director": "10301074",
+          "subordinados": []
+        },
+        {
+          "departamento": "298F070705",
+          "descripcion_larga": "Departamento de Servicios de Módulo de Manzanillo",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00003",
+          "unidad_administrativa": "298",
+          "doaf": "298",
+          "num_posicion_gerente": "10328249",
+          "posicion_director": "10301074",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "11503010200",
+      "descripcion_larga": "Subadministración de Vigilancia y Control",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "115",
+      "doaf": "900",
+      "num_posicion_gerente": "(en blanco)",
+      "posicion_director": "(en blanco)",
+      "subordinados": []
+    },
+    {
+      "departamento": "3000000001",
+      "descripcion_larga": "Departamento de Control de Gestión",
+      "nivel_direccion": "Jefe Depto",
+      "unidad_negocio": "00003",
+      "unidad_administrativa": "300",
+      "doaf": "315",
+      "num_posicion_gerente": "10342833",
+      "posicion_director": "10300005",
+      "subordinados": []
+    }
+  ]
+}

@@ -1,0 +1,274 @@
+{
+  "departamento": "30000000000",
+  "descripcion_larga": "Dirección General de Atención Aduanera y Asuntos Internacionales",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00300",
+  "unidad_administrativa": "300",
+  "doaf": "900",
+  "num_posicion_gerente": "20238254",
+  "posicion_director": "10300009",
+  "subordinados": [
+    {
+      "departamento": "30001000000",
+      "descripcion_larga": "Dirección de Atención Aduanera y Asuntos Internacionales 1",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00300",
+      "unidad_administrativa": "300",
+      "doaf": "900",
+      "num_posicion_gerente": "20235814",
+      "posicion_director": "20238254",
+      "subordinados": [
+        {
+          "departamento": "30001000100",
+          "descripcion_larga": "Subdirección de Atención Aduanera y Asuntos Internacionales 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "10301073",
+          "posicion_director": "20235814",
+          "subordinados": [
+            {
+              "departamento": "30001000101",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10341887",
+              "posicion_director": "10301073",
+              "subordinados": []
+            },
+            {
+              "departamento": "30001000102",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10302956",
+              "posicion_director": "10301073",
+              "subordinados": []
+            },
+            {
+              "departamento": "30001000103",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10304680",
+              "posicion_director": "10301073",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "30002000000",
+      "descripcion_larga": "Dirección de Atención Aduanera y Asuntos Internacionales 2",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00300",
+      "unidad_administrativa": "300",
+      "doaf": "900",
+      "num_posicion_gerente": "20235711",
+      "posicion_director": "20238254",
+      "subordinados": [
+        {
+          "departamento": "30002000100",
+          "descripcion_larga": "Subdirección de Atención Aduanera y Asuntos Internacionales 2",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "20235581",
+          "posicion_director": "20235711",
+          "subordinados": [
+            {
+              "departamento": "30002000101",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 4",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10301933",
+              "posicion_director": "20235581",
+              "subordinados": []
+            },
+            {
+              "departamento": "30002000102",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 5",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10304691",
+              "posicion_director": "20235581",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "30002000200",
+          "descripcion_larga": "Subdirección de Atención Aduanera y Asuntos Internacionales 3",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "10302630",
+          "posicion_director": "20235711",
+          "subordinados": [
+            {
+              "departamento": "30002000201",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 6",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10302959",
+              "posicion_director": "10302630",
+              "subordinados": []
+            },
+            {
+              "departamento": "30002000202",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 7",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "20211255",
+              "posicion_director": "10302630",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "30003000000",
+      "descripcion_larga": "Dirección de Atención Aduanera y Asuntos Internacionales 3",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00300",
+      "unidad_administrativa": "300",
+      "doaf": "900",
+      "num_posicion_gerente": "20235817",
+      "posicion_director": "20238254",
+      "subordinados": [
+        {
+          "departamento": "30003000100",
+          "descripcion_larga": "Subdirección de Atención Aduanera y Asuntos Internacionales 4",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "20207565",
+          "posicion_director": "20235817",
+          "subordinados": [
+            {
+              "departamento": "30003000102",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 8",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10343154",
+              "posicion_director": "20207565",
+              "subordinados": []
+            },
+            {
+              "departamento": "30003000101",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 9",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "20231255",
+              "posicion_director": "20207565",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "30003000200",
+          "descripcion_larga": "Subdirección de Atención Aduanera y Asuntos Internacionales 5",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "10300810",
+          "posicion_director": "20235817",
+          "subordinados": [
+            {
+              "departamento": "30003000201",
+              "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 10",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00300",
+              "unidad_administrativa": "300",
+              "doaf": "900",
+              "num_posicion_gerente": "10333804",
+              "posicion_director": "10300810",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "30000010000",
+      "descripcion_larga": "Dirección 1 en la Dirección General de Atención Aduanera y Asuntos Internacionales",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00300",
+      "unidad_administrativa": "300",
+      "doaf": "900",
+      "num_posicion_gerente": "20235110",
+      "posicion_director": "20238254",
+      "subordinados": [
+        {
+          "departamento": "30000010001",
+          "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 11",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "10303441",
+          "posicion_director": "20235110",
+          "subordinados": []
+        },
+        {
+          "departamento": "30000010002",
+          "descripcion_larga": "Departamento de Atención Aduanera y Asuntos Internacionales 12",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00300",
+          "unidad_administrativa": "300",
+          "doaf": "900",
+          "num_posicion_gerente": "10304669",
+          "posicion_director": "20235110",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "30000020000",
+      "descripcion_larga": "Dirección 2 en la Dirección General de Atención Aduanera de Asuntos Internacionales",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00300",
+      "unidad_administrativa": "300",
+      "doaf": "900",
+      "num_posicion_gerente": "10300576",
+      "posicion_director": "20238254",
+      "subordinados": []
+    },
+    {
+      "departamento": "30000000100",
+      "descripcion_larga": "Subdirección de Atención Aduanera y Asuntos Internacionales 6",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00300",
+      "unidad_administrativa": "300",
+      "doaf": "900",
+      "num_posicion_gerente": "10349089",
+      "posicion_director": "20238254",
+      "subordinados": []
+    }
+  ]
+}

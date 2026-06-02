@@ -1,0 +1,20 @@
+Bienvenido al manual de usuario del sistema Eje Central de la Agencia Nacional de Aduanas de México.
+
+En la pantalla inicial encontrará una vista general y el botón Iniciar Sesión.
+Al seleccionarlo, accede al formulario de ingreso.
+
+Ingrese su correo institucional con dominio arroba anam punto gob punto mx.
+El sistema valida el correo y envía un código de verificación de seis dígitos.
+Escriba el código en el panel lateral para confirmar su identidad.
+
+Después de verificar, entrará al dashboard principal.
+Aquí verá tarjetas con indicadores estratégicos y accesos a módulos de análisis.
+
+En Vacantes por nivel, consulte la distribución de estatus de nómina mediante gráficas.
+Use esta vista para identificar niveles con mayor demanda de seguimiento.
+
+En Ocupación por Oficios, cambie entre la vista de Diagrama y la vista de Tabla.
+Además, aplique filtros por oficio, utilice la búsqueda y revise el contador de plazas para obtener una lectura precisa.
+
+Cuando termine, regrese al dashboard y use Cerrar Sesión para proteger su cuenta.
+Eje Central centraliza la operación con un flujo seguro, claro y eficiente.

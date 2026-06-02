@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movimientos Preview</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-slate-950 w-[1920px] h-[1080px] overflow-hidden select-none">
+  
+  <!-- Root Stage Container for HyperFrames -->
+  <div id="stage" data-composition-id="movimientos-preview" data-width="1920" data-height="1080" data-start="0" data-duration="5" class="relative overflow-hidden w-full h-full bg-slate-950">
+
+    <!-- Camera Wrapper (For zooms/pans) -->
+    <div id="camera" class="w-full h-full bg-[#0f172a] text-white font-sans p-16 flex flex-col justify-between relative">
+    
+    <!-- Decorative background grid -->
+    <div class="absolute inset-0 bg-[radial-gradient(#ffffff0a_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none"></div>
+    
+    <!-- Top Header -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-6 relative z-10">
+      <div>
+        <span class="text-[#bc955c] font-black tracking-widest text-lg uppercase block">MÓDULO DE GESTIÓN</span>
+        <h1 class="text-5xl font-black tracking-tight text-white mt-1">Gestión de Movimientos (Oficios DO)</h1>
+      </div>
+      <div class="flex items-center gap-3 bg-[#621f32]/25 border border-[#621f32]/50 px-5 py-2.5 rounded-full">
+        <span class="w-3.5 h-3.5 rounded-full bg-[#bc955c] animate-pulse"></span>
+        <span class="text-xl font-bold text-slate-200">Seguimiento de Oficio</span>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-grow py-12 relative z-10 flex flex-col justify-center gap-10">
+      <!-- Title box representing official document tracking -->
+      <div id="oficio-box" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center max-w-2xl mx-auto shadow-xl">
+        <span class="text-xs text-slate-500 font-mono block">FOLIO DE OFICIO REGISTRADO</span>
+        <h3 class="text-2xl font-black text-slate-100 font-mono mt-1">OFICIO-ANAM-DG-2026-0045</h3>
+        <p class="text-xs text-slate-400 font-medium mt-2">Plaza Relacionada: PL-0489 Jefe de Departamento</p>
+      </div>
+
+      <!-- Horizontal Workflow timeline -->
+      <div class="grid grid-cols-4 gap-4 max-w-5xl w-full mx-auto relative pt-6">
+        
+        <!-- Background connector bar -->
+        <div class="absolute top-[52px] left-12 right-12 h-[3px] bg-slate-800 -z-10">
+          <div id="timeline-connector" class="bg-gradient-to-r from-emerald-500 to-amber-500 h-full w-[33%]"></div>
+        </div>
+
+        <div id="step-1" class="flex flex-col items-center gap-3 text-center">
+          <div class="circle w-14 h-14 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xl border-4 border-slate-900 shadow-xl">
+            ✓
+          </div>
+          <div>
+            <h4 class="text-base font-black text-slate-200">Registro</h4>
+            <p class="text-[10px] text-slate-500 font-mono mt-0.5">Control Gestión</p>
+          </div>
+        </div>
+
+        <div id="step-2" class="flex flex-col items-center gap-3 text-center">
+          <div id="step-2-circle" class="circle w-14 h-14 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-black text-xl border-4 border-slate-900 shadow-xl transition-all duration-300">
+            2
+          </div>
+          <div>
+            <h4 id="step-2-text" class="text-base font-black text-slate-400">Validación</h4>
+            <p class="text-[10px] text-slate-500 font-mono mt-0.5">Finanzas / Presupuesto</p>
+          </div>
+        </div>
+
+        <div id="step-3" class="flex flex-col items-center gap-3 text-center">
+          <div id="step-3-circle" class="circle w-14 h-14 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-black text-xl border-4 border-slate-900 shadow-xl transition-all duration-300">
+            3
+          </div>
+          <div>
+            <h4 id="step-3-text" class="text-base font-black text-slate-400">Dictamen DO</h4>
+            <p class="text-[10px] text-slate-500 font-mono mt-0.5">Organización</p>
+          </div>
+        </div>
+
+        <div id="step-4" class="flex flex-col items-center gap-3 text-center">
+          <div class="circle w-14 h-14 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center font-black text-xl border-4 border-slate-900 shadow-xl">
+            4
+          </div>
+          <div>
+            <h4 class="text-base font-black text-slate-400">Aplicación</h4>
+            <p class="text-[10px] text-slate-500 font-mono mt-0.5">Roster Activo</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="flex justify-between items-center text-sm font-mono text-slate-500 pt-6 border-t border-slate-800 relative z-10">
+      <span>EjeCentral v1.2.0</span>
+      <span>Control de Plazas ANAM</span>
+    </div>
+
+    <!-- Cursor pointer simulator (Placed inside #camera to pan and scale with it) -->
+    <div id="cursor" class="absolute pointer-events-none z-50" style="left: 0px; top: 0px;">
+      <svg class="w-12 h-12 fill-[#bc955c] stroke-slate-950 stroke-[2px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" viewBox="0 0 24 24">
+        <path d="M4.5 3v15.2l3.8-3.8 2.9 6.8 2.6-1.1-2.9-6.8 5.3-.3z" />
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Set cursor start position
+    tl.set("#cursor", { x: 960, y: 100, scale: 1 }, 0);
+
+    // Initial Camera Zoom-in on the Oficio Box
+    tl.fromTo("#camera", 
+      { scale: 1.02, x: 0, y: 0, transformOrigin: "center center" },
+      { scale: 1.25, x: 0, y: 100, duration: 1.0, ease: "power2.out" }, 
+      0
+    );
+
+    // Entrance
+    tl.from("#oficio-box", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, 0.2);
+    tl.from(".circle", { scale: 0.8, opacity: 0, stagger: 0.15, duration: 0.6, ease: "back.out(1.5)" }, 0.5);
+
+    // Cursor tracks to step-2 circle
+    tl.to("#cursor", { x: 740, y: 640, duration: 0.9, ease: "power2.inOut" }, 0.6);
+    // Click action
+    tl.to("#cursor", { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1 }, 1.5);
+
+    // Pan camera to follow timeline progress
+    tl.to("#camera", { scale: 1.15, x: -80, y: -60, duration: 1.5, ease: "power3.inOut" }, 1.6);
+
+    // Timeline progress animation (t=1.6)
+    tl.to("#timeline-connector", { width: "66%", duration: 1.2, ease: "power3.inOut" }, 1.6);
+    tl.to("#step-2-circle", {
+      backgroundColor: "#10b981",
+      color: "#0f172a",
+      innerHTML: "✓",
+      duration: 0.4,
+      ease: "power2.out"
+    }, 2.1);
+    tl.to("#step-2-text", { color: "#e2e8f0", duration: 0.4 }, 2.1);
+
+    // Cursor tracks to step-3 circle
+    tl.to("#cursor", { x: 990, y: 640, duration: 0.8, ease: "power2.inOut" }, 2.2);
+
+    // Active pending node animation (t=2.8)
+    tl.to("#step-3-circle", {
+      backgroundColor: "#d97706",
+      color: "#0f172a",
+      duration: 0.4,
+      ease: "power2.out"
+    }, 2.8);
+    tl.to("#step-3-text", { color: "#e2e8f0", duration: 0.4 }, 2.8);
+
+    // Pulsing shadow on current step
+    tl.to("#step-3-circle", {
+      boxShadow: "0 0 35px 8px rgba(217, 119, 6, 0.5)",
+      repeat: 3,
+      yoyo: true,
+      duration: 0.5
+    }, 3.2);
+
+    // Move cursor out and final camera settle
+    tl.to("#cursor", { x: 1800, y: 900, duration: 0.8, ease: "power2.in" }, 4.0);
+    tl.to("#camera", { scale: 1.04, x: -10, y: -10, duration: 1.0, ease: "power2.inOut" }, 4.0);
+
+    window.__timelines["movimientos-preview"] = tl;
+  </script>
+</body>
+</html>

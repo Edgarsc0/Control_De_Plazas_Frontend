@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infraestructura Preview</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-slate-950 w-[1920px] h-[1080px] overflow-hidden select-none">
+  
+  <!-- Root Stage Container for HyperFrames -->
+  <div id="stage" data-composition-id="infraestructura-preview" data-width="1920" data-height="1080" data-start="0" data-duration="5" class="relative overflow-hidden w-full h-full bg-slate-950">
+
+    <!-- Camera Wrapper (For zooms/pans) -->
+    <div id="camera" class="w-full h-full bg-[#0f172a] text-white font-sans p-16 flex flex-col justify-between relative">
+    
+    <!-- Decorative background grid -->
+    <div class="absolute inset-0 bg-[radial-gradient(#ffffff0a_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none"></div>
+    
+    <!-- Top Header -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-6 relative z-10">
+      <div>
+        <span class="text-emerald-400 font-black tracking-widest text-lg uppercase block">INFRAESTRUCTURA DE RED</span>
+        <h1 class="text-5xl font-black tracking-tight text-white mt-1">Conectividad e Integración del Sistema</h1>
+      </div>
+      <div class="flex items-center gap-3 bg-emerald-950/25 border border-emerald-800/50 px-5 py-2.5 rounded-full">
+        <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xl font-bold text-slate-200">En Línea</span>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-grow py-8 relative z-10 flex flex-col gap-6 max-w-4xl mx-auto w-full justify-center">
+      
+      <!-- API Monitor Panel -->
+      <div id="api-panel" class="bg-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+        <h3 class="text-lg font-black text-slate-200 uppercase tracking-wider border-b border-slate-800 pb-3">Estado de APIs REST</h3>
+        
+        <div class="flex flex-col gap-3 font-mono">
+          <div class="api-item flex items-center justify-between text-base bg-slate-950/50 border border-slate-900 px-4 py-3 rounded-xl transition-all duration-300">
+            <span class="text-slate-300">GET /api/plantilla/resumen/</span>
+            <span class="status-badge text-emerald-400 bg-emerald-950/50 border border-emerald-900/30 px-3 py-1 rounded font-bold text-sm">200 OK · 42ms</span>
+          </div>
+          
+          <div id="api-post-item" class="api-item flex items-center justify-between text-base bg-slate-950/50 border border-slate-900 px-4 py-3 rounded-xl transition-all duration-300">
+            <span class="text-slate-300">POST /api/movimientos/oficio/</span>
+            <span class="status-badge text-emerald-400 bg-emerald-950/50 border border-emerald-900/30 px-3 py-1 rounded font-bold text-sm">201 Created · 65ms</span>
+          </div>
+
+          <div class="api-item flex items-center justify-between text-base bg-slate-950/50 border border-slate-900 px-4 py-3 rounded-xl">
+            <span class="text-slate-300">GET /api/presupuesto/valuacion/</span>
+            <span class="status-badge text-emerald-400 bg-emerald-950/50 border border-emerald-900/30 px-3 py-1 rounded font-bold text-sm">200 OK · 38ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Topology Map -->
+      <div id="topology-map" class="flex justify-between items-center bg-slate-900/40 border border-slate-800/60 rounded-xl px-12 py-5 text-center mt-2 relative">
+        <div id="node-db" class="node relative p-2 rounded-lg transition-all duration-300">
+          <span class="text-[9px] text-slate-500 block">BASE DE DATOS</span>
+          <span class="text-sm font-black text-slate-200 font-mono">PostgreSQL</span>
+          <div class="ping absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></div>
+        </div>
+        <div class="line flex-1 h-[2px] bg-slate-800 mx-4 relative overflow-hidden">
+          <div class="pulse-beam bg-emerald-400 h-full w-[20%] absolute top-0 -left-[20%]"></div>
+        </div>
+        <div id="node-back" class="node relative p-2 rounded-lg transition-all duration-300">
+          <span class="text-[9px] text-slate-500 block">BACKEND</span>
+          <span class="text-sm font-black text-[#bc955c] font-mono">Django REST</span>
+          <div class="ping absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></div>
+        </div>
+        <div class="line flex-1 h-[2px] bg-slate-800 mx-4 relative overflow-hidden">
+          <div class="pulse-beam bg-[#bc955c] h-full w-[20%] absolute top-0 -left-[20%]"></div>
+        </div>
+        <div id="node-front" class="node relative p-2 rounded-lg transition-all duration-300">
+          <span class="text-[9px] text-slate-500 block">FRONTEND</span>
+          <span class="text-sm font-black text-[#621f32] font-mono">React Next.js</span>
+          <div class="ping absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="flex justify-between items-center text-sm font-mono text-slate-500 pt-6 border-t border-slate-800 relative z-10">
+      <span>EjeCentral v1.2.0</span>
+      <span>Control de Plazas ANAM</span>
+    </div>
+
+    <!-- Cursor pointer simulator (Placed inside #camera to pan and scale with it) -->
+    <div id="cursor" class="absolute pointer-events-none z-50" style="left: 0px; top: 0px;">
+      <svg class="w-12 h-12 fill-[#bc955c] stroke-slate-950 stroke-[2px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" viewBox="0 0 24 24">
+        <path d="M4.5 3v15.2l3.8-3.8 2.9 6.8 2.6-1.1-2.9-6.8 5.3-.3z" />
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Set cursor start position
+    tl.set("#cursor", { x: 100, y: 800, scale: 1 }, 0);
+
+    // Initial Camera Zoom-in on API monitor
+    tl.fromTo("#camera", 
+      { scale: 1.02, x: 0, y: 0, transformOrigin: "center center" },
+      { scale: 1.2, x: 0, y: 90, duration: 1.0, ease: "power2.out" }, 
+      0
+    );
+
+    // Entrance
+    tl.from("#api-panel", { y: -20, opacity: 0, duration: 0.8, ease: "power2.out" }, 0.2);
+    tl.from(".api-item", { x: -30, opacity: 0, stagger: 0.15, duration: 0.6, ease: "power2.out" }, 0.5);
+    tl.from("#topology-map", { y: 20, opacity: 0, duration: 0.8, ease: "power2.out" }, 1.0);
+
+    // Cursor tracks to POST api item
+    tl.to("#cursor", { x: 920, y: 390, duration: 0.8, ease: "power2.inOut" }, 0.6);
+    // Click action
+    tl.to("#cursor", { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1 }, 1.4);
+
+    // Highlight API item on click
+    tl.to("#api-post-item", {
+      backgroundColor: "rgba(16, 185, 129, 0.1)",
+      borderColor: "#10b981",
+      scale: 1.02,
+      duration: 0.3,
+      yoyo: true,
+      repeat: 1
+    }, 1.5);
+
+    // Pan camera down to topology map
+    tl.to("#camera", { scale: 1.15, x: 0, y: -90, duration: 1.5, ease: "power3.inOut" }, 1.6);
+
+    // Cursor tracks down to Django REST node
+    tl.to("#cursor", { x: 960, y: 720, duration: 0.9, ease: "power2.inOut" }, 1.8);
+    // Click action
+    tl.to("#cursor", { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1 }, 2.7);
+
+    // Pulse node-back on click
+    tl.to("#node-back", {
+      boxShadow: "0 0 20px 2px rgba(188, 149, 92, 0.3)",
+      scale: 1.05,
+      duration: 0.3,
+      yoyo: true,
+      repeat: 1
+    }, 2.8);
+
+    // Pulse beam animation
+    const beams = document.querySelectorAll(".pulse-beam");
+    beams.forEach((el, idx) => {
+      tl.to(el, {
+        left: "100%",
+        duration: 1.2,
+        repeat: 2,
+        ease: "power1.inOut"
+      }, 1.6 + (idx * 0.4));
+    });
+
+    // Move cursor out and final camera settle
+    tl.to("#cursor", { x: 1800, y: 900, duration: 0.8, ease: "power2.in" }, 3.8);
+    tl.to("#camera", { scale: 1.04, x: -10, y: -10, duration: 1.0, ease: "power2.inOut" }, 3.8);
+
+    window.__timelines["infraestructura-preview"] = tl;
+  </script>
+</body>
+</html>

@@ -1,0 +1,584 @@
+{
+  "departamento": "20000000000",
+  "descripcion_larga": "Dirección General de Investigación Aduanera",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00200",
+  "unidad_administrativa": "200",
+  "doaf": "900",
+  "num_posicion_gerente": "10300078",
+  "posicion_director": "10300009",
+  "subordinados": [
+    {
+      "departamento": "20002000000",
+      "descripcion_larga": "Dirección de Investigación Aduanera 2",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "20235171",
+      "posicion_director": "10300078",
+      "subordinados": [
+        {
+          "departamento": "20002010000",
+          "descripcion_larga": "Dirección 1 en la Dirección de Investigación Aduanera 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20235173",
+          "posicion_director": "20235171",
+          "subordinados": [
+            {
+              "departamento": "20002010005",
+              "descripcion_larga": "Departamento de Investigación Aduanera 10",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10317771",
+              "posicion_director": "20235173",
+              "subordinados": []
+            },
+            {
+              "departamento": "20002010001",
+              "descripcion_larga": "Departamento de Investigación Aduanera 6",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20231253",
+              "posicion_director": "20235173",
+              "subordinados": []
+            },
+            {
+              "departamento": "20002010002",
+              "descripcion_larga": "Departamento de Investigación Aduanera 7",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10318239",
+              "posicion_director": "20235173",
+              "subordinados": []
+            },
+            {
+              "departamento": "20002010003",
+              "descripcion_larga": "Departamento de Investigación Aduanera 8",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20235592",
+              "posicion_director": "20235173",
+              "subordinados": []
+            },
+            {
+              "departamento": "20002010004",
+              "descripcion_larga": "Departamento de Investigación Aduanera 9",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20235591",
+              "posicion_director": "20235173",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "20002060000",
+          "descripcion_larga": "Dirección de Investigación Aduanera 6",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20236524",
+          "posicion_director": "10300078",
+          "subordinados": []
+        },
+        {
+          "departamento": "20002000100",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 3",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10300550",
+          "posicion_director": "20235171",
+          "subordinados": [
+            {
+              "departamento": "20002000101",
+              "descripcion_larga": "Departamento de Investigación Aduanera 11",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10343135",
+              "posicion_director": "10300550",
+              "subordinados": []
+            },
+            {
+              "departamento": "20002000102",
+              "descripcion_larga": "Departamento de Investigación Aduanera 12",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20235848",
+              "posicion_director": "10300550",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "20003000000",
+      "descripcion_larga": "Dirección de Investigación Aduanera 3",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "20235250",
+      "posicion_director": "10300078",
+      "subordinados": [
+        {
+          "departamento": "20003000100",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 7",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20235672",
+          "posicion_director": "10300078",
+          "subordinados": [
+            {
+              "departamento": "20003000101",
+              "descripcion_larga": "Departamento de Análisis de Valor por Subvaluación 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20235058",
+              "posicion_director": "20235672",
+              "subordinados": []
+            },
+            {
+              "departamento": "20003000102",
+              "descripcion_larga": "Departamento de Análisis de Valor por Subvaluación 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10305765",
+              "posicion_director": "20235672",
+              "subordinados": []
+            },
+            {
+              "departamento": "20003000103",
+              "descripcion_larga": "Departamento de Análisis de Valor por Subvaluación 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20231242",
+              "posicion_director": "20235672",
+              "subordinados": []
+            },
+            {
+              "departamento": "20003000105",
+              "descripcion_larga": "Departamento de Control de Mensajería y Paquetería",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10345945",
+              "posicion_director": "20235672",
+              "subordinados": []
+            },
+            {
+              "departamento": "20003000104",
+              "descripcion_larga": "Departamento de Enlace Administrativo",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10345966",
+              "posicion_director": "20235672",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "20000010000",
+      "descripcion_larga": "Dirección 1 en la Dirección General de Investigación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "10345852",
+      "posicion_director": "10300078",
+      "subordinados": [
+        {
+          "departamento": "20000010001",
+          "descripcion_larga": "Departamento de Investigación Aduanera 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20235590",
+          "posicion_director": "20235250",
+          "subordinados": []
+        },
+        {
+          "departamento": "20000010002",
+          "descripcion_larga": "Departamento de Investigación Aduanera 2",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20231242",
+          "posicion_director": "20235250",
+          "subordinados": []
+        },
+        {
+          "departamento": "20000010003",
+          "descripcion_larga": "Departamento de Investigación Aduanera 3",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20233667",
+          "posicion_director": "20235250",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "20000020000",
+      "descripcion_larga": "Dirección 2 en la Dirección General de Investigación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "10300940",
+      "posicion_director": "10300078",
+      "subordinados": []
+    },
+    {
+      "departamento": "20000030000",
+      "descripcion_larga": "Dirección 3 en la Dirección General de Investigación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "10300594",
+      "posicion_director": "10300078",
+      "subordinados": []
+    },
+    {
+      "departamento": "20000040000",
+      "descripcion_larga": "Dirección 4 en la Dirección General de Investigación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "10300154",
+      "posicion_director": "10300078",
+      "subordinados": []
+    },
+    {
+      "departamento": "20000060000",
+      "descripcion_larga": "Dirección 6 en la Dirección General de Investigación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "20235744",
+      "posicion_director": "10300078",
+      "subordinados": []
+    },
+    {
+      "departamento": "20001000000",
+      "descripcion_larga": "Dirección de Investigación Aduanera 1",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "20235077",
+      "posicion_director": "10300078",
+      "subordinados": [
+        {
+          "departamento": "20001000100",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10301309",
+          "posicion_director": "20235077",
+          "subordinados": []
+        },
+        {
+          "departamento": "20001000200",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 2",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10302667",
+          "posicion_director": "20235077",
+          "subordinados": []
+        },
+        {
+          "departamento": "20001000001",
+          "descripcion_larga": "Departamento de Investigación Aduanera 4",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10345955",
+          "posicion_director": "20235077",
+          "subordinados": []
+        },
+        {
+          "departamento": "20001000002",
+          "descripcion_larga": "Departamento de Investigación Aduanera 5",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20233648",
+          "posicion_director": "20235077",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "20004000000",
+      "descripcion_larga": "Dirección de Investigación Aduanera 4",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "10345863",
+      "posicion_director": "10300078",
+      "subordinados": [
+        {
+          "departamento": "20004000001",
+          "descripcion_larga": "Departamento de Investigación Aduanera 13",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10345964",
+          "posicion_director": "10345863",
+          "subordinados": []
+        },
+        {
+          "departamento": "20004000002",
+          "descripcion_larga": "Departamento de Investigación Aduanera 14",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10330472",
+          "posicion_director": "10345863",
+          "subordinados": []
+        },
+        {
+          "departamento": "20004000003",
+          "descripcion_larga": "Departamento de Investigación Aduanera 15",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20233666",
+          "posicion_director": "10345863",
+          "subordinados": []
+        },
+        {
+          "departamento": "20004000004",
+          "descripcion_larga": "Departamento de Investigación Aduanera 16",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10343146",
+          "posicion_director": "10345863",
+          "subordinados": []
+        },
+        {
+          "departamento": "20004000005",
+          "descripcion_larga": "Departamento de Investigación Aduanera 17",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10343144",
+          "posicion_director": "10345863",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "20005000000",
+      "descripcion_larga": "Dirección de Investigación Aduanera 5",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00200",
+      "unidad_administrativa": "200",
+      "doaf": "900",
+      "num_posicion_gerente": "10300289",
+      "posicion_director": "10300078",
+      "subordinados": [
+        {
+          "departamento": "20005000100",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 4",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10301298",
+          "posicion_director": "10300289",
+          "subordinados": [
+            {
+              "departamento": "20005000101",
+              "descripcion_larga": "Departamento de Investigación Aduanera 18",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10303479",
+              "posicion_director": "10301298",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000102",
+              "descripcion_larga": "Departamento de Investigación Aduanera 19",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20206116",
+              "posicion_director": "10301298",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000103",
+              "descripcion_larga": "Departamento de Investigación Aduanera 20",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10304812",
+              "posicion_director": "10301298",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000104",
+              "descripcion_larga": "Departamento de Investigación Aduanera 21",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10306320",
+              "posicion_director": "10301298",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "20005000200",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 5",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "20235762",
+          "posicion_director": "10300289",
+          "subordinados": [
+            {
+              "departamento": "20005000201",
+              "descripcion_larga": "Departamento de Investigación Aduanera 22",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10345951",
+              "posicion_director": "20235762",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000202",
+              "descripcion_larga": "Departamento de Investigación Aduanera 23",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "20233655",
+              "posicion_director": "20235762",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000203",
+              "descripcion_larga": "Departamento de Investigación Aduanera 24",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10304202",
+              "posicion_director": "20235762",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000204",
+              "descripcion_larga": "Departamento de Investigación Aduanera 25",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10304685",
+              "posicion_director": "20235762",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000205",
+              "descripcion_larga": "Departamento de Investigación Aduanera 26",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10324574",
+              "posicion_director": "20235762",
+              "subordinados": []
+            },
+            {
+              "departamento": "20005000206",
+              "descripcion_larga": "Departamento de Investigación Aduanera 27",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00200",
+              "unidad_administrativa": "200",
+              "doaf": "900",
+              "num_posicion_gerente": "10342819",
+              "posicion_director": "20235762",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "20005000300",
+          "descripcion_larga": "Subdirección de Investigación Aduanera 6",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00200",
+          "unidad_administrativa": "200",
+          "doaf": "900",
+          "num_posicion_gerente": "10349155",
+          "posicion_director": "10300289",
+          "subordinados": []
+        }
+      ]
+    }
+  ]
+}

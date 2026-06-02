@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plazas Preview</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-slate-950 w-[1920px] h-[1080px] overflow-hidden select-none">
+  
+  <!-- Root Stage Container for HyperFrames -->
+  <div id="stage" data-composition-id="plazas-preview" data-width="1920" data-height="1080" data-start="0" data-duration="5" class="relative overflow-hidden w-full h-full bg-slate-950">
+    
+    <!-- Camera Wrapper (For zooms/pans) -->
+    <div id="camera" class="w-full h-full bg-[#0f172a] text-white font-sans p-16 flex flex-col justify-between relative">
+      
+      <!-- Decorative background grid -->
+      <div class="absolute inset-0 bg-[radial-gradient(#ffffff0a_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none"></div>
+      
+      <!-- Top Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-6 relative z-10">
+        <div>
+          <span class="text-[#bc955c] font-black tracking-widest text-lg uppercase block">MÓDULO OPERATIVO</span>
+          <h1 class="text-5xl font-black tracking-tight text-white mt-1">Control y Ocupación de Plazas</h1>
+        </div>
+        <div id="sync-badge" class="flex items-center gap-3 bg-[#621f32]/25 border border-[#621f32]/50 px-5 py-2.5 rounded-full">
+          <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-xl font-bold text-slate-200">Sincronizado</span>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="grid grid-cols-12 gap-8 flex-1 py-10 relative z-10">
+        <!-- Left side: KPI Cards and progress (7 cols) -->
+        <div class="col-span-7 flex flex-col justify-between gap-6">
+          <div class="grid grid-cols-3 gap-6">
+            <div id="card-1" class="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-6 rounded-2xl shadow-xl">
+              <span class="text-slate-400 text-sm font-bold uppercase tracking-wider block">Total Plazas</span>
+              <strong class="text-5xl font-black text-white block mt-3">1,800</strong>
+              <span class="text-xs text-slate-500 mt-2 block font-medium">Autorizadas ANAM</span>
+            </div>
+            
+            <div id="card-2" class="relative bg-slate-900/60 backdrop-blur-md border border-slate-800 p-6 rounded-2xl shadow-xl transition-all duration-300">
+              <!-- Dynamic Indicator Badge (appears on click) -->
+              <div id="kpi-indicator" class="absolute -top-4 -right-2 bg-emerald-500 text-slate-950 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-lg opacity-0 scale-50 transition-all">
+                +12 Plazas
+              </div>
+              <span class="text-slate-400 text-sm font-bold uppercase tracking-wider block">Ocupadas</span>
+              <strong class="text-5xl font-black text-emerald-400 block mt-3">1,420</strong>
+              <span class="text-xs text-emerald-600 mt-2 block font-bold">78.8% del total</span>
+            </div>
+            
+            <div id="card-3" class="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-6 rounded-2xl shadow-xl">
+              <span class="text-slate-400 text-sm font-bold uppercase tracking-wider block">Vacantes</span>
+              <strong class="text-5xl font-black text-amber-500 block mt-3">380</strong>
+              <span class="text-xs text-amber-500/70 mt-2 block font-bold">21.2% disponible</span>
+            </div>
+          </div>
+
+          <!-- Progress Section -->
+          <div id="progress-container" class="bg-slate-900/50 backdrop-blur-md border border-slate-800 p-8 rounded-2xl shadow-xl">
+            <div class="flex justify-between items-center text-lg font-bold text-slate-300 mb-3 px-1">
+              <span>Ocupación de Plazas</span>
+              <span class="text-emerald-400">78.8% Completado</span>
+            </div>
+            <div class="w-full bg-slate-950 h-5 rounded-full overflow-hidden flex border border-slate-800">
+              <div id="progress-bar" class="bg-gradient-to-r from-[#621f32] to-emerald-500 h-full" style="width: 78.8%"></div>
+              <div class="bg-amber-500/80 h-full" style="width: 21.2%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right side: Recent Actions table (5 cols) -->
+        <div id="table-card" class="col-span-5 bg-slate-900/60 backdrop-blur-md border border-slate-800 p-8 rounded-2xl shadow-xl flex flex-col justify-between">
+          <div>
+            <h3 class="text-xl font-black text-slate-100 tracking-tight mb-6">Últimos Cambios en Plantilla</h3>
+            <div class="flex flex-col gap-4 font-mono text-sm">
+              
+              <div class="row-item relative flex items-center justify-between border-b border-slate-800/80 pb-3">
+                <!-- Dynamic Row Indicator Badge (appears on click) -->
+                <div id="row-indicator" class="absolute -left-36 top-1/2 -translate-y-1/2 bg-[#bc955c] text-slate-950 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-md opacity-0 scale-50">
+                  REGISTRADA
+                </div>
+                <span class="text-slate-300">PL-0489 · Jefe Depto</span>
+                <span class="text-emerald-400 bg-emerald-950/50 border border-emerald-900/30 px-3 py-1 rounded-md font-bold text-xs uppercase">Ocupada</span>
+              </div>
+              
+              <div class="row-item flex items-center justify-between border-b border-slate-800/80 pb-3">
+                <span class="text-slate-300">PL-1202 · Subdirector</span>
+                <span class="text-amber-400 bg-amber-950/50 border border-amber-900/30 px-3 py-1 rounded-md font-bold text-xs uppercase">Vacante</span>
+              </div>
+              
+              <div class="row-item flex items-center justify-between pb-1">
+                <span class="text-slate-300">PL-0155 · Enlace Adm</span>
+                <span class="text-emerald-400 bg-emerald-950/50 border border-emerald-900/30 px-3 py-1 rounded-md font-bold text-xs uppercase">Ocupada</span>
+              </div>
+              
+            </div>
+          </div>
+          <div class="text-xs text-slate-500 font-mono text-right mt-4">Actualizado hace unos instantes</div>
+        </div>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="flex justify-between items-center text-sm font-mono text-slate-500 pt-6 border-t border-slate-800 relative z-10">
+        <span>EjeCentral v1.2.0</span>
+        <span>Control de Plazas ANAM</span>
+      </div>
+
+      <!-- Cursor pointer simulator (Placed inside #camera to pan and scale with it) -->
+      <div id="cursor" class="absolute pointer-events-none z-50" style="left: 0px; top: 0px;">
+        <svg class="w-12 h-12 fill-[#bc955c] stroke-slate-950 stroke-[2px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" viewBox="0 0 24 24">
+          <path d="M4.5 3v15.2l3.8-3.8 2.9 6.8 2.6-1.1-2.9-6.8 5.3-.3z" />
+        </svg>
+      </div>
+
+      <!-- Click Ripple Effect -->
+      <div id="click-ripple" class="absolute pointer-events-none z-50 rounded-full border-2 border-emerald-400 bg-emerald-400/20 shadow-[0_0_15px_rgba(16,185,129,0.5)]" style="width: 40px; height: 40px; left: 0px; top: 0px; opacity: 0;"></div>
+
+    </div>
+  </div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Set cursor start position (inside camera space)
+    tl.set("#cursor", { x: 1400, y: 800, scale: 1 }, 0);
+    tl.set("#click-ripple", { opacity: 0, scale: 0, xPercent: -50, yPercent: -50 }, 0);
+    tl.set("#kpi-indicator", { opacity: 0, scale: 0.5, y: 10 }, 0);
+    tl.set("#row-indicator", { opacity: 0, scale: 0.5, x: -10 }, 0);
+
+    // 1. Initial drift/pan (0.0s -> 0.6s)
+    tl.fromTo("#camera", 
+      { scale: 1.02, x: 0, y: 0, transformOrigin: "center center" },
+      { scale: 1.08, x: 40, y: 20, duration: 0.6, ease: "power2.out" }, 
+      0
+    );
+
+    // Card entrances (0.2s onwards)
+    tl.from("#card-1", { y: 40, opacity: 0, scale: 0.9, duration: 0.8, ease: "back.out(1.5)" }, 0.2);
+    tl.from("#card-2", { y: 40, opacity: 0, scale: 0.9, duration: 0.8, ease: "back.out(1.5)" }, 0.35);
+    tl.from("#card-3", { y: 40, opacity: 0, scale: 0.9, duration: 0.8, ease: "back.out(1.5)" }, 0.5);
+
+    // 2. Cursor moves to card-2 (Ocupadas KPI) AND camera zooms in close to it (0.6s -> 1.4s)
+    // Zoom is deeper (1.55 instead of 1.35) and displacement is faster (0.8s instead of 1.1s)
+    tl.to("#cursor", { x: 500, y: 320, duration: 0.8, ease: "power3.inOut" }, 0.6);
+    tl.to("#camera", { scale: 1.55, x: 380, y: 240, duration: 0.8, ease: "power2.inOut" }, 0.6);
+
+    // 3. Click action at 1.4s
+    tl.to("#cursor", { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1 }, 1.4);
+    
+    // Highlight, glow, indicator and scale card-2 on click (at 1.5s)
+    tl.to("#card-2", { 
+      borderColor: "#10b981", 
+      boxShadow: "0 0 45px 12px rgba(16, 185, 129, 0.45)", 
+      scale: 1.06, 
+      duration: 0.3, 
+      ease: "power2.out" 
+    }, 1.5);
+
+    tl.to("#kpi-indicator", {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.4,
+      ease: "back.out(1.8)"
+    }, 1.5);
+
+    // Click ripple effect
+    tl.set("#click-ripple", { left: 500, top: 320, scale: 0, opacity: 1, xPercent: -50, yPercent: -50 }, 1.5);
+    tl.to("#click-ripple", { scale: 2.5, opacity: 0, duration: 0.5, ease: "power2.out" }, 1.5);
+
+    // Progress bar and table card entrance
+    tl.from("#progress-container", { y: 30, opacity: 0, duration: 0.8, ease: "power3.out" }, 1.5);
+    tl.from("#progress-bar", { width: 0, duration: 1.2, ease: "power4.inOut" }, 1.7);
+    tl.from("#table-card", { x: 50, opacity: 0, duration: 0.8, ease: "expo.out" }, 1.7);
+    tl.from("[data-composition-id=\"plazas-preview\"] .row-item", { opacity: 0, x: 20, stagger: 0.1, duration: 0.5, ease: "power2.out" }, 1.9);
+
+    // 4. Cursor moves to table card first row AND camera zooms in close to it (1.9s -> 2.5s)
+    // Translation is faster (0.6s instead of 1.1s) and zoom is deeper (1.5 instead of 1.3)
+    tl.to("#cursor", { x: 1350, y: 430, duration: 0.6, ease: "power3.inOut" }, 1.9);
+    tl.to("#camera", { scale: 1.5, x: -480, y: 110, duration: 0.6, ease: "power2.inOut" }, 1.9);
+
+    // 5. Click action at 2.5s
+    tl.to("#cursor", { scale: 0.85, duration: 0.1, yoyo: true, repeat: 1 }, 2.5);
+    
+    // Highlight table row and show row indicator on click (at 2.6s)
+    tl.to("[data-composition-id=\"plazas-preview\"] .row-item:first-child", { 
+      backgroundColor: "rgba(16, 185, 129, 0.15)", 
+      borderColor: "rgba(16, 185, 129, 0.4)",
+      duration: 0.3, 
+      ease: "power2.out" 
+    }, 2.6);
+
+    tl.to("#row-indicator", {
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      duration: 0.4,
+      ease: "back.out(1.8)"
+    }, 2.6);
+
+    // Click ripple effect
+    tl.set("#click-ripple", { left: 1350, top: 430, scale: 0, opacity: 1, xPercent: -50, yPercent: -50 }, 2.6);
+    tl.to("#click-ripple", { scale: 2.5, opacity: 0, duration: 0.5, ease: "power2.out" }, 2.6);
+
+    // 6. Cursor moves out AND camera zooms out to wide angle (3.2s -> 4.0s)
+    tl.to("#cursor", { x: 1800, y: 900, duration: 0.8, ease: "power2.in" }, 3.2);
+    tl.to("#camera", { scale: 1.0, x: 0, y: 0, duration: 0.8, ease: "power2.inOut" }, 3.2);
+
+    // 7. Final Fade out to black (4.3s -> 4.8s)
+    tl.to("#stage", { opacity: 0, duration: 0.5, ease: "power2.in" }, 4.3);
+
+    window.__timelines["plazas-preview"] = tl;
+  </script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plantilla Preview</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-slate-950 w-[1920px] h-[1080px] overflow-hidden select-none">
+  
+  <!-- Root Stage Container for HyperFrames -->
+  <div id="stage" data-composition-id="plantilla-preview" data-width="1920" data-height="1080" data-start="0" data-duration="5" class="relative overflow-hidden w-full h-full bg-slate-950">
+
+    <!-- Camera Wrapper (For zooms/pans) -->
+    <div id="camera" class="w-full h-full bg-[#0f172a] text-white font-sans p-16 flex flex-col justify-between relative">
+      
+      <!-- Decorative background grid -->
+      <div class="absolute inset-0 bg-[radial-gradient(#ffffff0a_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none"></div>
+      
+      <!-- Top Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-6 relative z-10">
+        <div>
+          <span class="text-blue-400 font-black tracking-widest text-lg uppercase block">MÓDULO DE RRHH</span>
+          <h1 class="text-5xl font-black tracking-tight text-white mt-1">Plantilla de Personal y Empleados</h1>
+        </div>
+        <div class="flex items-center gap-3 bg-blue-950/25 border border-blue-800/50 px-5 py-2.5 rounded-full">
+          <span class="w-3.5 h-3.5 rounded-full bg-blue-400 animate-pulse"></span>
+          <span class="text-xl font-bold text-slate-200">Roster Activo</span>
+        </div>
+      </div>
+
+      <!-- Main Content Area -->
+      <div class="flex-grow py-8 relative z-10 flex flex-col gap-6 justify-center">
+        
+        <!-- KPI stats row -->
+        <div id="kpi-row" class="grid grid-cols-3 gap-6 max-w-4xl mx-auto w-full">
+          <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between shadow-lg">
+            <div>
+              <span class="text-xs text-slate-500 font-mono uppercase block">Total Plantilla</span>
+              <strong class="text-3xl font-black text-slate-200 block mt-1">1,420</strong>
+            </div>
+            <span class="text-2xl bg-blue-950/40 p-2.5 rounded-xl text-blue-400">👥</span>
+          </div>
+          <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between shadow-lg">
+            <div>
+              <span class="text-xs text-slate-500 font-mono uppercase block">Altas Nuevas</span>
+              <strong class="text-3xl font-black text-emerald-400 block mt-1">+14</strong>
+            </div>
+            <span class="text-2xl bg-emerald-950/40 p-2.5 rounded-xl text-emerald-400">📈</span>
+          </div>
+          <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-2xl flex items-center justify-between shadow-lg">
+            <div>
+              <span class="text-xs text-slate-500 font-mono uppercase block">Bajas Registradas</span>
+              <strong class="text-3xl font-black text-rose-400 block mt-1">-8</strong>
+            </div>
+            <span class="text-2xl bg-rose-950/40 p-2.5 rounded-xl text-rose-400">📉</span>
+          </div>
+        </div>
+
+        <!-- Search Mock Bar -->
+        <div id="search-container" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-center justify-between shadow-xl max-w-4xl mx-auto w-full">
+          <div class="flex items-center gap-3 flex-grow max-w-xl">
+            <span class="text-slate-500 font-mono text-2xl">🔍</span>
+            <div id="search-input" class="text-2xl font-mono text-slate-300 font-medium h-8 flex items-center">
+              <!-- Ticker typing effect target -->
+              <span id="typed-text"></span><span id="text-cursor" class="bg-blue-500 w-[2px] h-6 inline-block animate-pulse ml-0.5"></span>
+            </div>
+          </div>
+          <div class="text-xs font-mono text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+            Resultados: <span id="results-count">5</span> / 5
+          </div>
+        </div>
+
+        <!-- Staff Roster Table -->
+        <div id="table-container" class="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-5 rounded-2xl shadow-xl max-w-4xl mx-auto w-full">
+          <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 bg-slate-950/80 text-slate-400 text-xs font-mono uppercase tracking-wider">
+                  <th class="py-4 px-6">Empleado / Puesto</th>
+                  <th class="py-4 px-6">RFC</th>
+                  <th class="py-4 px-6">Plaza</th>
+                  <th class="py-4 px-6">Estatus</th>
+                  <th class="py-4 px-6 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/40 text-sm">
+                <tr id="row-1" class="border-b border-slate-800/30 transition-all duration-300 origin-center">
+                  <td class="py-4 px-6 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-sm">CS</div>
+                    <div>
+                      <span class="font-bold text-slate-200 block">Carlos Sánchez López</span>
+                      <span class="text-xs text-slate-500">Jefe de Área de Organización</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-6 font-mono text-slate-300">SALC880412H23</td>
+                  <td class="py-4 px-6 font-mono text-slate-400">PL-0489</td>
+                  <td class="py-4 px-6"><span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-full font-bold uppercase">Activo</span></td>
+                  <td class="py-4 px-6 text-right">
+                    <button class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-500/20 shadow-md">Ver Ficha</button>
+                  </td>
+                </tr>
+                
+                <tr id="row-2" class="border-b border-slate-800/30 transition-all duration-300 origin-center">
+                  <td class="py-4 px-6 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-purple-600 text-white flex items-center justify-center font-black text-sm">MR</div>
+                    <div>
+                      <span class="font-bold text-slate-200 block">María Rodríguez Ruiz</span>
+                      <span class="text-xs text-slate-500">Subdirectora de Recursos Financieros</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-6 font-mono text-slate-300">RORM900215K89</td>
+                  <td class="py-4 px-6 font-mono text-slate-400">PL-1202</td>
+                  <td class="py-4 px-6"><span class="text-xs bg-rose-950 text-rose-400 border border-rose-900/40 px-2.5 py-1 rounded-full font-bold uppercase">Baja</span></td>
+                  <td class="py-4 px-6 text-right">
+                    <button class="bg-slate-800 text-slate-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700/50 shadow-md">Ver Ficha</button>
+                  </td>
+                </tr>
+                
+                <tr id="row-3" class="border-b border-slate-800/30 transition-all duration-300 origin-center">
+                  <td class="py-4 px-6 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-sky-600 text-white flex items-center justify-center font-black text-sm">CG</div>
+                    <div>
+                      <span class="font-bold text-slate-200 block">Carlos Gómez Pérez</span>
+                      <span class="text-xs text-slate-500">Enlace de Administración y Finanzas</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-6 font-mono text-slate-300">GOPC910819L45</td>
+                  <td class="py-4 px-6 font-mono text-slate-400">PL-0155</td>
+                  <td class="py-4 px-6"><span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-full font-bold uppercase">Activo</span></td>
+                  <td class="py-4 px-6 text-right">
+                    <button class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-500/20 shadow-md">Ver Ficha</button>
+                  </td>
+                </tr>
+                
+                <tr id="row-4" class="border-b border-slate-800/30 transition-all duration-300 origin-center">
+                  <td class="py-4 px-6 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-amber-600 text-white flex items-center justify-center font-black text-sm">AT</div>
+                    <div>
+                      <span class="font-bold text-slate-200 block">Ana Lilia Torres</span>
+                      <span class="text-xs text-slate-500">Directora de Planeación y Operación</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-6 font-mono text-slate-300">TOAL850610M12</td>
+                  <td class="py-4 px-6 font-mono text-slate-400">PL-0820</td>
+                  <td class="py-4 px-6"><span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-full font-bold uppercase">Activo</span></td>
+                  <td class="py-4 px-6 text-right">
+                    <button class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-500/20 shadow-md">Ver Ficha</button>
+                  </td>
+                </tr>
+                
+                <tr id="row-5" class="transition-all duration-300 origin-center">
+                  <td class="py-4 px-6 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center font-black text-sm">RD</div>
+                    <div>
+                      <span class="font-bold text-slate-200 block">Roberto Díaz Ramos</span>
+                      <span class="text-xs text-slate-500">Jefe de Departamento de Soporte</span>
+                    </div>
+                  </td>
+                  <td class="py-4 px-6 font-mono text-slate-300">DIRR891004N56</td>
+                  <td class="py-4 px-6 font-mono text-slate-400">PL-0330</td>
+                  <td class="py-4 px-6"><span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-full font-bold uppercase">Activo</span></td>
+                  <td class="py-4 px-6 text-right">
+                    <button class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-500/20 shadow-md">Ver Ficha</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="flex justify-between items-center text-sm font-mono text-slate-500 pt-6 border-t border-slate-800 relative z-10">
+        <span>EjeCentral v1.2.0</span>
+        <span>Control de Plazas ANAM</span>
+      </div>
+
+      <!-- Employee Profile Sidebar Drawer (Slides in on click) -->
+      <div id="profile-drawer" class="absolute top-0 right-0 h-full w-[460px] bg-slate-950/95 backdrop-blur-md border-l border-slate-800 p-8 shadow-2xl z-20 flex flex-col justify-between translate-x-full">
+        <div class="space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <h3 class="text-lg font-black text-slate-100 uppercase tracking-wider">Ficha de Empleado</h3>
+            <span class="text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2.5 py-1 rounded font-mono font-bold">ACTIVO</span>
+          </div>
+          
+          <!-- Avatar & Main info -->
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-lg border border-blue-500/30">
+              CS
+            </div>
+            <div>
+              <h4 class="text-xl font-black text-slate-100">Carlos Sánchez López</h4>
+              <p class="text-xs text-slate-400 mt-1 font-medium">Jefe de Área de Organización</p>
+            </div>
+          </div>
+          
+          <!-- Detail fields -->
+          <div id="profile-fields" class="space-y-5 pt-4 border-t border-slate-800/80">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-mono block">RFC</span>
+                <span class="text-sm font-semibold text-slate-300 font-mono">SALC880412H23</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-mono block">CURP</span>
+                <span class="text-sm font-semibold text-slate-300 font-mono">SALC880412HDFNLR09</span>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-mono block">Nivel Tabular</span>
+                <span class="text-sm font-semibold text-slate-300 font-mono">N21 · Jefatura</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 uppercase font-mono block">Plaza ID</span>
+                <span class="text-sm font-semibold text-slate-300 font-mono">PL-0489</span>
+              </div>
+            </div>
+            
+            <div>
+              <span class="text-[10px] text-slate-500 uppercase font-mono block">Unidad Responsable</span>
+              <span class="text-sm font-semibold text-slate-300">Dirección de Administración (11)</span>
+            </div>
+            
+            <div>
+              <span class="text-[10px] text-slate-500 uppercase font-mono block">Fecha de Ingreso</span>
+              <span class="text-sm font-semibold text-slate-300">16/04/2021 (Vigencia Activa)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-xs text-slate-500 font-mono border-t border-slate-800 pt-4">
+          Trazabilidad de movimientos registrada en bitácora de RRHH.
+        </div>
+      </div>
+
+      <!-- Cursor pointer simulator (Placed inside #camera to pan and scale with it) -->
+      <div id="cursor" class="absolute pointer-events-none z-50" style="left: 0px; top: 0px;">
+        <svg class="w-12 h-12 fill-[#bc955c] stroke-slate-950 stroke-[2px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" viewBox="0 0 24 24">
+          <path d="M4.5 3v15.2l3.8-3.8 2.9 6.8 2.6-1.1-2.9-6.8 5.3-.3z" />
+        </svg>
+      </div>
+
+      <!-- Click Ripple Effect -->
+      <div id="click-ripple" class="absolute pointer-events-none z-50 rounded-full border-2 border-blue-400 bg-blue-400/20 shadow-[0_0_15px_rgba(37,99,235,0.5)]" style="width: 40px; height: 40px; left: 0px; top: 0px; opacity: 0;"></div>
+
+    </div>
+  </div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Set cursor start position
+    tl.set("#cursor", { x: 1300, y: 700, scale: 1 }, 0);
+    tl.set("#click-ripple", { opacity: 0, scale: 0, xPercent: -50, yPercent: -50 }, 0);
+
+    // Initial Camera Zoom-in on search input
+    tl.fromTo("#camera", 
+      { scale: 1.0, x: 0, y: 0, transformOrigin: "center center" },
+      { scale: 1.25, x: 200, y: 80, duration: 1.0, ease: "power3.out" }, 
+      0
+    );
+
+    // Entrance
+    tl.from("#kpi-row", { y: -30, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.2);
+    tl.from("#search-container", { y: -20, opacity: 0, duration: 0.7, ease: "power2.out" }, 0.35);
+    tl.from("#table-container", { y: 40, opacity: 0, duration: 0.9, ease: "power4.out" }, 0.5);
+
+    // Cursor tracks to search input
+    tl.to("#cursor", { x: 400, y: 260, duration: 0.8, ease: "power2.inOut" }, 0.6);
+    
+    // Click action
+    tl.to("#cursor", { scale: 0.85, duration: 0.1 }, 1.4);
+    tl.to("#cursor", { scale: 1.0, duration: 0.1 }, 1.5);
+    tl.set("#click-ripple", { left: 400, top: 260, scale: 0, opacity: 1 }, 1.4);
+    tl.to("#click-ripple", { scale: 2.5, opacity: 0, duration: 0.5, ease: "power2.out" }, 1.4);
+
+    // Typing search input (Carlos)
+    const textTarget = document.getElementById("typed-text");
+    const text = "Carlos";
+    let curText = "";
+    
+    // Simulate typing
+    for(let i=0; i<text.length; i++) {
+      tl.to({}, {
+        duration: 0.08,
+        onStart: function() {
+          curText += text[i];
+          textTarget.innerHTML = curText;
+        }
+      }, 1.6 + (i * 0.1));
+    }
+
+    // Pan camera down to show the table card
+    tl.to("#camera", { scale: 1.18, x: -40, y: -60, duration: 1.3, ease: "power3.inOut" }, 2.0);
+
+    // Filter effect at 2.3s
+    const resultsObj = { val: 5 };
+    tl.to(resultsObj, {
+      val: 2,
+      duration: 0.3,
+      onUpdate: function() {
+        document.getElementById("results-count").innerHTML = Math.round(resultsObj.val);
+      }
+    }, 2.3);
+
+    tl.to(["#row-2", "#row-4", "#row-5"], {
+      opacity: 0.12,
+      scaleY: 0.95,
+      height: 0,
+      paddingTop: 0,
+      paddingBottom: 0,
+      duration: 0.5,
+      ease: "power2.out"
+    }, 2.3);
+
+    tl.to(["#row-1", "#row-3"], {
+      borderColor: "rgba(37, 99, 235, 0.5)",
+      backgroundColor: "rgba(37, 99, 235, 0.08)",
+      duration: 0.5,
+      ease: "power2.out"
+    }, 2.3);
+
+    // Zoom in very close on the first row action button (Carlos Sánchez)
+    tl.to("#camera", { scale: 1.55, x: -420, y: 15, duration: 1.0, ease: "power3.inOut" }, 2.7);
+
+    // Cursor tracks to "Ver Ficha" button on Row 1 (approx x: 1040, y: 460 in camera space)
+    tl.to("#cursor", { x: 1040, y: 460, duration: 0.8, ease: "power2.inOut" }, 2.8);
+
+    // Click button action at 3.6s
+    tl.to("#cursor", { scale: 0.85, duration: 0.1 }, 3.6);
+    tl.to("#cursor", { scale: 1.0, duration: 0.1 }, 3.7);
+    tl.set("#click-ripple", { left: 1040, top: 460, scale: 0, opacity: 1 }, 3.6);
+    tl.to("#click-ripple", { scale: 2.5, opacity: 0, duration: 0.5, ease: "power2.out" }, 3.6);
+
+    // Drawer slides in and camera centers on it
+    tl.to("#profile-drawer", { xPercent: -100, x: 0, duration: 0.8, ease: "power3.out" }, 3.7);
+    tl.to("#camera", { scale: 1.35, x: -460, y: -20, duration: 1.0, ease: "power3.inOut" }, 3.7);
+
+    // Fade in profile fields staggered
+    tl.from("#profile-fields > div", {
+      opacity: 0,
+      x: 30,
+      stagger: 0.08,
+      duration: 0.4,
+      ease: "power2.out"
+    }, 4.0);
+
+    // Final Fade out of the stage
+    tl.to("#stage", { opacity: 0, duration: 0.5, ease: "power2.in" }, 4.4);
+
+    window.__timelines["plantilla-preview"] = tl;
+  </script>
+</body>
+</html>

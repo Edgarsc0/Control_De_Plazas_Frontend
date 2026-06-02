@@ -1,0 +1,3409 @@
+{
+  "departamento": "90000000000",
+  "descripcion_larga": "Unidad de Administración y Finanzas",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00900",
+  "unidad_administrativa": "900",
+  "doaf": "900",
+  "num_posicion_gerente": "10300074",
+  "posicion_director": "10300009",
+  "subordinados": [
+    {
+      "departamento": "90000UCANAM",
+      "descripcion_larga": "Unidad Concentradora de la ANAM",
+      "nivel_direccion": "General",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "10334528",
+      "posicion_director": "10334528",
+      "subordinados": [
+        {
+          "departamento": "90900010000",
+          "descripcion_larga": "Dirección Operativa de Administración y Finanzas con sede en la CDMX",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "20235046",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90900010400",
+              "descripcion_larga": "Subdirección de Apoyo Logístico del Destino Bienes",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235782",
+              "posicion_director": "20235229",
+              "subordinados": [
+                {
+                  "departamento": "90900010401",
+                  "descripcion_larga": "Departamento de Apoyo Logístico del Destino Bienes",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235585",
+                  "posicion_director": "20235782",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90900010300",
+              "descripcion_larga": "Subdirección de Distribución y Control Presupuestal",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235210",
+              "posicion_director": "20235046",
+              "subordinados": [
+                {
+                  "departamento": "90900010301",
+                  "descripcion_larga": "Departamento de Distribución y Control Presupuestal",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235583",
+                  "posicion_director": "20235210",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90900010700",
+              "descripcion_larga": "Subdirección de Incidencias",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235228",
+              "posicion_director": "20235229",
+              "subordinados": []
+            },
+            {
+              "departamento": "90900010200",
+              "descripcion_larga": "Subdirección de Operación de Recursos y Servicios 3 y 4",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235214",
+              "posicion_director": "20235046",
+              "subordinados": [
+                {
+                  "departamento": "90900010201",
+                  "descripcion_larga": "Departamento de Servicios al Personal",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10302825",
+                  "posicion_director": "20235214",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90900010202",
+                  "descripcion_larga": "Departamento de Servicios al Personal",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235583",
+                  "posicion_director": "20235780",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90900010203",
+                  "descripcion_larga": "Departamento de Servicios al Personal 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20239019",
+                  "posicion_director": "20235214",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90900010100",
+              "descripcion_larga": "Subdirección de Recursos Humanos 5",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235064",
+              "posicion_director": "20235046",
+              "subordinados": [
+                {
+                  "departamento": "90900010101",
+                  "descripcion_larga": "Departamento de Reclutamiento y Selección",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235155",
+                  "posicion_director": "20235064",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90900010102",
+                  "descripcion_larga": "Departamento de Reclutamiento y Selección 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235669",
+                  "posicion_director": "20235214",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90900010103",
+                  "descripcion_larga": "Departamento de Reclutamiento y Selección 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235125",
+                  "posicion_director": "20235064",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90900010600",
+              "descripcion_larga": "Subdirección de Servicios al Personal",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235713",
+              "posicion_director": "20235229",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "92530000100",
+          "descripcion_larga": "Subdireccion Administrativa en la Aduana de Ciudad del Carmen",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "92530000101",
+              "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad del Carmen",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "(en blanco)",
+              "posicion_director": "10334528",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "93030000100",
+          "descripcion_larga": "Subdireccion Administrativa en la Aduana de La Paz",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "93030000101",
+              "descripcion_larga": "Presencia Administrativa en la Aduana de  La Paz",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "(en blanco)",
+              "posicion_director": "10334528",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "93920000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  AICM",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "94020000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  AIFA",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92230000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Acapulco",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90110000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Agua Prieta",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "94120000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Aguascalientes",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92330000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Altamira",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92420000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Cancún",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90210000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad Acuña",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90310000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad Camargo",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90410000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad Hidalgo",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90510000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad Juárez",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90610000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad Miguel Alemán",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90710000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ciudad Reynosa",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92630000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Coatzacoalcos",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90810000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Colombia",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92730000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Dos Bocas",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92830000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ensenada",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92930000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Guaymas",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "93130000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Lázaro Cárdenas",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "93230000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Manzanillo",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90910000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Matamoros",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "93330000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Mazatlán",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91010000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Mexicali",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91110000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Naco",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91210000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Nogales",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91410000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Ojinaga",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91510000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Piedras Negras",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91610000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Puerto Palomas",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "93530000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Salina Cruz",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91710000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  San Luis Río Colorado",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91810000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Sonoyta",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "92110000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Subteniente López",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "93630000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Tampico",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "91910000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Tecate",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "93830000101",
+          "descripcion_larga": "Presencia Administrativa en la Aduana de  Veracruz",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "(en blanco)",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "10334528",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "90005000000",
+      "descripcion_larga": "Dirección de Asuntos Laborales",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235047",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90005030000",
+          "descripcion_larga": "Dirección de Amparos Laborales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235671",
+          "posicion_director": "20235047",
+          "subordinados": [
+            {
+              "departamento": "90005030100",
+              "descripcion_larga": "Subdirección de Relaciones Sindicales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235184",
+              "posicion_director": "20235671",
+              "subordinados": []
+            },
+            {
+              "departamento": "90005030001",
+              "descripcion_larga": "Departamento de Gestión Sindical",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235246",
+              "posicion_director": "20235671",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90005020000",
+          "descripcion_larga": "Dirección de Relaciones Laborales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235238",
+          "posicion_director": "20235047",
+          "subordinados": [
+            {
+              "departamento": "90005020101",
+              "descripcion_larga": "Departamento de Separación Laboral",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235245",
+              "posicion_director": "20235238",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90005010000",
+          "descripcion_larga": "Dirección de Responsabilidades Administrativas",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235237",
+          "posicion_director": "20235047",
+          "subordinados": [
+            {
+              "departamento": "90005010200",
+              "descripcion_larga": "Subdirección de Amparos Laborales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235242",
+              "posicion_director": "20235237",
+              "subordinados": []
+            },
+            {
+              "departamento": "90005010100",
+              "descripcion_larga": "Subdirección de Relaciones Laborales 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235239",
+              "posicion_director": "20235237",
+              "subordinados": [
+                {
+                  "departamento": "90005010101",
+                  "descripcion_larga": "Departamento de Gestión Sindical",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235246",
+                  "posicion_director": "20235184",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90005000100",
+          "descripcion_larga": "Subdirección de Relaciones Laborales 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235674",
+          "posicion_director": "20235047",
+          "subordinados": []
+        },
+        {
+          "departamento": "90005040100",
+          "descripcion_larga": "Subdirección de Responsabilidades Administrativas",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235240",
+          "posicion_director": "20235237",
+          "subordinados": []
+        },
+        {
+          "departamento": "90005000001",
+          "descripcion_larga": "Departamento de Responsabilidades Administrativas",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235244",
+          "posicion_director": "20235184",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "90004000000",
+      "descripcion_larga": "Dirección de Destino de Bienes",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235048",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90004010000",
+          "descripcion_larga": "Dirección de Almacenes y Bienes No Transferibles",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235065",
+          "posicion_director": "20235048",
+          "subordinados": [
+            {
+              "departamento": "90004010300",
+              "descripcion_larga": "Subdirección de Almacenes",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235070",
+              "posicion_director": "20235065",
+              "subordinados": [
+                {
+                  "departamento": "90004010301",
+                  "descripcion_larga": "Departamento de Almacenes",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235585",
+                  "posicion_director": "20235070",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90004010400",
+              "descripcion_larga": "Subdirección de Bienes No Transferibles",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235067",
+              "posicion_director": "20235065",
+              "subordinados": [
+                {
+                  "departamento": "90004010401",
+                  "descripcion_larga": "Departamento de Asignaciones o Donaciones",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235190",
+                  "posicion_director": "20235067",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90004010402",
+                  "descripcion_larga": "Departamento de Inventarios",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342025",
+                  "posicion_director": "20235067",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90004010500",
+              "descripcion_larga": "Subdirección de Destrucciones",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235214",
+              "posicion_director": "20235065",
+              "subordinados": []
+            },
+            {
+              "departamento": "90004010200",
+              "descripcion_larga": "Subdirección de Inventarios y Sistema de Control de Bienes",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235256",
+              "posicion_director": "20235065",
+              "subordinados": [
+                {
+                  "departamento": "90004010201",
+                  "descripcion_larga": "Departamento del Sistema de Bienes",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235258",
+                  "posicion_director": "20235256",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90004010100",
+              "descripcion_larga": "Subdirección de Servicio Logístico",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235068",
+              "posicion_director": "20235065",
+              "subordinados": [
+                {
+                  "departamento": "90004010102",
+                  "descripcion_larga": "Departamento de Bienes Transferibles y no Transferibles",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342025",
+                  "posicion_director": "20235068",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90004010101",
+                  "descripcion_larga": "Departamento de Servicio Logístico",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10345953",
+                  "posicion_director": "20235068",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90004010001",
+              "descripcion_larga": "Departamento de Bienes Transferibles y no Transferibles",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "10342025",
+              "posicion_director": "20235065",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90004020000",
+          "descripcion_larga": "Dirección de Normatividad, Análisis y Gestión",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235066",
+          "posicion_director": "20235048",
+          "subordinados": [
+            {
+              "departamento": "90004020200",
+              "descripcion_larga": "Subdirección de Gestión Administrativa1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10302554",
+              "posicion_director": "20235066",
+              "subordinados": [
+                {
+                  "departamento": "90004020202",
+                  "descripcion_larga": "Departamento de Gestión",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10329297",
+                  "posicion_director": "10302554",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90004020100",
+              "descripcion_larga": "Subdirección de Normatividad",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235189",
+              "posicion_director": "20235066",
+              "subordinados": [
+                {
+                  "departamento": "90004020101",
+                  "descripcion_larga": "Departamento de Análisis",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235257",
+                  "posicion_director": "20235189",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90004030000",
+          "descripcion_larga": "Dirección de Programas Especiales y Bienes Transferibles",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235119",
+          "posicion_director": "20235048",
+          "subordinados": [
+            {
+              "departamento": "90004030100",
+              "descripcion_larga": "Subdirección de Bienes Transferibles",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235782",
+              "posicion_director": "20235119",
+              "subordinados": [
+                {
+                  "departamento": "90004030101",
+                  "descripcion_larga": "Departamento de Bienes Transferibles",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235071",
+                  "posicion_director": "20235782",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90004030102",
+                  "descripcion_larga": "Departamento de Destino de Bienes 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235258",
+                  "posicion_director": "20235065",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90004030200",
+              "descripcion_larga": "Subdirección de Programas Especiales",
+              "nivel_direccion": "(en blanco)",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235069",
+              "posicion_director": "20235119",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90004000100",
+          "descripcion_larga": "Subdirección de Supervisión de Servicios de Destino de Bienes",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235256",
+          "posicion_director": "20235048",
+          "subordinados": [
+            {
+              "departamento": "90004000102",
+              "descripcion_larga": "Departamento de Destino de Bienes 3",
+              "nivel_direccion": "(en blanco)",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10342939",
+              "posicion_director": "20235256",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "90006000000",
+      "descripcion_larga": "Dirección de Fideicomisos",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235079",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90006010000",
+          "descripcion_larga": "Dirección de Fideicomisos 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235175",
+          "posicion_director": "20235079",
+          "subordinados": [
+            {
+              "departamento": "90006010100",
+              "descripcion_larga": "Subdirección de Fideicomisos 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235176",
+              "posicion_director": "20235175",
+              "subordinados": [
+                {
+                  "departamento": "90006010101",
+                  "descripcion_larga": "Departamento de Fideicomisos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235180",
+                  "posicion_director": "20235176",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90006010200",
+              "descripcion_larga": "Subdirección de Fideicomisos 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235178",
+              "posicion_director": "20235175",
+              "subordinados": [
+                {
+                  "departamento": "90006010201",
+                  "descripcion_larga": "Departamento de Fideicomisos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235183",
+                  "posicion_director": "20235178",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90006020000",
+          "descripcion_larga": "Dirección de Fideicomisos 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235670",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90006020200",
+              "descripcion_larga": "Subdirección de Fideicomisos 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235179",
+              "posicion_director": "20235670",
+              "subordinados": [
+                {
+                  "departamento": "90006020202",
+                  "descripcion_larga": "Departamento de Fideicomisos 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20204116",
+                  "posicion_director": "20235179",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90006020201",
+                  "descripcion_larga": "Departamento de Fideicomisos 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235181",
+                  "posicion_director": "20235179",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90006030000",
+          "descripcion_larga": "Dirección de Fideicomisos 3",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235238",
+          "posicion_director": "20235079",
+          "subordinados": [
+            {
+              "departamento": "90006030100",
+              "descripcion_larga": "Subdirección de Fideicomisos 4",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235714",
+              "posicion_director": "20235238",
+              "subordinados": [
+                {
+                  "departamento": "90006030101",
+                  "descripcion_larga": "Departamento de Fideicomisos 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235811",
+                  "posicion_director": "20235714",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90006030200",
+              "descripcion_larga": "Subdirección de Fideicomisos 5",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235112",
+              "posicion_director": "20235238",
+              "subordinados": [
+                {
+                  "departamento": "90006030201",
+                  "descripcion_larga": "Departamento de Fideicomisos 6",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235186",
+                  "posicion_director": "20235112",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90006040000",
+          "descripcion_larga": "Dirección de Fideicomisos 4",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235226",
+          "posicion_director": "20235079",
+          "subordinados": [
+            {
+              "departamento": "90006040100",
+              "descripcion_larga": "Subdirección de Fideicomisos 6",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10301280",
+              "posicion_director": "20235226",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "90003000000",
+      "descripcion_larga": "Dirección de Recursos Financieros",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "10300032",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90003030000",
+          "descripcion_larga": "Dirección de Contabilidad",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235031",
+          "posicion_director": "10300032",
+          "subordinados": [
+            {
+              "departamento": "90003030200",
+              "descripcion_larga": "Subdirección de Glosa",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235788",
+              "posicion_director": "20235031",
+              "subordinados": [
+                {
+                  "departamento": "90003030201",
+                  "descripcion_larga": "Departamento de Glosa",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10304789",
+                  "posicion_director": "20235788",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90003030100",
+              "descripcion_larga": "Subdirección de Registro Contable",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235141",
+              "posicion_director": "20235031",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90003050000",
+          "descripcion_larga": "Dirección de Enlace con las Unidades Administrativas",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10300746",
+          "posicion_director": "10300032",
+          "subordinados": [
+            {
+              "departamento": "90003050200",
+              "descripcion_larga": "Subdirección de Distribución y Control Presupuestal a Nivel Central",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235781",
+              "posicion_director": "10300746",
+              "subordinados": []
+            },
+            {
+              "departamento": "90003050100",
+              "descripcion_larga": "Subdirección de Distribución y Control Presupuestal con Aduanas",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10301313",
+              "posicion_director": "10300746",
+              "subordinados": [
+                {
+                  "departamento": "90003050101",
+                  "descripcion_larga": "Departamento de Distribución y Control Presupuestal",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235182",
+                  "posicion_director": "10301313",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90003020000",
+          "descripcion_larga": "Dirección de Presupuesto",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235035",
+          "posicion_director": "10300032",
+          "subordinados": [
+            {
+              "departamento": "90003020200",
+              "descripcion_larga": "Subdirección de Control Presupuestal y Servicios Personales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235205",
+              "posicion_director": "20235035",
+              "subordinados": [
+                {
+                  "departamento": "90003020201",
+                  "descripcion_larga": "Departamento de Servicios Personales",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235033",
+                  "posicion_director": "20235205",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90003020100",
+              "descripcion_larga": "Subdirección de Distribución y Control Presupuestal",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235192",
+              "posicion_director": "20235035",
+              "subordinados": []
+            },
+            {
+              "departamento": "90003020300",
+              "descripcion_larga": "Subdirección de Registro y Conciliación Presupuestal",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235754",
+              "posicion_director": "20235035",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90003010000",
+          "descripcion_larga": "Dirección de Programación",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235032",
+          "posicion_director": "10300032",
+          "subordinados": [
+            {
+              "departamento": "90003010200",
+              "descripcion_larga": "Subdirección de Programación",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235204",
+              "posicion_director": "20235032",
+              "subordinados": [
+                {
+                  "departamento": "90003010201",
+                  "descripcion_larga": "Departamento de Programación",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235208",
+                  "posicion_director": "20235204",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90003010100",
+              "descripcion_larga": "Subdirección de Seguimiento e Informes",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235207",
+              "posicion_director": "20235032",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90003040000",
+          "descripcion_larga": "Dirección de Tesorería",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235203",
+          "posicion_director": "10300032",
+          "subordinados": [
+            {
+              "departamento": "90003040200",
+              "descripcion_larga": "Subdirección de Pagos Externos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235140",
+              "posicion_director": "20235203",
+              "subordinados": [
+                {
+                  "departamento": "90003040201",
+                  "descripcion_larga": "Departamento de Pagos Externos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342855",
+                  "posicion_director": "20235140",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90003040100",
+              "descripcion_larga": "Subdirección de Pagos Internos",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10300566",
+              "posicion_director": "20235203",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90003000001",
+          "descripcion_larga": "Departamento de Control de Gestión",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10346180",
+          "posicion_director": "10300032",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "90001000000",
+      "descripcion_larga": "Dirección de Recursos Humanos",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "909",
+      "doaf": "900",
+      "num_posicion_gerente": "10334528",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90001020000",
+          "descripcion_larga": "Dirección de Equidad de Genero",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235855",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001020101",
+              "descripcion_larga": "Departamento de Reclutamiento",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235708",
+              "posicion_director": "20235075",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90001060000",
+          "descripcion_larga": "Dirección de Innovación y Mejora Continua",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235173",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001060200",
+              "descripcion_larga": "Subdirección de Atención a Información de Capital Humano",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20239622",
+              "posicion_director": "10334528",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001060300",
+              "descripcion_larga": "Subdirección de Capacitación",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20238937",
+              "posicion_director": "20235173",
+              "subordinados": [
+                {
+                  "departamento": "90001060301",
+                  "descripcion_larga": "Departamento de Asistencia Psicologica",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10304660",
+                  "posicion_director": "20238937",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001060400",
+              "descripcion_larga": "Subdirección de Planeación y Mejora Continua",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20238894",
+              "posicion_director": "20235173",
+              "subordinados": [
+                {
+                  "departamento": "90001060401",
+                  "descripcion_larga": "Departamento de Planeación y Mejora Continua",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235789",
+                  "posicion_director": "20238894",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001060100",
+              "descripcion_larga": "Subdirección de Procesos, Información Estratégica y Gestión Administrativa",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20238938",
+              "posicion_director": "20235173",
+              "subordinados": [
+                {
+                  "departamento": "90001060101",
+                  "descripcion_larga": "Departamento de Diseño Didactico",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342838",
+                  "posicion_director": "20238938",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90001010000",
+          "descripcion_larga": "Dirección de Organización",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10345870",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001010600",
+              "descripcion_larga": "Subdirección de Alineación de Procesos y Plazas",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235101",
+              "posicion_director": "10334636",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001010500",
+              "descripcion_larga": "Subdirección de Alineación y Procesos Legales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20238125",
+              "posicion_director": "10334636",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001010200",
+              "descripcion_larga": "Subdirección de Análisis, Valuación de Puestos y Manuales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "20235124",
+              "posicion_director": "10345870",
+              "subordinados": [
+                {
+                  "departamento": "90001010201",
+                  "descripcion_larga": "Departamento de Análisis y Valuación de Puestos 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20235812",
+                  "posicion_director": "20235124",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001010202",
+                  "descripcion_larga": "Departamento de Análisis y Valuación de Puestos 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20231243",
+                  "posicion_director": "20235124",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001010203",
+                  "descripcion_larga": "Departamento de Manuales Administrativos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20235789",
+                  "posicion_director": "20235124",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001010700",
+              "descripcion_larga": "Subdirección de Estructuras Orgánicas",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20238915",
+              "posicion_director": "10334636",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001010300",
+              "descripcion_larga": "Subdirección de Estructuras y Movimientos Organizacionales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "10300217",
+              "posicion_director": "10334636",
+              "subordinados": [
+                {
+                  "departamento": "90001010301",
+                  "descripcion_larga": "Departamento de Movimientos Organizacionales",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20235770",
+                  "posicion_director": "10334636",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001010100",
+              "descripcion_larga": "Subdirección de Registro y Control de Plazas",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "10300795",
+              "posicion_director": "10345870",
+              "subordinados": [
+                {
+                  "departamento": "90001010101",
+                  "descripcion_larga": "Departamento de Registro y Control de Plazas 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20235199",
+                  "posicion_director": "10300795",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001010102",
+                  "descripcion_larga": "Departamento de Registro y Control de Plazas 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20235125",
+                  "posicion_director": "10300795",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001010400",
+              "descripcion_larga": "Subdirección del Servicio Aduanal de Carrera y Registro de Estructura Orgánica",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "20238920",
+              "posicion_director": "10334636",
+              "subordinados": [
+                {
+                  "departamento": "90001010401",
+                  "descripcion_larga": "Departamento de Servicio Aduanal de Carrera",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235200",
+                  "posicion_director": "10301313",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90001050000",
+          "descripcion_larga": "Dirección de Planeación y Programas Especiales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235035",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001050300",
+              "descripcion_larga": "Subadministrador de Evaluación del Ciclo de Capital Humano",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10300978",
+              "posicion_director": "10334528",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001050100",
+              "descripcion_larga": "Subdirección de Innovación y Mejora Continua",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10301313",
+              "posicion_director": "20235111",
+              "subordinados": [
+                {
+                  "departamento": "90001050101",
+                  "descripcion_larga": "Departamento de Innovación 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235220",
+                  "posicion_director": "20235219",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001050200",
+              "descripcion_larga": "Subdirección de Innovación y Mejora Continua 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235218",
+              "posicion_director": "20235087",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90001070000",
+          "descripcion_larga": "Dirección de Política Laboral y Apoyo Técnico",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235077",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001070200",
+              "descripcion_larga": "Subdirección de Innovación y Mejora Continua",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10300876",
+              "posicion_director": "20235077",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001070103",
+              "descripcion_larga": "Departamento de Evaluación",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235224",
+              "posicion_director": "20235216",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90001040000",
+          "descripcion_larga": "Dirección de Relaciones Sindicales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235672",
+          "posicion_director": "10300031",
+          "subordinados": [
+            {
+              "departamento": "90001040200",
+              "descripcion_larga": "Subdirección de Atención a Información de Capital Humano",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10301320",
+              "posicion_director": "20235672",
+              "subordinados": [
+                {
+                  "departamento": "90001040202",
+                  "descripcion_larga": "Departamento de Atención de Requerimientos Judiciales",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235143",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001040204",
+                  "descripcion_larga": "Departamento de Glosa",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235145",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001040203",
+                  "descripcion_larga": "Departamento de Pagos",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235233",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001040201",
+                  "descripcion_larga": "Departamento de Prestaciones Económicas",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235146",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001040100",
+              "descripcion_larga": "Subdirección de Relaciones Sindicales",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235714",
+              "posicion_director": "20235672",
+              "subordinados": [
+                {
+                  "departamento": "90001040101",
+                  "descripcion_larga": "Departamento de Relaciones Sindicales",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10304644",
+                  "posicion_director": "20235714",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001040400",
+              "descripcion_larga": "Subdirección de Remuneraciones al Personal",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235217",
+              "posicion_director": "20235075",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001040300",
+              "descripcion_larga": "Subdirección de Servicios al Personal",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235228",
+              "posicion_director": "20235075",
+              "subordinados": [
+                {
+                  "departamento": "90001040301",
+                  "descripcion_larga": "Departamento de Pagos Impuestos sobre Nómina",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235708",
+                  "posicion_director": "20235228",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001040302",
+                  "descripcion_larga": "Departamento de Glosa",
+                  "nivel_direccion": "(en blanco)",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235144",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90001030000",
+          "descripcion_larga": "Dirección de Remuneraciones",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10300159",
+          "posicion_director": "10333528",
+          "subordinados": [
+            {
+              "departamento": "90001030300",
+              "descripcion_larga": "Subdirección de Clima y Cultura",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235242",
+              "posicion_director": "10300159",
+              "subordinados": [
+                {
+                  "departamento": "90001030301",
+                  "descripcion_larga": "Departamento de Clima y Cultura 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235236",
+                  "posicion_director": "20235242",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001030302",
+                  "descripcion_larga": "Departamento de Clima y Cultura 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10304660",
+                  "posicion_director": "20235242",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001030200",
+              "descripcion_larga": "Subdirección de Operaciones y Transacciones Financieras",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "10349071",
+              "posicion_director": "10300159",
+              "subordinados": [
+                {
+                  "departamento": "90001030201",
+                  "descripcion_larga": "Departamento de Transacciones Financieras",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "909",
+                  "num_posicion_gerente": "10305229",
+                  "posicion_director": "10349071",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90001030100",
+              "descripcion_larga": "Subdirección de Procesos de Nómina",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10302277",
+              "posicion_director": "10300159",
+              "subordinados": [
+                {
+                  "departamento": "90001030103",
+                  "descripcion_larga": "Departamento de Prestaciones",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "909",
+                  "num_posicion_gerente": "20235145",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001030101",
+                  "descripcion_larga": "Departamento de Procesos de Nómina 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "10302825",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001030104",
+                  "descripcion_larga": "Departamento de Procesos de Nómina 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "909",
+                  "num_posicion_gerente": "20235708",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90001030102",
+                  "descripcion_larga": "Departamento de Terceros Institucionales",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "(en blanco)",
+                  "num_posicion_gerente": "20235146",
+                  "posicion_director": "20235144",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90001000300",
+          "descripcion_larga": "Subdirección de Apoyo de la Gestión de Capital Humano",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10302949",
+          "posicion_director": "10334528",
+          "subordinados": []
+        },
+        {
+          "departamento": "90001000200",
+          "descripcion_larga": "Subdirección de Atención a Información de Capital Humano",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10349125",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001000201",
+              "descripcion_larga": "Departamento de Atención a Información de Capital Humano",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235146",
+              "posicion_director": "10349125",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90001000400",
+          "descripcion_larga": "Subdirección de Capacitación",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20239623",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001000402",
+              "descripcion_larga": "Departamento de Asistencia Psicologica",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20238994",
+              "posicion_director": "20239623",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001000401",
+              "descripcion_larga": "Departamento de Capacitación",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20236471",
+              "posicion_director": "20239623",
+              "subordinados": []
+            },
+            {
+              "departamento": "90001000403",
+              "descripcion_larga": "Departamento de Diseño Didactico",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10304660",
+              "posicion_director": "20239623",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90001000100",
+          "descripcion_larga": "Subdirección de Procesos, Información Estratégica y Gestión Administrativa",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235239",
+          "posicion_director": "10334528",
+          "subordinados": [
+            {
+              "departamento": "90001000101",
+              "descripcion_larga": "Departamento de Procesos, Información Estratégica y Gestión Administrativa",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10304660",
+              "posicion_director": "20235239",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "90002000000",
+      "descripcion_larga": "Dirección de Recursos Materiales y Servicios Generales",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235049",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90002040000",
+          "descripcion_larga": "Dirección 1 en la Dirección de Recursos Materiales y Servicios Generales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235671",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002040100",
+              "descripcion_larga": "Subdirección de Inmuebles 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10349069",
+              "posicion_director": "20235671",
+              "subordinados": [
+                {
+                  "departamento": "90002040101",
+                  "descripcion_larga": "Departamento de Inmuebles 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20236197",
+                  "posicion_director": "20235240",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002040200",
+              "descripcion_larga": "Subdirección de Inmuebles 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "10349069",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002040202",
+                  "descripcion_larga": "Departamento de Inmuebles 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235201",
+                  "posicion_director": "10349069",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002040201",
+                  "descripcion_larga": "Departamento de Monitoreo y Control 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235252",
+                  "posicion_director": "20235112",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002040300",
+              "descripcion_larga": "Subdirección de Inmuebles 3",
+              "nivel_direccion": "(en blanco)",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "909",
+              "num_posicion_gerente": "10302614",
+              "posicion_director": "20235040",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002030000",
+          "descripcion_larga": "Dirección de Adquisiciones, Licitaciones y Contratos",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235040",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002030600",
+              "descripcion_larga": "Subdirección de Adquisiciones 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235198",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002030601",
+                  "descripcion_larga": "Departamento de Adquisiciones 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20206118",
+                  "posicion_director": "20235198",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002030500",
+              "descripcion_larga": "Subdirección de Adquisiciones 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20236196",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002030501",
+                  "descripcion_larga": "Departamento de Adquisiciones 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10302574",
+                  "posicion_director": "20236196",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002030100",
+              "descripcion_larga": "Subdirección de Comités y Control Interno",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235038",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002030101",
+                  "descripcion_larga": "Departamento de Comités y Control Interno",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235042",
+                  "posicion_director": "20235038",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002030102",
+                  "descripcion_larga": "Departamento de Recursos Materiales 7",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235224",
+                  "posicion_director": "20235251",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002030400",
+              "descripcion_larga": "Subdirección de Contratos y Convenios",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235745",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002030401",
+                  "descripcion_larga": "Departamento de Contratos y Convenio",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235845",
+                  "posicion_director": "20235745",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002030200",
+              "descripcion_larga": "Subdirección de Contratos y Pólizas",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10302614",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002030201",
+                  "descripcion_larga": "Departamento de Contratos y Pólizas",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235155",
+                  "posicion_director": "10302614",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002030203",
+                  "descripcion_larga": "Departamento de Seguridad Institucional 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305641",
+                  "posicion_director": "20235757",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002030300",
+              "descripcion_larga": "Subdirección de Investigaciones de Mercado",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235064",
+              "posicion_director": "20235040",
+              "subordinados": [
+                {
+                  "departamento": "90002030301",
+                  "descripcion_larga": "Departamento de Investigaciones de Mercado 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342161",
+                  "posicion_director": "20235064",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002030302",
+                  "descripcion_larga": "Departamento de Investigaciones de Mercado 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20234294",
+                  "posicion_director": "20235064",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90002020000",
+          "descripcion_larga": "Dirección de Control Bienes Muebles e Inmuebles",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20236195",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002020100",
+              "descripcion_larga": "Subdirección de Bienes Muebles e Inmuebles",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235240",
+              "posicion_director": "20236195",
+              "subordinados": [
+                {
+                  "departamento": "90002020101",
+                  "descripcion_larga": "Departamento de Bienes Muebles 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235094",
+                  "posicion_director": "20235240",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002020102",
+                  "descripcion_larga": "Departamento de Inmuebles 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20236197",
+                  "posicion_director": "20235240",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002020103",
+                  "descripcion_larga": "Departamento de Inmuebles 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235746",
+                  "posicion_director": "20235240",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002020200",
+              "descripcion_larga": "Subdirección de Proyectos Estratégicos Aduaneros",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235064",
+              "posicion_director": "20235173",
+              "subordinados": []
+            },
+            {
+              "departamento": "90002020001",
+              "descripcion_larga": "Departamento de Recursos Materiales 4",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "909",
+              "num_posicion_gerente": "20236198",
+              "posicion_director": "20236195",
+              "subordinados": []
+            },
+            {
+              "departamento": "90002020002",
+              "descripcion_larga": "Departamento de Recursos Materiales 5",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235821",
+              "posicion_director": "20236195",
+              "subordinados": []
+            },
+            {
+              "departamento": "90002020003",
+              "descripcion_larga": "Departamento de Recursos Materiales 6",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235037",
+              "posicion_director": "20236195",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002010000",
+          "descripcion_larga": "Dirección de Mesa de Servicio y Seguridad Física",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20236525",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002010100",
+              "descripcion_larga": "Subdirección de Mesa de Servicios",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235780",
+              "posicion_director": "20236525",
+              "subordinados": [
+                {
+                  "departamento": "90002010103",
+                  "descripcion_larga": "Subdirección de Recursos Materiales 3",
+                  "nivel_direccion": "Subdir.",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "909",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235761",
+                  "posicion_director": "20235191",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002010101",
+                  "descripcion_larga": "Departamento de Mesa de Servicios 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342855",
+                  "posicion_director": "20235780",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002010102",
+                  "descripcion_larga": "Departamento de Mesa de Servicios 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235193",
+                  "posicion_director": "20235780",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002010104",
+                  "descripcion_larga": "Departamento de Recursos Materiales 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10346255",
+                  "posicion_director": "20235228",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002010300",
+              "descripcion_larga": "Subdirección de Protección Civil",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235801",
+              "posicion_director": "20236525",
+              "subordinados": [
+                {
+                  "departamento": "90002010301",
+                  "descripcion_larga": "Departamento de Protección Civil",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235778",
+                  "posicion_director": "20235801",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002010200",
+              "descripcion_larga": "Subdirección de Seguridad Física",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235757",
+              "posicion_director": "20236525",
+              "subordinados": [
+                {
+                  "departamento": "90002010201",
+                  "descripcion_larga": "Departamento de Seguridad Física 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10330519",
+                  "posicion_director": "20235757",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002010202",
+                  "descripcion_larga": "Departamento de Seguridad Física 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305641",
+                  "posicion_director": "20235757",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "90002050000",
+          "descripcion_larga": "Dirección de Servicios Generales",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "909",
+          "num_posicion_gerente": "20235045",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002050400",
+              "descripcion_larga": "Subdirección de Archivo 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10302551",
+              "posicion_director": "20236525",
+              "subordinados": [
+                {
+                  "departamento": "90002050401",
+                  "descripcion_larga": "Departamento de Archivo 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305236",
+                  "posicion_director": "10302551",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002050402",
+                  "descripcion_larga": "Departamento de Servicios Generales 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342825",
+                  "posicion_director": "10301279",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002050500",
+              "descripcion_larga": "Subdirección de Archivo 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10349170",
+              "posicion_director": "20236525",
+              "subordinados": [
+                {
+                  "departamento": "90002050501",
+                  "descripcion_larga": "Departamento de Archivo 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10304192",
+                  "posicion_director": "10349170",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002050503",
+                  "descripcion_larga": "Departamento de Recursos Materiales 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235747",
+                  "posicion_director": "20235761",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002050502",
+                  "descripcion_larga": "Departamento de Recursos Materiales 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235037",
+                  "posicion_director": "20235761",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002050100",
+              "descripcion_larga": "Subdirección de Bienes de Consumo 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235187",
+              "posicion_director": "20235045",
+              "subordinados": [
+                {
+                  "departamento": "90002050101",
+                  "descripcion_larga": "Departamento de Bienes de Consumo 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342939",
+                  "posicion_director": "20235187",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002050102",
+                  "descripcion_larga": "Departamento de Bienes de Consumo 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235039",
+                  "posicion_director": "20235187",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002050103",
+                  "descripcion_larga": "Departamento de Bienes de Consumo 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10303438",
+                  "posicion_director": "20235187",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002050300",
+              "descripcion_larga": "Subdirección de Normatividad y Cumplimiento",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10302614",
+              "posicion_director": "20236525",
+              "subordinados": [
+                {
+                  "departamento": "90002050302",
+                  "descripcion_larga": "Departamento de Recursos Materiales 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235224",
+                  "posicion_director": "20235251",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "90002050303",
+                  "descripcion_larga": "Departamento de Servicios Generales 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235760",
+                  "posicion_director": "20235251",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002050200",
+              "descripcion_larga": "Subdirección de Servicios Generales 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "909",
+              "doaf": "900",
+              "num_posicion_gerente": "20235228",
+              "posicion_director": "20235045",
+              "subordinados": [
+                {
+                  "departamento": "90002050201",
+                  "descripcion_larga": "Departamento de Proyectos estratégicos Aduanales",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00900",
+                  "unidad_administrativa": "900",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342855",
+                  "posicion_director": "20235261",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "90002050001",
+              "descripcion_larga": "Departamento de Servicios Generales 5",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10346255",
+              "posicion_director": "20235045",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002060000",
+          "descripcion_larga": "Dirección de la Unidad Habitacional N.L.",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "(en blanco)",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002060010",
+              "descripcion_larga": "Subdirección de Proyectos Estratégicos Aduaneros",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235064",
+              "posicion_director": "20235173",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002000100",
+          "descripcion_larga": "Subdirección de Archivo 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235908",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002000101",
+              "descripcion_larga": "Departamento de Control de Gestión",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10342825",
+              "posicion_director": "20235780",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002000200",
+          "descripcion_larga": "Subdirección de Archivo 2",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10302551",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002000201",
+              "descripcion_larga": "Departamento de Archivo 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10305236",
+              "posicion_director": "10302551",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002000300",
+          "descripcion_larga": "Subdirección de Archivo 3",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10349170",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002000301",
+              "descripcion_larga": "Departamento de Archivo 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "10304192",
+              "posicion_director": "10349170",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002000400",
+          "descripcion_larga": "Subdirección de Control de Gestión",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235808",
+          "posicion_director": "20235049",
+          "subordinados": [
+            {
+              "departamento": "90002000401",
+              "descripcion_larga": "Departamento de Control de Gestión",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "900",
+              "num_posicion_gerente": "20235911",
+              "posicion_director": "20235808",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90002000001",
+          "descripcion_larga": "Departamento de Contratos",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "909",
+          "doaf": "900",
+          "num_posicion_gerente": "20235039",
+          "posicion_director": "20235029",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "90007000000",
+      "descripcion_larga": "Dirección de Seguridad Institucional",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "(en blanco)",
+      "posicion_director": "10300074",
+      "subordinados": []
+    },
+    {
+      "departamento": "92200010000",
+      "descripcion_larga": "Dirección Operativa de Administración y Finanzas, con sede en Chichimequillas, Qro.",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "922",
+      "doaf": "900",
+      "num_posicion_gerente": "20235088",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "92200010100",
+          "descripcion_larga": "Subdirección de Recursos Humanos",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "922",
+          "doaf": "900",
+          "num_posicion_gerente": "20235680",
+          "posicion_director": "20235088",
+          "subordinados": [
+            {
+              "departamento": "92200010101",
+              "descripcion_larga": "Departamento de Recursos Humanos",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "922",
+              "num_posicion_gerente": "20235679",
+              "posicion_director": "20235680",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "92200010200",
+          "descripcion_larga": "Subdirección de Recursos Humanos 2",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "922",
+          "doaf": "900",
+          "num_posicion_gerente": "20235721",
+          "posicion_director": "20235088",
+          "subordinados": []
+        },
+        {
+          "departamento": "92200010300",
+          "descripcion_larga": "Subdirección de Recursos Humanos 3",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "922",
+          "doaf": "900",
+          "num_posicion_gerente": "20235722",
+          "posicion_director": "20235088",
+          "subordinados": [
+            {
+              "departamento": "92200010302",
+              "descripcion_larga": "Departamento de Recursos Humanos 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "922",
+              "doaf": "922",
+              "num_posicion_gerente": "20235776",
+              "posicion_director": "20235722",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "92200010400",
+          "descripcion_larga": "Subdirección de Recursos Humanos 4",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "922",
+          "doaf": "922",
+          "num_posicion_gerente": "20235723",
+          "posicion_director": "20235088",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "90000010000",
+      "descripcion_larga": "Dirección de Gestión Interna",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "10345870",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "90000010100",
+          "descripcion_larga": "Subdirección de Coordinación de Proyectos 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10302589",
+          "posicion_director": "10345870",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "90000020000",
+      "descripcion_larga": "Dirección de la Coordinación Técnica de Administración y Finanzas 1",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235229",
+      "posicion_director": "10300074",
+      "subordinados": [
+        {
+          "departamento": "93430000100",
+          "descripcion_larga": "Subdireccion Administrativa en la Aduana de Progreso",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20238921",
+          "posicion_director": "20235229",
+          "subordinados": [
+            {
+              "departamento": "93430000101",
+              "descripcion_larga": "Presencia Administrativa en la Aduana de  Progreso",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "(en blanco)",
+              "posicion_director": "10334528",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "93730000100",
+          "descripcion_larga": "Subdireccion Administrativa en la Aduana de Tuxpan",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "10302279",
+          "posicion_director": "20235229",
+          "subordinados": [
+            {
+              "departamento": "93730000101",
+              "descripcion_larga": "Presencia Administrativa en la Aduana de  Tuxpan",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "(en blanco)",
+              "posicion_director": "10334528",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "91310000100",
+          "descripcion_larga": "Subdirección Administrativa en la Aduana de Nuevo Laredo",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20238912",
+          "posicion_director": "20235229",
+          "subordinados": [
+            {
+              "departamento": "91310000101",
+              "descripcion_larga": "Presencia Administrativa en la Aduana de  Nuevo Laredo",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "(en blanco)",
+              "posicion_director": "10334528",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "92010000100",
+          "descripcion_larga": "Subdirección Administrativa en la Aduana de Tijuana",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20238916",
+          "posicion_director": "20235229",
+          "subordinados": [
+            {
+              "departamento": "92010000101",
+              "descripcion_larga": "Presencia Administrativa en la Aduana de  Tijuana",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00900",
+              "unidad_administrativa": "900",
+              "doaf": "(en blanco)",
+              "num_posicion_gerente": "(en blanco)",
+              "posicion_director": "10334528",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "90000020001",
+          "descripcion_larga": "Departamento de Control de Gestión",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235252",
+          "posicion_director": "20235229",
+          "subordinados": []
+        },
+        {
+          "departamento": "90000020003",
+          "descripcion_larga": "Departamento de Monitoreo y Control",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235793",
+          "posicion_director": "20235229",
+          "subordinados": []
+        },
+        {
+          "departamento": "90000020004",
+          "descripcion_larga": "Departamento de Monitoreo y Seguimiento",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235756",
+          "posicion_director": "20235229",
+          "subordinados": []
+        },
+        {
+          "departamento": "90000020002",
+          "descripcion_larga": "Departamento de Oficialia de Partes",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00900",
+          "unidad_administrativa": "900",
+          "doaf": "900",
+          "num_posicion_gerente": "20235792",
+          "posicion_director": "20235229",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "9001UPCANAM",
+      "descripcion_larga": "Unidad de Posiciones Canceladas",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "10334528",
+      "posicion_director": "10334528",
+      "subordinados": []
+    },
+    {
+      "departamento": "90000000100",
+      "descripcion_larga": "Subdirección de Monitoreo y Seguimiento",
+      "nivel_direccion": "Subdir.",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235059",
+      "posicion_director": "10300074",
+      "subordinados": []
+    },
+    {
+      "departamento": "90000000001",
+      "descripcion_larga": "Departamento de Coordinación de Proyectos",
+      "nivel_direccion": "Jefe Depto",
+      "unidad_negocio": "00900",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235914",
+      "posicion_director": "10300074",
+      "subordinados": []
+    }
+  ]
+}

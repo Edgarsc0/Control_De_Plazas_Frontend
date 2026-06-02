@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eje Central Stats Video</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <style>
+    .scene {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body class="bg-[#fcfbf9]">
+  <div id="stage" data-composition-id="stats-video" data-width="1920" data-height="1080" data-start="0" data-duration="10" class="relative overflow-hidden bg-[#fcfbf9] w-full h-full font-sans">
+    
+    <!-- Decorative Frame (Always Visible) -->
+    <div id="global-frame" class="absolute inset-10 border border-[#bc955c]/35 rounded-3xl pointer-events-none z-50">
+      <!-- Elegantes esquinas doradas estilo institucional -->
+      <div class="absolute -top-2 -left-2 w-10 h-10 border-t-4 border-l-4 border-[#bc955c] rounded-tl-sm"></div>
+      <div class="absolute -top-2 -right-2 w-10 h-10 border-t-4 border-r-4 border-[#bc955c] rounded-tr-sm"></div>
+      <div class="absolute -bottom-2 -left-2 w-10 h-10 border-b-4 border-l-4 border-[#bc955c] rounded-bl-sm"></div>
+      <div class="absolute -bottom-2 -right-2 w-10 h-10 border-b-4 border-r-4 border-[#bc955c] rounded-br-sm"></div>
+      
+      <!-- Pequeños detalles de la marca -->
+      <div class="absolute top-4 left-6 text-xs font-bold uppercase tracking-widest text-[#621f32]/40">Eje Central</div>
+      <div class="absolute top-4 right-6 text-xs font-bold uppercase tracking-widest text-[#bc955c]/60">Rendimiento ANAM</div>
+    </div>
+
+    <!-- Soft Radial Highlight Spots for Depth -->
+    <div class="absolute top-[-200px] left-[-200px] w-[800px] h-[800px] rounded-full bg-[#621f32]/4 blur-[140px] pointer-events-none z-0"></div>
+    <div class="absolute bottom-[-200px] right-[-200px] w-[800px] h-[800px] rounded-full bg-[#bc955c]/7 blur-[140px] pointer-events-none z-0"></div>
+
+    <!-- Subtle CSS Grid overlay to fill emptiness -->
+    <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(98,31,50,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(98,31,50,0.015)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none z-0"></div>
+
+    <!-- Scene 1: Introduction -->
+    <div id="scene-1" class="scene clip absolute inset-0 flex items-center justify-center p-24 z-10" data-start="0" data-duration="3" data-track-index="0">
+      <div id="s1-content" class="scene-content text-center space-y-10 max-w-4xl">
+        <div class="flex justify-center mb-4">
+            <div id="s1-logo-container" class="p-8 bg-white rounded-[2rem] border border-[#621f32]/10 shadow-[0_20px_50px_rgba(98,31,50,0.06)]">
+                <img id="s1-logo" src="assets/anam.png" alt="ANAM" class="h-48 w-auto">
+            </div>
+        </div>
+        <h1 id="s1-title" class="text-9xl font-black tracking-tight text-[#621f32] leading-none">
+            Eje <span class="text-[#bc955c]">Central</span>
+        </h1>
+        <div id="s1-divider" class="h-1.5 w-48 bg-[#bc955c] mx-auto rounded-full"></div>
+        <p id="s1-subtitle" class="text-3xl font-extrabold text-gray-500 uppercase tracking-[0.25em] leading-normal">
+            Agencia Nacional de Aduanas de México
+        </p>
+      </div>
+    </div>
+
+    <!-- Scene 2: Data Visualization -->
+    <div id="scene-2" class="scene clip absolute inset-0 flex items-center justify-center p-24 z-10" data-start="3" data-duration="4" data-track-index="0">
+      <div id="s2-content" class="scene-content w-full max-w-6xl h-full flex flex-col justify-center items-center py-16">
+        
+        <!-- Centered Header with Zoom-style padding -->
+        <div class="text-center mb-10">
+            <span class="text-[#bc955c] text-xl font-bold uppercase tracking-widest">Reporte de Desempeño</span>
+            <h2 id="s2-title" class="text-7xl font-black text-gray-900 mt-2">Rendición de Cuentas</h2>
+            <div id="s2-line" class="h-2 w-48 bg-[#bc955c] mt-4 mx-auto rounded-full"></div>
+        </div>
+        
+        <!-- Centered Glassmorphic Chart Panel (Fills the scene, avoiding empty look) -->
+        <div id="chart-panel" class="w-full bg-white/70 backdrop-blur-md border border-[#621f32]/10 rounded-[2.5rem] p-16 shadow-[0_30px_70px_rgba(0,0,0,0.05)] flex items-end justify-between gap-12 h-[550px]">
+             <!-- Bar 1 -->
+             <div class="flex-1 flex flex-col items-center h-full justify-end">
+                <div id="bar-1" class="w-full bg-[#621f32] rounded-t-2xl shadow-[0_15px_30px_rgba(98,31,50,0.2)] relative" data-layout-allow-overflow="true">
+                    <span id="label-1" class="absolute -top-16 left-1/2 -translate-x-1/2 text-5xl font-black text-[#621f32]">84%</span>
+                </div>
+                <div class="mt-8 text-center">
+                    <span class="text-2xl font-black text-gray-700 uppercase tracking-wider block">Gestión</span>
+                    <span class="text-sm font-semibold text-gray-400 mt-1 block">Eficacia Operativa</span>
+                </div>
+             </div>
+             
+             <!-- Bar 2 -->
+             <div class="flex-1 flex flex-col items-center h-full justify-end">
+                <div id="bar-2" class="w-full bg-[#bc955c] rounded-t-2xl shadow-[0_15px_30px_rgba(188,149,92,0.25)] relative" data-layout-allow-overflow="true">
+                    <span id="label-2" class="absolute -top-16 left-1/2 -translate-x-1/2 text-5xl font-black text-[#bc955c]">92%</span>
+                </div>
+                <div class="mt-8 text-center">
+                    <span class="text-2xl font-black text-gray-700 uppercase tracking-wider block">Transparencia</span>
+                    <span class="text-sm font-semibold text-gray-400 mt-1 block">Acceso a la Info</span>
+                </div>
+             </div>
+             
+             <!-- Bar 3 -->
+             <div class="flex-1 flex flex-col items-center h-full justify-end">
+                <div id="bar-3" class="w-full bg-[#621f32] rounded-t-2xl shadow-[0_15px_30px_rgba(98,31,50,0.2)] relative" data-layout-allow-overflow="true">
+                    <span id="label-3" class="absolute -top-16 left-1/2 -translate-x-1/2 text-5xl font-black text-[#621f32]">78%</span>
+                </div>
+                <div class="mt-8 text-center">
+                    <span class="text-2xl font-black text-gray-700 uppercase tracking-wider block">Eficacia</span>
+                    <span class="text-sm font-semibold text-gray-400 mt-1 block">Cumplimiento Metas</span>
+                </div>
+             </div>
+             
+             <!-- Bar 4 -->
+             <div class="flex-1 flex flex-col items-center h-full justify-end">
+                <div id="bar-4" class="w-full bg-[#bc955c] rounded-t-2xl shadow-[0_15px_30px_rgba(188,149,92,0.25)] relative" data-layout-allow-overflow="true">
+                    <span id="label-4" class="absolute -top-16 left-1/2 -translate-x-1/2 text-5xl font-black text-[#bc955c]">96%</span>
+                </div>
+                <div class="mt-8 text-center">
+                    <span class="text-2xl font-black text-gray-700 uppercase tracking-wider block">Monitoreo</span>
+                    <span class="text-sm font-semibold text-gray-400 mt-1 block">Supervisión Continua</span>
+                </div>
+             </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scene 3: Closing -->
+    <div id="scene-3" class="scene clip absolute inset-0 flex items-center justify-center p-24 z-10 bg-gradient-to-br from-[#501929] via-[#621f32] to-[#3a121d]" data-start="7" data-duration="3" data-track-index="0" data-layout-allow-overflow="true">
+      
+      <!-- Elegant gold glowing particles/highlights in background of outro -->
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(188,149,92,0.15)_0%,transparent_70%)] pointer-events-none z-0"></div>
+      
+      <div id="s3-content" class="scene-content text-center max-w-5xl space-y-8 z-10" data-layout-allow-overflow="true">
+        <div class="flex justify-center mb-6">
+            <div id="s3-logo-wrap" class="p-6 bg-white/10 rounded-[2rem] border border-white/20 backdrop-blur-md shadow-2xl">
+                <img id="s3-logo" src="assets/anam.png" alt="ANAM" class="h-32 w-auto brightness-0 invert">
+            </div>
+        </div>
+        <div id="s3-badge" class="inline-flex items-center px-8 py-3 rounded-full border border-[#bc955c]/30 bg-[#bc955c]/10 text-[#bc955c] text-2xl font-black uppercase tracking-[0.2em] backdrop-blur-sm" data-layout-allow-overflow="true">
+            Optimización Continua
+        </div>
+        <h2 id="s3-title" class="text-9xl font-black text-white leading-tight">
+            Impulsando la <br/> <span class="text-[#bc955c]">Transformación</span>
+        </h2>
+        <div id="s3-footer" class="h-2 w-80 bg-[#bc955c] mx-auto rounded-full shadow-lg"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Subtle Continuous Zoom (Camera Movement) for Scene 1
+    tl.fromTo("#s1-content", 
+      { scale: 0.95 },
+      { scale: 1.06, duration: 3, ease: "none" }, 
+      0
+    );
+    // Intro Animations
+    tl.from("#s1-logo-container", { scale: 0.7, opacity: 0, duration: 1, ease: "back.out(1.5)" }, 0.2);
+    tl.from("#s1-title", { y: 80, opacity: 0, duration: 1, ease: "power4.out" }, 0.5);
+    tl.from("#s1-divider", { scaleX: 0, opacity: 0, duration: 0.8, ease: "power2.inOut" }, 0.8);
+    tl.from("#s1-subtitle", { y: 40, opacity: 0, duration: 0.8, ease: "power2.out" }, 1.0);
+
+    // Subtle Zoom for Scene 2
+    tl.fromTo("#s2-content", 
+      { scale: 0.98 },
+      { scale: 1.04, duration: 4, ease: "none" }, 
+      3
+    );
+    // Scene 2 Title animations
+    tl.from("#s2-title", { y: -50, opacity: 0, duration: 1, ease: "expo.out" }, 3.2);
+    tl.from("#s2-line", { width: 0, duration: 1, ease: "power4.inOut" }, 3.4);
+    tl.from("#chart-panel", { y: 60, opacity: 0, duration: 1.2, ease: "power3.out" }, 3.5);
+    
+    // Bars entrance (higher heights to look zoomed and full)
+    const barHeights = [280, 340, 240, 380]; // Height in pixels representing the bar levels
+    barHeights.forEach((h, i) => {
+        const id = `#bar-${i+1}`;
+        const labelId = `#label-${i+1}`;
+        // Animate heights
+        tl.from(id, { height: 0, duration: 1.4, ease: "elastic.out(1.1, 0.6)" }, 3.8 + (i * 0.15));
+        tl.set(id, { height: h }, 3.8 + (i * 0.15));
+        tl.from(labelId, { opacity: 0, y: 30, duration: 0.6, ease: "power2.out" }, 4.6 + (i * 0.15));
+    });
+
+    // Subtle Zoom out for Outro
+    tl.fromTo("#s3-content", 
+      { scale: 1.06 },
+      { scale: 1.0, duration: 3, ease: "none" }, 
+      7
+    );
+    // Scene 3 animations
+    tl.from("#scene-3", { opacity: 0, x: "100%", duration: 1.2, ease: "expo.inOut" }, 7);
+    tl.from("#s3-logo-wrap", { scale: 0.8, opacity: 0, duration: 0.8, ease: "back.out(1.4)" }, 7.8);
+    tl.from("#s3-badge", { y: -40, opacity: 0, duration: 0.8, ease: "power2.out" }, 8.1);
+    tl.from("#s3-title", { y: 60, opacity: 0, duration: 1, ease: "power4.out" }, 8.4);
+    tl.from("#s3-footer", { scaleX: 0, duration: 0.8, ease: "power2.inOut" }, 8.7);
+
+    // Final Fade out
+    tl.to("#stage", { opacity: 0, duration: 0.5, ease: "power2.in" }, 9.5);
+
+    window.__timelines["stats-video"] = tl;
+  </script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{
+  "departamento": "1000000000",
+  "descripcion_larga": "Jefatura del Servicio de Administración Tributaria",
+  "nivel_direccion": "Titular",
+  "unidad_negocio": "00001",
+  "unidad_administrativa": "100",
+  "doaf": "315",
+  "num_posicion_gerente": "10300130",
+  "posicion_director": "10300130",
+  "subordinados": [
+    {
+      "departamento": "00100000000",
+      "descripcion_larga": "Oficina del Titular de la Agencia Nacional de Aduanas de México",
+      "nivel_direccion": "Titular",
+      "unidad_negocio": "00001",
+      "unidad_administrativa": "001",
+      "doaf": "900",
+      "num_posicion_gerente": "10300009",
+      "posicion_director": "10300009",
+      "subordinados": []
+    },
+    {
+      "departamento": "1000020000",
+      "descripcion_larga": "Administración de Gestión Interna",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00001",
+      "unidad_administrativa": "100",
+      "doaf": "315",
+      "num_posicion_gerente": "10300348",
+      "posicion_director": "10300130",
+      "subordinados": [
+        {
+          "departamento": "1000020100",
+          "descripcion_larga": "Subadministración de Análisis e Integración",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00001",
+          "unidad_administrativa": "100",
+          "doaf": "315",
+          "num_posicion_gerente": "10301689",
+          "posicion_director": "10300348",
+          "subordinados": [
+            {
+              "departamento": "1000020101",
+              "descripcion_larga": "Departamento de Análisis e Integración 1",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00001",
+              "unidad_administrativa": "100",
+              "doaf": "315",
+              "num_posicion_gerente": "10307867",
+              "posicion_director": "10301689",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "1000040000",
+      "descripcion_larga": "Secretario Particular de la Jefatura del SAT",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00001",
+      "unidad_administrativa": "100",
+      "doaf": "315",
+      "num_posicion_gerente": "10317736",
+      "posicion_director": "10300130",
+      "subordinados": []
+    }
+  ]
+}

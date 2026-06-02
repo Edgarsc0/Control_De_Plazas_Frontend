@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presupuesto Preview</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-slate-950 w-[1920px] h-[1080px] overflow-hidden select-none">
+  
+  <!-- Root Stage Container for HyperFrames -->
+  <div id="stage" data-composition-id="presupuesto-preview" data-width="1920" data-height="1080" data-start="0" data-duration="5" class="relative overflow-hidden w-full h-full bg-slate-950">
+
+    <!-- Camera Wrapper (For zooms/pans) -->
+    <div id="camera" class="w-full h-full bg-[#0f172a] text-white font-sans p-16 flex flex-col justify-between relative">
+    
+    <!-- Decorative background grid -->
+    <div class="absolute inset-0 bg-[radial-gradient(#ffffff0a_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none"></div>
+    
+    <!-- Top Header -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-6 relative z-10">
+      <div>
+        <span class="text-purple-400 font-black tracking-widest text-lg uppercase block">MÓDULO DE ANÁLISIS</span>
+        <h1 class="text-5xl font-black tracking-tight text-white mt-1">Valuación Presupuestaria</h1>
+      </div>
+      <div class="flex items-center gap-3 bg-purple-950/25 border border-purple-800/50 px-5 py-2.5 rounded-full">
+        <span class="w-3.5 h-3.5 rounded-full bg-purple-400 animate-pulse"></span>
+        <span class="text-xl font-bold text-slate-200">Simulador Activo</span>
+      </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-12 gap-8 flex-1 py-10 relative z-10">
+      <!-- Left side: Simulator controls (5 cols) -->
+      <div id="controls-card" class="col-span-5 bg-slate-900/60 backdrop-blur-md border border-slate-800 p-8 rounded-2xl shadow-xl flex flex-col justify-between">
+        <div class="space-y-6">
+          <h3 class="text-xl font-black text-slate-100 tracking-tight">Parámetros de Simulación</h3>
+          
+          <div class="space-y-3 relative">
+            <div class="flex justify-between text-base font-semibold text-slate-300">
+              <span>Volumen de Plazas:</span>
+              <span id="slider-val" class="text-purple-400 font-black text-lg">5 Plazas</span>
+            </div>
+            
+            <!-- Custom HTML Slider Target for Cursor to Drag -->
+            <div id="slider-track" class="w-full bg-slate-950 h-3 rounded-full relative border border-slate-800">
+              <!-- Animated bar representing slider fill -->
+              <div id="slider-fill" class="bg-purple-500 h-full rounded-full" style="width: 20%"></div>
+              <!-- Floating knob -->
+              <div id="slider-knob" class="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full border-2 border-purple-500 shadow-md cursor-pointer -ml-3" style="left: 20%"></div>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-sm font-bold text-slate-300 block uppercase tracking-wider">Nivel de Plaza / Tabulador</label>
+            <div id="select-box" class="bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base text-slate-200 font-medium">
+              Jefe de Departamento · $25,000 MXN/mes
+            </div>
+          </div>
+        </div>
+
+        <div class="text-xs text-slate-500 font-mono">Factores de cálculo homologados ante SHCP</div>
+      </div>
+
+      <!-- Right side: Calculation Results (7 cols) -->
+      <div id="results-card" class="col-span-7 bg-slate-900/60 backdrop-blur-md border border-slate-800 p-8 rounded-2xl shadow-xl flex flex-col justify-between relative overflow-hidden">
+        <!-- Pulse glow inside card -->
+        <div class="absolute -right-24 -top-24 w-80 h-80 bg-purple-500/10 blur-[80px] rounded-full"></div>
+        
+        <div class="space-y-8">
+          <h3 class="text-xl font-black text-slate-100 tracking-tight">Impacto Presupuestario</h3>
+          
+          <div class="grid grid-cols-2 gap-8">
+            <div id="cost-monthly-box" class="bg-purple-950/20 border border-purple-500/20 p-6 rounded-2xl transition-all duration-300">
+              <span class="text-purple-300 text-xs font-bold uppercase tracking-wider block">Costo Neto Mensual</span>
+              <strong id="cost-monthly" class="text-4xl font-black text-purple-400 inline-block origin-left mt-2">$125,000 <span class="text-sm text-slate-400">MXN</span></strong>
+              <span class="text-xs text-slate-500 mt-2 block font-medium">5 plazas x $25k</span>
+            </div>
+
+            <div id="cost-annual-box" class="bg-slate-950/40 border border-slate-800 p-6 rounded-2xl transition-all duration-300">
+              <span class="text-slate-400 text-xs font-bold uppercase tracking-wider block">Proyección Anual (Factor 1.4)</span>
+              <strong id="cost-annual" class="text-4xl font-black text-slate-200 inline-block origin-left mt-2">$2,100,000 <span class="text-sm text-slate-500">MXN</span></strong>
+              <span class="text-xs text-slate-500 mt-2 block font-medium">Incluye aguinaldo y seguridad social</span>
+            </div>
+          </div>
+
+          <div id="alert-banner" class="bg-purple-500/5 border border-purple-500/25 p-4 rounded-xl flex items-center gap-3">
+            <span class="text-purple-400 text-xs font-bold uppercase tracking-wider bg-purple-500/15 px-2.5 py-1 rounded">ESTADO</span>
+            <span id="alert-text" class="text-sm text-purple-200 font-medium">Proyecto viable · Dentro del margen anual.</span>
+          </div>
+        </div>
+
+        <div class="text-xs text-slate-500 font-mono">Simulación de valuaciones presupuestales en base a vigencias selectivas</div>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="flex justify-between items-center text-sm font-mono text-slate-500 pt-6 border-t border-slate-800 relative z-10">
+      <span>EjeCentral v1.2.0</span>
+      <span>Control de Plazas ANAM</span>
+    </div>
+
+    <!-- Cursor pointer simulator (Placed inside #camera to pan and scale with it) -->
+    <div id="cursor" class="absolute pointer-events-none z-50" style="left: 0px; top: 0px;">
+      <svg class="w-12 h-12 fill-[#bc955c] stroke-slate-950 stroke-[2px] drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)]" viewBox="0 0 24 24">
+        <path d="M4.5 3v15.2l3.8-3.8 2.9 6.8 2.6-1.1-2.9-6.8 5.3-.3z" />
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    // Initial cursor position
+    tl.set("#cursor", { x: 100, y: 800, scale: 1 }, 0);
+
+    // Camera starts wide to capture full UI entering
+    tl.set("#camera", { scale: 1.0, x: 0, y: 0, transformOrigin: "center center" }, 0);
+
+    // Card entrances
+    tl.from("#controls-card", { x: -80, opacity: 0, duration: 1.0, ease: "power4.out" }, 0.2);
+    tl.from("#results-card", { x: 80, opacity: 0, duration: 1.0, ease: "power4.out" }, 0.35);
+
+    // Zoom into the controls card to emphasize the slider interaction
+    tl.to("#camera", { scale: 1.35, x: 300, y: 50, duration: 1.0, ease: "power3.inOut" }, 0.5);
+
+    // Cursor tracks to Slider Knob
+    tl.to("#cursor", { x: 260, y: 440, duration: 0.8, ease: "power2.inOut" }, 0.6);
+    // Grab knob (click)
+    tl.to("#cursor", { scale: 0.8, duration: 0.1 }, 1.4);
+
+    // Pan & Zoom dramatically to the numbers in the results card
+    tl.to("#camera", { scale: 1.65, x: -360, y: 50, duration: 1.6, ease: "power3.inOut" }, 1.5);
+
+    // Drag Knob to 60% position
+    tl.to("#cursor", { x: 420, duration: 1.6, ease: "power2.inOut" }, 1.5);
+    tl.to("#slider-knob", { left: "60%", duration: 1.6, ease: "power2.inOut" }, 1.5);
+    tl.to("#slider-fill", { width: "60%", duration: 1.6, ease: "power2.inOut" }, 1.5);
+
+    // Highlight card borders and backgrounds as numbers increase
+    tl.to("#cost-monthly-box", {
+      scale: 1.06,
+      borderColor: "rgba(168, 85, 247, 0.7)", // bright purple
+      backgroundColor: "rgba(168, 85, 247, 0.15)",
+      boxShadow: "0 0 40px rgba(168, 85, 247, 0.3)",
+      duration: 0.8,
+      yoyo: true,
+      repeat: 1,
+      ease: "power2.inOut"
+    }, 1.5);
+    tl.to("#cost-annual-box", {
+      scale: 1.06,
+      borderColor: "rgba(168, 85, 247, 0.5)",
+      backgroundColor: "rgba(168, 85, 247, 0.08)",
+      boxShadow: "0 0 30px rgba(168, 85, 247, 0.2)",
+      duration: 0.8,
+      yoyo: true,
+      repeat: 1,
+      ease: "power2.inOut"
+    }, 1.7);
+
+    // Pulse & glow numbers text to draw attention to counting up
+    tl.to("#cost-monthly", {
+      scale: 1.15,
+      color: "#ffffff",
+      textShadow: "0 0 25px rgba(168, 85, 247, 0.9)",
+      duration: 0.8,
+      yoyo: true,
+      repeat: 1,
+      ease: "power2.inOut"
+    }, 1.5);
+    tl.to("#cost-annual", {
+      scale: 1.15,
+      color: "#ffffff",
+      textShadow: "0 0 20px rgba(168, 85, 247, 0.7)",
+      duration: 0.8,
+      yoyo: true,
+      repeat: 1,
+      ease: "power2.inOut"
+    }, 1.7);
+
+    // Numeric updates logic
+    const obj = { plazas: 5, mensual: 125000, anual: 2100000 };
+    tl.to(obj, {
+      plazas: 15,
+      mensual: 375000,
+      anual: 6300000,
+      duration: 1.6,
+      ease: "power2.inOut",
+      onUpdate: function() {
+        document.getElementById("slider-val").innerHTML = Math.round(obj.plazas) + " Plazas";
+        document.getElementById("cost-monthly").innerHTML = "$" + Math.round(obj.mensual).toLocaleString() + " <span class='text-sm text-slate-400'>MXN</span>";
+        document.getElementById("cost-annual").innerHTML = "$" + Math.round(obj.anual).toLocaleString() + " <span class='text-sm text-slate-500'>MXN</span>";
+        
+        if (obj.plazas >= 12) {
+          document.getElementById("alert-banner").className = "bg-rose-500/5 border border-rose-500/25 p-4 rounded-xl flex items-center gap-3";
+          document.getElementById("alert-text").innerHTML = "Requiere aprobación de la Unidad de Administración y Finanzas.";
+          document.getElementById("alert-text").className = "text-sm text-rose-200 font-medium";
+        }
+      }
+    }, 1.5);
+
+    // Alert Banner trigger shake to emphasize threshold crossing
+    tl.fromTo("#alert-banner", 
+      { x: -6 }, 
+      { x: 6, duration: 0.07, repeat: 7, yoyo: true, ease: "sine.inOut" }, 
+      2.6
+    );
+    tl.to("#alert-banner", {
+      scale: 1.04,
+      borderColor: "rgba(244, 63, 94, 0.6)",
+      backgroundColor: "rgba(244, 63, 94, 0.15)",
+      boxShadow: "0 0 25px rgba(244, 63, 94, 0.2)",
+      duration: 0.2,
+      yoyo: true,
+      repeat: 3,
+      ease: "power1.inOut"
+    }, 2.6);
+
+    // Release knob (unclick)
+    tl.to("#cursor", { scale: 1.0, duration: 0.1 }, 3.1);
+
+    // Settle camera back
+    tl.to("#camera", { scale: 1.05, x: 0, y: 0, duration: 1.5, ease: "power3.inOut" }, 3.5);
+    tl.to("#cursor", { x: 1800, y: 900, duration: 1.0, ease: "power2.inOut" }, 3.5);
+
+    window.__timelines["presupuesto-preview"] = tl;
+  </script>
+</body>
+</html>

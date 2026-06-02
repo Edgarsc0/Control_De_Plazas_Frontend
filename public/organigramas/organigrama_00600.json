@@ -1,0 +1,315 @@
+{
+  "departamento": "60000000000",
+  "descripcion_larga": "Dirección General de Recaudación",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00600",
+  "unidad_administrativa": "600",
+  "doaf": "900",
+  "num_posicion_gerente": "20235159",
+  "posicion_director": "10300009",
+  "subordinados": [
+    {
+      "departamento": "60001000000",
+      "descripcion_larga": "Dirección de Recaudación 1",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00600",
+      "unidad_administrativa": "600",
+      "doaf": "900",
+      "num_posicion_gerente": "20235161",
+      "posicion_director": "20235159",
+      "subordinados": [
+        {
+          "departamento": "60001010000",
+          "descripcion_larga": "Dirección 1 en la Dirección de Recaudación 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "10300871",
+          "posicion_director": "20235161",
+          "subordinados": [
+            {
+              "departamento": "60001010100",
+              "descripcion_larga": "Subdirección de Recaudación 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235824",
+              "posicion_director": "10300871",
+              "subordinados": [
+                {
+                  "departamento": "60001010101",
+                  "descripcion_larga": "Departamento de Recaudación 1",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342894",
+                  "posicion_director": "20235824",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "60001020000",
+          "descripcion_larga": "Dirección 2 en la Dirección 1 de Recaudación 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "10345861",
+          "posicion_director": "20235161",
+          "subordinados": [
+            {
+              "departamento": "60001020100",
+              "descripcion_larga": "Subdirección de Recaudación 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235826",
+              "posicion_director": "10345861",
+              "subordinados": [
+                {
+                  "departamento": "60001020101",
+                  "descripcion_larga": "Departamento de Recaudación 2",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305077",
+                  "posicion_director": "20235826",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "60001030000",
+          "descripcion_larga": "Dirección 3 en la Dirección de Recaudación 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "10317897",
+          "posicion_director": "20235161",
+          "subordinados": [
+            {
+              "departamento": "60001030100",
+              "descripcion_larga": "Subdirección de Recaudación 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235823",
+              "posicion_director": "10317897",
+              "subordinados": [
+                {
+                  "departamento": "60001030101",
+                  "descripcion_larga": "Departamento de Recaudación 3",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20233199",
+                  "posicion_director": "20235823",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "60001030102",
+                  "descripcion_larga": "Departamento de Recaudación 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10307673",
+                  "posicion_director": "20235823",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "60001040000",
+          "descripcion_larga": "Dirección 4 en la Dirección Recaudación 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "20235162",
+          "posicion_director": "20235161",
+          "subordinados": [
+            {
+              "departamento": "60001040100",
+              "descripcion_larga": "Subdirección de Recaudación 4",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235825",
+              "posicion_director": "20235162",
+              "subordinados": [
+                {
+                  "departamento": "60001040101",
+                  "descripcion_larga": "Departamento de Recaudación 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235260",
+                  "posicion_director": "20235825",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "60002000000",
+      "descripcion_larga": "Dirección de Recaudación 2",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00600",
+      "unidad_administrativa": "600",
+      "doaf": "900",
+      "num_posicion_gerente": "20235160",
+      "posicion_director": "20235159",
+      "subordinados": [
+        {
+          "departamento": "60002010000",
+          "descripcion_larga": "Dirección 1 en la Dirección de Recaudación  2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "10348941",
+          "posicion_director": "20235160",
+          "subordinados": [
+            {
+              "departamento": "60002010100",
+              "descripcion_larga": "Subdirección de Recaudación 5",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "10349151",
+              "posicion_director": "10348941",
+              "subordinados": [
+                {
+                  "departamento": "60002010101",
+                  "descripcion_larga": "Departamento de Recaudación 6",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10304186",
+                  "posicion_director": "10349151",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "60002010200",
+              "descripcion_larga": "Subdirección de Recaudación 6",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235262",
+              "posicion_director": "10348941",
+              "subordinados": [
+                {
+                  "departamento": "60002010201",
+                  "descripcion_larga": "Departamento de Recaudación 7",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20234394",
+                  "posicion_director": "20235262",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "60002020000",
+          "descripcion_larga": "Dirección 2 en la Dirección de Recaudación  2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "20235163",
+          "posicion_director": "20235160",
+          "subordinados": [
+            {
+              "departamento": "60002020100",
+              "descripcion_larga": "Subdirección de Recaudación 7",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235758",
+              "posicion_director": "20235163",
+              "subordinados": [
+                {
+                  "departamento": "60002020101",
+                  "descripcion_larga": "Departamento de Recaudación 8",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10306313",
+                  "posicion_director": "20235758",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "60002030000",
+          "descripcion_larga": "Dirección 3 en la Dirección de Recaudación  2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00600",
+          "unidad_administrativa": "600",
+          "doaf": "900",
+          "num_posicion_gerente": "20235265",
+          "posicion_director": "20235160",
+          "subordinados": [
+            {
+              "departamento": "60002030100",
+              "descripcion_larga": "Subdirección de Recaudación 8",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00600",
+              "unidad_administrativa": "600",
+              "doaf": "900",
+              "num_posicion_gerente": "20235213",
+              "posicion_director": "20235265",
+              "subordinados": [
+                {
+                  "departamento": "60002030101",
+                  "descripcion_larga": "Departamento de Recaudación 9",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00600",
+                  "unidad_administrativa": "600",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305248",
+                  "posicion_director": "20235213",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

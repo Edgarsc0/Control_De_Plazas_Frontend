@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Manual de Usuario - Eje Central</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #f8fafc;
+        font-family: "Noto Sans", "Inter", Arial, sans-serif;
+      }
+      #stage {
+        width: 1920px;
+        height: 1080px;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(140deg, #ffffff 0%, #f8fafc 45%, #eef2f7 100%);
+        color: #111827;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        padding: 86px 110px 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border-radius: 999px;
+        background: #621f320f;
+        border: 1px solid #621f3226;
+        color: #621f32;
+        font-size: 24px;
+        font-weight: 700;
+        padding: 10px 20px;
+      }
+      .step-chip {
+        border-radius: 999px;
+        background: #bc955c1a;
+        color: #765423;
+        border: 1px solid #bc955c40;
+        font-size: 22px;
+        font-weight: 700;
+        padding: 10px 18px;
+      }
+      .content-row {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        align-items: center;
+        gap: 58px;
+      }
+      .title {
+        font-size: 72px;
+        line-height: 1.05;
+        font-weight: 900;
+        letter-spacing: -1.5px;
+      }
+      .title .accent {
+        color: #621f32;
+      }
+      .body {
+        margin-top: 18px;
+        font-size: 34px;
+        line-height: 1.35;
+        color: #374151;
+        max-width: 900px;
+      }
+      .panel {
+        border-radius: 28px;
+        border: 1px solid #dbe2ea;
+        background: #fff;
+        box-shadow:
+          0 20px 50px #0f172a14,
+          0 2px 0 #e5e7eb inset;
+        padding: 30px;
+        min-height: 460px;
+        position: relative;
+      }
+      .mock-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .mock-title {
+        font-size: 26px;
+        font-weight: 800;
+        color: #621f32;
+      }
+      .pill {
+        font-size: 15px;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 6px 12px;
+      }
+      .pill.good {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .pill.tag {
+        background: #621f3212;
+        color: #621f32;
+      }
+      .card-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .card {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 18px;
+      }
+      .card h4 {
+        font-size: 18px;
+        color: #374151;
+        margin-bottom: 8px;
+      }
+      .card strong {
+        font-size: 34px;
+        color: #111827;
+      }
+      .callout {
+        position: absolute;
+        border: 2px solid #bc955c;
+        background: #fff9f1;
+        border-radius: 14px;
+        padding: 10px 14px;
+        font-size: 18px;
+        font-weight: 800;
+        color: #7a4f11;
+        box-shadow: 0 12px 28px #bc955c22;
+      }
+      .subtitle {
+        position: absolute;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        width: 1640px;
+        text-align: center;
+        background: #0f172add;
+        color: #ffffff;
+        border-radius: 14px;
+        padding: 14px 24px;
+        font-size: 30px;
+        line-height: 1.25;
+        font-weight: 700;
+      }
+      .progress-track {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        top: 36px;
+        height: 10px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        overflow: hidden;
+      }
+      .progress-fill {
+        width: 0;
+        height: 100%;
+        background: linear-gradient(90deg, #621f32, #bc955c);
+      }
+      .view-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .tab {
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        font-size: 16px;
+        font-weight: 700;
+        color: #6b7280;
+      }
+      .tab.active {
+        color: #621f32;
+        border-color: #621f324d;
+        background: #621f320d;
+      }
+      .sankey-bars {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        align-items: end;
+        height: 220px;
+        margin-top: 8px;
+      }
+      .bar {
+        border-radius: 10px 10px 0 0;
+        background: linear-gradient(180deg, #bc955c, #621f32);
+      }
+      .table-lines {
+        margin-top: 16px;
+        display: grid;
+        gap: 10px;
+      }
+      .line {
+        height: 30px;
+        border-radius: 8px;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+      }
+      .footer-note {
+        font-size: 22px;
+        color: #4b5563;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="stage"
+      data-composition-id="manual-usuario-eje"
+      data-start="0"
+      data-duration="70"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+
+      <audio
+        id="locucion"
+        class="clip"
+        data-start="0"
+        data-duration="62.848"
+        data-track-index="5"
+        src="assets/narracion.wav"
+      ></audio>
+
+      <div id="scene-0" class="scene clip" data-start="0" data-duration="6" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">ANAM · Eje Central</div>
+          <div class="step-chip">Introducción</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Manual de Usuario <span class="accent">Eje Central</span></h1>
+            <p class="body">Recorrido guiado del flujo de acceso, navegación y consulta de indicadores institucionales.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">Sistema Eje Central</div>
+              <span class="pill good">Operativo</span>
+            </div>
+            <div class="card-grid">
+              <div class="card"><h4>Autenticación</h4><strong>OTP</strong></div>
+              <div class="card"><h4>Dashboard</h4><strong>KPIs</strong></div>
+              <div class="card"><h4>Vacantes</h4><strong>Por nivel</strong></div>
+              <div class="card"><h4>Ocupación</h4><strong>Oficios</strong></div>
+            </div>
+          </div>
+        </div>
+        <p class="footer-note">Guía visual paso a paso para personal ANAM.</p>
+      </div>
+
+      <div id="scene-1" class="scene clip" data-start="6" data-duration="8" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Inicio del sistema</div>
+          <div class="step-chip">Paso 1</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Pantalla de <span class="accent">inicio</span></h1>
+            <p class="body">La portada muestra el contexto del sistema y el acceso directo para comenzar sesión.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">Home</div>
+              <span class="pill tag">/</span>
+            </div>
+            <div class="card" style="height: 130px; margin-bottom: 12px"><h4>Mensaje principal</h4><strong style="font-size: 30px">Sistema de Eje Central</strong></div>
+            <div class="card" style="display: flex; justify-content: center; align-items: center; height: 170px">
+              <div id="btn-login-callout" style="background:#621f32;color:#fff;padding:18px 26px;border-radius:12px;font-size:26px;font-weight:800;">Iniciar Sesión</div>
+            </div>
+            <div id="callout-home" class="callout" style="right:20px;bottom:24px">Haz clic para ingresar</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-2" class="scene clip" data-start="14" data-duration="8" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Autenticación</div>
+          <div class="step-chip">Paso 2</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Login con correo <span class="accent">institucional</span></h1>
+            <p class="body">Ingrese su correo con dominio @anam.gob.mx para validar credenciales iniciales.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">/login</div>
+              <span class="pill tag">Formulario</span>
+            </div>
+            <div class="card" style="margin-bottom:12px">
+              <h4>Correo institucional</h4>
+              <div style="margin-top:6px;height:50px;border:2px solid #621f3240;border-radius:10px;padding:10px 14px;font-size:24px;color:#374151;">usuario@anam.gob.mx</div>
+            </div>
+            <div class="card" style="display:flex;justify-content:center;align-items:center;height:130px">
+              <div style="background:#621f32;color:#fff;padding:16px 22px;border-radius:12px;font-size:24px;font-weight:800">Validar credenciales</div>
+            </div>
+            <div id="callout-login" class="callout" style="left:24px;bottom:24px">Solo correo ANAM autorizado</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-3" class="scene clip" data-start="22" data-duration="8" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Verificación OTP</div>
+          <div class="step-chip">Paso 3</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Código OTP de <span class="accent">6 dígitos</span></h1>
+            <p class="body">Revise el correo, capture el código en el drawer y confirme identidad para continuar.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">Código de verificación</div>
+              <span class="pill good">Seguro</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:20px">
+              <div class="card" style="height:92px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900">1</div>
+              <div class="card" style="height:92px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900">2</div>
+              <div class="card" style="height:92px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900">3</div>
+              <div class="card" style="height:92px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900">4</div>
+              <div class="card" style="height:92px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900">5</div>
+              <div class="card" style="height:92px;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:900">6</div>
+            </div>
+            <div id="callout-otp" class="callout" style="right:24px;bottom:30px">Confirmación de identidad</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-4" class="scene clip" data-start="30" data-duration="10" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Dashboard principal</div>
+          <div class="step-chip">Paso 4</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Entrada al <span class="accent">dashboard</span></h1>
+            <p class="body">Visualice tarjetas con indicadores estratégicos y accesos a módulos de análisis.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">/dashboard</div>
+              <span class="pill tag">Resumen</span>
+            </div>
+            <div class="card-grid">
+              <div class="card"><h4>Vacantes por nivel</h4><strong>4 Niveles</strong></div>
+              <div class="card"><h4>Ocupación por oficios</h4><strong>1,800</strong></div>
+              <div class="card"><h4>Recursos Humanos</h4><strong>Activo</strong></div>
+              <div class="card"><h4>Seguridad</h4><strong>OK</strong></div>
+            </div>
+            <div id="callout-dash" class="callout" style="left:24px;bottom:24px">Tarjetas navegables</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-5" class="scene clip" data-start="40" data-duration="8" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Vacantes por nivel</div>
+          <div class="step-chip">Paso 5</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Módulo <span class="accent">Vacantes por nivel</span></h1>
+            <p class="body">Consulte la distribución de estatus de nómina para identificar focos de atención.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">/dashboard/vacantes_por_nivel</div>
+              <span class="pill tag">Gráficas</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="card" style="height:220px"><h4>P33</h4><div style="height:130px;border-radius:50%;border:16px solid #621f32;margin-top:14px"></div></div>
+              <div class="card" style="height:220px"><h4>D312</h4><div style="height:130px;border-radius:50%;border:16px solid #bc955c;margin-top:14px"></div></div>
+            </div>
+            <div id="callout-vacantes" class="callout" style="right:24px;bottom:24px">Detalle por nivel y estatus</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-6" class="scene clip" data-start="48" data-duration="8" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Ocupación por Oficios</div>
+          <div class="step-chip">Paso 6</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Vista <span class="accent">Diagrama y Tabla</span></h1>
+            <p class="body">Cambie entre visualización de flujos y tabla de registros para análisis comparativo.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">/dashboard/ocupacion_plazas_por_oficio</div>
+              <span class="pill tag">Interactivo</span>
+            </div>
+            <div class="view-tabs">
+              <div id="tab-diagrama" class="tab active">Diagrama</div>
+              <div id="tab-tabla" class="tab">Tabla</div>
+            </div>
+            <div id="diagram-block">
+              <div class="sankey-bars">
+                <div class="bar" style="height:52%"></div>
+                <div class="bar" style="height:85%"></div>
+                <div class="bar" style="height:64%"></div>
+                <div class="bar" style="height:74%"></div>
+              </div>
+            </div>
+            <div id="table-block" style="opacity:0;position:absolute;left:30px;right:30px;top:112px">
+              <div class="table-lines">
+                <div class="line"></div>
+                <div class="line"></div>
+                <div class="line"></div>
+                <div class="line"></div>
+              </div>
+            </div>
+            <div id="callout-ocupacion" class="callout" style="left:24px;bottom:24px">Alterna la vista según necesidad</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-7" class="scene clip" data-start="56" data-duration="8" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Filtros y búsqueda</div>
+          <div class="step-chip">Paso 7</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Aplicar <span class="accent">filtros por oficio</span></h1>
+            <p class="body">Use filtros, búsqueda y contador de plazas para una lectura precisa del universo analizado.</p>
+          </div>
+          <div class="panel">
+            <div class="mock-header">
+              <div class="mock-title">Panel de filtros</div>
+              <span class="pill good">Total plazas: 1,542</span>
+            </div>
+            <div class="card" style="margin-bottom:10px">
+              <h4>Búsqueda</h4>
+              <div style="margin-top:6px;height:46px;border:1px solid #d1d5db;border-radius:10px;padding:9px 12px;font-size:22px;color:#6b7280">Oficio: Operación...</div>
+            </div>
+            <div class="card-grid">
+              <div class="card"><h4>Oficios activos</h4><strong>18</strong></div>
+              <div class="card"><h4>Oficios excluidos</h4><strong>4</strong></div>
+            </div>
+            <div id="callout-filtros" class="callout" style="right:24px;bottom:24px">Refina datos en tiempo real</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scene-8" class="scene clip" data-start="64" data-duration="6" data-track-index="0">
+        <div class="top-bar">
+          <div class="brand-chip">Cierre de sesión</div>
+          <div class="step-chip">Paso 8</div>
+        </div>
+        <div class="content-row">
+          <div>
+            <h1 class="title">Regresar y <span class="accent">Cerrar Sesión</span></h1>
+            <p class="body">Al finalizar, vuelva al dashboard y cierre sesión para mantener la seguridad de la cuenta.</p>
+          </div>
+          <div class="panel" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px">
+            <div style="font-size:34px;font-weight:800;color:#111827">Flujo seguro y eficiente</div>
+            <div style="font-size:24px;color:#4b5563">Inicio → Login → OTP → Dashboard → Módulos → Logout</div>
+            <div style="background:#621f32;color:#fff;padding:18px 28px;border-radius:14px;font-size:28px;font-weight:800">Cerrar Sesión</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="subtitle clip" data-start="0" data-duration="4.6" data-track-index="4">Bienvenido al manual de usuario del sistema Eje Central de la Agencia Nacional de Aduanas de México.</div>
+      <div class="subtitle clip" data-start="4.6" data-duration="3.8" data-track-index="4">En la pantalla inicial encontrará una vista general y el botón Iniciar Sesión.</div>
+      <div class="subtitle clip" data-start="8.4" data-duration="4.6" data-track-index="4">Al seleccionarlo, accede al formulario de ingreso.</div>
+      <div class="subtitle clip" data-start="13" data-duration="5.5" data-track-index="4">Ingrese su correo institucional con dominio arroba anam punto gob punto mx.</div>
+      <div class="subtitle clip" data-start="18.5" data-duration="4.3" data-track-index="4">El sistema valida el correo y envía un código de verificación de seis dígitos.</div>
+      <div class="subtitle clip" data-start="22.8" data-duration="4.2" data-track-index="4">Escriba el código en el panel lateral para confirmar su identidad.</div>
+      <div class="subtitle clip" data-start="27" data-duration="4.2" data-track-index="4">Después de verificar, entrará al dashboard principal.</div>
+      <div class="subtitle clip" data-start="31.2" data-duration="4.8" data-track-index="4">Aquí verá tarjetas con indicadores estratégicos y accesos a módulos de análisis.</div>
+      <div class="subtitle clip" data-start="36" data-duration="4.8" data-track-index="4">En Vacantes por nivel, consulte la distribución de estatus de nómina mediante gráficas.</div>
+      <div class="subtitle clip" data-start="40.8" data-duration="5.1" data-track-index="4">Use esta vista para identificar niveles con mayor demanda de seguimiento.</div>
+      <div class="subtitle clip" data-start="45.9" data-duration="5.1" data-track-index="4">En Ocupación por Oficios, cambie entre la vista de Diagrama y la vista de Tabla.</div>
+      <div class="subtitle clip" data-start="51" data-duration="5.8" data-track-index="4">Aplique filtros por oficio, utilice la búsqueda y revise el contador de plazas.</div>
+      <div class="subtitle clip" data-start="56.8" data-duration="5.4" data-track-index="4">Cuando termine, regrese al dashboard y use Cerrar Sesión para proteger su cuenta.</div>
+      <div class="subtitle clip" data-start="62.2" data-duration="7.8" data-track-index="4">Eje Central centraliza la operación con un flujo seguro, claro y eficiente.</div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      const scenes = [
+        "#scene-0",
+        "#scene-1",
+        "#scene-2",
+        "#scene-3",
+        "#scene-4",
+        "#scene-5",
+        "#scene-6",
+        "#scene-7",
+        "#scene-8"
+      ];
+      const starts = [0, 6, 14, 22, 30, 40, 48, 56, 64];
+      const durations = [6, 8, 8, 8, 10, 8, 8, 8, 6];
+
+      scenes.forEach((id, i) => {
+        const t = starts[i];
+        const dur = durations[i];
+        tl.from(`${id} .top-bar`, { y: -32, opacity: 0, duration: 0.6, ease: "power2.out" }, t + 0.1);
+        tl.from(`${id} .title`, { y: 40, opacity: 0, duration: 0.8, ease: "power3.out" }, t + 0.25);
+        tl.from(`${id} .body`, { y: 26, opacity: 0, duration: 0.7, ease: "power2.out" }, t + 0.45);
+        tl.from(`${id} .panel`, { x: 70, opacity: 0, duration: 0.9, ease: "expo.out" }, t + 0.35);
+        tl.to(id, { opacity: 0, duration: 0.5, ease: "power2.inOut" }, t + dur - 0.55);
+      });
+
+      tl.from("#btn-login-callout", { scale: 0.9, repeat: 2, yoyo: true, duration: 0.45, ease: "power1.inOut" }, 8.4);
+      tl.from(["#callout-home", "#callout-login", "#callout-otp", "#callout-dash", "#callout-vacantes", "#callout-ocupacion", "#callout-filtros"], {
+        scale: 0.85,
+        opacity: 0,
+        duration: 0.45,
+        stagger: 8,
+        ease: "back.out(1.6)"
+      }, 11.2);
+
+      tl.to("#tab-diagrama", { className: "tab", duration: 0.01 }, 52.3);
+      tl.to("#tab-tabla", { className: "tab active", duration: 0.01 }, 52.3);
+      tl.to("#diagram-block", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 52.35);
+      tl.to("#table-block", { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 52.35);
+
+      tl.to("#progress-fill", { width: "100%", duration: 70, ease: "none" }, 0);
+      tl.to("#stage", { opacity: 0, duration: 0.7, ease: "power2.inOut" }, 69.3);
+
+      window.__timelines["manual-usuario-eje"] = tl;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "departamento": "00400000000",
+  "descripcion_larga": "Dirección General de Procesamiento Electrónico de Datos Aduaneros",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00004",
+  "unidad_administrativa": "004",
+  "doaf": "900",
+  "num_posicion_gerente": "20235034",
+  "posicion_director": "10300009",
+  "subordinados": [
+    {
+      "departamento": "00403000000",
+      "descripcion_larga": "Coordinación del Centro de Procesamiento Electrónico de Datos y Formación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00004",
+      "unidad_administrativa": "004",
+      "doaf": "900",
+      "num_posicion_gerente": "10301963",
+      "posicion_director": "20235034",
+      "subordinados": []
+    },
+    {
+      "departamento": "00402000000",
+      "descripcion_larga": "Dirección del Centro de Formación Aduanera",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00004",
+      "unidad_administrativa": "004",
+      "doaf": "900",
+      "num_posicion_gerente": "10300197",
+      "posicion_director": "20235034",
+      "subordinados": []
+    },
+    {
+      "departamento": "00401000000",
+      "descripcion_larga": "Dirección del Centro de Procesamiento Electrónico de Datos",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00004",
+      "unidad_administrativa": "004",
+      "doaf": "900",
+      "num_posicion_gerente": "10300183",
+      "posicion_director": "10300031",
+      "subordinados": []
+    }
+  ]
+}

@@ -1,0 +1,1071 @@
+{
+  "departamento": "40000000000",
+  "descripcion_larga": "Dirección General de Modernización, Equipamiento e Infraestructura Aduanera",
+  "nivel_direccion": "General",
+  "unidad_negocio": "00400",
+  "unidad_administrativa": "400",
+  "doaf": "900",
+  "num_posicion_gerente": "20235195",
+  "posicion_director": "10300009",
+  "subordinados": [
+    {
+      "departamento": "40005000000",
+      "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 1",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "20235107",
+      "posicion_director": "20235195",
+      "subordinados": [
+        {
+          "departamento": "40005010000",
+          "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235255",
+          "posicion_director": "20235107",
+          "subordinados": [
+            {
+              "departamento": "40005010100",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10343159",
+              "posicion_director": "20235255",
+              "subordinados": [
+                {
+                  "departamento": "40005010101",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 4",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342024",
+                  "posicion_director": "10343159",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40005010200",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "20235586",
+              "posicion_director": "20235255",
+              "subordinados": [
+                {
+                  "departamento": "40005010201",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 5",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342022",
+                  "posicion_director": "20235586",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40005010202",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 6",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342974",
+                  "posicion_director": "20235586",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40005010001",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10341885",
+              "posicion_director": "20235255",
+              "subordinados": []
+            },
+            {
+              "departamento": "40005010002",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10314842",
+              "posicion_director": "20235255",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40005020000",
+          "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10300161",
+          "posicion_director": "20235107",
+          "subordinados": [
+            {
+              "departamento": "40005020100",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 1",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10301290",
+              "posicion_director": "10300161",
+              "subordinados": [
+                {
+                  "departamento": "40005020101",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 7",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10319205",
+                  "posicion_director": "10301290",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40005020200",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 2",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10301530",
+              "posicion_director": "10300161",
+              "subordinados": [
+                {
+                  "departamento": "40005020201",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 8",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10335511",
+                  "posicion_director": "10301530",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40005020300",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 3",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10301600",
+              "posicion_director": "10300161",
+              "subordinados": [
+                {
+                  "departamento": "40005020302",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 10",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10306314",
+                  "posicion_director": "10301600",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40005020301",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 9",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10300970",
+                  "posicion_director": "10301600",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40005020400",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 4",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10302455",
+              "posicion_director": "10300161",
+              "subordinados": [
+                {
+                  "departamento": "40005020401",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 11",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305185",
+                  "posicion_director": "10302455",
+                  "subordinados": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "departamento": "40005030000",
+          "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 3",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235237",
+          "posicion_director": "20235195",
+          "subordinados": []
+        },
+        {
+          "departamento": "40005000001",
+          "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10329694",
+          "posicion_director": "20235107",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "40006000000",
+      "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 2",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "20235264",
+      "posicion_director": "20235195",
+      "subordinados": [
+        {
+          "departamento": "40006010000",
+          "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10343186",
+          "posicion_director": "20235264",
+          "subordinados": [
+            {
+              "departamento": "40006010100",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 5",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10333726",
+              "posicion_director": "20235264",
+              "subordinados": [
+                {
+                  "departamento": "40006010101",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 13",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10342026",
+                  "posicion_director": "10333726",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40006010102",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 14",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20235668",
+                  "posicion_director": "10333726",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40006010200",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 6",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10301267",
+              "posicion_director": "20235264",
+              "subordinados": []
+            },
+            {
+              "departamento": "40006010300",
+              "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 7",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10341877",
+              "posicion_director": "20235264",
+              "subordinados": [
+                {
+                  "departamento": "40006010301",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 15",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10349171",
+                  "posicion_director": "10341877",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40006010302",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 16",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10346034",
+                  "posicion_director": "10341877",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40006010303",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 17",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10303259",
+                  "posicion_director": "10341877",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40006010304",
+                  "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 18",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10346039",
+                  "posicion_director": "10341877",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40006010001",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 12",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10342027",
+              "posicion_director": "10343186",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "40008000000",
+      "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 4",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "10300031",
+      "posicion_director": "10300081",
+      "subordinados": []
+    },
+    {
+      "departamento": "40007000000",
+      "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera  3",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "20235255",
+      "posicion_director": "20235195",
+      "subordinados": [
+        {
+          "departamento": "40007000100",
+          "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 8",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10349090",
+          "posicion_director": "20235168",
+          "subordinados": [
+            {
+              "departamento": "40007000101",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 19",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10345900",
+              "posicion_director": "10349090",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40007000200",
+          "descripcion_larga": "Subdirección de Equipamiento e Infraestructura Aduanera 9",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235167",
+          "posicion_director": "20235168",
+          "subordinados": [
+            {
+              "departamento": "40007000201",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 21",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10341876",
+              "posicion_director": "20235167",
+              "subordinados": []
+            },
+            {
+              "departamento": "40007000202",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 22",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10305194",
+              "posicion_director": "20235167",
+              "subordinados": []
+            },
+            {
+              "departamento": "40007000203",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 23",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10305183",
+              "posicion_director": "20235167",
+              "subordinados": []
+            },
+            {
+              "departamento": "40007000204",
+              "descripcion_larga": "Departamento de Equipamiento e Infraestructura Aduanera 24",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10341874",
+              "posicion_director": "20235167",
+              "subordinados": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "departamento": "40001000000",
+      "descripcion_larga": "Dirección de Modernización Aduanera 1",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "10302563",
+      "posicion_director": "20235195",
+      "subordinados": [
+        {
+          "departamento": "40001030000",
+          "descripcion_larga": "Dirección de Logística de la Unidad Canina",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235168",
+          "posicion_director": "20235195",
+          "subordinados": []
+        },
+        {
+          "departamento": "40001010000",
+          "descripcion_larga": "Dirección de Modernización Aduanera 1",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235166",
+          "posicion_director": "20235108",
+          "subordinados": [
+            {
+              "departamento": "40001010100",
+              "descripcion_larga": "Subdirección de Modernización Aduanera 7",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10300324",
+              "posicion_director": "20235166",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001010200",
+              "descripcion_larga": "Subdirección de Modernización Aduanera 8",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10322323",
+              "posicion_director": "20235166",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001010001",
+              "descripcion_larga": "Departamento de Modernización Aduanera 15",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10346167",
+              "posicion_director": "20235166",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001010002",
+              "descripcion_larga": "Departamento de Modernización Aduanera 16",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10346030",
+              "posicion_director": "20235166",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001010003",
+              "descripcion_larga": "Departamento de Modernización Aduanera 17",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10346031",
+              "posicion_director": "20235166",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001010004",
+              "descripcion_larga": "Departamento de Modernización Aduanera 18",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10333982",
+              "posicion_director": "20235166",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40001020000",
+          "descripcion_larga": "Dirección de Modernización Aduanera 2",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10329497",
+          "posicion_director": "20235108",
+          "subordinados": [
+            {
+              "departamento": "40001020100",
+              "descripcion_larga": "Subdirección de Modernización Aduanera 9",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10343185",
+              "posicion_director": "10329497",
+              "subordinados": [
+                {
+                  "departamento": "40001020101",
+                  "descripcion_larga": "Departamento de Modernización Aduanera 26",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10322820",
+                  "posicion_director": "10343185",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40001020102",
+                  "descripcion_larga": "Departamento de Modernización Aduanera 27",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "20234099",
+                  "posicion_director": "10343185",
+                  "subordinados": []
+                },
+                {
+                  "departamento": "40001020103",
+                  "descripcion_larga": "Departamento de Modernización Aduanera 28",
+                  "nivel_direccion": "Jefe Depto",
+                  "unidad_negocio": "00400",
+                  "unidad_administrativa": "400",
+                  "doaf": "900",
+                  "num_posicion_gerente": "10305184",
+                  "posicion_director": "10343185",
+                  "subordinados": []
+                }
+              ]
+            },
+            {
+              "departamento": "40001020001",
+              "descripcion_larga": "Departamento de Modernización Aduanera 19",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10303466",
+              "posicion_director": "10329497",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001020002",
+              "descripcion_larga": "Departamento de Modernización Aduanera 20",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10346168",
+              "posicion_director": "10329497",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001020003",
+              "descripcion_larga": "Departamento de Modernización Aduanera 21",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10345907",
+              "posicion_director": "10329497",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001020004",
+              "descripcion_larga": "Departamento de Modernización Aduanera 22",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10306395",
+              "posicion_director": "10329497",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001020005",
+              "descripcion_larga": "Departamento de Modernización Aduanera 23",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10333978",
+              "posicion_director": "10329497",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001020006",
+              "descripcion_larga": "Departamento de Modernización Aduanera 24",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10318148",
+              "posicion_director": "10329497",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001020007",
+              "descripcion_larga": "Departamento de Modernización Aduanera 25",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10346032",
+              "posicion_director": "10329497",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40001000100",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 1",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10342040",
+          "posicion_director": "20235108",
+          "subordinados": []
+        },
+        {
+          "departamento": "40001000200",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 2",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10301306",
+          "posicion_director": "20235108",
+          "subordinados": [
+            {
+              "departamento": "40001000201",
+              "descripcion_larga": "Departamento de Modernización Aduanera 2",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "20234388",
+              "posicion_director": "10301306",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000202",
+              "descripcion_larga": "Departamento de Modernización Aduanera 3",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10343183",
+              "posicion_director": "10301306",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40001000300",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 3",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235587",
+          "posicion_director": "20235108",
+          "subordinados": [
+            {
+              "departamento": "40001000301",
+              "descripcion_larga": "Departamento de Modernización Aduanera 4",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "20235155",
+              "posicion_director": "20235587",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40001000400",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 4",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235843",
+          "posicion_director": "20235108",
+          "subordinados": []
+        },
+        {
+          "departamento": "40001000500",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 5",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235898",
+          "posicion_director": "20235108",
+          "subordinados": []
+        },
+        {
+          "departamento": "40001000700",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 6",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20238111",
+          "posicion_director": "10300081",
+          "subordinados": []
+        },
+        {
+          "departamento": "40001000600",
+          "descripcion_larga": "Subdirección de Unidad Canina",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10300385",
+          "posicion_director": "20235108",
+          "subordinados": [
+            {
+              "departamento": "40001000606",
+              "descripcion_larga": "Departamento de Modernización Aduanera 10",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10302971",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000607",
+              "descripcion_larga": "Departamento de Modernización Aduanera 11",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10343182",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000608",
+              "descripcion_larga": "Departamento de Modernización Aduanera 12",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10300730",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000609",
+              "descripcion_larga": "Departamento de Modernización Aduanera 13",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10306386",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000610",
+              "descripcion_larga": "Departamento de Modernización Aduanera 14",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10333750",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000601",
+              "descripcion_larga": "Departamento de Modernización Aduanera 5",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "20235770",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000602",
+              "descripcion_larga": "Departamento de Modernización Aduanera 6",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "20235845",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000603",
+              "descripcion_larga": "Departamento de Modernización Aduanera 7",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10333998",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000604",
+              "descripcion_larga": "Departamento de Modernización Aduanera 8",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10342816",
+              "posicion_director": "10300385",
+              "subordinados": []
+            },
+            {
+              "departamento": "40001000605",
+              "descripcion_larga": "Departamento de Modernización Aduanera 9",
+              "nivel_direccion": "Jefe Depto",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "10346237",
+              "posicion_director": "10300385",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40001000001",
+          "descripcion_larga": "Departamento de Modernización Aduanera 1",
+          "nivel_direccion": "Jefe Depto",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235108",
+          "posicion_director": "20235195",
+          "subordinados": []
+        }
+      ]
+    },
+    {
+      "departamento": "40003000000",
+      "descripcion_larga": "Dirección de Modernización Aduanera 3",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "10300067",
+      "posicion_director": "10300070",
+      "subordinados": []
+    },
+    {
+      "departamento": "40004000000",
+      "descripcion_larga": "Dirección de Modernización Aduanera 4",
+      "nivel_direccion": "Central",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "10300081",
+      "posicion_director": "20235195",
+      "subordinados": []
+    },
+    {
+      "departamento": "40009000000",
+      "descripcion_larga": "Dirección de Equipamiento e Infraestructura Aduanera 5",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "900",
+      "doaf": "900",
+      "num_posicion_gerente": "20235154",
+      "posicion_director": "20235195",
+      "subordinados": []
+    },
+    {
+      "departamento": "40002000000",
+      "descripcion_larga": "Dirección de Modernización Aduanera 2",
+      "nivel_direccion": "Director",
+      "unidad_negocio": "00400",
+      "unidad_administrativa": "400",
+      "doaf": "900",
+      "num_posicion_gerente": "20235165",
+      "posicion_director": "20235195",
+      "subordinados": [
+        {
+          "departamento": "40002010000",
+          "descripcion_larga": "Dirección de Modernización Aduanera 3",
+          "nivel_direccion": "Director",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "10302563",
+          "posicion_director": "20235165",
+          "subordinados": [
+            {
+              "departamento": "40002010100",
+              "descripcion_larga": "Subdirección de Modernización Aduanera 14",
+              "nivel_direccion": "Subdir.",
+              "unidad_negocio": "00400",
+              "unidad_administrativa": "400",
+              "doaf": "900",
+              "num_posicion_gerente": "20235876",
+              "posicion_director": "10302563",
+              "subordinados": []
+            }
+          ]
+        },
+        {
+          "departamento": "40002000100",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 10",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235169",
+          "posicion_director": "20235165",
+          "subordinados": []
+        },
+        {
+          "departamento": "40002000200",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 11",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235170",
+          "posicion_director": "20235165",
+          "subordinados": []
+        },
+        {
+          "departamento": "40002000300",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 12",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235588",
+          "posicion_director": "20235165",
+          "subordinados": []
+        },
+        {
+          "departamento": "40002000400",
+          "descripcion_larga": "Subdirección de Modernización Aduanera 13",
+          "nivel_direccion": "Subdir.",
+          "unidad_negocio": "00400",
+          "unidad_administrativa": "400",
+          "doaf": "900",
+          "num_posicion_gerente": "20235589",
+          "posicion_director": "20235165",
+          "subordinados": []
+        }
+      ]
+    }
+  ]
+}
