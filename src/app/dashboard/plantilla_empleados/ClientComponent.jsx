@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "motion/react";
 import PlantillaDetalleTab from "@/components/PlantillaDetalleTab";
 import EstatusTab from "@/components/EstatusTab";
 import MovimientosTab from "@/components/MovimientosTab";
+import MovimientosPersonalTab from "@/components/MovimientosPersonalTab";
 import MapaTab from "@/components/MapaTab";
 import BajasTab from "@/components/BajasTab";
 import TorreCaballito3DTab from "@/components/TorreCaballito3DTab";
@@ -33,12 +34,27 @@ export default function PlantillaEmpleadosDetalle({
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   const [isPending, startTransition] = useTransition();
   const cardRef = useRef(null);
-  const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "bajas" || activeTab === "organigrama" || (activeTab === "mapa" && activeMapaSubTab === "caballito");
+  const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "organigrama" || activeTab === "mapa";
 
+  // Prevent page scroll when on the map tab
+  useEffect(() => {
+    if (activeTab === "mapa") {
+      document.documentElement.classList.add("overflow-hidden");
+      document.body.classList.add("overflow-hidden");
+    } else {
+      document.documentElement.classList.remove("overflow-hidden");
+      document.body.classList.remove("overflow-hidden");
+    }
+
+    return () => {
+      document.documentElement.classList.remove("overflow-hidden");
+      document.body.classList.remove("overflow-hidden");
+    };
+  }, [activeTab]);
 
   // Window scroll clamping to prevent scrolling below the table
   useEffect(() => {
-    const isTableTab = isTightLayout;
+    const isTableTab = isTightLayout && activeTab !== "mapa";
     if (!isTableTab) return;
 
     const handleWindowScroll = () => {
@@ -103,6 +119,7 @@ export default function PlantillaEmpleadosDetalle({
                   { id: "detalle", label: "Plantilla Detalle" },
                   { id: "estatus", label: "Estatus Nómina" },
                   { id: "movimientos", label: "Mov. Posiciones" },
+                  { id: "movimientos_personal", label: "Movimientos" },
                   { id: "bajas", label: "Empleados Bajas" },
                   { id: "mapa", label: "Distribución Geográfica" }
                 ].map((tab) => (
@@ -192,11 +209,21 @@ export default function PlantillaEmpleadosDetalle({
                 </div>
                 <div className="max-w-screen-md">
                   <h2 className="text-4xl sm:text-5xl tracking-tight font-black text-gray-900 dark:text-white leading-tight">
-                    Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">{activeTab === "bajas" ? "Empleados Bajas" : "Empleados Activos"}</span>
+                    {activeTab === "movimientos_personal" ? (
+                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                        Movimientos de personal
+                      </span>
+                    ) : (
+                      <>
+                        Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">{activeTab === "bajas" ? "Empleados Bajas" : "Empleados Activos"}</span>
+                      </>
+                    )}
                   </h2>
-                  <p className="mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
-                    Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM.
-                  </p>
+                  {activeTab !== "movimientos_personal" && (
+                    <p className="mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
+                      Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -232,6 +259,14 @@ export default function PlantillaEmpleadosDetalle({
               {activeTab === "movimientos" && (
                 <MovimientosTab
                   movPosData={movPosData}
+                  detalle={detalle}
+                  isPending={isPending}
+                  startTransition={startTransition}
+                  cardRef={cardRef}
+                />
+              )}
+              {activeTab === "movimientos_personal" && (
+                <MovimientosPersonalTab
                   isPending={isPending}
                   startTransition={startTransition}
                   cardRef={cardRef}

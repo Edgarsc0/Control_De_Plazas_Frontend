@@ -16,7 +16,7 @@ export default function Home() {
           
           {/* Badge con RotatingText */}
           <div className="flex items-center gap-2 rounded-full border border-[#621f32]/25 bg-[#621f32]/5 pl-1 pr-3 py-1 backdrop-blur-sm">
-            <span className="bg-[#621f32] text-white text-[10px] px-3 py-1 rounded-full font-semibold animate-pulse">
+            <span className="bg-[#621f32] text-white text-xs px-3 py-1 rounded-full font-semibold motion-safe:animate-pulse">
               NUEVO
             </span>
             <span className="text-[13px] text-[#621f32] font-semibold flex items-center gap-1.5">
@@ -47,7 +47,7 @@ export default function Home() {
           </h1>
 
           {/* Description */}
-          <p className="text-center text-base md:text-lg max-w-[750px] mt-4 text-slate-500 font-light leading-relaxed">
+          <p className="text-center text-base md:text-lg max-w-[750px] mt-4 text-slate-600 font-light leading-relaxed">
             Plataforma institucional para la administración, monitoreo y análisis estratégico del capital humano en la ANAM. Gestione movimientos de plazas, supervise bajas y visualice estadísticas clave en tiempo real.
           </p>
 
@@ -55,14 +55,14 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
             <a
               href={isAuthenticated ? '/dashboard' : '/login'}
-              className="group bg-[#621f32] active:scale-95 hover:bg-[#621f32]/90 transition-all duration-300 px-8 py-3 text-white text-sm font-medium rounded-full cursor-pointer shadow-lg shadow-[#621f32]/25 inline-flex items-center gap-2"
+              className="group bg-[#621f32] active:scale-95 hover:bg-[#621f32]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#621f32] transition-all duration-300 px-8 py-3 text-white text-sm font-medium rounded-full cursor-pointer shadow-lg shadow-[#621f32]/25 inline-flex items-center gap-2"
             >
               {isAuthenticated ? 'Ir a dashboard' : 'Iniciar Sesión'}
               <ChevronRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
             </a>
             <Link
               href="/features"
-              className="border border-[#621f32]/25 bg-white text-[#621f32] hover:bg-[#621f32]/5 active:scale-95 transition-all duration-300 rounded-full px-8 py-3 text-sm font-medium cursor-pointer shadow-sm inline-flex items-center justify-center"
+              className="bg-transparent border border-transparent text-[#621f32] hover:bg-[#621f32]/5 hover:border-[#621f32]/25 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#621f32] transition-all duration-300 rounded-full px-8 py-3 text-sm font-medium cursor-pointer inline-flex items-center justify-center"
             >
               Ver características
             </Link>
@@ -81,7 +81,7 @@ export default function Home() {
           <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[60%] bg-[#621f32]/15 blur-[50px] rounded-full z-0"></div>
           
           {/* Contenedor de la Imagen con sombra guinda hacia afuera para un efecto de resplandor 3D */}
-          <div className="relative z-10 rounded-xl overflow-hidden shadow-[0_0_60px_10px_rgba(98,31,50,0.2),_0_0_20px_2px_rgba(98,31,50,0.35),_0_25px_60px_-15px_rgba(0,0,0,0.3)]">
+          <div className="relative z-10 rounded-xl overflow-hidden shadow-[0_0_60px_10px_rgba(98,31,50,0.2),_0_0_20px_2px_rgba(98,31,50,0.35),_0_25px_60px_-15px_rgba(0,0,0,0.3)] border border-white/40 md:border-white/20 bg-white/50 backdrop-blur-sm">
             <img 
               className="w-full h-auto object-cover object-top rounded-xl max-h-[400px] md:max-h-[500px]" 
               src="/image.png" 

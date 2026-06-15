@@ -48,6 +48,7 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  hideClose = false,
   ...props
 }) {
   return (
@@ -61,11 +62,13 @@ function DialogContent({
         )}
         {...props}>
         {children}
-        <DialogPrimitive.Close
-          className="absolute right-6 top-6 rounded-full p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-gray-100 transition-colors">
-          <X className="size-5" />
-          <span className="sr-only">Cerrar</span>
-        </DialogPrimitive.Close>
+        {!hideClose && (
+          <DialogPrimitive.Close
+            className="absolute right-6 top-6 rounded-full p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-gray-100 transition-colors">
+            <X className="size-5" />
+            <span className="sr-only">Cerrar</span>
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   );

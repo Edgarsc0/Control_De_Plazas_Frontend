@@ -1,3 +1,5 @@
+'use client';
+
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { gsap } from 'gsap';
 import { IconBox } from './BentoMiniComponents';
@@ -230,20 +232,40 @@ const useMobileDetection = () => {
 
 function CardInner({ card }) {
     if (card.fullContent) {
-        return card.renderContent ? card.renderContent() : card.children;
+        const content = card.renderContent ? card.renderContent() : card.children;
+        if (card.onClickRedirectTo) {
+            return (
+                <div style={{ position: 'relative', height: '100%', width: '100%' }} className="tabular-nums">
+                    {content}
+                    <div className="absolute top-3 left-16 flex items-center justify-center w-8 h-8 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-gray-100 text-[#621f32] font-black text-lg z-10 transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1">
+                        ↗
+                    </div>
+                </div>
+            );
+        }
+        return <div className="tabular-nums w-full h-full">{content}</div>;
     }
 
     return (
-        <>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} className="tabular-nums relative">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-                <IconBox icon={card.icon} color={card.iconColor} bg={card.iconBg} />
-                <span style={{
-                    fontSize: 9, fontWeight: 800, padding: '4px 10px', borderRadius: 99,
-                    background: 'rgba(98,31,50,0.07)', color: '#621f32',
-                    textTransform: 'uppercase', letterSpacing: '0.1em'
-                }}>
-                    {card.label}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {card.onClickRedirectTo && (
+                        <div className="text-[#bc955c] font-black text-xl transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1">
+                            ↗
+                        </div>
+                    )}
+                    <IconBox icon={card.icon} color={card.iconColor} bg={card.iconBg} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{
+                        fontSize: 9, fontWeight: 800, padding: '4px 10px', borderRadius: 99,
+                        background: 'rgba(98,31,50,0.07)', color: '#621f32',
+                        textTransform: 'uppercase', letterSpacing: '0.1em'
+                    }}>
+                        {card.label}
+                    </span>
+                </div>
             </div>
             <div style={{ marginBottom: 14 }}>
                 <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111827', margin: 0, lineHeight: 1.3 }}>
@@ -254,7 +276,7 @@ function CardInner({ card }) {
                 </p>
             </div>
             {card.renderContent ? card.renderContent() : card.children}
-        </>
+        </div>
     );
 }
 
@@ -296,7 +318,7 @@ const MagicBento = ({
             <BentoCardGrid gridRef={gridRef}>
                 {cards.map((card, index) => {
                     const baseClassName = [
-                        'cursor-pointer',
+                        card.onClickRedirectTo ? 'cursor-pointer group' : 'group',
                         'magic-bento-card',
                         card.span || 'col-span-1',
                         textAutoHide ? 'magic-bento-card--text-autohide' : '',

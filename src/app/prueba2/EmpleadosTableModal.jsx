@@ -147,7 +147,7 @@ export default function EmpleadosTableModal({ data, loading, title, onClose }) {
       setActiveFilterDropdown(colKey);
       setActiveConditionDropdown(null);
       setFilterSearchText("");
-      setTempSelectedValues(columnFilters[colKey] || uniqueColumnValues[colKey].map(v => v.value));
+      setTempSelectedValues(columnFilters[colKey] || (uniqueColumnValues[colKey] || []).map(v => v.value));
     }
   };
 
@@ -265,7 +265,7 @@ export default function EmpleadosTableModal({ data, loading, title, onClose }) {
                                   </div>
                                   <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
                                     <button onClick={() => {
-                                      const allVals = uniqueColumnValues[col.key].map(v => v.value);
+                                      const allVals = (uniqueColumnValues[col.key] || []).map(v => v.value);
                                       setTempSelectedValues(tempSelectedValues.length === allVals.length ? [] : allVals);
                                     }} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-100 rounded-lg transition-colors text-left group">
                                       <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedValues.length === (uniqueColumnValues[col.key]?.length || 0) ? "bg-[#621f32] border-[#621f32]" : "border-slate-500"}`}>

@@ -122,26 +122,40 @@ export default function Dashboard({
     <>
       <section className="bg-transparent pb-20">
         {/* Header del Dashboard */}
-        <div className="py-12 px-4 mx-auto max-w-screen-xl lg:px-6">
+        <div className="py-6 md:py-12 px-4 mx-auto max-w-screen-xl lg:px-6">
           {/* Elementos Zoom para animar el header */}
           <Zoom triggerOnce>
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-8 mb-16">
-              {/* Icono Estilizado */}
-              <div className="p-5 bg-[#621f32] rounded-3xl shadow-xl shadow-[#621f32]/20 flex-shrink-0">
-                <LayoutDashboard className="size-12 text-white" />
-              </div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800 rounded-3xl p-5 md:p-6 mb-8 border border-gray-100 dark:border-gray-800 shadow-xl shadow-gray-200/30 dark:shadow-none">
+              {/* Decorative background elements */}
+              <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#621f32]/10 rounded-full blur-[60px] pointer-events-none" />
+              <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-[#bc955c]/10 rounded-full blur-[60px] pointer-events-none" />
+              
+              <div className="relative z-10 flex flex-col md:flex-row items-center md:items-center gap-5">
+                {/* Icon Container */}
+                <div className="relative group flex-shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#621f32] to-[#bc955c] rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition duration-500" />
+                  <div className="relative p-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-white/50 dark:border-gray-700/50 rounded-2xl shadow-sm md:p-3.5">
+                    <LayoutDashboard className="size-6 md:size-7 text-[#621f32] dark:text-[#bc955c]" />
+                  </div>
+                </div>
 
-              <div className="max-w-screen-md">
-                <h2 className="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white">
-                  Dashboard de{' '}
-                  <span className="text-[#621f32]">Control de plazas</span>
-                </h2>
-                <p className="mt-4 text-gray-500 sm:text-xl font-medium leading-relaxed">
-                  Bienvenido al panel integral del Sistema de Control de Plazas.
-                  Aquí podras monitorear y gestionar los oficios de solicitud de
-                  ocupación asi como tambien algunas otras estadisticas de
-                  interes.
-                </p>
+                <div className="flex-1 text-center md:text-left">
+                  <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-1.5">
+                    <h2 className="text-xl md:text-3xl tracking-tight font-extrabold text-gray-900 dark:text-white">
+                      Dashboard de{' '}
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#621f32] to-[#bc955c]">
+                        Control de Plazas
+                      </span>
+                    </h2>
+                  </div>
+                  
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-medium leading-relaxed max-w-4xl">
+                    Monitorea en tiempo real la distribución de ocupación, valuación presupuestaria y gestión de movimientos de personal de la ANAM.
+                  </p>
+                </div>
+                
+
+
               </div>
             </div>
           </Zoom>

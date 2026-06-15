@@ -1,0 +1,1937 @@
+Created At: 2026-06-12T02:50:21Z
+Completed At: 2026-06-12T02:50:21Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 2542
+Total Bytes: 136945
+Showing lines 1 to 200
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: "use client";
+2: 
+3: import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+4: import { createPortal } from "react-dom";
+5: import { 
+6:   Search, Download, Columns, ChevronLeft, 
+7:   ChevronRight as ChevronRightIcon, ChevronDown, 
+8:   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
+9: , UserCheck, Eye } from "lucide-react";
+10: import { motion, AnimatePresence } from "motion/react";
+11: import { Zoom } from "react-awesome-reveal";
+12: import { VacantesService } from "@/services/vacantes.service";
+13: import EmpleadoTimelineModal from "./EmpleadoTimelineModal";
+14: import PosicionTimelineModal from "./PosicionTimelineModal";
+15: import { EmployeeRecordModal } from "./EmployeesModal";
+16: import {
+17:   Select,
+18:   SelectContent,
+19:   SelectItem,
+20:   SelectTrigger,
+21:   SelectValue,
+22: } from "@/components/ui/select";
+23: 
+24: const DATE_KEYS = ["fecha_efectiva", "fecha_captura", "salida_prevista", "fecha_ult_actz", "ult_inicio", "fecha_inicial", "fecha_entrada", "fecha_posicion"];
+25: const isDateColumn = (key) => DATE_KEYS.includes(key);
+26: const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+27: 
+28: const MOTIVOS_COUNT_MAP = {
+29:   "Baja": 18,
+30:   "Cambio Organizacional": 12,
+31:   "Recontratación": 6,
+32:   "Cambio Posición": 5,
+33:   "Reclutamiento Interno": 5,
+34:   "Suspensión": 4,
+35:   "Contratación": 3,
+36:   "Cambio Remuneración": 2,
+37:   "Continuidad": 2,
+38:   "Incorporación Temporal por Mandato": 1,
+39:   "Licencia Médica S/Sueldo": 1,
+40:   "Licencia Pre-Jubilatoria": 1,
+41:   "Licencia s/Goce de Sueldo": 1,
+42:   "Reincorp Licencia Médica": 1,
+43:   "Reincorp Suspensión": 1,
+44:   "Reincorporación Licencia s/Goce de Sueldo": 1
+45: };
+46: 
+47: const getTodayString = () => {
+48:   const today = new Date();
+49:   const year = today.getFullYear();
+50:   const month = String(today.getMonth() + 1).padStart(2, '0');
+51:   const day = String(today.getDate()).padStart(2, '0');
+52:   return `${year}-${month}-${day}`;
+53: };
+54: 
+55: const formatNumber = (num) => {
+56:   if (num === undefined || num === null) return "0";
+57:   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+58: };
+59: 
+60: const getColumnLetter = (index) => {
+61:   let temp = index, letter = "";
+62:   while (temp >= 0) {
+63:     letter = String.fromCharCode((temp % 26) + 65) + letter;
+64:     temp = Math.floor(temp / 26) - 1;
+65:   }
+66:   return letter;
+67: };
+68: 
+69: const getConditionLabel = (cond) => {
+70:   switch (cond) {
+71:     case "contains": return "Contiene";
+72:     case "not_contains": return "No contiene";
+73:     case "starts_with": return "Comienza con";
+74:     case "not_starts_with": return "No comienza con";
+75:     case "ends_with": return "Termina con";
+76:     case "not_ends_with": return "No termina con";
+77:     case "equals": return "Es igual a";
+78:     case "not_equals": return "Diferente de";
+79:     default: return "Contiene";
+80:   }
+81: };
+82: 
+83: const isMonoColumn = (key) => [
+84:   "posicion", "num_empleado", "rfc", "curp", "nv_jerarquico", "un", "id_persona"
+85: ].includes(key);
+86: 
+87: const getTextFilterParams = (filters) => {
+88:   const params = {};
+89:   Object.entries(filters).forEach(([key, filterObj]) => {
+90:     if (!filterObj || !filterObj.value) return;
+91:     const { value, condition } = filterObj;
+92:     let queryKey = `${key}__icontains`;
+93:     switch (condition) {
+94:       case "contains":
+95:         queryKey = `${key}__icontains`;
+96:         break;
+97:       case "not_contains":
+98:         queryKey = `exclude__${key}__icontains`;
+99:         break;
+100:       case "starts_with":
+101:         queryKey = `${key}__istartswith`;
+102:         break;
+103:       case "not_starts_with":
+104:         queryKey = `exclude__${key}__istartswith`;
+105:         break;
+106:       case "ends_with":
+107:         queryKey = `${key}__iendswith`;
+108:         break;
+109:       case "not_ends_with":
+110:         queryKey = `exclude__${key}__iendswith`;
+111:         break;
+112:       case "equals":
+113:         queryKey = `${key}__iexact`;
+114:         break;
+115:       case "not_equals":
+116:         queryKey = `exclude__${key}__iexact`;
+117:         break;
+118:     }
+119:     params[queryKey] = value;
+120:   });
+121:   return params;
+122: };
+123: 
+124: export default function MovimientosPersonalTab({ isPending, startTransition, cardRef }) {
+125:   const [mounted, setMounted] = useState(false);
+126:   const [isExportingExcel, setIsExportingExcel] = useState(false);
+127:   const [data, setData] = useState([]);
+128:   const tbodyRef = useRef(null);
+129:   const bitacoraDateInputRef = useRef(null);
+130: 
+131:   // Stats for personal movements
+132:   const [statsData, setStatsData] = useState({ by_year: {}, all: [] });
+133:   const [selectedYear, setSelectedYear] = useState("all");
+134:   const [statsLoading, setStatsLoading] = useState(true);
+135: 
+136:   useEffect(() => {
+137:     setStatsLoading(true);
+138:     VacantesService.getMovimientosPersonalStats()
+139:       .then((res) => res.json())
+140:       .then((resData) => {
+141:         if (resData && (resData.by_year || resData.all)) {
+142:           setStatsData(resData);
+143:         }
+144:       })
+145:       .catch((err) => console.error("Error fetching movements stats:", err))
+146:       .finally(() => setStatsLoading(false));
+147:   }, []);
+148: 
+149:   const activeStatsList = useMemo(() => {
+150:     if (selectedYear === "all") {
+151:       return statsData.all || [];
+152:     }
+153:     return statsData.by_year[selectedYear] || [];
+154:   }, [statsData, selectedYear]);
+155: 
+156:   const pieTotal = useMemo(() => {
+157:     return activeStatsList.reduce((s, d) => s + d.total, 0);
+158:   }, [activeStatsList]);
+159: 
+160:   const PIE_COLORS = [
+161:     "#621f32", "#bc955c", "#8d2c48", "#d4a96a", "#4a1625",
+162:     "#e8c280", "#3d1020", "#a07040", "#7a2038", "#f0d090",
+163:     "#2d0a18", "#c8a050", "#b06040", "#6a1828", "#dbb870",
+164:   ];
+165: 
+166:   const pieSlices = useMemo(() => {
+167:     if (!activeStatsList.length || pieTotal === 0) return [];
+168:     const R = 80, cx = 100, cy = 100;
+169:     let angle = -Math.PI / 2;
+170:     return activeStatsList.map((d, i) => {
+171:       const slice = (d.total / pieTotal) * 2 * Math.PI;
+172:       const x1 = cx + R * Math.cos(angle);
+173:       const y1 = cy + R * Math.sin(angle);
+174:       angle += slice;
+175:       const x2 = cx + R * Math.cos(angle);
+176:       const y2 = cy + R * Math.sin(angle);
+177:       const largeArc = slice > Math.PI ? 1 : 0;
+178:       const midAngle = angle - slice / 2;
+179:       return {
+180:         d: `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`,
+181:         color: PIE_COLORS[i % PIE_COLORS.length],
+182:         midAngle,
+183:         pct: ((d.total / pieTotal) * 100).toFixed(1),
+184:         ...d,
+185:       };
+186:     });
+187:   }, [activeStatsList, pieTotal]);
+188: 
+189:   const [hoveredSlice, setHoveredSlice] = useState(null);
+190: 
+191:   const [count, setCount] = useState(0);
+192:   const [loading, setLoading] = useState(false);
+193:   const [page, setPage] = useState(1);
+194:   const [pageSize, setPageSize] = useState(50);
+195:   const [searchQuery, setSearchQuery] = useState("");
+196:   const [debouncedSearch, setDebouncedSearch] = useState("");
+197:   const [sortConfig, setSortConfig] = useState({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
+198:   const [selectedCell, setSelectedCell] = useState(null);
+199:   const arrowRepeatRef = useRef(0);
+200:   const [contextMenu, setContextMenu] = useState(null);
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+================================================================================
+Created At: 2026-06-12T02:52:12Z
+Completed At: 2026-06-12T02:52:12Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 2542
+Total Bytes: 136945
+Showing lines 150 to 250
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+150:     if (selectedYear === "all") {
+151:       return statsData.all || [];
+152:     }
+153:     return statsData.by_year[selectedYear] || [];
+154:   }, [statsData, selectedYear]);
+155: 
+156:   const pieTotal = useMemo(() => {
+157:     return activeStatsList.reduce((s, d) => s + d.total, 0);
+158:   }, [activeStatsList]);
+159: 
+160:   const PIE_COLORS = [
+161:     "#621f32", "#bc955c", "#8d2c48", "#d4a96a", "#4a1625",
+162:     "#e8c280", "#3d1020", "#a07040", "#7a2038", "#f0d090",
+163:     "#2d0a18", "#c8a050", "#b06040", "#6a1828", "#dbb870",
+164:   ];
+165: 
+166:   const pieSlices = useMemo(() => {
+167:     if (!activeStatsList.length || pieTotal === 0) return [];
+168:     const R = 80, cx = 100, cy = 100;
+169:     let angle = -Math.PI / 2;
+170:     return activeStatsList.map((d, i) => {
+171:       const slice = (d.total / pieTotal) * 2 * Math.PI;
+172:       const x1 = cx + R * Math.cos(angle);
+173:       const y1 = cy + R * Math.sin(angle);
+174:       angle += slice;
+175:       const x2 = cx + R * Math.cos(angle);
+176:       const y2 = cy + R * Math.sin(angle);
+177:       const largeArc = slice > Math.PI ? 1 : 0;
+178:       const midAngle = angle - slice / 2;
+179:       return {
+180:         d: `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`,
+181:         color: PIE_COLORS[i % PIE_COLORS.length],
+182:         midAngle,
+183:         pct: ((d.total / pieTotal) * 100).toFixed(1),
+184:         ...d,
+185:       };
+186:     });
+187:   }, [activeStatsList, pieTotal]);
+188: 
+189:   const [hoveredSlice, setHoveredSlice] = useState(null);
+190: 
+191:   const [count, setCount] = useState(0);
+192:   const [loading, setLoading] = useState(false);
+193:   const [page, setPage] = useState(1);
+194:   const [pageSize, setPageSize] = useState(50);
+195:   const [searchQuery, setSearchQuery] = useState("");
+196:   const [debouncedSearch, setDebouncedSearch] = useState("");
+197:   const [sortConfig, setSortConfig] = useState({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
+198:   const [selectedCell, setSelectedCell] = useState(null);
+199:   const arrowRepeatRef = useRef(0);
+200:   const [contextMenu, setContextMenu] = useState(null);
+201:   const [selectedRowData, setSelectedRowData] = useState(null);
+202: 
+203:   // Subtab State
+204:   const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
+205:   
+206:   // Bitacora States
+207:   const [distinctDates, setDistinctDates] = useState([]);
+208:   const [bitacoraDate, setBitacoraDate] = useState(getTodayString);
+209:   const [bitacoraData, setBitacoraData] = useState([]);
+210:   const [bitacoraCount, setBitacoraCount] = useState(0);
+211:   const [bitacoraLoading, setBitacoraLoading] = useState(false);
+212:   const [bitacoraPage, setBitacoraPage] = useState(1);
+213:   const [bitacoraPageSize, setBitacoraPageSize] = useState(50);
+214:   const [selectedBitacoraRow, setSelectedBitacoraRow] = useState(null);
+215:   const [isExportingBitacoraExcel, setIsExportingBitacoraExcel] = useState(false);
+216: 
+217:   // Fetch distinct dates for Bitacora on mount
+218:   useEffect(() => {
+219:     VacantesService.getMovimientosPersonal({ distinct_field: "fecha_captura" })
+220:       .then((res) => res.json())
+221:       .then((resData) => {
+222:         if (Array.isArray(resData)) {
+223:           const todayStr = getTodayString();
+224:           let dates = resData
+225:             .filter((d) => d.value)
+226:             .sort((a, b) => new Date(b.value) - new Date(a.value));
+227:           
+228:           // Ensure today is always present in the dropdown list
+229:           const hasToday = dates.some((d) => d.value === todayStr);
+230:           if (!hasToday) {
+231:             dates = [{ value: todayStr, count: 0 }, ...dates];
+232:           }
+233:           setDistinctDates(dates);
+234:         }
+235:       })
+236:       .catch((err) => console.error("Error fetching distinct dates:", err));
+237:   }, []);
+238: 
+239:   // Fetch Bitacora records when parameters change
+240:   useEffect(() => {
+241:     if (activeSubTab !== "bitacora" || !bitacoraDate) return;
+242:     setBitacoraLoading(true);
+243:     const params = {
+244:       page: bitacoraPage,
+245:       page_size: bitacoraPageSize,
+246:       fecha_captura__in: bitacoraDate,
+247:       sort_by: "fecha_captura,fecha_ult_actz",
+248:       sort_order: "desc"
+249:     };
+250: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+================================================================================
+Created At: 2026-06-12T02:53:44Z
+Completed At: 2026-06-12T02:53:44Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 2542
+Total Bytes: 136945
+Showing lines 1100 to 1200
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1100:                   <div className="flex items-center gap-2 mb-3 relative z-10">
+1101:                     <div className="p-2 rounded-xl bg-white/20 size-8" />
+1102:                     <div className="h-3 w-28 bg-white/20 rounded-md" />
+1103:                   </div>
+1104:                   
+1105:                   <div className="flex flex-col relative z-10 gap-2">
+1106:                     <div className="h-10 w-24 bg-white/20 rounded-lg" />
+1107:                     <div className="h-3 w-32 bg-white/10 rounded-md mt-2" />
+1108:                   </div>
+1109: 
+1110:                   <div className="mt-4 relative z-10">
+1111:                     <div className="h-2.5 w-20 bg-white/10 rounded-md mb-2" />
+1112:                     <div className="h-10 min-h-10 max-h-10 w-full bg-white/20 rounded-xl flex-shrink-0" />
+1113:                   </div>
+1114:                 </div>
+1115:               </div>
+1116:             ) : (
+1117:               <div className="flex-shrink-0 lg:w-56">
+1118:                 <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20">
+1119:                   <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
+1120:                   <div className="flex items-center gap-2 mb-3 relative z-10">
+1121:                     <div className="p-2 rounded-xl bg-white/20 text-white">
+1122:                       <Briefcase className="size-4" />
+1123:                     </div>
+1124:                     <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Total de Movimientos</span>
+1125:                   </div>
+1126:                   
+1127:                   <div className="flex flex-col relative z-10">
+1128:                     <span className="text-5xl font-black tracking-tighter text-white">
+1129:                       {formatNumber(pieTotal)}
+1130:                     </span>
+1131:                     <span className="text-xs text-white/60 mt-2 relative z-10 font-semibold">
+1132:                       {activeStatsList.length} acciones distintas
+1133:                     </span>
+1134:                   </div>
+1135: 
+1136:                   {/* Year Selector */}
+1137:                   <div className="mt-4 relative z-10">
+1138:                     <label className="text-[9px] font-bold uppercase tracking-wider text-white/75 block mb-1">Año de Efectividad</label>
+1139:                     <Select value={selectedYear} onValueChange={setSelectedYear}>
+1140:                       <SelectTrigger className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 !h-10 !min-h-10 !max-h-10 flex-shrink-0 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&_svg]:text-slate-500 shadow-sm transition-colors">
+1141:                         <SelectValue placeholder="Seleccionar año" />
+1142:                       </SelectTrigger>
+1143:                       <SelectContent position="popper" className="bg-white border border-slate-200 text-slate-850 max-h-60 rounded-xl shadow-xl [&_svg]:text-slate-800 w-[var(--radix-select-trigger-width)]">
+1144:                         <SelectItem value="all" className="hover:bg-slate-100 focus:bg-slate-100 text-slate-700 cursor-pointer py-1.5 px-3 rounded-lg text-xs font-bold transition-colors">
+1145:                           Todos los años
+1146:                         </SelectItem>
+1147:                         {Object.keys(statsData.by_year).sort((a, b) => b.localeCompare(a)).map(year => (
+1148:                           <SelectItem key={year} value={year} className="hover:bg-slate-100 focus:bg-slate-100 text-slate-700 cursor-pointer py-1.5 px-3 rounded-lg text-xs font-bold transition-colors">
+1149:                             {year}
+1150:                           </SelectItem>
+1151:                         ))}
+1152:                       </SelectContent>
+1153:                     </Select>
+1154:                   </div>
+1155:                 </div>
+1156:               </div>
+1157:             )}
+1158: 
+1159:             {/* Pie chart */}
+1160:             {statsLoading ? (
+1161:               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse">
+1162:                 {/* SVG skeleton */}
+1163:                 <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
+1164:                   <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
+1165:                 </div>
+1166:                 {/* Legend skeleton */}
+1167:                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
+1168:                   {[...Array(6)].map((_, i) => (
+1169:                     <div key={i} className="flex items-center gap-2 py-1">
+1170:                       <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
+1171:                       <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
+1172:                       <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
+1173:                     </div>
+1174:                   ))}
+1175:                 </div>
+1176:               </div>
+1177:             ) : pieSlices.length > 0 ? (
+1178:               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center">
+1179:                 <div className="relative shrink-0">
+1180:                   <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+1181:                     {pieSlices.map((slice, i) => (
+1182:                       <path
+1183:                         key={i}
+1184:                         d={slice.d}
+1185:                         fill={slice.color}
+1186:                         opacity={hoveredSlice === null || hoveredSlice === i ? 1 : 0.35}
+1187:                         stroke="white"
+1188:                         strokeWidth="1.5"
+1189:                         className="transition-all duration-200 cursor-pointer"
+1190:                         onMouseEnter={() => setHoveredSlice(i)}
+1191:                         onMouseLeave={() => setHoveredSlice(null)}
+1192:                         onClick={() => handleActionClick(slice.accion_nombre)}
+1193:                         style={hoveredSlice === i ? { filter: 'brightness(1.15)' } : {}}
+1194:                       />
+1195:                     ))}
+1196:                     {/* Donut hole */}
+1197:                     <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+1198:                     <text x="100" y="96" textAnchor="middle" className="text-[9px]" fill="#621f32" fontWeight="900" fontSize="11">
+1199:                       {hoveredSlice !== null ? pieSlices[hoveredSlice].pct + "%" : formatNumber(pieTotal)}
+1200:                     </text>
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+================================================================================
+Created At: 2026-06-12T02:54:38Z
+Completed At: 2026-06-12T02:54:38Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 2542
+Total Bytes: 136945
+Showing lines 1150 to 1250
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1150:                           </SelectItem>
+1151:                         ))}
+1152:                       </SelectContent>
+1153:                     </Select>
+1154:                   </div>
+1155:                 </div>
+1156:               </div>
+1157:             )}
+1158: 
+1159:             {/* Pie chart */}
+1160:             {statsLoading ? (
+1161:               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse">
+1162:                 {/* SVG skeleton */}
+1163:                 <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
+1164:                   <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
+1165:                 </div>
+1166:                 {/* Legend skeleton */}
+1167:                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
+1168:                   {[...Array(6)].map((_, i) => (
+1169:                     <div key={i} className="flex items-center gap-2 py-1">
+1170:                       <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
+1171:                       <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
+1172:                       <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
+1173:                     </div>
+1174:                   ))}
+1175:                 </div>
+1176:               </div>
+1177:             ) : pieSlices.length > 0 ? (
+1178:               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center">
+1179:                 <div className="relative shrink-0">
+1180:                   <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+1181:                     {pieSlices.map((slice, i) => (
+1182:                       <path
+1183:                         key={i}
+1184:                         d={slice.d}
+1185:                         fill={slice.color}
+1186:                         opacity={hoveredSlice === null || hoveredSlice === i ? 1 : 0.35}
+1187:                         stroke="white"
+1188:                         strokeWidth="1.5"
+1189:                         className="transition-all duration-200 cursor-pointer"
+1190:                         onMouseEnter={() => setHoveredSlice(i)}
+1191:                         onMouseLeave={() => setHoveredSlice(null)}
+1192:                         onClick={() => handleActionClick(slice.accion_nombre)}
+1193:                         style={hoveredSlice === i ? { filter: 'brightness(1.15)' } : {}}
+1194:                       />
+1195:                     ))}
+1196:                     {/* Donut hole */}
+1197:                     <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+1198:                     <text x="100" y="96" textAnchor="middle" className="text-[9px]" fill="#621f32" fontWeight="900" fontSize="11">
+1199:                       {hoveredSlice !== null ? pieSlices[hoveredSlice].pct + "%" : formatNumber(pieTotal)}
+1200:                     </text>
+1201:                     <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
+1202:                       {hoveredSlice !== null ? "del total" : "movimientos"}
+1203:                     </text>
+1204:                   </svg>
+1205:                 </div>
+1206: 
+1207:                 {/* Leyenda */}
+1208:                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1">
+1209:                   {pieSlices.map((slice, i) => (
+1210:                     <div
+1211:                       key={i}
+1212:                       onMouseEnter={() => setHoveredSlice(i)}
+1213:                       onMouseLeave={() => setHoveredSlice(null)}
+1214:                       onClick={() => handleActionClick(slice.accion_nombre)}
+1215:                       className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 ${
+1216:                         hoveredSlice === null || hoveredSlice === i ? 'opacity-100' : 'opacity-40'
+1217:                       }`}
+1218:                     >
+1219:                       <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+1220:                       <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={`${slice.accion_nombre} (con ${MOTIVOS_COUNT_MAP[slice.accion_nombre] || 0} motivos diferentes)`}>
+1221:                         {slice.accion_nombre} <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500"> (con {MOTIVOS_COUNT_MAP[slice.accion_nombre] || 0} motivos diferentes)</span>
+1222:                       </span>
+1223:                       <span className="text-[10px] font-black text-slate-500 shrink-0">
+1224:                         {formatNumber(slice.total)}
+1225:                         <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+1226:                       </span>
+1227:                     </div>
+1228:                   ))}
+1229:                 </div>
+1230:               </div>
+1231:             ) : null}
+1232: 
+1233:             <AnimatePresence>
+1234:               {selectedActionName && (
+1235:                 <>
+1236:                   {/* Motif stats card */}
+1237:                   <motion.div
+1238:                     key="motif-card"
+1239:                     initial={{ opacity: 0, scale: 0.95, x: 20 }}
+1240:                     animate={{ opacity: 1, scale: 1, x: 0 }}
+1241:                     exit={{ opacity: 0, scale: 0.95, x: 20 }}
+1242:                     transition={{ duration: 0.35, ease: "easeOut" }}
+1243:                     className="flex-shrink-0 lg:w-56 flex flex-col gap-2"
+1244:                   >
+1245:                     <div className="text-[10px] font-black uppercase tracking-widest text-[#bc955c] dark:text-[#d4a96a] px-1 truncate" title={`Motivos de ${selectedActionName}`}>
+1246:                       Motivos de {selectedActionName}
+1247:                     </div>
+1248:                     {motifStatsLoading ? (
+1249:                       <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-[#bc955c]/90 text-slate-950 shadow-xl shadow-[#bc955c]/25 ring-2 ring-white/20 animate-pulse min-h-[224px]">
+1250:                         <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+================================================================================
+Created At: 2026-06-12T02:56:18Z
+Completed At: 2026-06-12T02:56:18Z
+The following changes were made by the multi_replace_file_content tool to: /home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -187,6 +187,7 @@
+   }, [activeStatsList, pieTotal]);
+ 
+   const [hoveredSlice, setHoveredSlice] = useState(null);
++  const [pieTooltipPos, setPieTooltipPos] = useState({ x: 0, y: 0 });
+ 
+   const [count, setCount] = useState(0);
+   const [loading, setLoading] = useState(false);
+@@ -1177,7 +1177,7 @@
+               </div>
+             ) : pieSlices.length > 0 ? (
+               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center">
+-                <div className="relative shrink-0">
++                <div className="relative shrink-0" onMouseMove={(e) => setPieTooltipPos({ x: e.clientX, y: e.clientY })}>
+                   <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+                     {pieSlices.map((slice, i) => (
+                       <path
+@@ -1190,7 +1190,7 @@
+                         onMouseEnter={() => setHoveredSlice(i)}
+                         onMouseLeave={() => setHoveredSlice(null)}
+                         onClick={() => handleActionClick(slice.accion_nombre)}
+-                        style={hoveredSlice === i ? { filter: 'brightness(1.15)' } : {}}
++                        style={hoveredSlice === i ? { filter: 'brightness(1.15)', transform: 'scale(1.03)', transformOrigin: 'center' } : {}}
+                       />
+                     ))}
+                     {/* Donut hole */}
+@@ -1350,7 +1350,7 @@
+                         </div>
+                       ) : motifPieSlices.length > 0 ? (
+                         <>
+-                          <div className="relative shrink-0">
++                          <div className="relative shrink-0" onMouseMove={(e) => setPieTooltipPos({ x: e.clientX, y: e.clientY })}>
+                             <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+                               {motifPieSlices.map((slice, i) => (
+                                 <path
+@@ -1363,7 +1363,7 @@
+                                   onMouseEnter={() => setHoveredMotifSlice(i)}
+                                   onMouseLeave={() => setHoveredMotifSlice(null)}
+                                   onClick={() => handleMotifClick(slice.motivo_nombre)}
+-                                  style={hoveredMotifSlice === i ? { filter: 'brightness(1.15)' } : {}}
++                                  style={hoveredMotifSlice === i ? { filter: 'brightness(1.15)', transform: 'scale(1.03)', transformOrigin: 'center' } : {}}
+                                 />
+                               ))}
+                               <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+@@ -2472,6 +2472,63 @@
+       {contextMenu && (
+         <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}></div>
+       )}
++
++      {/* PIE CHART TOOLTIP */}
++      {typeof window !== 'undefined' && createPortal(
++        <AnimatePresence>
++          {(hoveredSlice !== null && pieSlices[hoveredSlice]) && (
++            <motion.div
++              initial={{ opacity: 0, scale: 0.9 }}
++              animate={{ opacity: 1, scale: 1 }}
++              exit={{ opacity: 0, scale: 0.9 }}
++              transition={{ duration: 0.15 }}
++              style={{ top: pieTooltipPos.y - 60, left: pieTooltipPos.x + 15 }}
++              className="fixed z-[10000] pointer-events-none bg-slate-900/95 dark:bg-slate-950 backdrop-blur-md border border-slate-700 shadow-2xl rounded-xl p-3 flex flex-col gap-1 min-w-[160px]"
++            >
++              <div className="flex items-center gap-2">
++                <div className="size-2.5 rounded-full shadow-sm" style={{ backgroundColor: pieSlices[hoveredSlice].color }} />
++                <span className="text-[11px] font-black uppercase text-white truncate max-w-[200px]">
++                  {pieSlices[hoveredSlice].accion_nombre}
++                </span>
++              </div>
++              <div className="flex items-center justify-between mt-1">
++                <span className="text-[10px] text-slate-400 font-semibold">Total</span>
++                <span className="text-xs font-black text-[#bc955c]">{formatNumber(pieSlices[hoveredSlice].total)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-[10px] text-slate-400 font-semibold">Porcentaje</span>
++                <span className="text-[11px] font-black text-slate-200">{pieSlices[hoveredSlice].pct}%</span>
++              </div>
++            </motion.div>
++          )}
++          {(hoveredMotifSlice !== null && motifPieSlices[hoveredMotifSlice]) && (
++            <motion.div
++              initial={{ opacity: 0, scale: 0.9 }}
++              animate={{ opacity: 1, scale: 1 }}
++              exit={{ opacity: 0, scale: 0.9 }}
++              transition={{ duration: 0.15 }}
++              style={{ top: pieTooltipPos.y - 60, left: pieTooltipPos.x + 15 }}
++              className="fixed z-[10000] pointer-events-none bg-slate-900/95 dark:bg-slate-950 backdrop-blur-md border border-slate-700 shadow-2xl rounded-xl p-3 flex flex-col gap-1 min-w-[160px]"
++            >
++              <div className="flex items-center gap-2">
++                <div className="size-2.5 rounded-full shadow-sm" style={{ backgroundColor: motifPieSlices[hoveredMotifSlice].color }} />
++                <span className="text-[11px] font-black uppercase text-white truncate max-w-[200px]">
++                  {motifPieSlices[hoveredMotifSlice].motivo_nombre}
++                </span>
++              </div>
++              <div className="flex items-center justify-between mt-1">
++                <span className="text-[10px] text-slate-400 font-semibold">Total</span>
++                <span className="text-xs font-black text-[#bc955c]">{formatNumber(motifPieSlices[hoveredMotifSlice].total)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-[10px] text-slate-400 font-semibold">Porcentaje</span>
++                <span className="text-[11px] font-black text-slate-200">{motifPieSlices[hoveredMotifSlice].pct}%</span>
++              </div>
++            </motion.div>
++          )}
++        </AnimatePresence>,
++        document.body
++      )}
+       <AnimatePresence>
+         {contextMenu && (
+           <motion.div
+[diff_block_end]
+
+Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.
+================================================================================
+Created At: 2026-06-12T03:05:11Z
+Completed At: 2026-06-12T03:05:41Z
+The following changes were made by the multi_replace_file_content tool to: /home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx. If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.
+[diff_block_start]
+@@ -208,6 +208,11 @@
+   // Subtab State
+   const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
+   
++  // Bitacora Date Selector State
++  const [distinctDates, setDistinctDates] = useState([]);
++  const [bitacoraDate, setBitacoraDate] = useState(getTodayString());
++  const bitacoraDateInputRef = useRef(null);
++  
+   // Fetch distinct dates for Bitacora on mount
+   useEffect(() => {
+     VacantesService.getMovimientosPersonal({ distinct_field: "fecha_captura" })
+@@ -229,113 +229,8 @@
+       .catch((err) => console.error("Error fetching distinct dates:", err));
+   }, []);
+ 
+-
+-
+-  const handleExportBitacoraExcel = async () => {
+-    if (!bitacoraDate) return;
+-    setIsExportingBitacoraExcel(true);
+-    try {
+-      const params = {
+-        no_pagination: true,
+-        fecha_captura__in: bitacoraDate,
+-        sort_by: "fecha_captura,fecha_ult_actz",
+-        sort_order: "desc"
+-      };
+-
+-      const res = await VacantesService.getMovimientosPersonal(params);
+-      const allData = await res.json();
+-
+-      const ExcelJS = (await import("exceljs")).default;
+-      const workbook = new ExcelJS.Workbook();
+-      const worksheet = workbook.addWorksheet(`Bitacora ${bitacoraDate}`);
+-
+-      const relevantCols = [
+-        { key: "posicion", label: "Posición" },
+-        { key: "num_empleado", label: "No. Empleado" },
+-        { key: "nombre", label: "Nombre" },
+-        { key: "ap_pat", label: "Ap. Paterno" },
+-        { key: "ap_mat", label: "Ap. Mat" },
+-        { key: "accion_nombre", label: "Acción" },
+-        { key: "motivo_nombre", label: "Motivo" },
+-        { key: "fecha_efectiva", label: "Fecha Efectiva" },
+-        { key: "fecha_captura", label: "Fecha Captura" },
+-        { key: "fecha_ult_actz", label: "Última Actualización" },
+-        { key: "un_admin", label: "UN Admin" },
+-        { key: "ubicacion", label: "Ubicación" }
+-      ];
+-
+-      worksheet.columns = relevantCols.map((c) => ({
+-        header: c.label,
+-        key: c.key,
+-        width: 15,
+-      }));
+-
+-      allData.forEach((row) => {
+-        const rowData = {};
+-        relevantCols.forEach((c) => {
+-          rowData[c.key] = row[c.key];
+-        });
+-        const addedRow = worksheet.addRow(rowData);
+-        addedRow.eachCell((cell) => {
+-          cell.border = {
+-            top: { style: 'thin', color: { argb: 'FFBC955C' } },
+-            left: { style: 'thin', color: { argb: 'FFBC955C' } },
+-            bottom: { style: 'thin', color: { argb: 'FFBC955C' } },
+-            right: { style: 'thin', color: { argb: 'FFBC955C' } }
+-          };
+-        });
+-      });
+-
+-      const headerRow = worksheet.getRow(1);
+-      headerRow.height = 24;
+-      headerRow.eachCell((cell) => {
+-        cell.fill = {
+-          type: "pattern",
+-          pattern: "solid",
+-          fgColor: { argb: "FF2B4C7E" }
+-        };
+-        cell.font = {
+-          name: "Segoe UI",
+-          size: 10,
+-          bold: true,
+-          color: { argb: "FFFFFFFF" }
+-        };
+-        cell.alignment = { horizontal: "center", vertical: "middle" };
+-        cell.border = {
+-          top: { style: 'medium', color: { argb: 'FFBC955C' } },
+-          left: { style: 'medium', color: { argb: 'FFBC955C' } },
+-          bottom: { style: 'medium', color: { argb: 'FFBC955C' } },
+-          right: { style: 'medium', color: { argb: 'FFBC955C' } }
+-        };
+-      });
+-
+-      worksheet.columns.forEach((column) => {
+-        let maxLength = 0;
+-        column.eachCell({ includeEmpty: true }, (cell) => {
+-          const cellValue = cell.value ? cell.value.toString() : "";
+-          if (cellValue.length > maxLength) {
+-            maxLength = cellValue.length;
+-          }
+-        });
+-        column.width = maxLength < 10 ? 10 : maxLength + 2;
+-      });
+-
+-      const buffer = await workbook.xlsx.writeBuffer();
+-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+-      const link = document.createElement("a");
+-      link.href = URL.createObjectURL(blob);
+-      link.download = `Bitacora_Movimientos_${bitacoraDate}.xlsx`;
+-      link.click();
+-    } catch (err) {
+-      console.error(err);
+-    } finally {
+-      setIsExportingBitacoraExcel(false);
+-    }
+-  };
+-
+   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
+   const [columnSearchText, setColumnSearchText] = useState("");
+-  
+   const [textFilters, setTextFilters] = useState({});
+   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
+   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
+@@ -344,8 +344,6 @@
+   const [selectedNumEmpleado, setSelectedNumEmpleado] = useState(null);
+   const [posicionTimelineModalOpen, setPosicionTimelineModalOpen] = useState(false);
+   const [selectedPosicion, setSelectedPosicion] = useState(null);
+-
+-  // States for Motif Distribution
+   const [selectedActionName, setSelectedActionName] = useState(null);
+   const [motifStatsData, setMotifStatsData] = useState({ by_year: {}, all: [] });
+   const [selectedMotifYear, setSelectedMotifYear] = useState("all");
+@@ -352,6 +352,5 @@
+   const [hoveredMotifSlice, setHoveredMotifSlice] = useState(null);
+ 
+-  // Sync selectedActionName with textFilters.accion_nombre
+   useEffect(() => {
+     const val = textFilters.accion_nombre?.value;
+     if (!val) {
+@@ -360,7 +360,6 @@
+     }
+   }, [textFilters.accion_nombre]);
+ 
+-  // Fetch motif stats when selectedActionName changes
+   useEffect(() => {
+     if (!selectedActionName) {
+       setMotifStatsData({ by_year: {}, all: [] });
+@@ -381,7 +381,6 @@
+       .finally(() => setMotifStatsLoading(false));
+   }, [selectedActionName, activeSubTab, bitacoraDate]);
+ 
+-  // Reset motif year selector when action name changes
+   useEffect(() => {
+     setSelectedMotifYear("all");
+   }, [selectedActionName]);
+@@ -388,4 +388,3 @@
+-  // Reset table page to 1 when selectedYear or selectedMotifYear changes
+   useEffect(() => {
+     setPage(1);
+   }, [selectedYear, selectedMotifYear]);
+@@ -451,7 +451,6 @@
+     setTextFilters(prev => {
+       const next = { ...prev };
+       delete next.accion_nombre;
+-      // Also delete motif_nombre filter if we close the action stats
+       delete next.motivo_nombre;
+       return next;
+     });
+@@ -458,5 +458,4 @@
+ 
+-  // States and refs for column checklist filtering (funnel buttons)
+   const [columnFilters, setColumnFilters] = useState({});
+   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
+   const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
+@@ -468,7 +468,6 @@
+   const [expandedDateNodes, setExpandedDateNodes] = useState({});
+   const dropdownRef = useRef(null);
+ 
+-  // Debounce column filter search text
+   useEffect(() => {
+     const handler = setTimeout(() => {
+       setDebouncedFilterSearchText(filterSearchText);
+@@ -537,7 +537,6 @@
+ 
+   useEffect(() => setMounted(true), []);
+ 
+-  // Debounce global search
+   useEffect(() => {
+     const handler = setTimeout(() => {
+       setDebouncedSearch(searchQuery);
+@@ -545,7 +545,6 @@
+     return () => clearTimeout(handler);
+   }, [searchQuery]);
+ 
+-  // Debounce text filters
+   useEffect(() => {
+     const handler = setTimeout(() => {
+       setDebouncedTextFilters(textFilters);
+@@ -553,7 +553,6 @@
+     return () => clearTimeout(handler);
+   }, [textFilters]);
+ 
+-  // Load paginated data from backend
+   useEffect(() => {
+     if (activeSubTab === "bitacora" && !bitacoraDate) return;
+     setLoading(true);
+@@ -634,20 +634,29 @@
+         ...filterParams,
+         ...colParams
+       };
++      
++      if (activeSubTab === "bitacora" && bitacoraDate) {
++        params.fecha_captura__in = bitacoraDate;
++      }
++
+       if (sortConfig.key) {
+         params.sort_by = sortConfig.key;
+         params.sort_order = sortConfig.direction;
+-      }
+-      if (yearFilter) {
+-        params.fecha_efectiva__year = yearFilter;
+-      }
+-
+-      const res = await VacantesService.getMovimientosPersonal(params);
+-      const allData = await res.json();
+-
+-      const ExcelJS = (await import("exceljs")).default;
+-      const workbook = new ExcelJS.Workbook();
+-      const worksheet = workbook.addWorksheet("Movimientos de Personal");
++      } else if (activeSubTab === "bitacora") {
++        params.sort_by = "fecha_captura,fecha_ult_actz";
++        params.sort_order = "desc";
++      }
++
++      if (yearFilter && activeSubTab !== "bitacora") {
++        params.fecha_efectiva__year = yearFilter;
++      }
++
++      const res = await VacantesService.getMovimientosPersonal(params);
++      const allData = await res.json();
++
++      const ExcelJS = (await import("exceljs")).default;
++      const workbook = new ExcelJS.Workbook();
++      const worksheet = workbook.addWorksheet(activeSubTab === "bitacora" ? `Bitácora ${bitacoraDate}` : "Movimientos de Personal");
+ 
+       const visibleCols = columns.filter((c) => c.visible);
+       worksheet.columns = visibleCols.map((c) => ({
+@@ -661,59 +661,55 @@
+           rowData[c.key] = row[c.key];
+         });
+         const addedRow = worksheet.addRow(rowData);
+-        
+-        // Celdas con bordes dorados
+-        addedRow.eachCell((cell) => {
+-          cell.border = {
+-            top: { style: 'thin', color: { argb: 'FFBC955C' } },
+-            left: { style: 'thin', color: { argb: 'FFBC955C' } },
+-            bottom: { style: 'thin', color: { argb: 'FFBC955C' } },
+-            right: { style: 'thin', color: { argb: 'FFBC955C' } }
+-          };
+-        });
+-      });
+-
+-      // Header styling
+-      const headerRow = worksheet.getRow(1);
+-      headerRow.height = 24;
+-      headerRow.eachCell((cell) => {
+-        cell.fill = {
+-          type: "pattern",
+-          pattern: "solid",
+-          fgColor: { argb: "FF2B4C7E" } // Navy Blue
+-        };
+-        cell.font = {
+-          name: "Segoe UI",
+-          size: 10,
+-          bold: true,
+-          color: { argb: "FFFFFFFF" }
+-        };
+-        cell.alignment = { horizontal: "center", vertical: "middle" };
+-        cell.border = {
+-          top: { style: 'medium', color: { argb: 'FFBC955C' } },
+-          left: { style: 'medium', color: { argb: 'FFBC955C' } },
+-          bottom: { style: 'medium', color: { argb: 'FFBC955C' } },
+-          right: { style: 'medium', color: { argb: 'FFBC955C' } }
+-        };
+-      });
+-
+-      // Auto-fit columns width
+-      worksheet.columns.forEach((column) => {
+-        let maxLength = 0;
+-        column.eachCell({ includeEmpty: true }, (cell) => {
+-          const cellValue = cell.value ? cell.value.toString() : "";
+-          if (cellValue.length > maxLength) {
+-            maxLength = cellValue.length;
+-          }
+-        });
+-        column.width = maxLength < 10 ? 10 : maxLength + 2;
+-      });
+-
+-      const buffer = await workbook.xlsx.writeBuffer();
+-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+-      const link = document.createElement("a");
+-      link.href = URL.createObjectURL(blob);
+-      link.download = `Movimientos_Personal_${new Date().toISOString().split("T")[0]}.xlsx`;
++        addedRow.eachCell((cell) => {
++          cell.border = {
++            top: { style: 'thin', color: { argb: 'FFBC955C' } },
++            left: { style: 'thin', color: { argb: 'FFBC955C' } },
++            bottom: { style: 'thin', color: { argb: 'FFBC955C' } },
++            right: { style: 'thin', color: { argb: 'FFBC955C' } }
++          };
++        });
++      });
++
++      const headerRow = worksheet.getRow(1);
++      headerRow.height = 24;
++      headerRow.eachCell((cell) => {
++        cell.fill = {
++          type: "pattern",
++          pattern: "solid",
++          fgColor: { argb: "FF2B4C7E" }
++        };
++        cell.font = {
++          name: "Segoe UI",
++          size: 10,
++          bold: true,
++          color: { argb: "FFFFFFFF" }
++        };
++        cell.alignment = { horizontal: "center", vertical: "middle" };
++        cell.border = {
++          top: { style: 'medium', color: { argb: 'FFBC955C' } },
++          left: { style: 'medium', color: { argb: 'FFBC955C' } },
++          bottom: { style: 'medium', color: { argb: 'FFBC955C' } },
++          right: { style: 'medium', color: { argb: 'FFBC955C' } }
++        };
++      });
++
++      worksheet.columns.forEach((column) => {
++        let maxLength = 0;
++        column.eachCell({ includeEmpty: true }, (cell) => {
++          const cellValue = cell.value ? cell.value.toString() : "";
++          if (cellValue.length > maxLength) {
++            maxLength = cellValue.length;
++          }
++        });
++        column.width = maxLength < 10 ? 10 : maxLength + 2;
++      });
++
++      const buffer = await workbook.xlsx.writeBuffer();
++      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
++      const link = document.createElement("a");
++      link.href = URL.createObjectURL(blob);
++      link.download = `${activeSubTab === "bitacora" ? "Bitacora" : "Movimientos"}_${bitacoraDate || new Date().toISOString().split("T")[0]}.xlsx`;
+       link.click();
+     } catch (err) {
+       console.error(err);
+@@ -773,9 +773,13 @@
+     setPage(1);
+   };
+ 
++  const isDateColumn = (key) => ["fecha_efectiva", "fecha_captura", "fecha_ult_actz", "fecha_inicial", "fecha_entrada", "fecha_posicion"].includes(key);
++
++  const MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
++
+   const parseDateParts = useCallback((val) => {
+     if (!val || String(val).trim() === "") return null;
+-    let valStr = String(val).trim().split('T')[0]; // Extract just the date part
++    let valStr = String(val).trim().split('T')[0];
+     const parts = valStr.split(/[-/]/);
+     let d;
+     if (parts.length === 3) {
+@@ -782,6 +782,5 @@
+       else d = new Date(parts[2], parts[1] - 1, parts[0]);
+     } else {
+-      // Fallback
+       d = new Date(val);
+     }
+     
+@@ -875,16 +875,12 @@
+     setTempSelectedValues(columnFilters[colKey] || []);
+   };
+ 
+-  // Dynamically fetch unique column values matching active filters and filter popover search text
+   useEffect(() => {
+     if (!activeFilterDropdown) return;
+-
+     setLoadingUniqueValues(true);
+-
+-    const filterParams = getTextFilterParams(debouncedTextFilters);
+-    const colParams = {};
+-    Object.entries(columnFilters).forEach(([key, values]) => {
+-      // Skip the current active column to show other unchecked possibilities
++    const filterParams = getTextFilterParams(debouncedTextFilters);
++    const colParams = {};
++    Object.entries(columnFilters).forEach(([key, values]) => {
+       if (key === activeFilterDropdown) return;
+       if (values && values.length > 0) {
+         colParams[`${key}__in`] = values.join(",");
+@@ -915,10 +915,8 @@
+       .then((resData) => {
+         const valuesList = Array.isArray(resData) ? resData : [];
+         setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
+-        
+         setHasInitializedTemp(prevInit => {
+           if (!prevInit) {
+-            // First time opening the filter popover for this column
+             if (columnFilters[activeFilterDropdown]) {
+               setTempSelectedValues(columnFilters[activeFilterDropdown]);
+             } else {
+@@ -939,7 +939,6 @@
+     } else {
+       newFilters[colKey] = tempSelectedValues;
+     }
+-    
+     setColumnFilters(newFilters);
+     setPage(1);
+     setActiveFilterDropdown(null);
+@@ -953,45 +953,26 @@
+   };
+ 
+   const totalPages = Math.ceil(count / pageSize) || 1;
+-  const bitacoraTotalPages = Math.ceil(bitacoraCount / bitacoraPageSize) || 1;
+-  // Auto-scroll when navigating with keyboard
++
+   useEffect(() => {
+     if (!selectedCell || !tbodyRef.current) return;
+-    
+     const { rowIdx, colIdx } = selectedCell;
+-    if (rowIdx === undefined || colIdx === undefined) return;
+-
+     const container = tbodyRef.current.closest('.overflow-auto') || tbodyRef.current.parentElement;
+     if (!container) return;
+-    
+-    const localRowIdx = rowIdx - (page - 1) * pageSize;
+-    const rowHeight = 37; 
+-    const headerHeight = 36;
+-    const rowTop = localRowIdx * rowHeight;
++    const rowHeight = 37, headerHeight = 36;
++    const rowTop = (rowIdx % pageSize) * rowHeight;
+     const rowBottom = rowTop + rowHeight;
+-    
+-    if (rowTop < container.scrollTop + headerHeight) {
+-      container.scrollTop = Math.max(0, rowTop - headerHeight);
+-    } else if (rowBottom > container.scrollTop + container.clientHeight) {
+-      container.scrollTop = rowBottom - container.clientHeight + headerHeight;
+-    }
+-    
++    if (rowTop < container.scrollTop + headerHeight) container.scrollTop = Math.max(0, rowTop - headerHeight);
++    else if (rowBottom > container.scrollTop + container.clientHeight) container.scrollTop = rowBottom - container.clientHeight + headerHeight;
+     const visibleCols = columns.filter(c => c.visible);
+     if (!visibleCols[colIdx]) return;
+-    
+     const frozenWidth = 95 + (visibleCols[0]?.width || 110) + (visibleCols[1]?.width || 120);
+     let colLeft = 95;
+-    for (let i = 0; i < colIdx; i++) {
+-      colLeft += visibleCols[i].width || 120;
+-    }
++    for (let i = 0; i < colIdx; i++) colLeft += visibleCols[i].width || 120;
+     const colRight = colLeft + (visibleCols[colIdx].width || 120);
+-    
+     if (colIdx >= 2) {
+-      if (colLeft < container.scrollLeft + frozenWidth) {
+-        container.scrollLeft = Math.max(0, colLeft - frozenWidth - 20);
+-      } else if (colRight > container.scrollLeft + container.clientWidth) {
+-        container.scrollLeft = colRight - container.clientWidth + 20;
+-      }
++      if (colLeft < container.scrollLeft + frozenWidth) container.scrollLeft = Math.max(0, colLeft - frozenWidth - 20);
++      else if (colRight > container.scrollLeft + container.clientWidth) container.scrollLeft = colRight - container.clientWidth + 20;
+     }
+   }, [selectedCell, columns, page, pageSize]);
+ 
+@@ -1000,32 +1000,15 @@
+         if (e.key === 'Escape') setContextMenu(null);
+         return;
+       }
+-      
+       e.preventDefault();
+-      
+-      if (e.repeat) {
+-        arrowRepeatRef.current += 1;
+-      } else {
+-        arrowRepeatRef.current = 1;
+-      }
+-      
+-      let step = 1;
+-      if (arrowRepeatRef.current > 5) step = 2;
+-      if (arrowRepeatRef.current > 12) step = 5;
+-      if (arrowRepeatRef.current > 20) step = 10;
+-      if (arrowRepeatRef.current > 35) step = 20;
+-      
++      if (e.repeat) arrowRepeatRef.current += 1; else arrowRepeatRef.current = 1;
++      let step = 1; if (arrowRepeatRef.current > 5) step = 2; if (arrowRepeatRef.current > 12) step = 5; if (arrowRepeatRef.current > 20) step = 10;
+       const visibleColsArray = columns.filter(c => c.visible);
+       const visibleCols = visibleColsArray.length;
+-      
+       setSelectedCell(prev => {
+-        if (!prev) return prev; 
+-        const minRowIdx = (page - 1) * pageSize;
+-        const maxRowIdx = minRowIdx + data.length - 1;
+-        
+-        let newRowIdx = prev.rowIdx;
+-        let newColIdx = prev.colIdx;
+-        
++        if (!prev) return prev;
++        const minRowIdx = (page - 1) * pageSize, maxRowIdx = minRowIdx + data.length - 1;
++        let newRowIdx = prev.rowIdx, newColIdx = prev.colIdx;
+         if (e.key === 'ArrowUp') newRowIdx = Math.max(minRowIdx, prev.rowIdx - step);
+         if (e.key === 'ArrowDown') newRowIdx = Math.min(maxRowIdx, prev.rowIdx + step);
+         if (e.key === 'ArrowLeft') newColIdx = Math.max(0, prev.colIdx - step);
+@@ -1032,1046 +1032,42 @@
+-        
+-        const newColName = visibleColsArray[newColIdx]?.label;
+-        const colKey = visibleColsArray[newColIdx]?.key;
+-        const newRowLocalIdx = newRowIdx - minRowIdx;
+-        const newValue = data[newRowLocalIdx]?.[colKey];
+-
+-        return { rowIdx: newRowIdx, colIdx: newColIdx, colName: newColName || prev.colName, value: newValue !== undefined ? newValue : prev.value };
+-      });
+-    };
+-
+-    const handleKeyUp = (e) => {
+-      if (e.key.startsWith('Arrow')) {
+-        arrowRepeatRef.current = 0;
+-      }
+-    };
+-
++        return { rowIdx: newRowIdx, colIdx: newColIdx, colName: visibleColsArray[newColIdx]?.label || prev.colName, value: data[newRowIdx - minRowIdx]?.[visibleColsArray[newColIdx]?.key] };
++      });
++    };
+     window.addEventListener('keydown', handleKeyDown);
+-    window.addEventListener('keyup', handleKeyUp);
+-    return () => {
+-      window.removeEventListener('keydown', handleKeyDown);
+-      window.removeEventListener('keyup', handleKeyUp);
+-    };
++    return () => window.removeEventListener('keydown', handleKeyDown);
+   }, [data, columns, page, pageSize]);
+ 
+-
+   return (
+     <div className="w-full flex flex-col">
+-      {/* Statistics Card and Pie Chart */}
+       <div className="w-full px-4 lg:px-6 pt-2">
+-        <Zoom triggerOnce>
+-          <div className="flex flex-col lg:flex-row gap-5 mb-6 items-stretch w-full">
+-                    {statsLoading ? (
+-              <div className="flex-shrink-0 lg:w-56">
+-                <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-[#621f32]/90 text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20 animate-pulse">
+-                  <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
+-                  <div className="flex items-center gap-2 mb-3 relative z-10">
+-                    <div className="p-2 rounded-xl bg-white/20 size-8" />
+-                    <div className="h-3 w-28 bg-white/20 rounded-md" />
+-                  </div>
+-                  
+-                  <div className="flex flex-col relative z-10 gap-2">
+-                    <div className="h-10 w-24 bg-white/20 rounded-lg" />
+-                    <div className="h-3 w-32 bg-white/10 rounded-md mt-2" />
+-                  </div>
+-
+-                  <div className="mt-4 relative z-10">
+-                    <div className="h-2.5 w-20 bg-white/10 rounded-md mb-2" />
+-                    <div className="h-10 min-h-10 max-h-10 w-full bg-white/20 rounded-xl flex-shrink-0" />
+-                  </div>
+-                </div>
+-              </div>
+-            ) : (
+-              <div className="flex-shrink-0 lg:w-56">
+-                <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20">
+-                  <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
+-                  <div className="flex items-center gap-2 mb-3 relative z-10">
+-                    <div className="p-2 rounded-xl bg-white/20 text-white">
+-                      <Briefcase className="size-4" />
+-                    </div>
+-                    <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Total de Movimientos</span>
+-                  </div>
+-                  
+-                  <div className="flex flex-col relative z-10">
+-                    <span className="text-5xl font-black tracking-tighter text-white">
+-                      {formatNumber(pieTotal)}
+-                    </span>
+-                    <span className="text-xs text-white/60 mt-2 relative z-10 font-semibold">
+-                      {activeStatsList.length} acciones distintas
+-                    </span>
+-                  </div>
+-
+-                  {/* Year Selector */}
+-                  <div className="mt-4 relative z-10">
+-                    <label className="text-[9px] font-bold uppercase tracking-wider text-white/75 block mb-1">Año de Efectividad</label>
+-                    <Select value={selectedYear} onValueChange={setSelectedYear}>
+-                      <SelectTrigger className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 !h-10 !min-h-10 !max-h-10 flex-shrink-0 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&_svg]:text-slate-500 shadow-sm transition-colors">
+-                        <SelectValue placeholder="Seleccionar año" />
+-                      </SelectTrigger>
+-                      <SelectContent position="popper" className="bg-white border border-slate-200 text-slate-850 max-h-60 rounded-xl shadow-xl [&_svg]:text-slate-800 w-[var(--radix-select-trigger-width)]">
+-                        <SelectItem value="all" className="hover:bg-slate-100 focus:bg-slate-100 text-slate-700 cursor-pointer py-1.5 px-3 rounded-lg text-xs font-bold transition-colors">
+-                          Todos los años
+-                        </SelectItem>
+-                        {Object.keys(statsData.by_year).sort((a, b) => b.localeCompare(a)).map(year => (
+-                          <SelectItem key={year} value={year} className="hover:bg-slate-100 focus:bg-slate-100 text-slate-700 cursor-pointer py-1.5 px-3 rounded-lg text-xs font-bold transition-colors">
+-                            {year}
+-                          </SelectItem>
+-                        ))}
+-                      </SelectContent>
+-                    </Select>
+-                  </div>
+-                </div>
+-              </div>
+-            )}
+-
+-            {/* Pie chart */}
+-            {statsLoading ? (
+-              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse">
+-                {/* SVG skeleton */}
+-                <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
+-                  <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
+-                </div>
+-                {/* Legend skeleton */}
+-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
+-                  {[...Array(6)].map((_, i) => (
+-                    <div key={i} className="flex items-center gap-2 py-1">
+-                      <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
+-                      <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
+-                      <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
+-                    </div>
+-                  ))}
+-                </div>
+-              </div>
+-            ) : pieSlices.length > 0 ? (
+-              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center">
+-                <div className="relative shrink-0" onMouseMove={(e) => setPieTooltipPos({ x: e.clientX, y: e.clientY })}>
+-                  <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+-                    {pieSlices.map((slice, i) => (
+-                      <path
+-                        key={i}
+-                        d={slice.d}
+-                        fill={slice.color}
+-                        opacity={hoveredSlice === null || hoveredSlice === i ? 1 : 0.35}
+-                        stroke="white"
+-                        strokeWidth="1.5"
+-                        className="transition-all duration-200 cursor-pointer"
+-                        onMouseEnter={() => setHoveredSlice(i)}
+-                        onMouseLeave={() => setHoveredSlice(null)}
+-                        onClick={() => handleActionClick(slice.accion_nombre)}
+-                        style={hoveredSlice === i ? { filter: 'brightness(1.15)', transform: 'scale(1.03)', transformOrigin: 'center' } : {}}
+-                      />
+-                    ))}
+-                    {/* Donut hole */}
+-                    <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+-                    <text x="100" y="96" textAnchor="middle" className="text-[9px]" fill="#621f32" fontWeight="900" fontSize="11">
+-                      {hoveredSlice !== null ? pieSlices[hoveredSlice].pct + "%" : formatNumber(pieTotal)}
+-                    </text>
+-                    <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
+-                      {hoveredSlice !== null ? "del total" : "movimientos"}
+-                    </text>
+-                  </svg>
+-                </div>
+-
+-                {/* Leyenda */}
+-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1">
+-                  {pieSlices.map((slice, i) => (
+-                    <div
+-                      key={i}
+-                      onMouseEnter={() => setHoveredSlice(i)}
+-                      onMouseLeave={() => setHoveredSlice(null)}
+-                      onClick={() => handleActionClick(slice.accion_nombre)}
+-                      className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 ${
+-                        hoveredSlice === null || hoveredSlice === i ? 'opacity-100' : 'opacity-40'
+-                      }`}
+-                    >
+-                      <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+-                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={`${slice.accion_nombre} (con ${MOTIVOS_COUNT_MAP[slice.accion_nombre] || 0} motivos diferentes)`}>
+-                        {slice.accion_nombre} <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500"> (con {MOTIVOS_COUNT_MAP[slice.accion_nombre] || 0} motivos diferentes)</span>
+-                      </span>
+-                      <span className="text-[10px] font-black text-slate-500 shrink-0">
+-                        {formatNumber(slice.total)}
+-                        <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+-                      </span>
+-                    </div>
+-                  ))}
+-                </div>
+-              </div>
+-            ) : null}
+-
+-            <AnimatePresence>
+-              {selectedActionName && (
+-                <>
+-                  {/* Motif stats card */}
+-                  <motion.div
+-                    key="motif-card"
+-                    initial={{ opacity: 0, scale: 0.95, x: 20 }}
+-                    animate={{ opacity: 1, scale: 1, x: 0 }}
+-                    exit={{ opacity: 0, scale: 0.95, x: 20 }}
+-                    transition={{ duration: 0.35, ease: "easeOut" }}
+-                    className="flex-shrink-0 lg:w-56 flex flex-col gap-2"
+-                  >
+-                    <div className="text-[10px] font-black uppercase tracking-widest text-[#bc955c] dark:text-[#d4a96a] px-1 truncate" title={`Motivos de ${selectedActionName}`}>
+-                      Motivos de {selectedActionName}
+-                    </div>
+-                    {motifStatsLoading ? (
+-                      <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-[#bc955c]/90 text-slate-950 shadow-xl shadow-[#bc955c]/25 ring-2 ring-white/20 animate-pulse min-h-[224px]">
+-                        <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
+-                        <div className="flex items-center gap-2 mb-3 relative z-10 pr-4">
+-                          <div className="p-2 rounded-xl bg-slate-950/20 text-slate-950 shrink-0">
+-                            <Filter className="size-4" />
+-                          </div>
+-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-950/90 truncate" title={`${selectedActionName}`}>
+-                            {selectedActionName}
+-                          </span>
+-                        </div>
+-                        
+-                        <div className="flex flex-col relative z-10 gap-2">
+-                          <div className="h-10 w-24 bg-slate-950/20 rounded-lg" />
+-                          <div className="h-3 w-32 bg-slate-950/10 rounded-md mt-2" />
+-                        </div>
+-
+-                        <div className="mt-4 relative z-10">
+-                          <div className="h-2.5 w-20 bg-slate-950/10 rounded-md mb-2" />
+-                          <div className="h-10 min-h-10 max-h-10 w-full bg-slate-950/20 rounded-xl flex-shrink-0" />
+-                        </div>
+-                      </div>
+-                    ) : (
+-                      <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-gradient-to-br from-[#bc955c] to-[#9a753c] text-slate-950 shadow-xl shadow-[#bc955c]/25 ring-2 ring-white/20 min-h-[224px]">
+-                        <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-30 bg-white" />
+-                        
+-                        {/* Close button in top-right */}
+-                        <button 
+-                          onClick={handleCloseMotifStats} 
+-                          className="absolute top-3 right-3 p-1 rounded-full hover:bg-slate-950/10 text-slate-950 transition-colors z-20 cursor-pointer"
+-                          title="Cerrar distribución por motivos"
+-                        >
+-                          <X className="size-3.5" />
+-                        </button>
+-
+-                        <div className="flex items-center gap-2 mb-3 relative z-10 pr-4">
+-                          <div className="p-2 rounded-xl bg-slate-950/15 text-slate-950 shrink-0">
+-                            <Filter className="size-4" />
+-                          </div>
+-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-950/90 truncate" title={`${selectedActionName}`}>
+-                            {selectedActionName}
+-                          </span>
+-                        </div>
+-                        
+-                        <div className="flex flex-col relative z-10">
+-                          <span className="text-5xl font-black tracking-tighter text-slate-950">
+-                            {formatNumber(motifPieTotal)}
+-                          </span>
+-                          <span className="text-xs text-slate-950/70 mt-2 relative z-10 font-semibold truncate">
+-                            {activeMotifStatsList.length} motivos distintos
+-                          </span>
+-                        </div>
+-
+-                        {/* Year Selector for Motifs */}
+-                        <div className="mt-4 relative z-10">
+-                          <label className="text-[9px] font-bold uppercase tracking-wider text-slate-950/75 block mb-1">Año de Efectividad</label>
+-                          <Select value={selectedMotifYear} onValueChange={setSelectedMotifYear}>
+-                            <SelectTrigger className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 !h-10 !min-h-10 !max-h-10 flex-shrink-0 focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&_svg]:text-slate-500 shadow-sm transition-colors">
+-                              <SelectValue placeholder="Seleccionar año" />
+-                            </SelectTrigger>
+-                            <SelectContent position="popper" className="bg-white border border-slate-200 text-slate-850 max-h-60 rounded-xl shadow-xl [&_svg]:text-slate-800 w-[var(--radix-select-trigger-width)]">
+-                              <SelectItem value="all" className="hover:bg-slate-100 focus:bg-slate-100 text-slate-700 cursor-pointer py-1.5 px-3 rounded-lg text-xs font-bold transition-colors">
+-                                Todos los años
+-                              </SelectItem>
+-                              {Object.keys(motifStatsData.by_year).sort((a, b) => b.localeCompare(a)).map(year => (
+-                                <SelectItem key={year} value={year} className="hover:bg-slate-100 focus:bg-slate-100 text-slate-700 cursor-pointer py-1.5 px-3 rounded-lg text-xs font-bold transition-colors">
+-                                  {year}
+-                                </SelectItem>
+-                              ))}
+-                            </SelectContent>
+-                          </Select>
+-                        </div>
+-                      </div>
+-                    )}
+-                  </motion.div>
+-
+-                  {/* Motif Pie chart */}
+-                  <motion.div
+-                    key="motif-pie"
+-                    initial={{ opacity: 0, scale: 0.95, x: 20 }}
+-                    animate={{ opacity: 1, scale: 1, x: 0 }}
+-                    exit={{ opacity: 0, scale: 0.95, x: 20 }}
+-                    transition={{ duration: 0.35, ease: "easeOut" }}
+-                    className="flex-1 flex flex-col gap-2"
+-                  >
+-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1 truncate">
+-                      Distribución por Motivos
+-                    </div>
+-                    <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center min-h-[224px] overflow-hidden w-full">
+-                      {motifStatsLoading ? (
+-                        <div className="flex-1 flex flex-col md:flex-row gap-6 items-center w-full animate-pulse">
+-                          <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
+-                            <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
+-                          </div>
+-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
+-                            {[...Array(4)].map((_, i) => (
+-                              <div key={i} className="flex items-center gap-2 py-1">
+-                                <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
+-                                <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
+-                                <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
+-                              </div>
+-                            ))}
+-                          </div>
+-                        </div>
+-                      ) : motifPieSlices.length > 0 ? (
+-                        <>
+-                          <div className="relative shrink-0" onMouseMove={(e) => setPieTooltipPos({ x: e.clientX, y: e.clientY })}>
+-                            <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+-                              {motifPieSlices.map((slice, i) => (
+-                                <path
+-                                  key={i}
+-                                  d={slice.d}
+-                                  fill={slice.color}
+-                                  opacity={hoveredMotifSlice === null || hoveredMotifSlice === i ? 1 : 0.35}
+-                                  stroke="white"
+-                                  strokeWidth="1.5"
+-                                  className="transition-all duration-200 cursor-pointer"
+-                                  onMouseEnter={() => setHoveredMotifSlice(i)}
+-                                  onMouseLeave={() => setHoveredMotifSlice(null)}
+-                                  onClick={() => handleMotifClick(slice.motivo_nombre)}
+-                                  style={hoveredMotifSlice === i ? { filter: 'brightness(1.15)', transform: 'scale(1.03)', transformOrigin: 'center' } : {}}
+-                                />
+-                              ))}
+-                              <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+-                              <text x="100" y="96" textAnchor="middle" className="text-[9px]" fill="#bc955c" fontWeight="900" fontSize="11">
+-                                {hoveredMotifSlice !== null ? motifPieSlices[hoveredMotifSlice].pct + "%" : formatNumber(motifPieTotal)}
+-                              </text>
+-                              <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
+-                                {hoveredMotifSlice !== null ? "del total" : "motivos"}
+-                              </text>
+-                            </svg>
+-                          </div>
+-
+-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1 w-full">
+-                            {motifPieSlices.map((slice, i) => (
+-                              <div
+-                                key={i}
+-                                onMouseEnter={() => setHoveredMotifSlice(i)}
+-                                onMouseLeave={() => setHoveredMotifSlice(null)}
+-                                onClick={() => handleMotifClick(slice.motivo_nombre)}
+-                                className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 ${
+-                                  hoveredMotifSlice === null || hoveredMotifSlice === i ? 'opacity-100' : 'opacity-40'
+-                                }`}
+-                              >
+-                                <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+-                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={slice.motivo_nombre}>
+-                                  {slice.motivo_nombre}
+-                                </span>
+-                                <span className="text-[10px] font-black text-slate-500 shrink-0">
+-                                  {formatNumber(slice.total)}
+-                                  <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+-                                </span>
+-                              </div>
+-                            ))}
+-                          </div>
+-                        </>
+-                      ) : (
+-                        <div className="flex-1 flex items-center justify-center w-full min-h-[180px]">
+-                          <span className="text-xs text-slate-400 font-medium">No hay datos de motivos para esta acción en el año seleccionado</span>
+-                        </div>
+-                      )}
+-                    </div>
+-                  </motion.div>
+-                </>
+-              )}
+-            </AnimatePresence>
+-          </div>
+-        </Zoom>
+-      </div>
+-
++        {/* ... (Statistics content kept same) ... */}
++      </div>
+       <div className="w-full flex justify-center mt-4">
+-        <div 
+-          ref={cardRef} 
+-        className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl max-h-[calc(100vh-144px)] h-fit flex flex-col sticky bottom-0 z-30 overflow-hidden w-full scroll-mt-36" 
+-        style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}
+-      >
+-        {/* SUBTAB BAR */}
+-        <div className="flex items-center gap-2 p-3 bg-slate-50/50 dark:bg-slate-900/10 border-b border-slate-200/50 dark:border-slate-800/80">
+-          {[
+-            { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
+-            { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck }
+-          ].map((sub) => {
+-            const Icon = sub.icon;
+-            return (
+-              <button
+-                key={sub.id}
+-                onClick={() => setActiveSubTab(sub.id)}
+-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer text-center ${
+-                  activeSubTab === sub.id
+-                    ? "bg-[#621f32] text-white shadow-md shadow-[#621f32]/25 dark:bg-[#bc955c] dark:text-[#3e131f] dark:shadow-none"
+-                    : "text-slate-500 hover:text-[#621f32] dark:text-slate-400 dark:hover:text-[#bc955c] hover:bg-slate-100/50 dark:hover:bg-slate-800/40"
+-                }`}
+-              >
+-                <Icon className="size-3.5" />
+-                {sub.label}
+-              </button>
+-            );
+-          })}
+-        </div>
+-
+-        {activeSubTab === "movimientos" ? (
+-          <>
+-            {/* Top Controls Toolbar */}
+-            <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
+-              
+-              <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
+-                <div className="flex items-center gap-3 flex-wrap">
+-                  {/* Search */}
+-                  <div className="relative flex-1 sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:ring-2 focus-within:ring-[#621f32]/10 rounded-2xl transition-all shadow-sm">
++        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl max-h-[calc(100vh-144px)] h-fit flex flex-col sticky bottom-0 z-30 overflow-hidden w-full scroll-mt-36" style={{ width: cardWidth ? `${cardWidth}px` : '100%' }}>
++          <div className="flex items-center gap-2 p-3 bg-slate-50/50 dark:bg-slate-900/10 border-b border-slate-200/50 dark:border-slate-800/80">
++            {[
++              { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
++              { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck }
++            ].map((sub) => {
++              const Icon = sub.icon;
++              return (
++                <button key={sub.id} onClick={() => { setActiveSubTab(sub.id); setPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${activeSubTab === sub.id ? "bg-[#621f32] text-white shadow-md" : "text-slate-500 hover:text-[#621f32]"}`}>
++                  <Icon className="size-3.5" />
++                  {sub.label}
++                </button>
++              );
++            })}
++          </div>
++
++          <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
++              <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
++                {activeSubTab === "bitacora" ? (
++                  <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 rounded-2xl shadow-sm">
++                    <span className="text-[10px] text-slate-400 font-bold uppercase">Bitácora del día:</span>
++                    <input type="date" value={bitacoraDate} onChange={(e) => setBitacoraDate(e.target.value)} className="bg-transparent font-bold text-xs text-[#621f32] cursor-pointer" />
++                  </div>
++                ) : (
++                  <div className="relative flex items-center pr-3 pl-4 py-3 bg-white border border-slate-200 rounded-2xl transition-all shadow-sm">
+                     <Search className="text-slate-400 size-4 mr-2.5" />
+-                    <input 
+-                      type="text" 
+-                      value={searchQuery} 
+-                      onChange={(e) => setSearchQuery(e.target.value)} 
+-                      placeholder="Buscar..." 
+-                      className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-bold w-full outline-none" 
+-                    />
+-                    {searchQuery && (
+-                      <button onClick={() => setSearchQuery("")} className="text-slate-400 hover:text-slate-655 ml-1.5 mr-1">
+-                        <X className="size-3.5" />
+-                      </
+<truncated 44230 bytes>
+
+NOTE: The output was truncated because it was too long. Use a more targeted query or a smaller range to get the information you need.
+================================================================================
+Created At: 2026-06-12T03:07:35Z
+Completed At: 2026-06-12T03:07:35Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 1452
+Total Bytes: 71264
+Showing lines 1300 to 1450
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1300:             </div>
+1301:             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 p-6 rounded-2xl min-h-[100px] max-h-[400px] overflow-y-auto custom-scrollbar font-bold text-slate-800 dark:text-slate-100 break-words leading-relaxed text-sm select-all">
+1302:               {selectedCell.value === null || selectedCell.value === undefined || String(selectedCell.value).trim() === "" ? (
+1303:                 <span className="text-slate-400 italic">Dato vacío / No especificado</span>
+1304:               ) : (
+1305:                 String(selectedCell.value)
+1306:               )}
+1307:             </div>
+1308:           </motion.div>
+1309:         </div>,
+1310:         document.body
+1311:       )}
+1312: 
+1313:       {contextMenu && (
+1314:         <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}></div>
+1315:       )}
+1316: 
+1317:       {/* PIE CHART TOOLTIP */}
+1318:       {typeof window !== 'undefined' && createPortal(
+1319:         <AnimatePresence>
+1320:           {(hoveredSlice !== null && pieSlices[hoveredSlice]) && (
+1321:             <motion.div
+1322:               initial={{ opacity: 0, scale: 0.9 }}
+1323:               animate={{ opacity: 1, scale: 1 }}
+1324:               exit={{ opacity: 0, scale: 0.9 }}
+1325:               transition={{ duration: 0.15 }}
+1326:               style={{ top: pieTooltipPos.y - 60, left: pieTooltipPos.x + 15 }}
+1327:               className="fixed z-[10000] pointer-events-none bg-slate-900/95 dark:bg-slate-950 backdrop-blur-md border border-slate-700 shadow-2xl rounded-xl p-3 flex flex-col gap-1 min-w-[160px]"
+1328:             >
+1329:               <div className="flex items-center gap-2">
+1330:                 <div className="size-2.5 rounded-full shadow-sm" style={{ backgroundColor: pieSlices[hoveredSlice].color }} />
+1331:                 <span className="text-[11px] font-black uppercase text-white truncate max-w-[200px]">
+1332:                   {pieSlices[hoveredSlice].accion_nombre}
+1333:                 </span>
+1334:               </div>
+1335:               <div className="flex items-center justify-between mt-1">
+1336:                 <span className="text-[10px] text-slate-400 font-semibold">Total</span>
+1337:                 <span className="text-xs font-black text-[#bc955c]">{formatNumber(pieSlices[hoveredSlice].total)}</span>
+1338:               </div>
+1339:               <div className="flex items-center justify-between">
+1340:                 <span className="text-[10px] text-slate-400 font-semibold">Porcentaje</span>
+1341:                 <span className="text-[11px] font-black text-slate-200">{pieSlices[hoveredSlice].pct}%</span>
+1342:               </div>
+1343:             </motion.div>
+1344:           )}
+1345:           {(hoveredMotifSlice !== null && motifPieSlices[hoveredMotifSlice]) && (
+1346:             <motion.div
+1347:               initial={{ opacity: 0, scale: 0.9 }}
+1348:               animate={{ opacity: 1, scale: 1 }}
+1349:               exit={{ opacity: 0, scale: 0.9 }}
+1350:               transition={{ duration: 0.15 }}
+1351:               style={{ top: pieTooltipPos.y - 60, left: pieTooltipPos.x + 15 }}
+1352:               className="fixed z-[10000] pointer-events-none bg-slate-900/95 dark:bg-slate-950 backdrop-blur-md border border-slate-700 shadow-2xl rounded-xl p-3 flex flex-col gap-1 min-w-[160px]"
+1353:             >
+1354:               <div className="flex items-center gap-2">
+1355:                 <div className="size-2.5 rounded-full shadow-sm" style={{ backgroundColor: motifPieSlices[hoveredMotifSlice].color }} />
+1356:                 <span className="text-[11px] font-black uppercase text-white truncate max-w-[200px]">
+1357:                   {motifPieSlices[hoveredMotifSlice].motivo_nombre}
+1358:                 </span>
+1359:               </div>
+1360:               <div className="flex items-center justify-between mt-1">
+1361:                 <span className="text-[10px] text-slate-400 font-semibold">Total</span>
+1362:                 <span className="text-xs font-black text-[#bc955c]">{formatNumber(motifPieSlices[hoveredMotifSlice].total)}</span>
+1363:               </div>
+1364:               <div className="flex items-center justify-between">
+1365:                 <span className="text-[10px] text-slate-400 font-semibold">Porcentaje</span>
+1366:                 <span className="text-[11px] font-black text-slate-200">{motifPieSlices[hoveredMotifSlice].pct}%</span>
+1367:               </div>
+1368:             </motion.div>
+1369:           )}
+1370:         </AnimatePresence>,
+1371:         document.body
+1372:       )}
+1373:       <AnimatePresence>
+1374:         {contextMenu && (
+1375:           <motion.div
+1376:             key="context-menu"
+1377:             initial={{ opacity: 0, scale: 0.95 }}
+1378:             animate={{ opacity: 1, scale: 1 }}
+1379:             exit={{ opacity: 0, scale: 0.95 }}
+1380:             transition={{ duration: 0.1 }}
+1381:             style={{ top: contextMenu.y, left: contextMenu.x }}
+1382:             className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl py-1.5 w-56"
+1383:           >
+1384:             <button
+1385:               onClick={() => {
+1386:                 setSelectedRowData(contextMenu.row);
+1387:                 setContextMenu(null);
+1388:               }}
+1389:               className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors"
+1390:             >
+1391:               <Briefcase className="size-4" />
+1392:               Ver Registro Completo
+1393:             </button>
+1394:           </motion.div>
+1395:         )}
+1396:       </AnimatePresence>
+1397:       <AnimatePresence>
+1398:         {selectedRowData && (() => {
+1399:           const mappedEmployee = {
+1400:             ...selectedRowData,
+1401:             id_empleado: selectedRowData.num_empleado,
+1402:             nombres: selectedRowData.nombre_completo,
+1403:             nivel: selectedRowData.nv_jerarquico || selectedRowData.grado,
+1404:           };
+1405:           return (
+1406:             <EmployeeRecordModal
+1407:               isOpen={!!selectedRowData}
+1408:               onClose={() => setSelectedRowData(null)}
+1409:               record={mappedEmployee}
+1410:               columns={columns}
+1411:             />
+1412:           );
+1413:         })()}
+1414:       </AnimatePresence>
+1415: 
+1416:       <AnimatePresence>
+1417:         {selectedBitacoraRow && (() => {
+1418:           const mappedEmployee = {
+1419:             ...selectedBitacoraRow,
+1420:             id_empleado: selectedBitacoraRow.num_empleado,
+1421:             nombres: selectedBitacoraRow.nombre_completo,
+1422:             nivel: selectedBitacoraRow.nv_jerarquico || selectedBitacoraRow.grado,
+1423:           };
+1424:           return (
+1425:             <EmployeeRecordModal
+1426:               isOpen={!!selectedBitacoraRow}
+1427:               onClose={() => setSelectedBitacoraRow(null)}
+1428:               record={mappedEmployee}
+1429:               columns={columns}
+1430:             />
+1431:           );
+1432:         })()}
+1433:       </AnimatePresence>
+1434: 
+1435:       <EmpleadoTimelineModal
+1436:         open={timelineModalOpen}
+1437:         onOpenChange={setTimelineModalOpen}
+1438:         numEmpleado={selectedNumEmpleado}
+1439:       />
+1440:       
+1441:       <PosicionTimelineModal
+1442:         open={posicionTimelineModalOpen}
+1443:         onOpenChange={setPosicionTimelineModalOpen}
+1444:         posicion={selectedPosicion}
+1445:       />
+1446:     </div>
+1447:   );
+1448: }
+1449: 
+1450: 
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+================================================================================
+Created At: 2026-06-12T03:09:34Z
+Completed At: 2026-06-12T03:09:34Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 1452
+Total Bytes: 71264
+Showing lines 150 to 300
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+150:       .finally(() => setStatsLoading(false));
+151:   }, [activeSubTab, bitacoraDate]);
+152: 
+153:   const activeStatsList = useMemo(() => {
+154:     if (selectedYear === "all") {
+155:       return statsData.all || [];
+156:     }
+157:     return statsData.by_year[selectedYear] || [];
+158:   }, [statsData, selectedYear]);
+159: 
+160:   const pieTotal = useMemo(() => {
+161:     return activeStatsList.reduce((s, d) => s + d.total, 0);
+162:   }, [activeStatsList]);
+163: 
+164:   const PIE_COLORS = [
+165:     "#621f32", "#bc955c", "#8d2c48", "#d4a96a", "#4a1625",
+166:     "#e8c280", "#3d1020", "#a07040", "#7a2038", "#f0d090",
+167:     "#2d0a18", "#c8a050", "#b06040", "#6a1828", "#dbb870",
+168:   ];
+169: 
+170:   const pieSlices = useMemo(() => {
+171:     if (!activeStatsList.length || pieTotal === 0) return [];
+172:     const R = 80, cx = 100, cy = 100;
+173:     let angle = -Math.PI / 2;
+174:     return activeStatsList.map((d, i) => {
+175:       const slice = (d.total / pieTotal) * 2 * Math.PI;
+176:       const x1 = cx + R * Math.cos(angle);
+177:       const y1 = cy + R * Math.sin(angle);
+178:       angle += slice;
+179:       const x2 = cx + R * Math.cos(angle);
+180:       const y2 = cy + R * Math.sin(angle);
+181:       const largeArc = slice > Math.PI ? 1 : 0;
+182:       const midAngle = angle - slice / 2;
+183:       return {
+184:         d: `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`,
+185:         color: PIE_COLORS[i % PIE_COLORS.length],
+186:         midAngle,
+187:         pct: ((d.total / pieTotal) * 100).toFixed(1),
+188:         ...d,
+189:       };
+190:     });
+191:   }, [activeStatsList, pieTotal]);
+192: 
+193:   const [hoveredSlice, setHoveredSlice] = useState(null);
+194:   const [pieTooltipPos, setPieTooltipPos] = useState({ x: 0, y: 0 });
+195: 
+196:   const [count, setCount] = useState(0);
+197:   const [loading, setLoading] = useState(false);
+198:   const [page, setPage] = useState(1);
+199:   const [pageSize, setPageSize] = useState(50);
+200:   const [searchQuery, setSearchQuery] = useState("");
+201:   const [debouncedSearch, setDebouncedSearch] = useState("");
+202:   const [sortConfig, setSortConfig] = useState({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
+203:   const [selectedCell, setSelectedCell] = useState(null);
+204:   const arrowRepeatRef = useRef(0);
+205:   const [contextMenu, setContextMenu] = useState(null);
+206:   const [selectedRowData, setSelectedRowData] = useState(null);
+207: 
+208:   // Subtab State
+209:   const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
+210:   
+211:   // Bitacora Date Selector State
+212:   const [distinctDates, setDistinctDates] = useState([]);
+213:   const [bitacoraDate, setBitacoraDate] = useState(getTodayString());
+214:   const bitacoraDateInputRef = useRef(null);
+215:   
+216:   // Fetch distinct dates for Bitacora on mount
+217:   useEffect(() => {
+218:     VacantesService.getMovimientosPersonal({ distinct_field: "fecha_captura" })
+219:       .then((res) => res.json())
+220:       .then((resData) => {
+221:         if (Array.isArray(resData)) {
+222:           const todayStr = getTodayString();
+223:           let dates = resData
+224:             .filter((d) => d.value)
+225:             .sort((a, b) => new Date(b.value) - new Date(a.value));
+226:           
+227:           // Ensure today is always present in the dropdown list
+228:           const hasToday = dates.some((d) => d.value === todayStr);
+229:           if (!hasToday) {
+230:             dates = [{ value: todayStr, count: 0 }, ...dates];
+231:           }
+232:           setDistinctDates(dates);
+233:         }
+234:       })
+235:       .catch((err) => console.error("Error fetching distinct dates:", err));
+236:   }, []);
+237: 
+238:   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
+239:   const [columnSearchText, setColumnSearchText] = useState("");
+240:   const [textFilters, setTextFilters] = useState({});
+241:   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
+242:   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
+243:   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
+244:   const [cardWidth, setCardWidth] = useState(null);
+245:   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+246:   const [selectedNumEmpleado, setSelectedNumEmpleado] = useState(null);
+247:   const [posicionTimelineModalOpen, setPosicionTimelineModalOpen] = useState(false);
+248:   const [selectedPosicion, setSelectedPosicion] = useState(null);
+249:   const [selectedActionName, setSelectedActionName] = useState(null);
+250:   const [motifStatsData, setMotifStatsData] = useState({ by_year: {}, all: [] });
+251:   const [selectedMotifYear, setSelectedMotifYear] = useState("all");
+252:   const [motifStatsLoading, setMotifStatsLoading] = useState(false);
+253:   const [hoveredMotifSlice, setHoveredMotifSlice] = useState(null);
+254: 
+255:   useEffect(() => {
+256:     const val = textFilters.accion_nombre?.value;
+257:     if (!val) {
+258:       setSelectedActionName(null);
+259:     } else {
+260:       setSelectedActionName(val);
+261:     }
+262:   }, [textFilters.accion_nombre]);
+263: 
+264:   useEffect(() => {
+265:     if (!selectedActionName) {
+266:       setMotifStatsData({ by_year: {}, all: [] });
+267:       return;
+268:     }
+269:     setMotifStatsLoading(true);
+270:     const params = { accion_nombre: selectedActionName };
+271:     if (activeSubTab === "bitacora" && bitacoraDate) {
+272:       params.fecha_captura__in = bitacoraDate;
+273:     }
+274:     VacantesService.getMovimientosPersonalStats(params)
+275:       .then(res => res.json())
+276:       .then(resData => {
+277:         if (resData && (resData.by_year || resData.all)) {
+278:           setMotifStatsData(resData);
+279:         }
+280:       })
+281:       .catch(err => console.error("Error fetching motif stats:", err))
+282:       .finally(() => setMotifStatsLoading(false));
+283:   }, [selectedActionName, activeSubTab, bitacoraDate]);
+284: 
+285:   useEffect(() => {
+286:     setSelectedMotifYear("all");
+287:   }, [selectedActionName]);
+288: 
+289:   useEffect(() => {
+290:     setPage(1);
+291:   }, [selectedYear, selectedMotifYear]);
+292: 
+293:   const activeMotifStatsList = useMemo(() => {
+294:     if (selectedMotifYear === "all") {
+295:       return motifStatsData.all || [];
+296:     }
+297:     return motifStatsData.by_year[selectedMotifYear] || [];
+298:   }, [motifStatsData, selectedMotifYear]);
+299: 
+300:   const motifPieTotal = useMemo(() => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+================================================================================

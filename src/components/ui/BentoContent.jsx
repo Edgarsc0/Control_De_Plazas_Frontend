@@ -364,7 +364,7 @@ export function OcupacionVacantes({
             >
               <Counter target={totalPlazas} />
             </span>
-            <Chip label={`${(resumenOcupacion?.ocupadas_sig || 0).toLocaleString()} Ocupadas`} />
+            <Chip label={`${(resumenOcupacion?.ocupadas_sig || 0).toLocaleString('en-US')} Ocupadas`} />
           </div>
           <p
             style={{

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Html, ContactShadows } from "@react-three/drei";
 import { VacantesService } from "@/services/vacantes.service";
-import { Search, MapPin } from "lucide-react";
+import { Search, MapPin, RotateCcw } from "lucide-react";
 import EmpleadosTableModal from "./EmpleadosTableModal";
 import * as THREE from "three";
 
@@ -41,9 +41,36 @@ const getUaColor = (uaName) => {
 };
 
 // Individual Floor Component
-const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, uas, dominantUa, mode, onHover, onClick, isSelected, isHoveredRemote }) => {
+const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, uas, dominantUa, mode, onHover, onClick, isSelected, isHoveredRemote, employeeName }) => {
   const [hovered, setHovered] = useState(false);
   const isHovered = hovered || isHoveredRemote;
+  const ringRef = useRef();
+  const beamRef = useRef();
+  const discRef = useRef();
+  const meshRef = useRef();
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    if (isSelected) {
+      if (meshRef.current && meshRef.current.material) {
+        meshRef.current.material.emissiveIntensity = (isEmpty ? 1.2 : 2.2) + Math.sin(t * 3.5) * 0.6;
+      }
+      if (employeeName) {
+        if (ringRef.current) {
+          const s = 1 + Math.sin(t * 2.8) * 0.14;
+          ringRef.current.scale.set(s, s, s);
+          ringRef.current.material.emissiveIntensity = 1.5 + Math.sin(t * 2.8) * 1.2;
+          ringRef.current.material.opacity = 0.55 + Math.sin(t * 2.8) * 0.3;
+        }
+        if (beamRef.current) {
+          beamRef.current.material.opacity = 0.12 + Math.sin(t * 1.8) * 0.08;
+        }
+        if (discRef.current) {
+          discRef.current.material.emissiveIntensity = 2 + Math.sin(t * 3.5) * 1;
+        }
+      }
+    }
+  });
   
   const baseColor = useMemo(() => {
     if (count === 0) return new THREE.Color("#0f172a");
@@ -73,7 +100,7 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
       }}
     >
       {/* The main glass volume */}
-      <mesh>
+      <mesh ref={meshRef}>
         <boxGeometry args={[width, height * 0.95, depth]} />
         {isEmpty ? (
           <meshPhysicalMaterial 
@@ -82,7 +109,7 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
             opacity={isSelected ? 0.6 : 0.3}
             roughness={0}
             metalness={1}
-            transmission={0.9} // ultra clear glass
+            transmission={0.9}
             ior={1.5}
             envMapIntensity={2}
             emissive={isSelected ? "#0284c7" : "#000000"}
@@ -99,7 +126,7 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
         )}
       </mesh>
 
-      {/* Solid floor slab separating the floors */}
+      {/* Solid floor slab */}
       <mesh position={[0, -height / 2 + 0.05, 0]}>
         <boxGeometry args={[width + 0.2, 0.1, depth + 0.2]} />
         <meshStandardMaterial color={isSelected ? "#0ea5e9" : "#1e293b"} roughness={0.8} metalness={0.2} emissive={isSelected ? "#0ea5e9" : "#000000"} emissiveIntensity={isSelected ? 1 : 0} />
@@ -109,8 +136,94 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
       {(isHovered || isSelected) && !isEmpty && (
         <lineSegments position={[0, -height / 2 + 0.05, 0]}>
           <edgesGeometry args={[new THREE.BoxGeometry(width + 0.3, 0.2, depth + 0.3)]} />
-          <lineBasicMaterial color={isSelected ? "#ffffff" : "#ffffff"} linewidth={isSelected ? 5 : 2} />
+          <lineBasicMaterial color="#ffffff" linewidth={isSelected ? 5 : 2} />
         </lineSegments>
+      )}
+
+      {/* ── Employee beacon ── */}
+      {isSelected && employeeName && (
+        <group position={[0, height / 2, 0]}>
+          {/* Glowing disc on top of the floor */}
+          <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[Math.min(width, depth) * 0.38, 64]} />
+            <meshStandardMaterial
+              color="#0ea5e9"
+              emissive="#0ea5e9"
+              emissiveIntensity={2.5}
+              transparent
+              opacity={0.65}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Pulsating outer ring */}
+          <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[Math.min(width, depth) * 0.42, Math.min(width, depth) * 0.48, 64]} />
+            <meshStandardMaterial
+              color="#38bdf8"
+              emissive="#38bdf8"
+              emissiveIntensity={2}
+              transparent
+              opacity={0.6}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Vertical light beam shooting upward */}
+          <mesh ref={beamRef} position={[0, 18, 0]}>
+            <cylinderGeometry args={[0.12, 1.2, 36, 16, 1, true]} />
+            <meshStandardMaterial
+              color="#0ea5e9"
+              emissive="#0ea5e9"
+              emissiveIntensity={1.5}
+              transparent
+              opacity={0.15}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Floating HTML label */}
+          <Html position={[0, 36, 0]} center distanceFactor={28} zIndexRange={[100, 0]}>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(224,242,254,0.97) 100%)',
+              backdropFilter: 'blur(16px)',
+              padding: '10px 18px',
+              borderRadius: '18px',
+              border: '2px solid #0ea5e9',
+              boxShadow: '0 8px 32px rgba(14,165,233,0.45), 0 0 0 5px rgba(14,165,233,0.12)',
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+              minWidth: '140px',
+            }}>
+              <div style={{
+                color: '#0369a1',
+                fontSize: '10px',
+                fontWeight: 900,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                fontFamily: 'system-ui, sans-serif',
+              }}>
+                📍 {pisoLabel}
+              </div>
+              <div style={{
+                color: '#0f172a',
+                fontSize: '13px',
+                fontWeight: 700,
+                fontFamily: 'system-ui, sans-serif',
+                textAlign: 'center',
+                lineHeight: 1.3,
+              }}>
+                {employeeName}
+              </div>
+            </div>
+          </Html>
+        </group>
       )}
     </group>
   );
@@ -177,6 +290,7 @@ const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelect
         onClick={setSelectedInfo}
         isSelected={isSelected}
         isHoveredRemote={isHoveredRemote}
+        employeeName={isSelected ? selectedInfo?.employeeName : undefined}
       />
     );
   });
@@ -248,48 +362,69 @@ const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelect
   );
 };
 
-const CameraRig = () => {
+const CameraRig = ({ targetCamera }) => {
   const [intro, setIntro] = useState(true);
-  
+  const controlsRef = useRef();
+  const isFlyingTo = useRef(false);
+  const flyTarget = useRef(null);
+  const flyLookAt = useRef(new THREE.Vector3(0, 25, 0));
+
   useEffect(() => {
-    // End intro animation after 3.5 seconds
     const t = setTimeout(() => setIntro(false), 3500);
     return () => clearTimeout(t);
   }, []);
 
+  // Whenever a new targetCamera arrives, start the fly-to animation
+  useEffect(() => {
+    if (!intro && targetCamera) {
+      flyTarget.current = new THREE.Vector3(...targetCamera.position);
+      flyLookAt.current = new THREE.Vector3(...targetCamera.lookAt);
+      isFlyingTo.current = true;
+    }
+  }, [targetCamera, intro]);
+
   useFrame((state) => {
     if (intro) {
       const time = state.clock.getElapsedTime();
-      
-      // Math function to ease out the animation smoothly
-      // time goes from 0 to 3.5. Let's create an eased progress 0..1
       const progress = Math.min(time / 3.5, 1);
       const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-      
-      // Start super close and low [radius: 20, height: 5]
-      // End further out and higher [radius: 100, height: 65]
-      const radius = 20 + easeOutCubic * 80; 
-      const height = 5 + easeOutCubic * 60; 
-      const angle = time * 0.8; // Spin while pulling back
-      
+      const radius = 20 + easeOutCubic * 80;
+      const height = 5 + easeOutCubic * 60;
+      const angle = time * 0.8;
       state.camera.position.x = Math.sin(angle) * radius;
       state.camera.position.z = Math.cos(angle) * radius;
       state.camera.position.y = height;
-      state.camera.lookAt(0, 25, 0); // Keep focused on the middle of the building
+      state.camera.lookAt(0, 25, 0);
+      return;
+    }
+
+    if (isFlyingTo.current && flyTarget.current && controlsRef.current) {
+      // Smooth lerp toward target
+      state.camera.position.lerp(flyTarget.current, 0.06);
+      controlsRef.current.target.lerp(flyLookAt.current, 0.06);
+      controlsRef.current.update();
+
+      if (state.camera.position.distanceTo(flyTarget.current) < 1.5) {
+        isFlyingTo.current = false;
+      }
     }
   });
 
   return !intro ? (
-    <OrbitControls 
-      enablePan={false} 
-      minPolarAngle={0} 
-      maxPolarAngle={Math.PI / 2 - 0.02} // Prevent going below ground
-      minDistance={10} 
-      maxDistance={400} 
-      target={[0, 25, 0]} 
-      autoRotate={true}
-      autoRotateSpeed={2.5} 
+    <OrbitControls
+      ref={controlsRef}
+      enablePan={false}
+      minPolarAngle={0}
+      maxPolarAngle={Math.PI / 2 - 0.02}
+      minDistance={10}
+      maxDistance={400}
+      target={[0, 25, 0]}
+      autoRotate={!isFlyingTo.current}
+      autoRotateSpeed={2.5}
       makeDefault
+      onStart={() => {
+        isFlyingTo.current = false;
+      }}
     />
   ) : null;
 };
@@ -312,23 +447,35 @@ export default function TorreCaballito3DTab() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [targetCamera, setTargetCamera] = useState(null);
   
   useEffect(() => {
+    if (searchQuery.trim().length === 0) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      setIsSearching(false);
+      return;
+    }
+
+    // Show spinner immediately when user has typed at least one character
+    setIsSearching(true);
+
     const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim().length >= 3) {
-        setIsSearching(true);
-        VacantesService.searchTorreCaballito(searchQuery)
-          .then(res => res.json())
-          .then(data => {
-             setSearchResults(data.results || []);
-             setShowDropdown(true);
-          })
-          .catch(err => console.error(err))
-          .finally(() => setIsSearching(false));
-      } else {
+      if (searchQuery.trim().length < 3) {
         setSearchResults([]);
         setShowDropdown(false);
+        setIsSearching(false);
+        return;
       }
+
+      VacantesService.searchTorreCaballito(searchQuery)
+        .then(res => res.json())
+        .then(data => {
+           setSearchResults(data.results || []);
+           setShowDropdown(true);
+        })
+        .catch(err => console.error(err))
+        .finally(() => setIsSearching(false));
     }, 400);
 
     return () => clearTimeout(delayDebounceFn);
@@ -342,37 +489,40 @@ export default function TorreCaballito3DTab() {
     
     setSearchQuery(emp.Nombres);
     setShowDropdown(false);
-    
-    // Animar la cámara hacia el piso
-    const targetPisoNum = parseInt(emp.piso_num);
-    const geometryPiso = targetPisoNum - 1; 
-    
-    // Similar to floor click logic
-    const heightPerFloor = 0.45;
-    const offset = geometryPiso * heightPerFloor;
-    const originalY = 1.0;
-    const clickY = originalY + offset;
 
-    const angle = Math.PI / 4;
-    const distance = 8;
-    const cx = Math.sin(angle) * distance;
-    const cz = Math.cos(angle) * distance;
-    const cy = clickY + 2;
+    const floorIndex = parseInt(emp.piso_num, 10);
+    const floorHeight = 1.8;
+    const yFloor = floorIndex * floorHeight + floorHeight / 2;
 
-    setTargetCamera({ position: [cx, cy, cz], lookAt: [0, clickY, 0] });
-    setSelectedFloor(geometryPiso);
-
-    // Fetch UA detail or floor detail
-    // We can simulate clicking the floor
-    const pisoName = `P${emp.piso_num.padStart(2, '0')}`;
+    // Buscar la info del piso en los datos ya cargados y seleccionarlo
+    const pisoName = `P${String(emp.piso_num).padStart(2, '0')}`;
+    const floorData = data.find(d => extractFloorNumber(d.piso) === floorIndex);
     
-    // Find info from fetched data
-    const info = data.find(d => d.pisoLabel === pisoName);
-    if (info) {
-      setDisplayInfo(info);
-      setSelectedUaRemote(null);
-      setUaDetails(null);
+    if (floorData) {
+      const dominantUa = floorData.uas?.length > 0
+        ? floorData.uas.reduce((p, c) => p.count > c.count ? p : c).nombre
+        : null;
+      setSelectedInfo({
+        pisoLabel: floorData.piso,
+        count: floorData.count,
+        uas: floorData.uas,
+        dominantUa,
+        employeeName: emp.Nombres,
+      });
     }
+    setSelectedUaRemote(null);
+
+    // Animar cámara hacia el piso
+    const angle = Math.PI / 4;
+    const distance = 42;
+    setTargetCamera({
+      position: [
+        Math.sin(angle) * distance,
+        yFloor + 18,
+        Math.cos(angle) * distance,
+      ],
+      lookAt: [0, yFloor, 0],
+    });
   };
 
   
@@ -429,6 +579,17 @@ export default function TorreCaballito3DTab() {
       .finally(() => setLoading(false));
   }, []);
 
+  const resetView = () => {
+    setSelectedInfo(null);
+    setSelectedUaRemote(null);
+    setHoverInfo(null);
+    setSearchQuery("");
+    setTargetCamera({
+      position: [70, 45, 70],
+      lookAt: [0, 25, 0],
+    });
+  };
+
   if (loading) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-transparent text-[#621f32]">
@@ -463,41 +624,54 @@ export default function TorreCaballito3DTab() {
         <ContactShadows resolution={2048} scale={100} blur={2.5} opacity={0.6} far={20} color="#000000" position={[0, -0.49, 0]} />
         
         {/* Camera Intro Animation and Controls */}
-        <CameraRig />
+        <CameraRig targetCamera={targetCamera} />
       </Canvas>
       
       {/* UI Overlay: Title & Mode Toggle */}
-      <div className="absolute top-6 left-6 pointer-events-auto flex flex-col gap-4">
+      <div className="absolute top-24 left-6 pointer-events-auto flex flex-col gap-4">
         <div className="pointer-events-none">
           <h2 className="text-3xl font-black text-[#621f32] drop-shadow-md">Torre del Caballito</h2>
           <p className="text-slate-800 font-medium text-lg">Paseo de la Reforma 10</p>
         </div>
         
         {/* Toggle Switch */}
-        <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 flex w-max shadow-lg">
-          <button 
-            onClick={() => {
-              setViewMode("heat");
-              setSelectedInfo(null);
-              setHoverInfo(null);
-              setSelectedUaRemote(null);
-              setHoveredUaRemote(null);
-            }}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === "heat" ? "bg-[#bc955c] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+        {/* Toggle Switch & Reset View Button Container */}
+        <div className="flex items-center gap-3 w-max">
+          {/* Toggle Switch */}
+          <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 flex shadow-lg">
+            <button 
+              onClick={() => {
+                setViewMode("heat");
+                setSelectedInfo(null);
+                setHoverInfo(null);
+                setSelectedUaRemote(null);
+                setHoveredUaRemote(null);
+              }}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === "heat" ? "bg-[#bc955c] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+            >
+              Mapa de Calor
+            </button>
+            <button 
+              onClick={() => {
+                setViewMode("ua");
+                setSelectedInfo(null);
+                setHoverInfo(null);
+                setSelectedUaRemote(null);
+                setHoveredUaRemote(null);
+              }}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === "ua" ? "bg-[#621f32] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+            >
+              Color por Unidad
+            </button>
+          </div>
+
+          {/* Reset View Button */}
+          <button
+            onClick={resetView}
+            className="bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200 text-slate-800 hover:text-[#621f32] shadow-lg flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer h-full"
+            title="Restablecer Vista"
           >
-            Mapa de Calor
-          </button>
-          <button 
-            onClick={() => {
-              setViewMode("ua");
-              setSelectedInfo(null);
-              setHoverInfo(null);
-              setSelectedUaRemote(null);
-              setHoveredUaRemote(null);
-            }}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === "ua" ? "bg-[#621f32] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
-          >
-            Color por Unidad
+            <RotateCcw className="w-5 h-5" />
           </button>
         </div>
 
@@ -589,14 +763,16 @@ export default function TorreCaballito3DTab() {
                     <div className="flex flex-col pr-4">
                       {viewMode === "ua" && displayInfo.dominantUa ? (
                         <>
-                          <span className="text-xs text-slate-800 font-bold uppercase tracking-wider mb-1">{displayInfo.pisoLabel}</span>
+                          <span className="text-xs text-slate-800 font-bold uppercase tracking-wider mb-1">
+                            {displayInfo.pisoLabel.startsWith("P") ? `Torre Caballito Reforma 10 ${displayInfo.pisoLabel}` : displayInfo.pisoLabel}
+                          </span>
                           <h3 className={`font-bold text-base leading-snug ${selectedInfo ? 'text-[#bc955c]' : 'text-slate-700'}`}>
                             {displayInfo.dominantUa}
                           </h3>
                         </>
                       ) : (
                         <h3 className={`font-black text-xl leading-none ${selectedInfo ? 'text-[#621f32]' : 'text-[#621f32]'}`}>
-                          {displayInfo.pisoLabel}
+                          {displayInfo.pisoLabel.startsWith("P") ? `Torre Caballito Reforma 10 ${displayInfo.pisoLabel}` : displayInfo.pisoLabel}
                         </h3>
                       )}
                     </div>
@@ -613,6 +789,23 @@ export default function TorreCaballito3DTab() {
                     <span className="text-slate-800 text-xs font-bold uppercase tracking-wider">Total Activos en Piso</span>
                     <span className="font-black text-3xl text-[#621f32]">{displayInfo.count}</span>
                   </div>
+                  {displayInfo.count > 0 && (
+                    <button
+                      onClick={() => {
+                        setLoadingEmpleados(true);
+                        setEmpleadosModalTitle(`Empleados en ${displayInfo.pisoLabel}`);
+                        VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, "")
+                          .then(res => res.json())
+                          .then(data => setEmpleadosData(data))
+                          .catch(err => console.error(err))
+                          .finally(() => setLoadingEmpleados(false));
+                      }}
+                      className="mt-3 w-full py-2.5 bg-[#621f32] hover:bg-[#802a43] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                      Ver todos los empleados del piso
+                    </button>
+                  )}
                 </div>
                 
                 {/* Scrollable UAs list for Floor */}
@@ -709,24 +902,36 @@ export default function TorreCaballito3DTab() {
       
 
       {/* Search Bar */}
-      <div className="absolute top-6 left-6 z-40 w-80">
+      <div className="absolute top-24 right-6 z-40 w-80">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            {isSearching ? (
-               <div className="size-4 border-2 border-[#621f32] border-t-transparent rounded-full animate-spin" />
-            ) : (
-               <Search className="size-4 text-slate-400" />
-            )}
+            <Search className="size-4 text-slate-400" style={{ width: '1rem', height: '1rem' }} />
           </div>
           <input
             type="text"
-            className="w-full pl-10 pr-4 py-3 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-lg focus:outline-none focus:ring-2 focus:ring-[#bc955c]/50 text-sm font-medium text-slate-800 placeholder-slate-400 transition-all"
+            className="w-full pl-10 pr-10 py-3 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-lg focus:outline-none focus:ring-2 focus:ring-[#bc955c]/50 text-sm font-medium text-slate-800 placeholder-slate-400 transition-all"
             placeholder="Buscar empleado por nombre..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearchQuery(val);
+              if (val.trim().length > 0) {
+                setIsSearching(true);
+              } else {
+                setIsSearching(false);
+              }
+            }}
             onFocus={() => { if(searchResults.length > 0) setShowDropdown(true); }}
             onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
           />
+          {isSearching && (
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+              <div 
+                className="w-4 h-4 border-2 rounded-full animate-spin" 
+                style={{ borderColor: '#621f32', borderTopColor: 'transparent' }}
+              />
+            </div>
+          )}
         </div>
         
         {/* Autocomplete Dropdown */}
@@ -758,9 +963,7 @@ export default function TorreCaballito3DTab() {
         )}
       </div>
 
-      <div className="absolute bottom-6 left-6 pointer-events-none bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-200">
-        <p className="text-slate-800 text-xs font-semibold">Haz scroll para acercar/alejar • Arrastra para rotar</p>
-      </div>
+
 
       {/* Empleados Detail Modal */}
       {(empleadosData || loadingEmpleados) && (

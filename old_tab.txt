@@ -1,0 +1,159 @@
+Created At: 2026-06-12T03:07:53Z
+Completed At: 2026-06-12T03:07:53Z
+File Path: `file:///home/edgar/ANAM/EjeCentral/eje_central_front/src/components/MovimientosPersonalTab.jsx`
+Total Lines: 1452
+Total Bytes: 71264
+Showing lines 1000 to 1150
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1000:                     onClick={() => setColumns(prev => prev.map(c => ({ ...c, visible: false })))}
+1001:                     className="flex-1 sm:flex-none px-5 py-3 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 text-[10px] font-black uppercase rounded-xl border border-red-100 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all active:scale-95"
+1002:                   >
+1003:                     Borrar todas
+1004:                   </button>
+1005:                 </div>
+1006:               </div>
+1007:             </div>
+1008: 
+1009:             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+1010:               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+1011:                 {columns.filter(col => col.label.toLowerCase().includes(columnSearchText.toLowerCase())).map((col) => (
+1012:                   <button 
+1013:                     key={col.key} 
+1014:                     onClick={() => toggleColumnVisibility(col.key)} 
+1015:                     className={`flex items-start gap-4 p-4 border-2 rounded-[1.5rem] text-left transition-all duration-205 group relative overflow-hidden ${
+1016:                       col.visible 
+1017:                       ? "border-[#621f32]/40 bg-[#621f32]/[0.03] dark:bg-[#bc955c]/[0.03] dark:border-[#bc955c]/40" 
+1018:                       : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:border-slate-200 dark:hover:border-slate-700"
+1019:                     }`}
+1020:                   >
+1021:                     <div className={`mt-0.5 size-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+1022:                       col.visible 
+1023:                       ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" 
+1024:                       : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 group-hover:border-slate-400"
+1025:                     }`}>
+1026:                       {col.visible && <Check className="size-3 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+1027:                     </div>
+1028:                     <div className="flex-1 min-w-0">
+1029:                       <p className={`text-xs font-black truncate ${col.visible ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-400"}`}>{col.label}</p>
+1030:                       <span className="text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 mt-0.5 block">{col.isBasic ? "Campo Principal" : "Campo Extra"}</span>
+1031:                     </div>
+1032:                   </button>
+1033:                 ))}
+1034:               </div>
+1035:             </div>
+1036: 
+1037:             <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+1038:               <button 
+1039:                 onClick={() => setIsColumnsModalOpen(false)} 
+1040:                 className="w-full bg-gradient-to-r from-[#621f32] to-[#8d2c48] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black py-4 rounded-2xl text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-[#621f32]/20 dark:shadow-none active:scale-[0.98] hover:opacity-90"
+1041:               >
+1042:                 Confirmar Selección
+1043:               </button>
+1044:             </div>
+1045:           </motion.div>
+1046:         </div>,
+1047:         document.body
+1048:       )}
+1049: 
+1050:       {/* Dropdown de Filtro por Valores Únicos */}
+1051:       <AnimatePresence>
+1052:         {activeFilterDropdown && (
+1053:           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+1054:             <motion.div 
+1055:               initial={{ opacity: 0 }} 
+1056:               animate={{ opacity: 1 }} 
+1057:               exit={{ opacity: 0 }} 
+1058:               onClick={() => setActiveFilterDropdown(null)} 
+1059:               className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" 
+1060:             />
+1061:             <motion.div 
+1062:               initial={{ opacity: 0, scale: 0.95, y: 10 }} 
+1063:               animate={{ opacity: 1, scale: 1, y: 0 }} 
+1064:               exit={{ opacity: 0, scale: 0.95, y: 10 }} 
+1065:               ref={dropdownRef} 
+1066:               className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70]"
+1067:             >
+1068:               <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+1069:                 <div className="flex items-center justify-between mb-3">
+1070:                   <h4 className="text-xs font-black uppercase tracking-tight text-slate-700 dark:text-slate-300 flex items-center gap-2">
+1071:                     <Filter className="size-3 text-[#621f32] dark:text-[#bc955c]" />
+1072:                     Filtrar {columns.find(c => c.key === activeFilterDropdown)?.label}
+1073:                   </h4>
+1074:                   <button onClick={() => setActiveFilterDropdown(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
+1075:                 </div>
+1076:                 {!isDateColumn(activeFilterDropdown) && (
+1077:                   <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg mb-3">
+1078:                     <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('todos'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'todos' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Todos los datos</button>
+1079:                     <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
+1080:                   </div>
+1081:                 )}
+1082:                 <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
+1083:                   <Search className="size-3 text-slate-400 mr-2" />
+1084:                   <input 
+1085:                     type="text" 
+1086:                     value={filterSearchText} 
+1087:                     onChange={(e) => setFilterSearchText(e.target.value)} 
+1088:                     placeholder="Buscar valor..." 
+1089:                     className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" 
+1090:                   />
+1091:                 </div>
+1092:               </div>
+1093:               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-white dark:bg-slate-900">
+1094:                 {loadingUniqueValues ? (
+1095:                   <div className="flex flex-col items-center justify-center py-12">
+1096:                     <div className="size-6 border-2 border-t-[#621f32] border-[#621f32]/20 dark:border-t-[#bc955c] dark:border-[#bc955c]/20 rounded-full animate-spin mb-2" />
+1097:                     <span className="text-[10px] font-black uppercase text-slate-400">Cargando valores...</span>
+1098:                   </div>
+1099:                 ) : (
+1100:                   <div className="flex flex-col gap-0.5">
+1101:                     {/* Top Select/Deselect action buttons */}
+1102:                     {(() => {
+1103:                       const visibleVals = (uniqueColumnValues[activeFilterDropdown] || []).map(v => v.value);
+1104:                       return (
+1105:                         <div className="flex gap-2 px-2 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+1106:                           <button 
+1107:                             type="button"
+1108:                             onClick={() => {
+1109:                               setTempSelectedValues(prev => [...new Set([...prev, ...visibleVals])]);
+1110:                             }} 
+1111:                             className="flex-1 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 text-[9px] font-black uppercase text-center rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+1112:                           >
+1113:                             Seleccionar Todo
+1114:                           </button>
+1115:                           <button 
+1116:                             type="button"
+1117:                             onClick={() => {
+1118:                               setTempSelectedValues(prev => prev.filter(v => !visibleVals.includes(v)));
+1119:                             }} 
+1120:                             className="flex-1 py-1.5 px-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 text-[9px] font-black uppercase text-center rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+1121:                           >
+1122:                             Deseleccionar Todo
+1123:                           </button>
+1124:                         </div>
+1125:                       );
+1126: }
+1127: )()}
+1128: 
+1129:                     {/* Conditional rendering depending on column type */}
+1130:                     {isDateColumn(activeFilterDropdown) ? (
+1131:                       <div className="flex flex-col gap-1 p-2">
+1132:                         {(() => {
+1133:                           const valuesList = uniqueColumnValues[activeFilterDropdown] || [];
+1134:                           return Object.keys(dateHierarchies[activeFilterDropdown] || {}).sort((a,b) => b - a).map(year => {
+1135:                             const yearData = dateHierarchies[activeFilterDropdown][year];
+1136:                             const isYearExpanded = expandedDateNodes[year];
+1137:                             const yearLeafValues = [...new Set(
+1138:                               valuesList
+1139:                                 .filter(item => parseDateParts(item.value)?.year === year)
+1140:                                 .map(item => String(item.value || "").trim())
+1141:                             )];
+1142:                             const isYearSelected = yearLeafValues.length > 0 && yearLeafValues.every(v => tempSelectedValues.includes(v));
+1143:                             const isYearPartial = !isYearSelected && yearLeafValues.some(v => tempSelectedValues.includes(v));
+1144: 
+1145:                             return (
+1146:                               <div key={year} className="flex flex-col">
+1147:                                 <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg group">
+1148:                                   <button type="button" onClick={() => toggleDateNode(year)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors text-slate-400 cursor-pointer">
+1149:                                     {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRightIcon className="size-3" />}
+1150:                                   </button>
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

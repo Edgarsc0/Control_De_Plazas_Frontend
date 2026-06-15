@@ -6,11 +6,13 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, Users,
-  Calendar
+  Calendar, Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
+import { EmployeeRecordModal } from "./EmployeesModal";
+import DatePicker from "react-datepicker";
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -53,6 +55,8 @@ const getConditionLabel = (cond) => {
 export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHistorico = [], isPending, startTransition, cardRef }) {
   const [mounted, setMounted] = useState(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [selectedRowData, setSelectedRowData] = useState(null);
   useEffect(() => setMounted(true), []);
 
   const chartContainerRef = useRef(null);
@@ -177,6 +181,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const [scrollTop, setScrollTop] = useState(0);
   const [selectedCell, setSelectedCell] = useState(null);
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
+  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
@@ -380,6 +385,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
+      setFilterDropdownTab('todos');
       setFilterSearchText("");
       setTempSelectedValues(columnFilters[colKey] || uniqueColumnValues[colKey].map(v => v.value));
     }
@@ -1024,11 +1030,12 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
           <div onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: '75vh', minHeight: '600px' }}>
             <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
-            <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 50 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
-                <colgroup><col style={{ width: 50 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
+            <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 95 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
+                <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
                 <thead className="bg-[#501929]/90 dark:bg-[#3e131f]/90 text-white sticky top-0 z-30 shadow-md border-b border-[#bc955c]/30">
                   <tr>
                     <th className="sticky left-0 top-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 backdrop-blur-md border-r border-b border-[#621f32]/35 w-[50px] min-w-[50px] text-center align-middle">#</th>
+                    <th className="sticky left-[50px] top-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 backdrop-blur-md border-r border-b border-[#621f32]/35 text-center align-middle px-1"><span className="text-[9px] font-bold text-slate-300">VER</span></th>
                     {columns.filter(c => c.visible).map((col, index) => (<th key={col.key} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${selectedCell?.col === index ? "bg-[#621f32] text-white" : "bg-[#501929] text-slate-200"}`}><div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'left')} /><div className="flex flex-col items-center gap-1 w-full"><span className="text-[9px] font-mono text-[#bc955c]">{getColumnLetter(index)}</span><div className="flex items-center justify-between w-full"><div onClick={() => handleSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5"><span>{col.label}</span><ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} /></div><button onClick={(e) => { e.stopPropagation(); openFilterDropdown(col.key); }} className={`p-1 rounded-md transition-colors ${columnFilters[col.key] ? "text-amber-300" : "text-white/60"}`}><Filter className="size-3 fill-current" /></button></div></div><div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'right')} /></th>))}
                   </tr>
                   <tr className="bg-[#40121e]/80 dark:bg-[#2b0d15]/80 backdrop-blur-md">
@@ -1042,6 +1049,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                         <X className="size-3" />
                       </button>
                     </th>
+                    <th className="sticky left-[50px] z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 border-r border-[#621f32]/35"></th>
                     {columns.filter(c => c.visible).map((col) => {
                       const filterObj = textFilters[col.key] || { value: "", condition: isMonoColumn(col.key) ? "starts_with" : "contains" };
                       const condition = filterObj.condition || (isMonoColumn(col.key) ? "starts_with" : "contains");
@@ -1145,7 +1153,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                 <tbody ref={tbodyRef} className="divide-y divide-slate-100 dark:divide-slate-800/80">
                   {paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={columns.filter(c => c.visible).length + 1} className="py-20 text-center">
+                      <td colSpan={columns.filter(c => c.visible).length + 2} className="py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <div className="size-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                             <Search className="size-8 text-gray-400" />
@@ -1157,13 +1165,16 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                     </tr>
                   ) : (
                     <>
-                      {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 1} /></tr>}
+                      {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 2} /></tr>}
                       {paginatedData.map((row, rowIdx) => { 
                         const actualRowIdx = startIndex + rowIdx; 
                         return (
-                          <tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px]" onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })}>
+                          <tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px]" onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })}>
                             <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#621f32]/20 text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-slate-50/85 text-slate-400"}`}>
                               {actualRowIdx + 1}
+                            </td>
+                            <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${selectedCell?.row === actualRowIdx ? "bg-[#621f32]/20" : "bg-slate-50/85 dark:bg-slate-900/85"}`}>
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedRowData(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button>
                             </td>
                             {columns.filter(c => c.visible).map((col, colIdx) => { 
                               const val = row[col.key], isSelected = selectedCell?.row === actualRowIdx && selectedCell?.col === colIdx; 
@@ -1213,7 +1224,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                           </tr>
                         ); 
                       })}
-                      {endIndex < filteredSortedData.length && <tr style={{ height: (filteredSortedData.length - endIndex) * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 1} /></tr>}
+                      {endIndex < filteredSortedData.length && <tr style={{ height: (filteredSortedData.length - endIndex) * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 2} /></tr>}
                     </>
                   )}
                 </tbody>
@@ -1336,6 +1347,12 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                   </h4>
                   <button onClick={() => setActiveFilterDropdown(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
                 </div>
+                {!isDateColumn(activeFilterDropdown) && (
+                  <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg mb-3">
+                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('todos'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'todos' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Todos los datos</button>
+                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
+                  </div>
+                )}
                 <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
                   <Search className="size-3 text-slate-400 mr-2" />
                   <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
@@ -1430,27 +1447,45 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                   </div>
                 ) : (
                   <div className="flex flex-col gap-0.5">
-                    <button onClick={() => {
-                      const allVals = uniqueColumnValues[activeFilterDropdown].map(v => v.value);
-                      setTempSelectedValues(tempSelectedValues.length === allVals.length ? [] : allVals);
-                    }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
-                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedValues.length === (uniqueColumnValues[activeFilterDropdown]?.length || 0) ? "bg-[#621f32] border-[#621f32]" : "border-slate-300 dark:border-slate-600"}`}>
-                        {tempSelectedValues.length === (uniqueColumnValues[activeFilterDropdown]?.length || 0) && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
-                    </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
                     {(() => {
-                      const filtered = uniqueColumnValues[activeFilterDropdown]?.filter(v => v.value.toLowerCase().includes(filterSearchText.toLowerCase())) || [];
+                      let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+                      if (filterDropdownTab === 'actuales') {
+                        const counts = {};
+                        filteredSortedData.forEach(row => {
+                          const val = activeFilterDropdown === "estado_psn" ? String(row[activeFilterDropdown] || "").trim() : String(row[activeFilterDropdown] || "").trim();
+                          counts[val] = (counts[val] || 0) + 1;
+                        });
+                        baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
+                      }
+                      
+                      const allVals = baseUniqueValues.map(v => v.value);
+                      const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
+
+                      const tempSelectedSet = new Set(tempSelectedValues);
+                      const searchNormalized = filterSearchText ? String(filterSearchText).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+                      const filtered = baseUniqueValues.filter(v => {
+                        const valNormalized = v.value ? String(v.value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+                        return valNormalized.includes(searchNormalized);
+                      });
                       const sliced = filtered.slice(0, 100);
+                      
                       return (
                         <>
+                          <button onClick={() => {
+                            setTempSelectedValues(isAllSelected ? [] : allVals);
+                          }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
+                            <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                              {isAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                            </div>
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
+                          </button>
+                          <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
                           {sliced.map(({ value, count }) => (
                             <button key={value} onClick={() => {
                               setTempSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
                             }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
-                              <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedValues.includes(value) ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                                {tempSelectedValues.includes(value) && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                              <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedSet.has(value) ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                                {tempSelectedSet.has(value) && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
                               </div>
                               <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
                                 <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">{value || "(Vacío)"}</span>
@@ -1714,6 +1749,46 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
           </div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            key="context-menu"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl py-1.5 w-56"
+          >
+            <button
+              onClick={() => {
+                setSelectedRowData(contextMenu.row);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors"
+            >
+              <Briefcase className="size-4" />
+              Ver Registro Completo
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {selectedRowData && (() => {
+        const mappedEmployee = {
+          ...selectedRowData,
+          id_empleado: selectedRowData.no_empleado,
+          nombres: selectedRowData.nombre_completo,
+          nivel: selectedRowData.nivel || selectedRowData.nivel_tabular,
+        };
+        return (
+          <EmployeeRecordModal
+            isOpen={!!selectedRowData}
+            onClose={() => setSelectedRowData(null)}
+            record={mappedEmployee}
+            columns={columns}
+          />
+        );
+      })()}
     </div>
   );
 }

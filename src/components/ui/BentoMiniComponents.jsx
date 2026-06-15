@@ -56,7 +56,7 @@ export function Counter({ target, prefix = '', suffix = '' }) {
         }, 400);
         return () => clearTimeout(t);
     }, [target]);
-    return <>{prefix}{val.toLocaleString()}{suffix}</>;
+    return <>{prefix}{val.toLocaleString('en-US')}{suffix}</>;
 }
 
 export function Chip({ label }) {

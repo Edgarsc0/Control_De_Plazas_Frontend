@@ -109,7 +109,7 @@ export default function ClientComponent() {
   const activeLog = logs.length > 0 && logs[0].status === 'RUNNING' ? logs[0] : null;
   const lastSuccess = logs.find(l => l.status === 'EXITO');
   const totalRecs = lastSuccess
-    ? ((lastSuccess.registros_completos || 0) + (lastSuccess.registros_bajas || 0) + (lastSuccess.registros_posiciones || 0))
+    ? ((lastSuccess.registros_completos || 0) + (lastSuccess.registros_bajas || 0) + (lastSuccess.registros_posiciones || 0) + (lastSuccess.registros_historial || 0))
     : null;
 
   // Filter Data
@@ -408,6 +408,7 @@ export default function ClientComponent() {
                     <TableHeader label="Completos" />
                     <TableHeader label="Bajas" />
                     <TableHeader label="Posiciones" />
+                    <TableHeader label="Historial Pos." />
                     <TableHeader label="Histórico" filterKey="historico" />
                   </tr>
                 </thead>
@@ -481,6 +482,13 @@ export default function ClientComponent() {
                         <td className="py-3 px-4">
                           <span className="font-mono text-xs text-sky-700 font-bold bg-sky-50 px-2 py-1 rounded-md border border-sky-100/50">
                             {(log.registros_posiciones || 0).toLocaleString()}
+                          </span>
+                        </td>
+
+                        {/* Historial Posición */}
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs text-purple-700 font-bold bg-purple-50 px-2 py-1 rounded-md border border-purple-100/50">
+                            {(log.registros_historial || 0).toLocaleString()}
                           </span>
                         </td>
 

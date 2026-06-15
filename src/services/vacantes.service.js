@@ -122,6 +122,32 @@ export const VacantesService = {
             method: 'GET',
             ...options
         });
+    },
+    getMovimientosPersonalStats: (params = {}, options = {}) => {
+        const queryParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                queryParams.append(key, val);
+            }
+        });
+        const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        return apiFetch(`/plantilla/movimientos-personal/stats/${queryStr}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+    getMovimientosPersonal: (params = {}, options = {}) => {
+        const queryParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                queryParams.append(key, val);
+            }
+        });
+        const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        return apiFetch(`/plantilla/movimientos-personal/${queryStr}`, {
+            method: 'GET',
+            ...options
+        });
     }
 };
 

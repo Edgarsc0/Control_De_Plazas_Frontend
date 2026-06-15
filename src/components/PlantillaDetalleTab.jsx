@@ -6,11 +6,12 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus, 
-  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle
+  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
+import { EmployeeRecordModal } from "./EmployeesModal";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -104,8 +105,8 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     { key: "municipio", label: "municipio", width: 180, visible: false, isBasic: false },
     { key: "ua2", label: "ua2", width: 200, visible: false, isBasic: false },
     { key: "escala", label: "Escala", width: 120, visible: false, isBasic: false },
-    { key: "smb", label: "SMB", width: 100, visible: false, isBasic: false },
-    { key: "smn", label: "SMN", width: 100, visible: false, isBasic: false },
+    { key: "smb", label: "SMB", width: 150, visible: false, isBasic: false },
+    { key: "smn", label: "SMN", width: 150, visible: false, isBasic: false },
     { key: "partida", label: "Partida", width: 100, visible: false, isBasic: false },
     { key: "tipo_de_contratacion", label: "TIPO DE CONTRATACIÓN", width: 180, visible: false, isBasic: false },
     { key: "cd_un", label: "Cd UN", width: 100, visible: false, isBasic: false },
@@ -150,12 +151,15 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [scrollTop, setScrollTop] = useState(0);
   const [selectedCell, setSelectedCell] = useState(null);
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
+  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
   const [columnSearchText, setColumnSearchText] = useState("");
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
+  const [selectedRowData, setSelectedRowData] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
@@ -200,6 +204,8 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
 
   const dropdownRef = useRef(null);
   const tbodyRef = useRef(null);
+  const tableContainerRef = useRef(null);
+  const arrowRepeatRef = useRef(0);
 
   const MONTH_NAMES = useMemo(() => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"], []);
 
@@ -332,13 +338,17 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
+      setFilterDropdownTab('todos');
       setFilterSearchText("");
-      setTempSelectedValues(columnFilters[colKey] || uniqueColumnValues[colKey].map(v => v.value));
+      const uniqueVals = [...new Set(detalle.map(row => 
+        colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim()
+      ))];
+      setTempSelectedValues(columnFilters[colKey] || uniqueVals);
     }
   };
 
   const applyColumnFilter = (colKey) => {
-    const totalUnique = uniqueColumnValues[colKey].map(v => v.value);
+    const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
     startTransition(() => {
       if (tempSelectedValues.length === totalUnique.length) {
         const newFilters = { ...columnFilters };
@@ -506,10 +516,61 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     return result;
   }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
 
-  const rowHeight = 37, containerHeight = 800;
+  const rowHeight = 37, containerHeight = 1200;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
   const endIndex = Math.min(filteredSortedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + 15);
   const paginatedData = filteredSortedData.slice(startIndex, endIndex);
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      if (!e.key.startsWith('Arrow')) {
+        if (e.key === 'Escape') setContextMenu(null);
+        return;
+      }
+      
+      e.preventDefault();
+      
+      if (e.repeat) {
+        arrowRepeatRef.current += 1;
+      } else {
+        arrowRepeatRef.current = 1;
+      }
+      
+      let step = 1;
+      if (arrowRepeatRef.current > 5) step = 2;
+      if (arrowRepeatRef.current > 12) step = 5;
+      if (arrowRepeatRef.current > 20) step = 10;
+      if (arrowRepeatRef.current > 35) step = 20;
+      
+      const visibleCols = columns.filter(c => c.visible).length;
+      
+      setSelectedCell(prev => {
+        if (!prev) return prev; // Do nothing if no cell is selected
+        let newRow = prev.row;
+        let newCol = prev.col;
+        if (e.key === 'ArrowUp') newRow = Math.max(0, prev.row - step);
+        if (e.key === 'ArrowDown') newRow = Math.min(filteredSortedData.length - 1, prev.row + step);
+        if (e.key === 'ArrowLeft') newCol = Math.max(0, prev.col - step);
+        if (e.key === 'ArrowRight') newCol = Math.min(visibleCols - 1, prev.col + step);
+        return { row: newRow, col: newCol };
+      });
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key.startsWith('Arrow')) {
+        arrowRepeatRef.current = 0;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [columns, filteredSortedData]);
+
 
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
@@ -644,6 +705,56 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const activeHoverData = hoveredSlice !== null ? donutData[hoveredSlice] : null;
   const activeStatusFilter = columnFilters["estado_nomina"] || [];
 
+  // Auto-scroll when navigating with keyboard
+  useEffect(() => {
+    if (!selectedCell || !tableContainerRef.current) return;
+    
+    const { row, col } = selectedCell;
+    const container = tableContainerRef.current;
+    
+    // Vertical scroll logic
+    const rowHeight = 37; // based on h-[37px]
+    const headerHeight = 36; // approximate header height
+    const rowTop = row * rowHeight;
+    const rowBottom = rowTop + rowHeight;
+    
+    // Check if row is out of view (vertically)
+    // Add a small offset (like 2 rows) to scroll eagerly
+    if (rowTop < container.scrollTop + headerHeight) {
+      container.scrollTop = rowTop - headerHeight;
+    } else if (rowBottom > container.scrollTop + container.clientHeight) {
+      container.scrollTop = rowBottom - container.clientHeight + headerHeight;
+    }
+    
+    // Horizontal scroll logic
+    const visibleCols = columns.filter(c => c.visible);
+    if (!visibleCols[col]) return;
+    
+    const fixedWidth = 95; // # (50) + VER (45)
+    let frozenWidth = fixedWidth;
+    if (visibleCols.length > 0) frozenWidth += visibleCols[0].width || 120;
+    if (visibleCols.length > 1) frozenWidth += visibleCols[1].width || 120;
+    
+    let colLeft = fixedWidth;
+    for (let i = 0; i < col; i++) {
+      colLeft += visibleCols[i].width || 120;
+    }
+    const colRight = colLeft + (visibleCols[col].width || 120);
+    
+    if (col >= 2) {
+      if (colLeft < container.scrollLeft + frozenWidth) {
+        container.scrollLeft = colLeft - frozenWidth - 20;
+      } else if (colRight > container.scrollLeft + container.clientWidth) {
+        container.scrollLeft = colRight - container.clientWidth + 20;
+      }
+    } else {
+      if (container.scrollLeft > 0) {
+        container.scrollLeft = 0;
+      }
+    }
+  }, [selectedCell, columns]);
+
+
   return (
     <div className="w-full flex flex-col">
       <div className="w-full px-4 lg:px-6">
@@ -710,17 +821,43 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
             </div>
           </div>
 
-          <div onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: '75vh', minHeight: '600px' }}>
+          <div ref={tableContainerRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: 'calc(100vh - 280px)' }}>
             <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
-            <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 50 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
-              <colgroup><col style={{ width: 50 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
-              <thead className="bg-[#501929]/90 dark:bg-[#3e131f]/90 text-white sticky top-0 z-30 shadow-md">
+            <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 95 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
+              <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
+              <thead className="bg-[#501929] dark:bg-[#3e131f] text-white sticky top-0 z-30 shadow-md">
                 <tr>
-                  <th className="sticky left-0 top-0 z-40 bg-[#40121e]/90 text-center align-middle border-r border-[#621f32]/35">#</th>
-                  {columns.filter(c => c.visible).map((col, index) => (<th key={col.key} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${selectedCell?.col === index ? "bg-[#621f32] text-white" : "bg-[#501929] text-slate-200"}`}><div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'left')} /><div className="flex flex-col items-center gap-1 w-full"><span className="text-[9px] font-mono text-[#bc955c]">{getColumnLetter(index)}</span><div className="flex items-center justify-between w-full"><div onClick={() => handleSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5"><span>{col.label}</span><ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} /></div><button onClick={(e) => { e.stopPropagation(); openFilterDropdown(col.key); }} className={`p-1 rounded-md transition-colors ${columnFilters[col.key] ? "text-amber-300" : "text-white/60"}`}><Filter className="size-3 fill-current" /></button></div></div><div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'right')} /></th>))}
+                  <th className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
+                  <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">VER</span></th>
+                  {columns.filter(c => c.visible).map((col, index, arr) => {
+                    const isSticky = index < 2;
+                    let leftOffset = 95;
+                    if (index === 1) leftOffset = 95 + arr[0].width;
+                    const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
+                    const bgClass = selectedCell?.col === index ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
+                    return (
+                      <th key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
+                        {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
+                        <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'left')} />
+                        <div className="flex flex-col items-center gap-1 w-full">
+                          <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
+                          <div className="flex items-center justify-between w-full">
+                            <div onClick={() => handleSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                              <span>{col.label}</span>
+                              <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); openFilterDropdown(col.key); }} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
+                              <Filter className="size-3 fill-current" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'right')} />
+                      </th>
+                    );
+                  })}
                 </tr>
-                <tr className="bg-[#40121e]/80 dark:bg-[#2b0d15]/80 backdrop-blur-md">
-                  <th className="sticky left-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 border-r border-[#621f32]/35">
+                <tr className="bg-[#40121e] dark:bg-[#2b0d15]">
+                  <th className="sticky left-0 z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35">
                     <button 
                       onClick={() => setTextFilters({})}
                       disabled={!mounted || (Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value))}
@@ -730,9 +867,13 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                       <X className="size-3" />
                     </button>
                   </th>
-                  {columns.filter(c => c.visible).map((col) => {
+                  <th className="sticky left-[50px] z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35"></th>
+                  {columns.filter(c => c.visible).map((col, colIdx, arr) => {
                     const filterObj = textFilters[col.key] || { value: "", condition: isMonoColumn(col.key) ? "starts_with" : "contains" };
                     const condition = filterObj.condition || (isMonoColumn(col.key) ? "starts_with" : "contains");
+                    const isSticky = colIdx < 2;
+                    let leftOffset = 95;
+                    if (colIdx === 1) leftOffset = 95 + arr[0].width;
                     
                     const conditionShorthands = {
                       contains: "*",
@@ -747,7 +888,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                     const symbol = conditionShorthands[condition] || "*";
 
                     return (
-                      <th key={`filter-${col.key}`} className="p-1.5 border-r border-[#621f32]/30 relative">
+                      <th key={`filter-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`p-1.5 border-r border-[#621f32]/30 relative ${isSticky ? 'bg-[#40121e] dark:bg-[#2b0d15] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
                         <div className="relative flex items-center w-full">
                           <button
                             type="button"
@@ -833,7 +974,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
               <tbody ref={tbodyRef} className="divide-y divide-slate-100 dark:divide-slate-800/80">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={columns.filter(c => c.visible).length + 1} className="py-20 text-center">
+                    <td colSpan={columns.filter(c => c.visible).length + 2} className="py-20 text-center">
                       <div className="flex flex-col items-center justify-center gap-4">
                         <div className="size-10 border-4 border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
                         <p className="text-xs font-bold text-slate-450 uppercase tracking-widest animate-pulse">Cargando plantilla (11,955 registros)...</p>
@@ -842,7 +983,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                   </tr>
                 ) : paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan={columns.filter(c => c.visible).length + 1} className="py-20 text-center">
+                    <td colSpan={columns.filter(c => c.visible).length + 2} className="py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <div className="size-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                           <Search className="size-8 text-gray-400" />
@@ -854,9 +995,9 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                   </tr>
                 ) : (
                   <>
-                    {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 1} /></tr>}
-                    {paginatedData.map((row, rowIdx) => { const actualRowIdx = startIndex + rowIdx; return (<tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px]" onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })}><td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#621f32]/20 text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-slate-50/85 text-slate-400"}`}>{actualRowIdx + 1}</td>{columns.filter(c => c.visible).map((col, colIdx) => { const val = row[col.key], isSelected = selectedCell?.row === actualRowIdx && selectedCell?.col === colIdx; if (col.key === "estado_nomina") { const est = mapEstadoNomina(val), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }; return (<td key={col.key} onClick={(e) => { e.stopPropagation(); setSelectedCell({ row: actualRowIdx, col: colIdx }); }} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : "bg-white/10"}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span></td>); } return (<td key={col.key} onClick={(e) => { e.stopPropagation(); setSelectedCell({ row: actualRowIdx, col: colIdx }); }} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : "bg-white/10 text-slate-700"} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"}`}>{val === undefined || val === null || String(val).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(val)}</td>); })}</tr>); })}
-                    {endIndex < filteredSortedData.length && <tr style={{ height: (filteredSortedData.length - endIndex) * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 1} /></tr>}
+                    {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 2} /></tr>}
+                    {paginatedData.map((row, rowIdx) => { const actualRowIdx = startIndex + rowIdx; return (<tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }}><td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{actualRowIdx + 1}</td><td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); setSelectedRowData(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>{columns.filter(c => c.visible).map((col, colIdx, arr) => { const isSticky = colIdx < 2; let leftOffset = 95; if (colIdx === 1) leftOffset = 95 + arr[0].width; const val = row[col.key], isSelected = selectedCell?.row === actualRowIdx && selectedCell?.col === colIdx; if (col.key === "estado_nomina") { const est = mapEstadoNomina(val), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }; return (<td key={col.key} onClick={(e) => { e.stopPropagation(); setSelectedCell({ row: actualRowIdx, col: colIdx }); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span></td>); } return (<td key={col.key} onClick={(e) => { e.stopPropagation(); setSelectedCell({ row: actualRowIdx, col: colIdx }); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{val === undefined || val === null || String(val).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(val)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(val)) : String(val))}</td>); })}</tr>); })}
+                    {endIndex < filteredSortedData.length && <tr style={{ height: (filteredSortedData.length - endIndex) * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 2} /></tr>}
                   </>
                 )}
               </tbody>
@@ -872,7 +1013,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         <>
         <AnimatePresence>
           {isColumnsModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div key="columns-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsColumnsModalOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-4xl w-full flex flex-col z-[100] overflow-hidden max-h-[90vh]">
               <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
@@ -967,7 +1108,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
 
       <AnimatePresence>
         {isCadenaModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div key="cadena-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCadenaModalOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-slate-50 dark:bg-slate-950 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col z-[100] overflow-hidden">
               <div className="p-6 sm:p-8 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-50 sticky top-0">
@@ -1156,7 +1297,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       {/* Dropdown de Filtro por Valores Únicos */}
       <AnimatePresence>
         {activeFilterDropdown && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div key="filter-dropdown" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setActiveFilterDropdown(null)} className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} ref={dropdownRef} className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70]">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
@@ -1167,6 +1308,12 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                   </h4>
                   <button onClick={() => setActiveFilterDropdown(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
                 </div>
+                {!isDateColumn(activeFilterDropdown) && (
+                  <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg mb-3">
+                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('todos'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'todos' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Todos los datos</button>
+                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
+                  </div>
+                )}
                 <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
                   <Search className="size-3 text-slate-400 mr-2" />
                   <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
@@ -1261,26 +1408,39 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                   </div>
                 ) : (
                   <div className="flex flex-col gap-0.5">
-                    <button onClick={() => {
-                      const allVals = uniqueColumnValues[activeFilterDropdown].map(v => v.value);
-                      setTempSelectedValues(tempSelectedValues.length === allVals.length ? [] : allVals);
-                    }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
-                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedValues.length === (uniqueColumnValues[activeFilterDropdown]?.length || 0) ? "bg-[#621f32] border-[#621f32]" : "border-slate-300 dark:border-slate-600"}`}>
-                        {tempSelectedValues.length === (uniqueColumnValues[activeFilterDropdown]?.length || 0) && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
-                    </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
                     {(() => {
+                      let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+                      if (filterDropdownTab === 'actuales') {
+                        const counts = {};
+                        filteredSortedData.forEach(row => {
+                          const val = activeFilterDropdown === "estado_nomina" ? mapEstadoNomina(row[activeFilterDropdown]) : String(row[activeFilterDropdown] || "").trim();
+                          counts[val] = (counts[val] || 0) + 1;
+                        });
+                        baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
+                      }
+                      
+                      const allVals = baseUniqueValues.map(v => v.value);
+                      const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
+
                       const tempSelectedSet = new Set(tempSelectedValues);
                       const searchNormalized = filterSearchText ? String(filterSearchText).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                      const filtered = uniqueColumnValues[activeFilterDropdown]?.filter(v => {
+                      const filtered = baseUniqueValues.filter(v => {
                         const valNormalized = v.value ? String(v.value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
                         return valNormalized.includes(searchNormalized);
-                      }) || [];
+                      });
                       const sliced = filtered.slice(0, 100);
+                      
                       return (
                         <>
+                          <button onClick={() => {
+                            setTempSelectedValues(isAllSelected ? [] : allVals);
+                          }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
+                            <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                              {isAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                            </div>
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
+                          </button>
+                          <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
                           {sliced.map(({ value, count }) => (
                             <button key={value} onClick={() => {
                               setTempSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
@@ -1316,7 +1476,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
 
       <AnimatePresence>
         {isCellModalOpen && selectedCell && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div key="cell-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCellModalOpen(false)} className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
               <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
@@ -1359,6 +1519,44 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
           </div>
         )}
       </AnimatePresence>
+      
+      {contextMenu && (
+        <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}></div>
+      )}
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            style={{ 
+              top: typeof window !== 'undefined' && contextMenu.y + 120 > window.innerHeight ? contextMenu.y - 120 : contextMenu.y, 
+              left: typeof window !== 'undefined' && contextMenu.x + 224 > window.innerWidth ? contextMenu.x - 224 : contextMenu.x 
+            }}
+            className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl py-1.5 w-56"
+          >
+            <button
+              onClick={() => {
+                setSelectedRowData(contextMenu.row);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors"
+            >
+              <Briefcase className="size-4" />
+              Ver Registro Completo
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {selectedRowData && (
+        <EmployeeRecordModal
+          isOpen={!!selectedRowData}
+          onClose={() => setSelectedRowData(null)}
+          record={selectedRowData}
+        />
+      )}
     </div>
   );
 }

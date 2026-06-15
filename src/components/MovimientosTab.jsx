@@ -5,12 +5,13 @@ import { createPortal } from "react-dom";
 import { 
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
-  X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers
+  X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import HistoryDataTable from "@/components/ui/HistoryDataTable";
+import { EmployeeRecordModal } from "./EmployeesModal";
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -29,10 +30,10 @@ const ALL_MOV_KEYS = [
   "depnd_indrt", "ubicacion", "nvl_direc", "plan_sal", "grado", "esc", 
   "partida_ptal", "gp_pago", "prog_beneficios", "fecha_captura", "fh_ult_actz", "por",
   "hr_estd_semn", "descr", "gp_trabajo", "org_code", "grupo_cd_sal", "formal_desc", 
-  "pto_compt", "posn_clv", "presupuesto", "nombre_puesto"
+  "pto_compt", "posn_clv", "presupuesto", "nombre_puesto", "fecha_vacancia"
 ];
 
-const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz"];
+const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia"];
 
 const getConditionLabel = (cond) => {
   switch (cond) {
@@ -48,13 +49,44 @@ const getConditionLabel = (cond) => {
   }
 };
 
-export default function MovimientosTab({ movPosData = [], isPending, startTransition, cardRef }) {
+export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef }) {
+  const movPosData = useMemo(() => {
+    const mapEstadoNomina = (val) => {
+      if (!val || val.trim() === "") return "Vacante";
+      switch (val.trim().toUpperCase()) {
+        case "A": return "Activo";
+        case "S": return "Suspendido";
+        case "L": return "Licencia";
+        case "P": return "Licencia Médica";
+        default: return "Vacante";
+      }
+    };
+    
+    const ocupadasSet = new Set();
+    detalle.forEach(emp => {
+      if (emp.posicion && mapEstadoNomina(emp.estado_nomina) !== "Vacante") {
+        ocupadasSet.add(String(emp.posicion));
+      }
+    });
+
+    return initialMovPosData.map(pos => {
+      const isOcupada = ocupadasSet.has(String(pos.no_pos_actual));
+      return {
+        ...pos,
+        ocupacion: isOcupada ? "Ocupada" : "Vacante",
+        fecha_vacancia: isOcupada ? "" : pos.fecha_vacancia
+      };
+    });
+  }, [initialMovPosData, detalle]);
+
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
   const [columns, setColumns] = useState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
+    { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
+    { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
     { key: "estado_psn", label: "Estado (A/I)", width: 110, visible: true, isBasic: true },
     { key: "f_efva", label: "Fecha Efectiva", width: 130, visible: true, isBasic: true },
     { key: "cd_motivo", label: "Cod. Motivo", width: 120, visible: true, isBasic: true },
@@ -100,7 +132,12 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
   const [selectedCell, setSelectedCell] = useState(null);
+  const arrowRepeatRef = useRef(0);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [selectedRowData, setSelectedRowData] = useState(null);
+
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
+  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
@@ -306,13 +343,27 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
+      setFilterDropdownTab('todos');
       setFilterSearchText("");
-      setTempSelectedValues(columnFilters[colKey] || uniqueColumnValues[colKey].map(v => v.value));
+      if (columnFilters[colKey]) {
+        setTempSelectedValues(columnFilters[colKey]);
+      } else {
+        let uniqueVals = uniqueColumnValues[colKey]?.map(v => v.value);
+        if (!uniqueVals) {
+          const counts = {};
+          movPosData.forEach(row => {
+            let val = String(row[colKey] || "").trim();
+            counts[val] = true;
+          });
+          uniqueVals = Object.keys(counts).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        }
+        setTempSelectedValues(uniqueVals);
+      }
     }
   };
 
   const applyColumnFilter = (colKey) => {
-    const totalUnique = uniqueColumnValues[colKey].map(v => v.value);
+    const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
     startTransition(() => {
       if (tempSelectedValues.length === totalUnique.length) {
         const newFilters = { ...columnFilters };
@@ -417,6 +468,32 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
       document.body.style.overflow = 'unset';
     };
   }, [activeFilterDropdown, isColumnsModalOpen]);
+
+  // Adjust ContextMenu position to prevent clipping
+  useEffect(() => {
+    if (contextMenu) {
+      const menuWidth = 256; // estimated w-64
+      const menuHeight = 280; // estimated height
+      const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+      let { x, y } = contextMenu;
+      let adjusted = false;
+
+      if (x + menuWidth > windowWidth) {
+        x = windowWidth - menuWidth - 16;
+        adjusted = true;
+      }
+      if (y + menuHeight > windowHeight) {
+        y = windowHeight - menuHeight - 16;
+        adjusted = true;
+      }
+
+      if (adjusted) {
+        setContextMenu({ ...contextMenu, x, y });
+      }
+    }
+  }, [contextMenu]);
 
   const filteredSortedData = useMemo(() => {
     let result = movPosData.filter(row => {
@@ -624,6 +701,90 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
 
   const activeStatusFilter = columnFilters["estado_psn"] || [];
 
+
+  // Auto-scroll when navigating with keyboard
+  useEffect(() => {
+    if (!selectedCell) return;
+    const container = document.querySelector('.overflow-auto.relative.flex-1') || document.querySelector('.overflow-auto');
+    if (!container) return;
+    
+    const { row, col } = selectedCell;
+    const rowHeight = 37; 
+    const headerHeight = 36;
+    const rowTop = row * rowHeight;
+    const rowBottom = rowTop + rowHeight;
+    
+    if (rowTop < container.scrollTop + headerHeight) {
+      container.scrollTop = Math.max(0, rowTop - headerHeight);
+    } else if (rowBottom > container.scrollTop + container.clientHeight) {
+      container.scrollTop = rowBottom - container.clientHeight + headerHeight;
+    }
+    
+    const visibleCols = columns.filter(c => c.visible);
+    if (!visibleCols[col]) return;
+    
+    const frozenWidth = 95; // 50 (index) + 45 (ver)
+    let colLeft = frozenWidth;
+    for (let i = 0; i < col; i++) {
+      colLeft += visibleCols[i].width;
+    }
+    const colRight = colLeft + visibleCols[col].width;
+    
+    if (colLeft < container.scrollLeft + frozenWidth) {
+      container.scrollLeft = colLeft - frozenWidth;
+    } else if (colRight > container.scrollLeft + container.clientWidth) {
+      container.scrollLeft = colRight - container.clientWidth + 20; // 20px padding for visibility
+    }
+  }, [selectedCell, columns]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!e.key.startsWith('Arrow')) {
+        if (e.key === 'Escape') setContextMenu(null);
+        return;
+      }
+      
+      e.preventDefault();
+      
+      if (e.repeat) {
+        arrowRepeatRef.current += 1;
+      } else {
+        arrowRepeatRef.current = 1;
+      }
+      
+      let step = 1;
+      if (arrowRepeatRef.current > 5) step = 2;
+      if (arrowRepeatRef.current > 12) step = 5;
+      if (arrowRepeatRef.current > 20) step = 10;
+      if (arrowRepeatRef.current > 35) step = 20;
+      
+      const visibleCols = columns.filter(c => c.visible).length;
+      
+      setSelectedCell(prev => {
+        if (!prev) return prev; 
+        let newRow = prev.row;
+        let newCol = prev.col;
+        if (e.key === 'ArrowUp') newRow = Math.max(0, prev.row - step);
+        if (e.key === 'ArrowDown') newRow = Math.min(filteredSortedData.length - 1, prev.row + step);
+        if (e.key === 'ArrowLeft') newCol = Math.max(0, prev.col - step);
+        if (e.key === 'ArrowRight') newCol = Math.min(visibleCols - 1, prev.col + step);
+        return { row: newRow, col: newCol };
+      });
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key.startsWith('Arrow')) {
+        arrowRepeatRef.current = 0;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [filteredSortedData, columns]);
   return (
     <div className="w-full flex flex-col">
       <div className="w-full px-4 lg:px-6 pt-2">
@@ -715,12 +876,37 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
 
           <div onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: '75vh', minHeight: '600px' }}>
             <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
-            <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 50 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
-                <colgroup><col style={{ width: 50 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
+            <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 95 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
+                <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
                 <thead className="bg-[#501929]/90 dark:bg-[#3e131f]/90 text-white sticky top-0 z-30 shadow-md border-b border-[#bc955c]/30">
                   <tr>
                     <th className="sticky left-0 top-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 backdrop-blur-md border-r border-b border-[#621f32]/35 w-[50px] min-w-[50px] text-center align-middle">#</th>
-                    {columns.filter(c => c.visible).map((col, index) => (<th key={col.key} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${selectedCell?.col === index ? "bg-[#621f32] text-white" : "bg-[#501929] text-slate-200"}`}><div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'left')} /><div className="flex flex-col items-center gap-1 w-full"><span className="text-[9px] font-mono text-[#bc955c]">{getColumnLetter(index)}</span><div className="flex items-center justify-between w-full"><div onClick={() => handleSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5"><span>{col.label}</span><ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} /></div><button onClick={(e) => { e.stopPropagation(); openFilterDropdown(col.key); }} className={`p-1 rounded-md transition-colors ${columnFilters[col.key] ? "text-amber-300" : "text-white/60"}`}><Filter className="size-3 fill-current" /></button></div></div><div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'right')} /></th>))}
+                    <th className="sticky left-[50px] top-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 backdrop-blur-md border-r border-b border-[#621f32]/35 text-center align-middle px-1"><span className="text-[9px] font-bold text-slate-300">VER</span></th>
+                    {columns.filter(c => c.visible).map((col, index, arr) => {
+                      const isSticky = index < 2;
+                      let leftOffset = 95;
+                      if (index === 1) leftOffset = 95 + arr[0].width;
+                      const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
+                      const bgClass = selectedCell?.col === index ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (isSticky ? "bg-[#40121e]/90 dark:bg-[#2b0d15]/90 backdrop-blur-md text-slate-200" : "bg-[#501929] text-slate-200"));
+                      return (
+                      <th key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 40 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass}`}>
+                        {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
+                        <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'left')} />
+                        <div className="flex flex-col items-center gap-1 w-full">
+                          <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
+                          <div className="flex items-center justify-between w-full">
+                            <div onClick={() => handleSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                              <span>{col.label}</span>
+                              <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); openFilterDropdown(col.key); }} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
+                              <Filter className="size-3 fill-current" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => handleMouseDown(e, columns.findIndex(c => c.key === col.key), 'right')} />
+                      </th>
+                    )})}
                   </tr>
                   <tr className="bg-[#40121e]/80 dark:bg-[#2b0d15]/80 backdrop-blur-md">
                     <th className="sticky left-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 border-r border-[#621f32]/35">
@@ -733,6 +919,7 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                         <X className="size-3" />
                       </button>
                     </th>
+                    <th className="sticky left-[50px] z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 border-r border-[#621f32]/35"></th>
                     {columns.filter(c => c.visible).map((col) => {
                       const filterObj = textFilters[col.key] || { value: "", condition: isMonoColumn(col.key) ? "starts_with" : "contains" };
                       const condition = filterObj.condition || (isMonoColumn(col.key) ? "starts_with" : "contains");
@@ -836,7 +1023,7 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                 <tbody ref={tbodyRef} className="divide-y divide-slate-100 dark:divide-slate-800/80">
                   {paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={columns.filter(c => c.visible).length + 1} className="py-20 text-center">
+                      <td colSpan={columns.filter(c => c.visible).length + 2} className="py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <div className="size-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                             <Search className="size-8 text-gray-400" />
@@ -848,21 +1035,27 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                     </tr>
                   ) : (
                     <>
-                      {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 1} /></tr>}
+                      {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 2} /></tr>}
                       {paginatedData.map((row, rowIdx) => { 
                         const actualRowIdx = startIndex + rowIdx; 
                         return (
-                          <tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px]" onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })}>
-                            <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#621f32]/20 text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-slate-50/85 text-slate-400"}`}>
+                          <tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px]" onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })}>
+                            <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>
                               {actualRowIdx + 1}
                             </td>
-                            {columns.filter(c => c.visible).map((col, colIdx) => { 
+                            <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}>
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedRowData(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button>
+                            </td>
+                            {columns.filter(c => c.visible).map((col, colIdx, arr) => { 
+                              const isSticky = colIdx < 2;
+                              let leftOffset = 95;
+                              if (colIdx === 1) leftOffset = 95 + arr[0].width;
                               const val = row[col.key], isSelected = selectedCell?.row === actualRowIdx && selectedCell?.col === colIdx; 
                               const isPosicionCol = col.key === "no_pos_actual";
                               if (col.key === "estado_psn") { 
                                 const badge = MOV_STATUS_BADGE_STYLES[val] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", label: val }; 
                                 return (
-                                  <td key={col.key} onClick={(e) => { e.stopPropagation(); setSelectedCell({ row: actualRowIdx, col: colIdx }); }} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : "bg-white/10"}`}>
+                                  <td key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} onClick={(e) => { e.stopPropagation(); setSelectedCell({ row: actualRowIdx, col: colIdx }); }} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}>{badge.label}</span>
                                   </td>
                                 ); 
@@ -870,7 +1063,8 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                               return (
                                 <td 
                                   key={col.key} 
-                                  onClick={(e) => { 
+                                  style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}}
+                                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} onClick={(e) => { 
                                     e.stopPropagation(); 
                                     setSelectedCell({ row: actualRowIdx, col: colIdx }); 
                                     if (isPosicionCol) {
@@ -880,7 +1074,7 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                                       setIsHistoryModalOpen(true);
                                     }
                                   }} 
-                                  className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : "bg-white/10 text-slate-700"} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""}`}
+                                  className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}
                                 >
                                   {col.key === "total_movimientos" ? (
                                     <div className="flex justify-center">
@@ -893,8 +1087,20 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                                         </span>
                                       ) : <span className="text-slate-300">-</span>}
                                     </div>
+                                  ) : col.key === "ocupacion" ? (
+                                    <div className="flex items-center">
+                                      {val && (
+                                        <span className={`inline-flex flex-shrink-0 items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase leading-none shadow-sm ${val === 'Ocupada' ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                          {val}
+                                        </span>
+                                      )}
+                                    </div>
                                   ) : val === undefined || val === null || String(val).trim() === "" ? (
                                     <span className="text-slate-300">-</span>
+                                  ) : isPosicionCol ? (
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span>{String(val)}</span>
+                                    </div>
                                   ) : (
                                     String(val)
                                   )}
@@ -904,16 +1110,15 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                           </tr>
                         ); 
                       })}
-                      {endIndex < filteredSortedData.length && <tr style={{ height: (filteredSortedData.length - endIndex) * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 1} /></tr>}
+                      {endIndex < filteredSortedData.length && <tr style={{ height: (filteredSortedData.length - endIndex) * rowHeight }}><td colSpan={columns.filter(c => c.visible).length + 2} /></tr>}
                     </>
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
           </div>
-
-          <div className="absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
         </div>
-      </div>
 
       {mounted && createPortal(
         <AnimatePresence>
@@ -1027,6 +1232,12 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                   </h4>
                   <button onClick={() => setActiveFilterDropdown(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
                 </div>
+                {!isDateColumn(activeFilterDropdown) && (
+                  <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg mb-3">
+                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('todos'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'todos' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Todos los datos</button>
+                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
+                  </div>
+                )}
                 <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
                   <Search className="size-3 text-slate-400 mr-2" />
                   <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
@@ -1121,26 +1332,39 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
                   </div>
                 ) : (
                   <div className="flex flex-col gap-0.5">
-                    <button onClick={() => {
-                      const allVals = uniqueColumnValues[activeFilterDropdown].map(v => v.value);
-                      setTempSelectedValues(tempSelectedValues.length === allVals.length ? [] : allVals);
-                    }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
-                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedValues.length === (uniqueColumnValues[activeFilterDropdown]?.length || 0) ? "bg-[#621f32] border-[#621f32]" : "border-slate-300 dark:border-slate-600"}`}>
-                        {tempSelectedValues.length === (uniqueColumnValues[activeFilterDropdown]?.length || 0) && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
-                    </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
                     {(() => {
+                      let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+                      if (filterDropdownTab === 'actuales') {
+                        const counts = {};
+                        filteredSortedData.forEach(row => {
+                          const val = String(row[activeFilterDropdown] || "").trim();
+                          counts[val] = (counts[val] || 0) + 1;
+                        });
+                        baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
+                      }
+                      
+                      const allVals = baseUniqueValues.map(v => v.value);
+                      const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
+
                       const tempSelectedSet = new Set(tempSelectedValues);
                       const searchNormalized = filterSearchText ? String(filterSearchText).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                      const filtered = uniqueColumnValues[activeFilterDropdown]?.filter(v => {
+                      const filtered = baseUniqueValues.filter(v => {
                         const valNormalized = v.value ? String(v.value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
                         return valNormalized.includes(searchNormalized);
-                      }) || [];
+                      });
                       const sliced = filtered.slice(0, 100);
+                      
                       return (
                         <>
+                          <button onClick={() => {
+                            setTempSelectedValues(isAllSelected ? [] : allVals);
+                          }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
+                            <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                              {isAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                            </div>
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
+                          </button>
+                          <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
                           {sliced.map(({ value, count }) => (
                             <button key={value} onClick={() => {
                               setTempSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
@@ -1472,7 +1696,59 @@ export default function MovimientosTab({ movPosData = [], isPending, startTransi
       </AnimatePresence>,
       document.body
       )}
+
+      {contextMenu && (
+        <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}></div>
+      )}
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            key="context-menu"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl py-1.5 w-56"
+          >
+            <button
+              onClick={() => {
+                setSelectedRowData(contextMenu.row);
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors"
+            >
+              <Briefcase className="size-4" />
+              Ver Registro Completo
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {selectedRowData && (() => {
+        const empDetail = detalle.find(emp => String(emp.posicion) === String(selectedRowData.no_pos_actual));
+        const matchingEmployee = {
+          ...(empDetail || {}),
+          ...selectedRowData,
+          posicion: selectedRowData.no_pos_actual,
+          id_empleado: selectedRowData.id_empleado || (empDetail && empDetail.id_empleado) || "N/A",
+          rfc: selectedRowData.rfc || (empDetail && empDetail.rfc) || "N/A",
+          nivel: selectedRowData.nivel || selectedRowData.nvl_direc || selectedRowData.grado || (empDetail && empDetail.nivel) || "N/A",
+          nombres: selectedRowData.nombres || selectedRowData.nombre_completo || (empDetail && empDetail.nombres) || "DATOS HISTÓRICOS DE POSICIÓN"
+        };
+        return (
+          <EmployeeRecordModal
+            isOpen={!!selectedRowData}
+            onClose={() => setSelectedRowData(null)}
+            record={matchingEmployee}
+            columns={columns}
+          />
+        );
+      })()}
+
     </div>
   );
 }
+
+
 
