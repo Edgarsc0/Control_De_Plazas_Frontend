@@ -1,1 +1,1 @@
-@AGENTS.md
+Need path or pasted content for AGENTS.md — sandbox only lets me see `skills/caveman-compress`, can't reach repo root. Give full path or paste text.

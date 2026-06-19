@@ -23,13 +23,23 @@ import {
 import { PieChart, Counter } from '@/components/ui/BentoMiniComponents';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import DetailModal from '@/components/OficioDetailModal';
-import { customSelectStyles } from '@/components/OficioSelectStyles';
+import { customSelectStyles, headerSelectStyles } from '@/components/OficioSelectStyles';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+
+const getColumnLetter = (colIdx) => {
+  let letter = "";
+  let temp = colIdx;
+  while (temp >= 0) {
+    letter = String.fromCharCode((temp % 26) + 65) + letter;
+    temp = Math.floor(temp / 26) - 1;
+  }
+  return letter;
+};
 
 const ColumnResizer = ({ onResize }) => {
   const [isResizing, setIsResizing] = useState(false);
@@ -91,10 +101,10 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
 
   useEffect(() => {
     if (tableRef.current) {
-      // Calculamos el ancho disponible equitativo inicial
+      // Calculamos el ancho disponible equitativo inicial restando los 95px de las columnas fijas (# y VER)
       const totalWidth = tableRef.current.offsetWidth || 1200;
-      const cols = 7;
-      const equalWidth = Math.floor(totalWidth / cols);
+      const cols = 6;
+      const equalWidth = Math.floor((totalWidth - 95) / cols);
 
       setColumnWidths({
         folio: equalWidth,
@@ -102,8 +112,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
         origen: equalWidth,
         unidadArea: equalWidth,
         clasificacion: equalWidth,
-        estado: equalWidth,
-        accion: equalWidth
+        estado: equalWidth
       });
     }
   }, []);
@@ -114,7 +123,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
       if (typeof currentWidth !== 'number') return prev; // Proteccion si aun no está montado
       return {
         ...prev,
-        [column]: Math.max(currentWidth + deltaX, 80)
+        [column]: Math.max(currentWidth + deltaX, 85)
       };
     });
   };
@@ -172,28 +181,28 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
     const palette = [
       '#621f32', // Guinda
       '#bc955c', // Oro
-      '#3b82f6', // Azul
-      '#10b981', // Verde
-      '#8b5cf6', // Morado
-      '#ec4899', // Rosa
-      '#f59e0b', // Naranja
-      '#14b8a6', // Teal
-      '#f43f5e', // Rose
+      '#802842', // Guinda Claro
+      '#d0ab75', // Oro Claro
+      '#967440', // Oro Oscuro / Bronce
+      '#1f4e37', // Jade Oscuro (para Concluido/Éxito)
+      '#475569', // Slate
+      '#ebd1ac', // Crema
+      '#a37944', // Café dorado
     ];
 
     // First pass: assign explicit known statuses to distinct colors
     statuses.forEach((status) => {
       const s = status.toLowerCase();
       if (s === 'concluido') {
-        map[status] = '#10b981'; // Verde (Concluido)
+        map[status] = '#1f4e37'; // Jade Oscuro (Concluido)
       } else if (s === 'atendido') {
         map[status] = '#621f32'; // Guinda (Atendido)
       } else if (s === 'recibido') {
         map[status] = '#bc955c'; // Oro (Recibido)
       } else if (s === 'en proceso' || s === 'proceso') {
-        map[status] = '#3b82f6'; // Azul (En proceso)
+        map[status] = '#d0ab75'; // Oro Claro (En proceso)
       } else if (s === 'en trámite' || s === 'en tramite' || s === 'trámite' || s === 'tramite') {
-        map[status] = '#8b5cf6'; // Morado (En trámite)
+        map[status] = '#967440'; // Oro Oscuro / Bronce (En trámite)
       }
     });
 
@@ -429,7 +438,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="space-y-10 pb-20 font-sans">
+      <div className="space-y-10 pb-0 font-sans">
         {isPreviewing && (
           <div className="fixed inset-0 z-[100000] bg-white/20 backdrop-blur-sm flex items-center justify-center">
             <div className="bg-[#621f32] text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4">
@@ -464,37 +473,39 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
           )}
         </AnimatePresence>
 
-        <div className="relative overflow-hidden rounded-2xl shadow-lg border border-[#621f32]/10"
-             style={{ background: 'linear-gradient(135deg, #621f32 0%, #4e1828 60%, #3a1120 100%)' }}>
-          <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
-          <div className="absolute right-0 top-0 w-64 h-64 rounded-full opacity-5" style={{ background: 'radial-gradient(circle, #fbbf24 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
-          <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 p-7 md:p-10">
-            <div className="flex items-center gap-5">
-              <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-xl border border-white/20">
-                <ClipboardList className="w-9 h-9 text-amber-400" />
+        <div className="max-w-[1600px] mx-auto px-4 lg:px-6 w-full pt-8">
+          <div className="relative overflow-hidden rounded-2xl shadow-lg border border-[#621f32]/10"
+               style={{ background: 'linear-gradient(135deg, #621f32 0%, #4e1828 60%, #3a1120 100%)' }}>
+            <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
+            <div className="absolute right-0 top-0 w-64 h-64 rounded-full opacity-5" style={{ background: 'radial-gradient(circle, #fbbf24 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
+            <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 p-7 md:p-10">
+              <div className="flex items-center gap-5">
+                <div className="bg-white/10 backdrop-blur-sm p-3.5 rounded-xl border border-white/20">
+                  <ClipboardList className="w-9 h-9 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-amber-400/80 text-[9px] font-bold uppercase tracking-[0.3em] mb-1">
+                    Control de Gestión
+                  </p>
+                  <h1 className="text-white text-2xl md:text-3xl font-black tracking-tight leading-none">
+                    Oficios Turnados a DO
+                  </h1>
+                  <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                    <span className="w-4 h-px bg-white/20" />Dirección de Organización
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-amber-400/80 text-[9px] font-bold uppercase tracking-[0.3em] mb-1">
-                  Control de Gestión
-                </p>
-                <h1 className="text-white text-2xl md:text-3xl font-black tracking-tight leading-none">
-                  Oficios Turnados a DO
-                </h1>
-                <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mt-1.5 flex items-center gap-2">
-                  <span className="w-4 h-px bg-white/20" />Dirección de Organización
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 w-full lg:w-auto">
-              <div className="px-6 py-4 bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 flex flex-col items-end text-right">
-                <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mb-1">Total de Oficios</p>
-                <p className="text-3xl font-black text-white tabular-nums"><Counter target={detalleTurnados.length} /></p>
+              <div className="flex items-center gap-4 w-full lg:w-auto">
+                <div className="px-6 py-4 bg-black/20 backdrop-blur-sm rounded-xl border border-white/10 flex flex-col items-end text-right">
+                  <p className="text-[9px] font-bold text-white/50 uppercase tracking-widest mb-1">Total de Oficios</p>
+                  <p className="text-3xl font-black text-white tabular-nums"><Counter target={detalleTurnados.length} /></p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="w-full">
+        <div className="max-w-[1600px] mx-auto px-4 lg:px-6 w-full">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white/80 backdrop-blur-sm rounded-[2.5rem] py-8 px-10 border border-white/40 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-10">
             <div className="flex flex-col md:flex-row items-center gap-10">
               <div className="relative shrink-0">
@@ -558,167 +569,303 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
           </motion.div>
         </div>
 
-        <div className="space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-4">
-              <div className="w-8 h-8 rounded-lg bg-[#621f32] flex items-center justify-center shadow-md"><FileText className="w-4 h-4 text-[#bc955c]" /></div>
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-[0.25em]">Base de Datos de Turnados</h3>
-            </div>
-            <div className="relative w-96 group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 w-4 h-4 group-focus-within:text-[#621f32] transition-colors" />
-              <input type="text" placeholder="Búsqueda global..." value={globalSearch} onChange={(e) => setGlobalSearch(e.target.value)} className="w-full pl-11 pr-10 py-3 bg-white/60 backdrop-blur-sm border border-gray-200 rounded-2xl text-xs font-medium focus:outline-none focus:ring-4 focus:ring-[#621f32]/5 focus:border-[#621f32]/40 transition-all" />
-              {globalSearch && <button onClick={() => setGlobalSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-300 hover:text-red-500 transition-colors"><X className="size-3.5" /></button>}
-            </div>
-          </div>
+        <div className="w-full space-y-6">
+          {/* Card Container styled like /plantilla_empleados */}
+          <div className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-y border-x-0 border-slate-200/80 dark:border-slate-800/80 shadow-2xl rounded-none overflow-hidden flex flex-col w-full">
+            
+            {/* Top Header inside the table card */}
+            <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
+              <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-stretch sm:items-center">
+                {/* Unified Search Input */}
+                <div className="relative w-full sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:ring-2 focus-within:ring-[#621f32]/10 rounded-2xl transition-all shadow-sm">
+                  <Search className="text-slate-400 size-4 mr-2.5" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar en la tabla..." 
+                    value={globalSearch} 
+                    onChange={(e) => setGlobalSearch(e.target.value)} 
+                    className="bg-transparent text-slate-800 dark:text-white text-xs font-bold w-full outline-none placeholder:text-slate-400" 
+                  />
+                  {globalSearch && (
+                    <button onClick={() => setGlobalSearch('')} className="text-slate-400 hover:text-slate-650 ml-1.5">
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
 
-          <div className="bg-white/60 backdrop-blur-md rounded-[2.5rem] border border-white/80 shadow-2xl overflow-hidden ring-1 ring-black/[0.05]">
-            <div className="overflow-x-auto overflow-y-auto custom-scrollbar max-h-[calc(100vh-150px)] relative">
-              <table ref={tableRef} className="w-full text-left border-collapse table-fixed min-w-[1200px]">
-                <thead className="sticky top-0 z-[100]">
-                  <tr className="bg-gradient-to-b from-gray-50/95 to-gray-100/95 backdrop-blur-md border-b-2 border-[#621f32]/10 shadow-sm">
-                    <th style={{ width: columnWidths.folio || "14.28%", minWidth: columnWidths.folio ? Math.max(columnWidths.folio, 80) : "14.28%", maxWidth: columnWidths.folio || "14.28%" }} className="px-6 py-6 align-top sticky top-0 relative group">
-                      <ColumnResizer onResize={(delta) => handleResize('folio', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#621f32] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Folio / Oficio</span>
-                        </div>
-                        <div className="relative group">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-3 h-3 group-focus-within:text-[#621f32] transition-colors" />
-                          <input type="text" placeholder="Buscar por oficio..." value={filters.oficioSearch || ''} onChange={(e) => handleFilterChange('oficioSearch', e.target.value)} className="w-full pl-8 pr-3 py-2 bg-white/60 backdrop-blur-sm border border-gray-200 rounded-xl text-[11px] font-bold text-gray-700 placeholder:text-gray-400 focus:outline-none focus:border-[#621f32]/40 focus:ring-2 focus:ring-[#621f32]/10 transition-all" />
-                        </div>
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-folio" isClearable isSearchable placeholder="Filtrar..." options={distinctOptions.folio} value={filters.folio} onChange={(v) => handleFilterChange('folio', v)} styles={customSelectStyles} />
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-clasificacion" isClearable isSearchable placeholder="Tipo Asunto..." options={distinctOptions.clasificacion} value={filters.clasificacion} onChange={(v) => handleFilterChange('clasificacion', v)} styles={customSelectStyles} />
+                {/* Total Records Counter */}
+                <div className="flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
+                  <span className="text-[9px] font-black uppercase text-slate-400 leading-none mb-1">Registros</span>
+                  <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none tabular-nums">{filteredData.length}</span>
+                </div>
+              </div>
+
+              {/* Reset Filters Option */}
+              <div className="flex items-center gap-3">
+                {Object.values(filters).some(f => f !== null && f !== '' && (!Array.isArray(f) || f.length > 0)) && (
+                  <button
+                    onClick={() => setFilters({ folio: [], descripcion: '', remitente: [], unidad: [], status: [], tema: [], unidadResponsable: [], instruccion: [], prioridad: [], oficioSearch: '', clasificacion: [] })}
+                    className="flex items-center gap-2 px-5 py-3 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/10 text-slate-650 dark:text-slate-300 hover:text-red-750 font-black rounded-xl text-[10px] uppercase transition-all duration-300 shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    <X className="size-3.5" />
+                    <span>Limpiar Filtros</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Table Container */}
+            <div className="overflow-auto relative flex-1 min-h-0 select-none custom-scrollbar" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+              <table ref={tableRef} className="min-w-full w-full text-left border-collapse table-fixed select-none text-xs text-slate-700 dark:text-slate-350" style={{ width: '100%', minWidth: 95 + Object.values(columnWidths).reduce((sum, w) => sum + w, 0) }}>
+                <colgroup>
+                  <col style={{ width: 50 }} />
+                  <col style={{ width: 45 }} />
+                  <col style={{ width: columnWidths.folio || 180 }} />
+                  <col style={{ width: columnWidths.tema || 180 }} />
+                  <col style={{ width: columnWidths.origen || 220 }} />
+                  <col style={{ width: columnWidths.unidadArea || 160 }} />
+                  <col style={{ width: columnWidths.clasificacion || 200 }} />
+                  <col style={{ width: columnWidths.estado || 160 }} />
+                </colgroup>
+                
+                {/* Header Section */}
+                <thead className="bg-[#501929] dark:bg-[#3e131f] text-white sticky top-0 z-30 shadow-md border-b border-[#bc955c]/35">
+                  {/* Row 1: Columns Letters and Labels */}
+                  <tr>
+                    {/* Index Column (#) */}
+                    <th className="sticky left-0 top-0 z-40 bg-[#40121e] border-r border-[#621f32]/35 text-center align-middle py-2.5 px-3">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[8px] font-mono text-[#bc955c]/70">A</span>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">#</span>
                       </div>
                     </th>
-                    <th style={{ width: columnWidths.tema || "14.28%", minWidth: columnWidths.tema ? Math.max(columnWidths.tema, 80) : "14.28%", maxWidth: columnWidths.tema || "14.28%" }} className="px-6 py-6 align-top relative group">
-                      <ColumnResizer onResize={(delta) => handleResize('tema', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#621f32] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Tema Principal</span>
-                        </div>
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-tema" isClearable isSearchable placeholder="Filtrar tema..." options={distinctOptions.tema} value={filters.tema} onChange={(v) => handleFilterChange('tema', v)} styles={customSelectStyles} />
+                    {/* Action Column (VER) */}
+                    <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] border-r border-[#621f32]/35 text-center align-middle py-2.5 px-3 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[8px] font-mono text-[#bc955c]/70">B</span>
+                        <span className="text-[10px] font-black text-slate-200 uppercase tracking-wider">VER</span>
                       </div>
                     </th>
-                    <th style={{ width: columnWidths.origen || "14.28%", minWidth: columnWidths.origen ? Math.max(columnWidths.origen, 80) : "14.28%", maxWidth: columnWidths.origen || "14.28%" }} className="px-6 py-6 align-top relative group">
-                      <ColumnResizer onResize={(delta) => handleResize('origen', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#bc955c] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Origen / Unidad</span>
+                    {/* Dynamic Columns */}
+                    {[
+                      { key: "folio", label: "Folio / Oficio" },
+                      { key: "tema", label: "Tema Principal" },
+                      { key: "origen", label: "Origen / Unidad" },
+                      { key: "unidadArea", label: "Unidad Área" },
+                      { key: "clasificacion", label: "Clasificación / Prioridad" },
+                      { key: "estado", label: "Estado" },
+                    ].map((col, idx) => {
+                      const letter = getColumnLetter(idx + 2); // C, D, E, ...
+                      return (
+                        <th key={col.key} className="py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#bc955c]/25 relative align-middle">
+                          <ColumnResizer onResize={(delta) => handleResize(col.key, delta)} />
+                          <div className="flex flex-col items-center gap-0.5 w-full">
+                            <span className="text-[8px] font-mono text-[#bc955c]">{letter}</span>
+                            <span className="text-[10px] font-black text-slate-200 tracking-wider text-center">{col.label}</span>
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+
+                  {/* Row 2: integrated filters per column */}
+                  <tr className="bg-[#40121e] dark:bg-[#2b0d15] border-b border-[#bc955c]/25">
+                    {/* Clear all filters button cell */}
+                    <th className="sticky left-0 z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35 py-2 px-2 text-center align-middle">
+                      <button 
+                        onClick={() => setFilters({ folio: [], descripcion: '', remitente: [], unidad: [], status: [], tema: [], unidadResponsable: [], instruccion: [], prioridad: [], oficioSearch: '', clasificacion: [] })}
+                        disabled={Object.values(filters).every(f => !f || (Array.isArray(f) ? f.length === 0 : f === ''))}
+                        title="Limpiar filtros de columna"
+                        className="size-full flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-0 cursor-pointer p-1 rounded-md"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </th>
+                    
+                    {/* VER action spacer cell */}
+                    <th className="sticky left-[50px] z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35 py-2 px-2 text-center shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]"></th>
+                    
+                    {/* Folio / Oficio Column Filters */}
+                    <th className="py-2 px-2 border-r border-[#bc955c]/25 align-middle">
+                      <div className="flex flex-col gap-1.5 w-full min-w-0">
+                        <div className="relative group w-full">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/45 w-3 h-3 group-focus-within:text-[#bc955c] transition-colors" />
+                          <input 
+                            type="text" 
+                            placeholder="Oficio/Folio..." 
+                            value={filters.oficioSearch || ''} 
+                            onChange={(e) => handleFilterChange('oficioSearch', e.target.value)} 
+                            className="w-full pl-7 pr-3 py-1 bg-white/5 dark:bg-white/5 border border-[#bc955c]/35 rounded-lg text-[9px] font-semibold text-white placeholder:text-white/45 focus:outline-none focus:border-[#bc955c] h-[28px] transition-all font-sans" 
+                          />
                         </div>
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-remitente" isClearable isSearchable placeholder="Remitente..." options={distinctOptions.remitente} value={filters.remitente} onChange={(v) => handleFilterChange('remitente', v)} styles={customSelectStyles} />
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-unidad" isClearable isSearchable placeholder="Unidad..." options={distinctOptions.unidad} value={filters.unidad} onChange={(v) => handleFilterChange('unidad', v)} styles={customSelectStyles} />
+                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-folio" isClearable isSearchable placeholder="Folios..." options={distinctOptions.folio} value={filters.folio} onChange={(v) => handleFilterChange('folio', v)} styles={headerSelectStyles} />
+                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-clasificacion" isClearable isSearchable placeholder="Tipo..." options={distinctOptions.clasificacion} value={filters.clasificacion} onChange={(v) => handleFilterChange('clasificacion', v)} styles={headerSelectStyles} />
                       </div>
                     </th>
-                    <th style={{ width: columnWidths.unidadArea || "14.28%", minWidth: columnWidths.unidadArea ? Math.max(columnWidths.unidadArea, 80) : "14.28%", maxWidth: columnWidths.unidadArea || "14.28%" }} className="px-6 py-6 align-top relative group">
-                      <ColumnResizer onResize={(delta) => handleResize('unidadArea', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#621f32] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Unidad Área</span>
-                        </div>
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-ur" isClearable isSearchable placeholder="Filtrar Unidad..." options={distinctOptions.unidadResponsable} value={filters.unidadResponsable} onChange={(v) => handleFilterChange('unidadResponsable', v)} styles={customSelectStyles} />
+
+                    {/* Tema Principal Column Filter */}
+                    <th className="py-2 px-2 border-r border-[#bc955c]/25 align-middle">
+                      <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-tema" isClearable isSearchable placeholder="Temas..." options={distinctOptions.tema} value={filters.tema} onChange={(v) => handleFilterChange('tema', v)} styles={headerSelectStyles} />
+                    </th>
+
+                    {/* Origen / Unidad Column Filters */}
+                    <th className="py-2 px-2 border-r border-[#bc955c]/25 align-middle">
+                      <div className="flex flex-col gap-1.5 w-full min-w-0">
+                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-remitente" isClearable isSearchable placeholder="Remitente..." options={distinctOptions.remitente} value={filters.remitente} onChange={(v) => handleFilterChange('remitente', v)} styles={headerSelectStyles} />
+                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-unidad" isClearable isSearchable placeholder="Unidad..." options={distinctOptions.unidad} value={filters.unidad} onChange={(v) => handleFilterChange('unidad', v)} styles={headerSelectStyles} />
                       </div>
                     </th>
-                    <th style={{ width: columnWidths.clasificacion || "14.28%", minWidth: columnWidths.clasificacion ? Math.max(columnWidths.clasificacion, 80) : "14.28%", maxWidth: columnWidths.clasificacion || "14.28%" }} className="px-6 py-6 align-top relative group">
-                      <ColumnResizer onResize={(delta) => handleResize('clasificacion', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#bc955c] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Clasificación</span>
-                        </div>
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-instruccion" isClearable isSearchable placeholder="Instrucción..." options={distinctOptions.instruccion} value={filters.instruccion} onChange={(v) => handleFilterChange('instruccion', v)} styles={customSelectStyles} />
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-prioridad" isClearable isSearchable placeholder="Prioridad..." options={distinctOptions.prioridad} value={filters.prioridad} onChange={(v) => handleFilterChange('prioridad', v)} styles={customSelectStyles} />
+
+                    {/* Unidad Área Column Filter */}
+                    <th className="py-2 px-2 border-r border-[#bc955c]/25 align-middle">
+                      <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-ur" isClearable isSearchable placeholder="Unidad área..." options={distinctOptions.unidadResponsable} value={filters.unidadResponsable} onChange={(v) => handleFilterChange('unidadResponsable', v)} styles={headerSelectStyles} />
+                    </th>
+
+                    {/* Clasificación / Prioridad Column Filters */}
+                    <th className="py-2 px-2 border-r border-[#bc955c]/25 align-middle">
+                      <div className="flex flex-col gap-1.5 w-full min-w-0">
+                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-instruccion" isClearable isSearchable placeholder="Instrucción..." options={distinctOptions.instruccion} value={filters.instruccion} onChange={(v) => handleFilterChange('instruccion', v)} styles={headerSelectStyles} />
+                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-prioridad" isClearable isSearchable placeholder="Prioridad..." options={distinctOptions.prioridad} value={filters.prioridad} onChange={(v) => handleFilterChange('prioridad', v)} styles={headerSelectStyles} />
                       </div>
                     </th>
-                    <th style={{ width: columnWidths.estado || "14.28%", minWidth: columnWidths.estado ? Math.max(columnWidths.estado, 80) : "14.28%", maxWidth: columnWidths.estado || "14.28%" }} className="px-6 py-6 align-top relative group">
-                      <ColumnResizer onResize={(delta) => handleResize('estado', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#621f32] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Estado</span>
-                        </div>
-                        <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-status" isClearable isSearchable placeholder="Estado..." options={distinctOptions.status} value={filters.status} onChange={(v) => handleFilterChange('status', v)} styles={customSelectStyles} />
-                      </div>
-                    </th>
-                    <th style={{ width: columnWidths.accion || "14.28%", minWidth: columnWidths.accion ? Math.max(columnWidths.accion, 80) : "14.28%", maxWidth: columnWidths.accion || "14.28%" }} className="px-6 py-6 align-top relative group text-center">
-                      <ColumnResizer onResize={(delta) => handleResize('accion', delta)} />
-                      <div className="space-y-3 w-full min-w-0 overflow-hidden">
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <div className="w-1.5 h-4 bg-[#bc955c] rounded-full" />
-                          <span className="text-[11px] font-black text-[#621f32] uppercase tracking-[0.2em]">Acción</span>
-                        </div>
-                      </div>
+
+                    {/* Estado Column Filter */}
+                    <th className="py-2 px-2 border-r border-[#bc955c]/25 align-middle">
+                      <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-status" isClearable isSearchable placeholder="Estatus..." options={distinctOptions.status} value={filters.status} onChange={(v) => handleFilterChange('status', v)} styles={headerSelectStyles} />
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#621f32]/5">
+
+                {/* Body Section */}
+                <tbody className="divide-y divide-[#bc955c]/15">
                   <AnimatePresence mode="popLayout">
                     {paginatedData.map((item, index) => {
                       const config = getStatusConfig(item.statusTurnado);
-                      const priorityConfig = { Alta: 'text-red-600 bg-red-50 border-red-100', Media: 'text-amber-600 bg-amber-50 border-amber-100', Baja: 'text-emerald-600 bg-emerald-50 border-emerald-100' };
-                      const pStyle = priorityConfig[item.asuntoPrioridad] || 'text-gray-500 bg-gray-50 border-gray-100';
+                      const priorityConfig = { 
+                        Alta: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/10 border-red-150', 
+                        Media: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/10 border-amber-150', 
+                        Baja: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/10 border-emerald-150' 
+                      };
+                      const pStyle = priorityConfig[item.asuntoPrioridad] || 'text-gray-500 bg-gray-50 dark:bg-slate-800 border-gray-150';
+                      const isZebra = index % 2 === 0;
+                      const rowBg = isZebra ? 'bg-white/40 dark:bg-slate-900/40' : 'bg-transparent';
+                      const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
+
                       return (
-                        <motion.tr key={item.idTurnado} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className={`group hover:bg-[#621f32]/[0.04] transition-colors cursor-default ${index % 2 === 0 ? 'bg-white/40' : 'bg-transparent'}`}>
-                          <td className="px-6 py-7 align-top relative">
+                        <motion.tr 
+                          key={item.idTurnado} 
+                          initial={{ opacity: 0 }} 
+                          animate={{ opacity: 1 }} 
+                          exit={{ opacity: 0 }} 
+                          transition={{ duration: 0.15 }} 
+                          className={`group hover:bg-[#621f32]/[0.03] dark:hover:bg-[#bc955c]/[0.03] transition-colors cursor-default border-b border-[#bc955c]/20 ${rowBg}`}
+                        >
+                          {/* Index cell (sticky) */}
+                          <td className="sticky left-0 z-20 bg-white/95 dark:bg-slate-900 border-r border-[#bc955c]/25 text-center font-mono font-bold text-slate-500 py-3 px-3 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
+                            {globalIndex}
+                          </td>
+                          
+                          {/* VER cell (sticky) */}
+                          <td className="sticky left-[50px] z-20 bg-white/95 dark:bg-slate-900 border-r border-[#bc955c]/25 text-center py-3 px-3 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.1)]">
+                            <button 
+                              onClick={() => handleSelectItem(item)} 
+                              className="p-1.5 rounded-lg text-[#621f32] dark:text-[#bc955c] hover:bg-[#621f32]/10 dark:hover:bg-[#bc955c]/10 transition-colors cursor-pointer" 
+                              title="Ver detalles"
+                            >
+                              <Eye className="size-3.5" />
+                            </button>
+                          </td>
+
+                          {/* Folio / Oficio */}
+                          <td className="py-3 px-4 border-r border-[#bc955c]/20 align-top max-w-xs overflow-hidden">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex flex-col gap-1.5 pt-1 cursor-help">
+                                <div className="flex flex-col gap-1.5 cursor-help">
                                   {item.clasificacion && (
-                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                    <div className="flex items-center gap-1.5">
                                       <Tag className="size-2.5 text-[#bc955c]" />
                                       <span className="text-[8px] font-black text-[#bc955c] uppercase tracking-wider">{item.clasificacion}</span>
                                     </div>
                                   )}
                                   <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[#bc955c]" />
-                                    <span className="text-[12px] font-black text-[#621f32] tracking-tight">{item.asuntoNoOficio}</span>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#bc955c] shrink-0" />
+                                    <span className="text-xs font-black text-[#621f32] dark:text-white tracking-tight truncate">{item.asuntoNoOficio}</span>
                                   </div>
-                                  <span className="text-[9px] font-mono font-bold text-gray-400 bg-white/50 px-2 py-0.5 rounded-md border border-gray-100 w-fit">{item.asuntoFolio}</span>
+                                  <span className="text-[9px] font-mono font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 w-fit">{item.asuntoFolio}</span>
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="top" align="center" sideOffset={10} className="z-[9999999] bg-transparent border-none p-0 shadow-none max-w-none">
-                                <div className="bg-white/95 text-gray-800 p-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 backdrop-blur-2xl max-w-md ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="bg-white/95 dark:bg-slate-900 text-gray-800 dark:text-white p-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 dark:border-slate-800 backdrop-blur-2xl max-w-md ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
                                   <div className="flex items-center gap-3 mb-3">
                                     <div className="p-1.5 bg-[#621f32]/5 rounded-lg"><ClipboardList className="size-3.5 text-[#621f32]" /></div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#621f32]">Descripción del Asunto</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#621f32] dark:text-[#bc955c]">Descripción del Asunto</span>
                                   </div>
-                                  <p className="text-[11px] font-bold leading-relaxed text-gray-600 italic">"{item.asuntoDescripcion}"</p>
+                                  <p className="text-[11px] font-bold leading-relaxed text-slate-600 dark:text-slate-350 italic">"{item.asuntoDescripcion}"</p>
                                 </div>
                               </TooltipContent>
                             </Tooltip>
                           </td>
-                          <td className="px-6 py-7 align-top">
-                            <div className="pt-1.5 flex flex-col gap-2 w-full min-w-0 overflow-hidden"><span className="text-[9px] font-black text-[#621f32] bg-[#621f32]/5 px-3 py-1.5 rounded-xl border border-[#621f32]/10 uppercase tracking-tight leading-tight truncate w-full block">{item.asuntoTema}</span></div>
+
+                          {/* Tema Principal */}
+                          <td className="py-3 px-4 border-r border-[#bc955c]/20 align-top max-w-xs overflow-hidden">
+                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight truncate w-full block text-center">
+                              {item.asuntoTema}
+                            </span>
                           </td>
-                          <td className="px-6 py-7 align-top">
-                            <div className="flex flex-col gap-3 pt-1 w-full min-w-0">
+
+                          {/* Origen / Unidad */}
+                          <td className="py-3 px-4 border-r border-[#bc955c]/20 align-top max-w-xs overflow-hidden">
+                            <div className="flex flex-col gap-2 w-full min-w-0">
                               <div className="space-y-1 w-full min-w-0">
-                                <div className="flex items-center gap-2"><User className="size-3 text-[#bc955c]" /><span className="text-[10px] font-black text-gray-700 uppercase truncate flex-1 min-w-0">{item.asuntoRemitente}</span></div>
-                                <p className="text-[9px] font-bold text-gray-400 pl-5 truncate flex-1 min-w-0">{item.asuntoRemitenteDependencia}</p>
+                                <div className="flex items-center gap-2">
+                                  <User className="size-3 text-[#bc955c] shrink-0" />
+                                  <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase truncate flex-1 min-w-0">{item.asuntoRemitente}</span>
+                                </div>
+                                <p className="text-[9px] font-bold text-slate-450 dark:text-slate-500 pl-5 truncate w-full">{item.asuntoRemitenteDependencia}</p>
                               </div>
-                              <div className="flex items-center gap-2 pt-1 border-t border-gray-100/50"><Building2 className="size-3 text-gray-300" /><span className="text-[9px] font-bold text-gray-500 uppercase truncate">{item.unidadArea}</span></div>
+                              <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                                <Building2 className="size-3 text-slate-400 shrink-0" />
+                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase truncate">{item.unidadArea}</span>
+                              </div>
                             </div>
                           </td>
-                          <td className="px-6 py-7 align-top">
-                            <div className="flex items-center gap-2.5 pt-1.5"><div className="p-1.5 bg-[#bc955c]/10 rounded-lg text-[#bc955c]"><Building2 className="size-3.5" /></div><span className="text-[10px] font-black text-[#bc955c] uppercase tracking-tight">{item.unidadArea || 'No asignada'}</span></div>
-                          </td>
-                          <td className="px-6 py-7 align-top">
-                            <div className="flex flex-col gap-3 pt-1 w-full min-w-0">
-                              <div className="space-y-1 w-full min-w-0"><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Instrucción</span><p className="text-[10px] font-black text-[#621f32] leading-tight truncate w-full">{item.nombreInstruccionCruzada || item.nombreInstruccion}</p></div>
-                              <div className="flex items-center gap-2"><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Prioridad</span><div className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-tighter ${pStyle}`}>{item.asuntoPrioridad}</div></div>
+
+                          {/* Unidad Área */}
+                          <td className="py-3 px-4 border-r border-[#bc955c]/20 align-top max-w-xs overflow-hidden">
+                            <div className="flex items-center gap-2 pt-1">
+                              <div className="p-1 bg-[#bc955c]/10 rounded text-[#bc955c] shrink-0">
+                                <Building2 className="size-3" />
+                              </div>
+                              <span className="text-[10px] font-black text-[#bc955c] uppercase tracking-tight truncate">{item.unidadArea || 'No asignada'}</span>
                             </div>
                           </td>
-                          <td className="px-6 py-7">
-                            <div className="flex flex-col gap-2 items-center pt-1">
-                              <div className="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border flex items-center gap-2 shadow-sm" style={config.styleBadge}><motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="size-1.5 rounded-full" style={config.styleDot} />{item.statusTurnado}</div>
-                              <span className="text-[8px] font-bold text-gray-400">{item.fechaRegistro ? new Date(item.fechaRegistro).toLocaleDateString() : ''}</span>
+
+                          {/* Clasificación / Prioridad */}
+                          <td className="py-3 px-4 border-r border-[#bc955c]/20 align-top max-w-xs overflow-hidden">
+                            <div className="flex flex-col gap-2.5 w-full min-w-0">
+                              <div className="space-y-1 w-full min-w-0">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Instrucción</span>
+                                <p className="text-[10px] font-black text-[#621f32] dark:text-slate-350 leading-tight truncate w-full">{item.nombreInstruccionCruzada || item.nombreInstruccion}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Prioridad</span>
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${item.asuntoPrioridad === 'Alta' ? 'bg-red-500' : item.asuntoPrioridad === 'Media' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                  <span className="text-[9px] font-bold text-slate-650 dark:text-slate-300 uppercase tracking-tight">{item.asuntoPrioridad}</span>
+                                </div>
+                              </div>
                             </div>
                           </td>
-                          <td className="px-6 py-7 align-top">
-                            <div className="flex justify-center pt-1"><button onClick={() => handleSelectItem(item)} className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#621f32] hover:text-white transition-all duration-300 group/btn" title="Ver detalles"><Eye className="size-4 group-hover/btn:scale-110 transition-transform" /></button></div>
+
+                          {/* Estado */}
+                          <td className="py-3 px-4 align-top">
+                            <div className="flex flex-col gap-1.5 items-center">
+                              <div className="flex items-center gap-1.5 py-0.5">
+                                <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="size-2 rounded-full shrink-0 shadow-sm" style={config.styleDot} />
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">{item.statusTurnado}</span>
+                              </div>
+                              <span className="text-[8px] font-bold text-slate-400">{item.fechaRegistro ? new Date(item.fechaRegistro).toLocaleDateString() : ''}</span>
+                            </div>
                           </td>
                         </motion.tr>
                       );
@@ -728,45 +875,50 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
               </table>
             </div>
 
+            {/* Empty State */}
             {filteredData.length === 0 && (
-              <div className="p-24 flex flex-col items-center justify-center text-gray-300 gap-6">
-                <div className="p-8 bg-white/20 rounded-[2rem] border-2 border-dashed border-gray-100"><Filter className="size-16 opacity-10" /></div>
+              <div className="p-24 flex flex-col items-center justify-center text-slate-300 gap-6">
+                <div className="p-8 bg-white/20 dark:bg-slate-900/40 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <Filter className="size-16 opacity-10" />
+                </div>
                 <div className="text-center">
-                  <p className="text-sm font-black uppercase tracking-[0.3em]">Sin resultados para los filtros</p>
-                  <button onClick={() => setFilters({ folio: null, descripcion: '', remitente: null, unidad: null, status: null, tema: null, unidadResponsable: null, instruccion: null, prioridad: null, oficioSearch: '', clasificacion: null })} className="mt-4 text-[10px] font-black text-[#621f32] uppercase underline underline-offset-4">Limpiar todos los filtros</button>
+                  <p className="text-sm font-black uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Sin resultados para los filtros</p>
+                  <button onClick={() => setFilters({ folio: [], descripcion: '', remitente: [], unidad: [], status: [], tema: [], unidadResponsable: [], instruccion: [], prioridad: [], oficioSearch: '', clasificacion: [] })} className="mt-4 text-[10px] font-black text-[#621f32] dark:text-[#bc955c] uppercase underline underline-offset-4 cursor-pointer">Limpiar todos los filtros</button>
                 </div>
               </div>
             )}
 
-            <div className="px-8 py-5 bg-white/60 backdrop-blur-sm border-t border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  Mostrando <span className="text-[#621f32]">{paginatedData.length}</span> de <span className="text-[#621f32]">{filteredData.length}</span> resultados (Pág. {currentPage} de {totalPages || 1})
+            {/* Sticky bottom pagination & footer */}
+            <div className="px-8 py-5 border-t border-slate-200/50 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  Mostrando <span className="text-[#621f32] dark:text-[#bc955c]">{paginatedData.length}</span> de <span className="text-[#621f32] dark:text-[#bc955c]">{filteredData.length}</span> resultados (Pág. {currentPage} de {totalPages || 1})
                 </p>
                 {Object.values(filters).some((f) => f !== null && f !== '' && (!Array.isArray(f) || f.length > 0)) && (
-                  <button onClick={() => setFilters({ folio: null, descripcion: '', remitente: null, unidad: null, status: null, tema: null, unidadResponsable: null, instruccion: null, prioridad: null, oficioSearch: '', clasificacion: null })} className="flex items-center gap-2 text-[9px] font-black text-red-500 uppercase tracking-widest hover:bg-red-50 px-3 py-1 rounded-lg transition-colors"><X className="size-3" />Limpiar Filtros</button>
+                  <button onClick={() => setFilters({ folio: [], descripcion: '', remitente: [], unidad: [], status: [], tema: [], unidadResponsable: [], instruccion: [], prioridad: [], oficioSearch: '', clasificacion: [] })} className="flex items-center gap-2 text-[9px] font-black text-red-500 uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-950/20 px-3 py-1.5 rounded-lg border border-red-100 dark:border-red-900/20 transition-colors cursor-pointer"><X className="size-3" />Limpiar Filtros</button>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  className="p-2 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#621f32] hover:border-[#621f32]/25 transition-all disabled:opacity-30 disabled:hover:text-gray-300 disabled:hover:border-gray-200 cursor-pointer"
+                  className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:border-[#621f32]/25 dark:hover:border-[#bc955c]/25 transition-all disabled:opacity-30 disabled:hover:text-slate-350 disabled:hover:border-slate-200 cursor-pointer"
                 >
                   <ChevronRight className="size-4 rotate-180" />
                 </button>
                 <button
                   disabled={currentPage === totalPages || totalPages === 0}
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                  className="p-2 bg-white border border-gray-200 rounded-xl text-gray-400 hover:text-[#621f32] hover:border-[#621f32]/25 transition-all disabled:opacity-30 disabled:hover:text-gray-300 disabled:hover:border-gray-200 cursor-pointer"
+                  className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:border-[#621f32]/25 dark:hover:border-[#bc955c]/25 transition-all disabled:opacity-30 disabled:hover:text-slate-350 disabled:hover:border-slate-200 cursor-pointer"
                 >
                   <ChevronRight className="size-4" />
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       </div>
-    </TooltipProvider>
-  );
+  </TooltipProvider>
+);
 }

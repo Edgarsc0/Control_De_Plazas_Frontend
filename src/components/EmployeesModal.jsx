@@ -442,7 +442,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns }) => {
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
                 hideClose
-                className="w-full max-w-4xl max-h-[85vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=closed]:animate-out data-[state=closed]:zoom-out-90 data-[state=closed]:fade-out-0 duration-300"
+                className="w-full max-w-4xl max-h-[85vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] data-[state=open]:slide-in-from-bottom-[2%] data-[state=closed]:animate-out data-[state=closed]:zoom-out-[0.98] data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-[2%] duration-500 ease-out"
             >
                 <div className="w-full max-h-[85vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col p-6 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800/80 overflow-hidden">
                     <DialogHeader className="mb-6 shrink-0 flex flex-row justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-5">

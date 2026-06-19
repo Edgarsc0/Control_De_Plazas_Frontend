@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, 
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
-, UserCheck, Eye } from "lucide-react";
+, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -121,6 +121,151 @@ const getTextFilterParams = (filters) => {
   return params;
 };
 
+
+const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [expandedYears, setExpandedYears] = useState({});
+  const [expandedMonths, setExpandedMonths] = useState({});
+
+  const hierarchy = useMemo(() => {
+    const years = {};
+    distinctDates.forEach(d => {
+      if (!d.value) return;
+      const [year, month, day] = d.value.split('-');
+      if (!years[year]) years[year] = { count: 0, months: {} };
+      years[year].count += d.count;
+      
+      if (!years[year].months[month]) years[year].months[month] = { count: 0, days: [] };
+      years[year].months[month].count += d.count;
+      years[year].months[month].days.push({ day, count: d.count, fullDate: d.value });
+    });
+    
+    // Sort logic
+    Object.keys(years).forEach(y => {
+      Object.keys(years[y].months).forEach(m => {
+        years[y].months[m].days.sort((a,b) => parseInt(a.day) - parseInt(b.day));
+      });
+    });
+    return years;
+  }, [distinctDates]);
+
+  // Selections
+  const isSelected = (dateStr) => selectedDates.includes(dateStr);
+  const toggleDate = (dateStr) => {
+    if (isSelected(dateStr)) onChange(selectedDates.filter(d => d !== dateStr));
+    else onChange([...selectedDates, dateStr]);
+  };
+
+  const selectYear = (year, select) => {
+    const datesInYear = distinctDates.filter(d => d.value.startsWith(year)).map(d => d.value);
+    if (select) {
+      const newSel = new Set([...selectedDates, ...datesInYear]);
+      onChange(Array.from(newSel));
+    } else {
+      onChange(selectedDates.filter(d => !d.startsWith(year)));
+    }
+  };
+
+  const selectMonth = (year, month, select) => {
+    const prefix = `${year}-${month}`;
+    const datesInMonth = distinctDates.filter(d => d.value.startsWith(prefix)).map(d => d.value);
+    if (select) {
+      const newSel = new Set([...selectedDates, ...datesInMonth]);
+      onChange(Array.from(newSel));
+    } else {
+      onChange(selectedDates.filter(d => !d.startsWith(prefix)));
+    }
+  };
+
+  return (
+    <>
+      <button onClick={() => setIsOpen(true)} className="flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm hover:border-[#621f32]/50 transition-colors">
+        <span className="text-[10px] text-slate-400 font-bold uppercase">Bitácora:</span>
+        <span className="font-bold text-xs text-[#621f32] dark:text-[#bc955c] truncate max-w-[200px]">
+          {selectedDates.length === 0 ? "Ninguna" : selectedDates.length === 1 ? selectedDates[0] : `${selectedDates.length} fechas`}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/50">
+              <h3 className="font-black text-[#621f32] dark:text-[#bc955c] uppercase tracking-wider text-sm">Seleccionar Fechas</h3>
+              <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                <X className="size-5 text-slate-500" />
+              </button>
+            </div>
+            
+            <div className="p-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-2">
+               <button onClick={() => onChange(distinctDates.map(d=>d.value))} className="text-[10px] font-bold text-[#621f32] dark:text-[#bc955c] px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Seleccionar Todo</button>
+               <button onClick={() => onChange([])} className="text-[10px] font-bold text-slate-500 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Desmarcar Todo</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+              {Object.keys(hierarchy).sort((a,b)=>b.localeCompare(a)).map(year => (
+                <div key={year} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/50 cursor-pointer" onClick={() => setExpandedYears(p => ({...p, [year]: !p[year]}))}>
+                    <div className="flex items-center gap-2">
+                      {expandedYears[year] ? <ChevronDown className="size-4 text-slate-500"/> : <ChevronRight className="size-4 text-slate-500"/>}
+                      <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{year} <span className="text-xs text-slate-400">({hierarchy[year].count})</span></span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); selectYear(year, true); }} className="text-[9px] font-bold text-emerald-600 px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">Todo</button>
+                      <button onClick={(e) => { e.stopPropagation(); selectYear(year, false); }} className="text-[9px] font-bold text-rose-600 px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">Nada</button>
+                    </div>
+                  </div>
+                  
+                  {expandedYears[year] && (
+                    <div className="p-2 flex flex-col gap-2 bg-white dark:bg-slate-900">
+                      {Object.keys(hierarchy[year].months).sort((a,b)=>b.localeCompare(a)).map(month => {
+                        const mKey = `${year}-${month}`;
+                        return (
+                          <div key={mKey} className="ml-4 border-l-2 border-slate-100 dark:border-slate-800 pl-2">
+                            <div className="flex items-center justify-between cursor-pointer py-1" onClick={() => setExpandedMonths(p => ({...p, [mKey]: !p[mKey]}))}>
+                              <div className="flex items-center gap-2">
+                                {expandedMonths[mKey] ? <ChevronDown className="size-3 text-slate-400"/> : <ChevronRight className="size-3 text-slate-400"/>}
+                                <span className="font-semibold text-xs text-slate-700 dark:text-slate-300">Mes {month} <span className="text-[10px] text-slate-400">({hierarchy[year].months[month].count})</span></span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, true); }} className="text-[8px] font-bold text-emerald-600 px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Todo</button>
+                                <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, false); }} className="text-[8px] font-bold text-rose-600 px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Nada</button>
+                              </div>
+                            </div>
+                            
+                            {expandedMonths[mKey] && (
+                              <div className="ml-5 mt-1 flex flex-wrap gap-2">
+                                {hierarchy[year].months[month].days.map(d => (
+                                  <button
+                                    key={d.fullDate}
+                                    onClick={() => toggleDate(d.fullDate)}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors ${isSelected(d.fullDate) ? "bg-[#621f32] text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
+                                  >
+                                    {d.day} <span className="opacity-75">({d.count})</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex justify-end">
+              <button onClick={() => setIsOpen(false)} className="px-6 py-2 bg-[#621f32] hover:bg-[#802842] dark:bg-[#bc955c] dark:hover:bg-[#d0ab75] text-white dark:text-[#3e131f] font-black text-xs uppercase tracking-wider rounded-xl transition-colors shadow-md">
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 export default function MovimientosPersonalTab({ isPending, startTransition, cardRef }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -145,18 +290,23 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   
   // Bitacora Date Selector State
   const [distinctDates, setDistinctDates] = useState([]);
-  const [bitacoraDate, setBitacoraDate] = useState(getTodayString());
+  const [bitacoraDates, setBitacoraDates] = useState([getTodayString()]);
 
   // Stats for personal movements
   const [statsData, setStatsData] = useState({ by_year: {}, all: [] });
   const [selectedYear, setSelectedYear] = useState("all");
   const [statsLoading, setStatsLoading] = useState(true);
 
+  // Toggle between pie chart and temporal bar chart
+  const [statsViewMode, setStatsViewMode] = useState("pie"); // "pie" or "bar"
+  const [barChartLevel, setBarChartLevel] = useState("year"); // "year", "month", "day"
+  const [barChartSelection, setBarChartSelection] = useState({ year: null, month: null });
+
   useEffect(() => {
     setStatsLoading(true);
     const params = {};
-    if (activeSubTab === "bitacora" && bitacoraDate) {
-      params.fecha_captura__in = bitacoraDate;
+    if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+      params.fecha_captura__in = bitacoraDates.join(",");
     }
     VacantesService.getMovimientosPersonalStats(params)
       .then((res) => res.json())
@@ -167,7 +317,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       })
       .catch((err) => console.error("Error fetching movements stats:", err))
       .finally(() => setStatsLoading(false));
-  }, [activeSubTab, bitacoraDate]);
+  }, [activeSubTab, bitacoraDates]);
 
   const activeStatsList = useMemo(() => {
     if (selectedYear === "all") {
@@ -220,19 +370,12 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       .then((resData) => {
         if (Array.isArray(resData)) {
           const todayStr = getTodayString();
-          let dates = resData
-            .filter((d) => d.value)
-            .sort((a, b) => new Date(b.value) - new Date(a.value));
-          
-          // Ensure today is always present in the dropdown list
+          let dates = resData.filter(d => d.value);
           const hasToday = dates.some((d) => d.value === todayStr);
-          if (!hasToday) {
-            dates = [{ value: todayStr, count: 0 }, ...dates];
-          }
+          if (!hasToday) dates.unshift({ value: todayStr, count: 0 });
           setDistinctDates(dates);
         }
-      })
-      .catch((err) => console.error("Error fetching distinct dates:", err));
+      });
   }, []);
 
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
@@ -268,8 +411,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     }
     setMotifStatsLoading(true);
     const params = { accion_nombre: selectedActionName };
-    if (activeSubTab === "bitacora" && bitacoraDate) {
-      params.fecha_captura__in = bitacoraDate;
+    if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+      params.fecha_captura__in = bitacoraDates.join(",");
     }
     VacantesService.getMovimientosPersonalStats(params)
       .then(res => res.json())
@@ -280,7 +423,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       })
       .catch(err => console.error("Error fetching motif stats:", err))
       .finally(() => setMotifStatsLoading(false));
-  }, [selectedActionName, activeSubTab, bitacoraDate]);
+  }, [selectedActionName, activeSubTab, bitacoraDates]);
 
   useEffect(() => {
     setSelectedMotifYear("all");
@@ -455,7 +598,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   }, [textFilters]);
 
   useEffect(() => {
-    if (activeSubTab === "bitacora" && !bitacoraDate) return;
+    if (activeSubTab === "bitacora" && bitacoraDates.length === 0) return;
     setLoading(true);
     const filterParams = getTextFilterParams(debouncedTextFilters);
     const colParams = {};
@@ -476,8 +619,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       ...filterParams,
       ...colParams
     };
-    if (activeSubTab === "bitacora" && bitacoraDate) {
-      params.fecha_captura__in = bitacoraDate;
+    if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+      params.fecha_captura__in = bitacoraDates.join(",");
     }
 
     if (sortConfig.key) {
@@ -500,7 +643,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
-  }, [activeSubTab, bitacoraDate, page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, selectedYear, selectedMotifYear, selectedActionName]);
+  }, [activeSubTab, bitacoraDates, page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, selectedYear, selectedMotifYear, selectedActionName]);
 
   const handleRequestSort = (key) => {
     const actualKey = key === "fecha_efectiva" ? "fecha_efectiva,fecha_captura" : key;
@@ -536,8 +679,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         ...colParams
       };
       
-      if (activeSubTab === "bitacora" && bitacoraDate) {
-        params.fecha_captura__in = bitacoraDate;
+      if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+        params.fecha_captura__in = bitacoraDates.join(",");
       }
 
       if (sortConfig.key) {
@@ -557,7 +700,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet(activeSubTab === "bitacora" ? `Bitácora ${bitacoraDate}` : "Movimientos de Personal");
+      const worksheet = workbook.addWorksheet(activeSubTab === "bitacora" ? `Bitácora ${bitacoraDates.length === 0 ? "Ninguno" : bitacoraDates.length === 1 ? bitacoraDates[0] : `${bitacoraDates.length} fechas`}` : "Movimientos de Personal");
 
       const visibleCols = columns.filter((c) => c.visible);
       worksheet.columns = visibleCols.map((c) => ({
@@ -620,7 +763,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = `${activeSubTab === "bitacora" ? "Bitacora" : "Movimientos"}_${bitacoraDate || new Date().toISOString().split("T")[0]}.xlsx`;
+      link.download = `${activeSubTab === "bitacora" ? "Bitacora" : "Movimientos"}_${bitacoraDates.length === 0 ? "Ninguno" : bitacoraDates.length === 1 ? bitacoraDates[0] : `${bitacoraDates.length} fechas`}.xlsx`;
       link.click();
     } catch (err) {
       console.error(err);
@@ -731,6 +874,71 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     return hierarchies;
   }, [uniqueColumnValues, activeFilterDropdown, parseDateParts]);
 
+  const temporalChartData = useMemo(() => {
+    if (barChartLevel === "year") {
+      const grouped = {};
+      distinctDates.forEach(d => {
+        if (!d.value) return;
+        const y = d.value.split('-')[0];
+        grouped[y] = (grouped[y] || 0) + d.count;
+      });
+      return Object.entries(grouped).map(([label, total]) => ({ label, total, type: 'year' })).sort((a,b) => a.label.localeCompare(b.label));
+    }
+    if (barChartLevel === "month" && barChartSelection.year) {
+      const grouped = {};
+      distinctDates.forEach(d => {
+        if (!d.value || !d.value.startsWith(barChartSelection.year)) return;
+        const m = d.value.split('-')[1];
+        grouped[m] = (grouped[m] || 0) + d.count;
+      });
+      return Object.entries(grouped).map(([label, total]) => ({ 
+        label, 
+        name: MONTH_NAMES[parseInt(label, 10) - 1], 
+        total, 
+        type: 'month' 
+      })).sort((a,b) => a.label.localeCompare(b.label));
+    }
+    if (barChartLevel === "day" && barChartSelection.year && barChartSelection.month) {
+      const prefix = `${barChartSelection.year}-${barChartSelection.month}`;
+      const grouped = {};
+      distinctDates.forEach(d => {
+        if (!d.value || !d.value.startsWith(prefix)) return;
+        const day = d.value.split('-')[2];
+        grouped[day] = (grouped[day] || 0) + d.count;
+      });
+      return Object.entries(grouped).map(([label, total]) => ({ 
+        label, 
+        total, 
+        type: 'day',
+        fullDate: `${prefix}-${label}`
+      })).sort((a,b) => parseInt(a.label, 10) - parseInt(b.label, 10));
+    }
+    return [];
+  }, [distinctDates, barChartLevel, barChartSelection]);
+
+  const handleTemporalBarClick = useCallback((d) => {
+    setActiveSubTab("bitacora");
+    setPage(1);
+    setSelectedActionName(null);
+    setTextFilters({});
+    setColumnFilters({});
+
+    if (d.type === 'year') {
+      setBarChartSelection({ year: d.label, month: null });
+      setBarChartLevel("month");
+      const datesInYear = distinctDates.filter(date => date.value && date.value.startsWith(d.label)).map(date => date.value);
+      setBitacoraDates(datesInYear);
+    } else if (d.type === 'month') {
+      setBarChartSelection(prev => ({ ...prev, month: d.label }));
+      setBarChartLevel("day");
+      const prefix = `${barChartSelection.year}-${d.label}`;
+      const datesInMonth = distinctDates.filter(date => date.value && date.value.startsWith(prefix)).map(date => date.value);
+      setBitacoraDates(datesInMonth);
+    } else if (d.type === 'day') {
+      setBitacoraDates([d.fullDate]);
+    }
+  }, [distinctDates, barChartSelection]);
+
   const toggleDateNode = (path) => {
     setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }));
   };
@@ -815,8 +1023,14 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         ...filterParams,
         ...colParams
       });
-      if (yearFilter) {
+      if (yearFilter && activeSubTab !== "bitacora") {
         params.fecha_efectiva__year = yearFilter;
+      }
+      if (selectedActionName) {
+        params.accion_nombre = selectedActionName;
+      }
+      if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+        params.fecha_captura__in = bitacoraDates.join(",");
       }
     }
 
@@ -839,7 +1053,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       })
       .catch((err) => console.error("Error al obtener valores únicos:", err))
       .finally(() => setLoadingUniqueValues(false));
-  }, [activeFilterDropdown, debouncedFilterSearchText, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, filterDropdownTab]);
+  }, [activeFilterDropdown, debouncedFilterSearchText, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, filterDropdownTab, activeSubTab, bitacoraDates]);
 
   const applyColumnFilter = (colKey) => {
     let newFilters = { ...columnFilters };
@@ -916,7 +1130,24 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       <div className="w-full px-4 lg:px-6 pt-2">
       {/* Statistics Card and Pie Chart */}
         <Zoom triggerOnce>
-          <div className="flex flex-col lg:flex-row gap-5 mb-6 items-stretch w-full">
+          <div className="flex flex-col gap-3 mb-6 w-full">
+            {/* Tabs Toggle (Moved here) */}
+            <div className="flex items-center gap-2 self-start bg-slate-100/80 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800 backdrop-blur-sm relative z-10 shadow-sm ml-1">
+              <button
+                onClick={() => setStatsViewMode("pie")}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${statsViewMode === "pie" ? "bg-white dark:bg-slate-800 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+              >
+                Distribución (Pie)
+              </button>
+              <button
+                onClick={() => setStatsViewMode("bar")}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${statsViewMode === "bar" ? "bg-white dark:bg-slate-800 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+              >
+                En el tiempo (Barras)
+              </button>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-5 items-stretch w-full">
                     {statsLoading ? (
               <div className="flex-shrink-0 lg:w-56">
                 <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-[#621f32]/90 text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20 animate-pulse">
@@ -980,8 +1211,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               </div>
             )}
 
-            {/* Pie chart */}
-            {statsLoading ? (
+            <div className="flex flex-col gap-2 flex-1 min-h-[224px]">              {statsViewMode === "pie" ? (
+                statsLoading ? (
               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse">
                 {/* SVG skeleton */}
                 <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
@@ -1052,7 +1283,87 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                   ))}
                 </div>
               </div>
-            ) : null}
+            ) : null) : (
+              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col items-center justify-center relative min-h-[224px]">
+                {temporalChartData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center text-slate-400">
+                    <BarChart className="size-8 mb-2 opacity-50" />
+                    <span className="text-xs font-bold uppercase tracking-wider">No hay datos temporales</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Header with back button */}
+                    <div className="absolute top-4 left-5 flex items-center gap-2">
+                      {(barChartLevel === "month" || barChartLevel === "day") && (
+                        <button
+                          onClick={() => {
+                            if (barChartLevel === "day") {
+                              setBarChartLevel("month");
+                              setBarChartSelection(p => ({ ...p, month: null }));
+                            } else {
+                              setBarChartLevel("year");
+                              setBarChartSelection({ year: null, month: null });
+                            }
+                          }}
+                          className="flex items-center justify-center p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors text-slate-500"
+                          title="Regresar"
+                        >
+                          <ArrowLeft className="size-4" />
+                        </button>
+                      )}
+                      <div className="text-[10px] font-black uppercase tracking-widest text-[#621f32] dark:text-[#bc955c] flex items-center gap-1.5">
+                        <span className={barChartLevel === "year" ? "" : "text-slate-400 font-semibold cursor-pointer"} onClick={() => { setBarChartLevel("year"); setBarChartSelection({ year: null, month: null }); }}>Años</span>
+                        {barChartLevel !== "year" && (
+                          <>
+                            <ChevronRight className="size-3 text-slate-300" />
+                            <span className={barChartLevel === "month" ? "" : "text-slate-400 font-semibold cursor-pointer"} onClick={() => { setBarChartLevel("month"); setBarChartSelection(p => ({ ...p, month: null })); }}>{barChartSelection.year}</span>
+                          </>
+                        )}
+                        {barChartLevel === "day" && (
+                          <>
+                            <ChevronRight className="size-3 text-slate-300" />
+                            <span>{MONTH_NAMES[parseInt(barChartSelection.month, 10) - 1]}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="absolute top-4 right-5 flex flex-col items-end">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total en el periodo</span>
+                      <span className="text-xl font-black text-[#621f32] dark:text-[#bc955c] leading-none">
+                        {formatNumber(temporalChartData.reduce((acc, curr) => acc + curr.total, 0))}
+                      </span>
+                    </div>
+
+                    <div className="w-full flex-1 flex items-end justify-between gap-1 sm:gap-2 mt-8 px-2 overflow-x-auto pb-2 custom-scrollbar">
+                      {temporalChartData.map((d, i) => (
+                        <div 
+                          key={d.label} 
+                          className="flex flex-col items-center group cursor-pointer flex-1 min-w-[20px] max-w-[60px]" 
+                          onClick={() => handleTemporalBarClick(d)}
+                        >
+                          <div className="text-[11px] font-black text-slate-500 mb-1 whitespace-nowrap">
+                            {formatNumber(d.total)}
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-t-md relative flex items-end justify-center h-32 mt-auto">
+                            <motion.div 
+                              initial={{ height: 0 }}
+                              animate={{ height: `${Math.max((d.total / Math.max(...temporalChartData.map(t => t.total))) * 100, 2)}%` }}
+                              transition={{ duration: 0.7, ease: "easeOut", delay: i * 0.03 }}
+                              className="w-full bg-gradient-to-t from-[#621f32] to-[#8a2a46] dark:from-[#8b6b3e] dark:to-[#bc955c] rounded-t-md transition-colors group-hover:brightness-110"
+                            />
+                          </div>
+                          <div className="text-[11px] font-black uppercase mt-2 text-slate-700 dark:text-slate-300 truncate w-full text-center" title={d.name || d.label}>
+                            {d.name ? d.name.substring(0, 3) : d.label}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            </div>
 
             <AnimatePresence>
               {selectedActionName && (
@@ -1236,6 +1547,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               )}
             </AnimatePresence>
           </div>
+          </div>
         </Zoom>
       </div>
       <div className="w-full flex justify-center mt-4">
@@ -1258,9 +1570,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
               {activeSubTab === "bitacora" ? (
-                <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Bitácora del día:</span>
-                  <input type="date" value={bitacoraDate} onChange={(e) => setBitacoraDate(e.target.value)} className="bg-transparent font-bold text-xs text-[#621f32] dark:text-[#bc955c] cursor-pointer outline-none border-none" />
+                <div className="flex items-center gap-2">
+                  <BitacoraDateSelector distinctDates={distinctDates} selectedDates={bitacoraDates} onChange={setBitacoraDates} />
+                  <button onClick={() => { setBitacoraDates([getTodayString()]); setTextFilters({}); setColumnFilters({}); }} className="px-3 py-2 bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 dark:bg-[#bc955c]/10 dark:text-[#bc955c] dark:hover:bg-[#bc955c]/20 text-[10px] font-black uppercase tracking-wider rounded-xl transition-colors">
+                    Movimientos de hoy
+                  </button>
                 </div>
               ) : (
                 <div className="relative flex-1 sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:ring-2 focus-within:ring-[#621f32]/10 rounded-2xl transition-all shadow-sm">

@@ -52,6 +52,47 @@ const getConditionLabel = (cond) => {
   }
 };
 
+const CONDITION_SHORTHANDS = {
+  contains: "*",
+  not_contains: "!*",
+  starts_with: "^",
+  not_starts_with: "!^",
+  ends_with: "$",
+  not_ends_with: "!$",
+  equals: "=",
+  not_equals: "!="
+};
+
+const CONDITION_OPTIONS = [
+  { key: "contains", label: "Contiene (*)" },
+  { key: "not_contains", label: "No contiene (!*)" },
+  { key: "starts_with", label: "Comienza con (^)" },
+  { key: "not_starts_with", label: "No comienza con (!^)" },
+  { key: "ends_with", label: "Termina con ($)" },
+  { key: "not_ends_with", label: "No termina con (!$)" },
+  { key: "equals", label: "Es igual a (=)" },
+  { key: "not_equals", label: "Diferente de (!=)" }
+];
+
+const normalizeForSearch = (val) => val ? String(val).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+
+const matchesTextCondition = (value, condition, needle) => {
+  if (!needle) return true;
+  const v = normalizeForSearch(value);
+  const n = normalizeForSearch(needle);
+  switch (condition) {
+    case "not_contains": return !v.includes(n);
+    case "starts_with": return v.startsWith(n);
+    case "not_starts_with": return !v.startsWith(n);
+    case "ends_with": return v.endsWith(n);
+    case "not_ends_with": return !v.endsWith(n);
+    case "equals": return v === n;
+    case "not_equals": return v !== n;
+    case "contains":
+    default: return v.includes(n);
+  }
+};
+
 export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHistorico = [], isPending, startTransition, cardRef }) {
   const [mounted, setMounted] = useState(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
@@ -185,6 +226,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
+  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
+  const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
+  const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
   const [columnSearchText, setColumnSearchText] = useState("");
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
@@ -387,7 +431,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       setActiveFilterDropdown(colKey);
       setFilterDropdownTab('todos');
       setFilterSearchText("");
-      setTempSelectedValues(columnFilters[colKey] || uniqueColumnValues[colKey].map(v => v.value));
+      setTempSelectedValues(columnFilters[colKey] || (uniqueColumnValues[colKey] || []).map(v => v.value));
     }
   };
 
@@ -558,6 +602,33 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     }
     return result;
   }, [bajasData, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFilterSearchText(filterSearchText);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [filterSearchText]);
+
+  const filterDropdownValues = useMemo(() => {
+    if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
+
+    let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+    if (filterDropdownTab === 'actuales') {
+      const counts = {};
+      filteredSortedData.forEach(row => {
+        const val = String(row[activeFilterDropdown] || "").trim();
+        counts[val] = (counts[val] || 0) + 1;
+      });
+      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
+    }
+
+    const allVals = baseUniqueValues.map(v => v.value);
+    const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
+    const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
+
+    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
+  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
 
   useEffect(() => {
     let active = true;
@@ -1042,7 +1113,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                     <th className="sticky left-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 border-r border-[#621f32]/35">
                       <button 
                         onClick={() => setTextFilters({})}
-                        disabled={!mounted || (Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value))}
+                        disabled={Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value)}
                         title="Limpiar filtros de columna"
                         className="size-full flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-0 cursor-pointer"
                       >
@@ -1353,9 +1424,37 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                     <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
                   </div>
                 )}
-                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
-                  <Search className="size-3 text-slate-400 mr-2" />
+                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm gap-2">
+                  {!isDateColumn(activeFilterDropdown) && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(o => !o); }}
+                      title={`Condición: ${getConditionLabel(filterSearchCondition)}`}
+                      className="shrink-0 size-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 text-[9px] font-black cursor-pointer select-none transition-colors"
+                    >
+                      {CONDITION_SHORTHANDS[filterSearchCondition] || "*"}
+                    </button>
+                  )}
+                  <Search className="size-3 text-slate-400" />
                   <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
+                  {isFilterSearchConditionOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40 bg-transparent" onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(false); }} />
+                      <div className="absolute top-full left-0 mt-1 z-50 w-40 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200">
+                        {CONDITION_OPTIONS.map(item => (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setFilterSearchCondition(item.key); setIsFilterSearchConditionOpen(false); }}
+                            className={`px-2 py-1 text-[9px] font-bold rounded-lg text-left transition-colors cursor-pointer w-full flex items-center justify-between ${filterSearchCondition === item.key ? "bg-[#bc955c] text-slate-950" : "hover:bg-white/10"}`}
+                          >
+                            <span>{item.label}</span>
+                            {filterSearchCondition === item.key && <Check className="size-2.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-white dark:bg-slate-900">
@@ -1448,27 +1547,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                 ) : (
                   <div className="flex flex-col gap-0.5">
                     {(() => {
-                      let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
-                      if (filterDropdownTab === 'actuales') {
-                        const counts = {};
-                        filteredSortedData.forEach(row => {
-                          const val = activeFilterDropdown === "estado_psn" ? String(row[activeFilterDropdown] || "").trim() : String(row[activeFilterDropdown] || "").trim();
-                          counts[val] = (counts[val] || 0) + 1;
-                        });
-                        baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
-                      }
-                      
-                      const allVals = baseUniqueValues.map(v => v.value);
-                      const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
-
+                      const { allVals, isAllSelected, sliced, filteredCount } = filterDropdownValues;
                       const tempSelectedSet = new Set(tempSelectedValues);
-                      const searchNormalized = filterSearchText ? String(filterSearchText).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                      const filtered = baseUniqueValues.filter(v => {
-                        const valNormalized = v.value ? String(v.value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                        return valNormalized.includes(searchNormalized);
-                      });
-                      const sliced = filtered.slice(0, 100);
-                      
+
                       return (
                         <>
                           <button onClick={() => {
@@ -1493,9 +1574,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                               </div>
                             </button>
                           ))}
-                          {filtered.length > 100 && (
+                          {filteredCount > 100 && (
                             <div className="text-center py-3 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
-                              Mostrando 100 de {filtered.length} resultados. Usa el buscador.
+                              Mostrando 100 de {filteredCount} resultados. Usa el buscador.
                             </div>
                           )}
                         </>

@@ -72,6 +72,47 @@ const getConditionLabel = (cond) => {
   }
 };
 
+const CONDITION_SHORTHANDS = {
+  contains: "*",
+  not_contains: "!*",
+  starts_with: "^",
+  not_starts_with: "!^",
+  ends_with: "$",
+  not_ends_with: "!$",
+  equals: "=",
+  not_equals: "!="
+};
+
+const CONDITION_OPTIONS = [
+  { key: "contains", label: "Contiene (*)" },
+  { key: "not_contains", label: "No contiene (!*)" },
+  { key: "starts_with", label: "Comienza con (^)" },
+  { key: "not_starts_with", label: "No comienza con (!^)" },
+  { key: "ends_with", label: "Termina con ($)" },
+  { key: "not_ends_with", label: "No termina con (!$)" },
+  { key: "equals", label: "Es igual a (=)" },
+  { key: "not_equals", label: "Diferente de (!=)" }
+];
+
+const normalizeForSearch = (val) => val ? String(val).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+
+const matchesTextCondition = (value, condition, needle) => {
+  if (!needle) return true;
+  const v = normalizeForSearch(value);
+  const n = normalizeForSearch(needle);
+  switch (condition) {
+    case "not_contains": return !v.includes(n);
+    case "starts_with": return v.startsWith(n);
+    case "not_starts_with": return !v.startsWith(n);
+    case "ends_with": return v.endsWith(n);
+    case "not_ends_with": return !v.endsWith(n);
+    case "equals": return v === n;
+    case "not_equals": return v !== n;
+    case "contains":
+    default: return v.includes(n);
+  }
+};
+
 export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPending, startTransition, cardRef, isLoading }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -155,6 +196,9 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
+  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
+  const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
+  const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
   const [columnSearchText, setColumnSearchText] = useState("");
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
@@ -516,6 +560,62 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     return result;
   }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFilterSearchText(filterSearchText);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [filterSearchText]);
+
+  const filterDropdownValues = useMemo(() => {
+    if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
+
+    let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+    if (filterDropdownTab === 'actuales') {
+      const counts = {};
+      detalle.forEach(row => {
+        if (deferredGlobalSearch) {
+          const searchText = deferredGlobalSearch.toLowerCase();
+          if (!Object.entries(row).some(([key, val]) => (key === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(val) : String(val || "")).toLowerCase().includes(searchText))) return;
+        }
+        for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
+          if (colKey === activeFilterDropdown) continue;
+          if (!selectedVals.includes(colKey === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim())) return;
+        }
+        for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
+          if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
+          const searchText = filterObj.value;
+          const condition = filterObj.condition || ((typeof isMonoColumn !== 'undefined' && isMonoColumn(colKey)) ? "starts_with" : "contains");
+          const valStr = colKey === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "");
+          const lowerVal = valStr.toLowerCase().trim();
+          const lowerSearch = searchText.toLowerCase().trim();
+          let pass = false;
+          switch (condition) {
+            case "contains": pass = lowerVal.includes(lowerSearch); break;
+            case "not_contains": pass = !lowerVal.includes(lowerSearch); break;
+            case "starts_with": pass = lowerVal.startsWith(lowerSearch); break;
+            case "not_starts_with": pass = !lowerVal.startsWith(lowerSearch); break;
+            case "ends_with": pass = lowerVal.endsWith(lowerSearch); break;
+            case "not_ends_with": pass = !lowerVal.endsWith(lowerSearch); break;
+            case "equals": pass = lowerVal === lowerSearch; break;
+            case "not_equals": pass = lowerVal !== lowerSearch; break;
+            default: pass = lowerVal.includes(lowerSearch); break;
+          }
+          if (!pass) return;
+        }
+        const val = activeFilterDropdown === "estado_nomina" ? mapEstadoNomina(row[activeFilterDropdown]) : String(row[activeFilterDropdown] || "").trim();
+        counts[val] = (counts[val] || 0) + 1;
+      });
+      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
+    }
+
+    const allVals = baseUniqueValues.map(v => v.value);
+    const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
+    const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
+
+    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
+  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
+
   const rowHeight = 37, containerHeight = 1200;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
   const endIndex = Math.min(filteredSortedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + 15);
@@ -698,7 +798,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       const getCoords = (p) => { const angle = 2 * Math.PI * p - Math.PI / 2; return [Math.cos(angle), Math.sin(angle)]; };
       const [startX, startY] = getCoords(startPercent), [endX, endY] = getCoords(endPercent);
       const largeArc = percent > 0.5 ? 1 : 0;
-      return { ...slice, percent, pathData: `M ${startX} ${startY} A 1 1 0 ${largeArc} 1 ${endX} ${endY} L 0 0 Z` };
+      return { ...slice, percent, pathData: `M ${startX.toFixed(8)} ${startY.toFixed(8)} A 1 1 0 ${largeArc} 1 ${endX.toFixed(8)} ${endY.toFixed(8)} L 0 0 Z` };
     });
   }, [resumen]);
 
@@ -860,7 +960,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                   <th className="sticky left-0 z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35">
                     <button 
                       onClick={() => setTextFilters({})}
-                      disabled={!mounted || (Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value))}
+                      disabled={Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value)}
                       title="Limpiar filtros de columna"
                       className="size-full flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-0 cursor-pointer"
                     >
@@ -1314,9 +1414,37 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                     <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
                   </div>
                 )}
-                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
-                  <Search className="size-3 text-slate-400 mr-2" />
+                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm gap-2">
+                  {!isDateColumn(activeFilterDropdown) && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(o => !o); }}
+                      title={`Condición: ${getConditionLabel(filterSearchCondition)}`}
+                      className="shrink-0 size-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 text-[9px] font-black cursor-pointer select-none transition-colors"
+                    >
+                      {CONDITION_SHORTHANDS[filterSearchCondition] || "*"}
+                    </button>
+                  )}
+                  <Search className="size-3 text-slate-400" />
                   <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
+                  {isFilterSearchConditionOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40 bg-transparent" onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(false); }} />
+                      <div className="absolute top-full left-0 mt-1 z-50 w-40 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200">
+                        {CONDITION_OPTIONS.map(item => (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setFilterSearchCondition(item.key); setIsFilterSearchConditionOpen(false); }}
+                            className={`px-2 py-1 text-[9px] font-bold rounded-lg text-left transition-colors cursor-pointer w-full flex items-center justify-between ${filterSearchCondition === item.key ? "bg-[#bc955c] text-slate-950" : "hover:bg-white/10"}`}
+                          >
+                            <span>{item.label}</span>
+                            {filterSearchCondition === item.key && <Check className="size-2.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-white dark:bg-slate-900">
@@ -1409,27 +1537,9 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                 ) : (
                   <div className="flex flex-col gap-0.5">
                     {(() => {
-                      let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
-                      if (filterDropdownTab === 'actuales') {
-                        const counts = {};
-                        filteredSortedData.forEach(row => {
-                          const val = activeFilterDropdown === "estado_nomina" ? mapEstadoNomina(row[activeFilterDropdown]) : String(row[activeFilterDropdown] || "").trim();
-                          counts[val] = (counts[val] || 0) + 1;
-                        });
-                        baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
-                      }
-                      
-                      const allVals = baseUniqueValues.map(v => v.value);
-                      const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
-
+                      const { allVals, isAllSelected, sliced, filteredCount } = filterDropdownValues;
                       const tempSelectedSet = new Set(tempSelectedValues);
-                      const searchNormalized = filterSearchText ? String(filterSearchText).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                      const filtered = baseUniqueValues.filter(v => {
-                        const valNormalized = v.value ? String(v.value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                        return valNormalized.includes(searchNormalized);
-                      });
-                      const sliced = filtered.slice(0, 100);
-                      
+
                       return (
                         <>
                           <button onClick={() => {
@@ -1454,9 +1564,9 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                               </div>
                             </button>
                           ))}
-                          {filtered.length > 100 && (
+                          {filteredCount > 100 && (
                             <div className="text-center py-3 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
-                              Mostrando 100 de {filtered.length} resultados. Usa el buscador.
+                              Mostrando 100 de {filteredCount} resultados. Usa el buscador.
                             </div>
                           )}
                         </>

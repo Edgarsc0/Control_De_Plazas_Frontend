@@ -12,7 +12,9 @@ export default async function PlantillaEmpleadosPage() {
         responseMovPos,
         responseBajas,
         responseMotivos,
-        responseHistorico
+        responseHistorico,
+        responseCuadros,
+        responseDesglose
     ] = await Promise.all([
         VacantesService.getEmpleadosCompletosEstatusResumen(),
         VacantesService.getEmpleadosCompletosActivosDetalle(),
@@ -39,11 +41,34 @@ export default async function PlantillaEmpleadosPage() {
         VacantesService.getBajasHistorico().catch(err => {
             console.error("Error fetching bajas historico:", err);
             return null;
+        }),
+        VacantesService.getCuadroVacancia().catch(err => {
+            console.error("Error fetching cuadro vacancia:", err);
+            return null;
+        }),
+        VacantesService.getDesgloseJerarquico().catch(err => {
+            console.error("Error fetching desglose jerarquico:", err);
+            return null;
         })
     ]);
 
-    const resumen = await responseResumen.json();
-    const detalle = await responseDetalle.json();
+    let resumen = null;
+    if (responseResumen && responseResumen.ok) {
+        try {
+            resumen = await responseResumen.json();
+        } catch (e) {
+            console.error("Error parsing resumen JSON:", e);
+        }
+    }
+
+    let detalle = [];
+    if (responseDetalle && responseDetalle.ok) {
+        try {
+            detalle = await responseDetalle.json();
+        } catch (e) {
+            console.error("Error parsing detalle JSON:", e);
+        }
+    }
     
     let estatusPorNivelUa = { por_nivel: {}, por_ua: {} };
     if (responseEstatus && responseEstatus.ok) {
@@ -99,6 +124,24 @@ export default async function PlantillaEmpleadosPage() {
         }
     }
 
+    let cuadrosData = [];
+    if (responseCuadros && responseCuadros.ok) {
+        try {
+            cuadrosData = await responseCuadros.json();
+        } catch (e) {
+            console.error("Error parsing cuadros JSON:", e);
+        }
+    }
+
+    let desgloseJerarquicoData = [];
+    if (responseDesglose && responseDesglose.ok) {
+        try {
+            desgloseJerarquicoData = await responseDesglose.json();
+        } catch (e) {
+            console.error("Error parsing desglose jerarquico JSON:", e);
+        }
+    }
+
     return (
         <PlantillaEmpleadosDetalle 
             resumen={resumen} 
@@ -109,6 +152,8 @@ export default async function PlantillaEmpleadosPage() {
             bajasData={bajasData}
             bajasMotivos={bajasMotivos}
             bajasHistorico={bajasHistorico}
+            cuadrosData={cuadrosData}
+            desgloseJerarquicoData={desgloseJerarquicoData}
         />
     );
 }

@@ -89,8 +89,8 @@ function DonutChart({ data, maskId, onSliceClick }) {
       pathData = "M 0 -1 A 1 1 0 1 1 -0.0001 -1 Z";
     } else {
       pathData = [
-        `M ${startX} ${startY}`,
-        `A 1 1 0 ${largeArc} 1 ${endX} ${endY}`,
+        `M ${startX.toFixed(8)} ${startY.toFixed(8)}`,
+        `A 1 1 0 ${largeArc} 1 ${endX.toFixed(8)} ${endY.toFixed(8)}`,
         `L 0 0`,
         `Z`,
       ].join(" ");

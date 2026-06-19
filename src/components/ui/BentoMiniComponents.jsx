@@ -192,8 +192,8 @@ export function PieChart({ data, size = 80 }) {
                         const largeArcFlag = slice.percent > 0.5 ? 1 : 0;
 
                         const pathData = [
-                            `M ${startX} ${startY}`,
-                            `A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY}`,
+                            `M ${startX.toFixed(8)} ${startY.toFixed(8)}`,
+                            `A 1 1 0 ${largeArcFlag} 1 ${endX.toFixed(8)} ${endY.toFixed(8)}`,
                             'L 0 0',
                         ].join(' ');
 

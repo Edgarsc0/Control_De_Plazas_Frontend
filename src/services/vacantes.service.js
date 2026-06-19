@@ -69,8 +69,27 @@ export const VacantesService = {
             ...options
         });
     },
-    getMovPosDetalle: (options = {}) => {
-        return apiFetch('/plantilla/mov_pos_detalle/', {
+    getMovPosDetalle: (query = {}, options = {}) => {
+        const queryParams = new URLSearchParams();
+        Object.entries(query).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                queryParams.append(key, val);
+            }
+        });
+        const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        return apiFetch(`/plantilla/mov_pos_detalle/${queryStr}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+    getCuadroVacancia: (options = {}) => {
+        return apiFetch('/plantilla/cuadro_vacancia/', {
+            method: 'GET',
+            ...options
+        });
+    },
+    getDesgloseJerarquico: (options = {}) => {
+        return apiFetch('/plantilla/desglose_jerarquico/', {
             method: 'GET',
             ...options
         });

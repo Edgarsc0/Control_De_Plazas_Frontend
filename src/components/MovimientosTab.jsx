@@ -3,15 +3,18 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
 import { 
-  Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
-  ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
-  X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye
+  Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
+  ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight,
+  X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
+  SlidersHorizontal, Plus, Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import HistoryDataTable from "@/components/ui/HistoryDataTable";
 import { EmployeeRecordModal } from "./EmployeesModal";
+
+const advValueDistinctCache = new Map();
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -49,35 +52,269 @@ const getConditionLabel = (cond) => {
   }
 };
 
-export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef }) {
-  const movPosData = useMemo(() => {
-    const mapEstadoNomina = (val) => {
-      if (!val || val.trim() === "") return "Vacante";
-      switch (val.trim().toUpperCase()) {
-        case "A": return "Activo";
-        case "S": return "Suspendido";
-        case "L": return "Licencia";
-        case "P": return "Licencia Médica";
-        default: return "Vacante";
-      }
-    };
-    
-    const ocupadasSet = new Set();
-    detalle.forEach(emp => {
-      if (emp.posicion && mapEstadoNomina(emp.estado_nomina) !== "Vacante") {
-        ocupadasSet.add(String(emp.posicion));
-      }
-    });
+const CONDITION_SHORTHANDS = {
+  contains: "*",
+  not_contains: "!*",
+  starts_with: "^",
+  not_starts_with: "!^",
+  ends_with: "$",
+  not_ends_with: "!$",
+  equals: "=",
+  not_equals: "!="
+};
 
-    return initialMovPosData.map(pos => {
-      const isOcupada = ocupadasSet.has(String(pos.no_pos_actual));
-      return {
-        ...pos,
-        ocupacion: isOcupada ? "Ocupada" : "Vacante",
-        fecha_vacancia: isOcupada ? "" : pos.fecha_vacancia
-      };
-    });
-  }, [initialMovPosData, detalle]);
+const CONDITION_OPTIONS = [
+  { key: "contains", label: "Contiene (*)" },
+  { key: "not_contains", label: "No contiene (!*)" },
+  { key: "starts_with", label: "Comienza con (^)" },
+  { key: "not_starts_with", label: "No comienza con (!^)" },
+  { key: "ends_with", label: "Termina con ($)" },
+  { key: "not_ends_with", label: "No termina con (!$)" },
+  { key: "equals", label: "Es igual a (=)" },
+  { key: "not_equals", label: "Diferente de (!=)" }
+];
+
+const ADV_DATE_CONDITIONS = [
+  { key: "before", label: "Es antes de" },
+  { key: "after", label: "Es después de" },
+  { key: "equals", label: "Es igual a" },
+  { key: "not_equals", label: "No es igual a" }
+];
+
+const ADV_COMPARE_TYPE_OPTIONS = [
+  { key: "valor", label: "Valor" },
+  { key: "campo", label: "Campo" }
+];
+
+const ADV_LOGIC_OPTIONS = [
+  { key: "AND", label: "Y (AND)" },
+  { key: "OR", label: "O (OR)" }
+];
+
+const normalizeForSearch = (val) => val ? String(val).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() : "";
+
+const matchesTextCondition = (value, condition, needle) => {
+  if (!needle) return true;
+  const v = normalizeForSearch(value);
+  const n = normalizeForSearch(needle);
+  switch (condition) {
+    case "not_contains": return !v.includes(n);
+    case "starts_with": return v.startsWith(n);
+    case "not_starts_with": return !v.startsWith(n);
+    case "ends_with": return v.endsWith(n);
+    case "not_ends_with": return !v.endsWith(n);
+    case "equals": return v === n;
+    case "not_equals": return v !== n;
+    case "contains":
+    default: return v.includes(n);
+  }
+};
+
+// Server-side distinct_search only supports icontains; only safe to forward
+// for "positive" conditions (a match always implies icontains too).
+const isServerSafeSearchCondition = (condition) => ["contains", "starts_with", "ends_with", "equals"].includes(condition);
+
+function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar...", searchable = false }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [panelRect, setPanelRect] = useState(null);
+  const triggerRef = useRef(null);
+
+  const selected = options.find(o => o.key === value);
+  const filteredOptions = searchable && search
+    ? options.filter(o => normalizeForSearch(o.label).includes(normalizeForSearch(search)))
+    : options;
+
+  const openPanel = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setPanelRect({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 220) });
+    }
+    setIsOpen(true);
+  };
+
+  return (
+    <div className="relative w-full">
+      <button
+        type="button"
+        ref={triggerRef}
+        onClick={(e) => { e.stopPropagation(); isOpen ? setIsOpen(false) : openPanel(); }}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 transition-colors cursor-pointer"
+      >
+        <span className={`truncate ${!selected ? "text-slate-400 font-semibold" : ""}`}>{selected ? selected.label : placeholder}</span>
+        <ChevronDown className={`size-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      {isOpen && panelRect && typeof document !== "undefined" && createPortal(
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearch(""); }} />
+          <div
+            style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
+            className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+          >
+            {searchable && (
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5">
+                  <Search className="size-3 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Buscar columna..."
+                    className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="max-h-56 overflow-y-auto custom-scrollbar p-1">
+              {filteredOptions.length === 0 && (
+                <div className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase">Sin resultados</div>
+              )}
+              {filteredOptions.map(opt => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onChange(opt.key); setIsOpen(false); setSearch(""); }}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${value === opt.key ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {value === opt.key && <Check className="size-3 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function toDateInputValue(val) {
+  if (!val || String(val).trim() === "") return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function AdvValueAutocomplete({ column, value, onChange, isDate }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [panelRect, setPanelRect] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const allValuesRef = useRef([]);
+
+  useEffect(() => {
+    allValuesRef.current = [];
+    setSuggestions([]);
+    if (!column) return;
+
+    const cached = advValueDistinctCache.get(column);
+    if (cached) {
+      allValuesRef.current = cached;
+      return;
+    }
+
+    setLoading(true);
+    VacantesService.getMovPosDetalle({ distinct_field: column, distinct_search: "", is_latest: "false" })
+      .then(res => res.json())
+      .then(resData => {
+        const list = Array.isArray(resData) ? resData : [];
+        advValueDistinctCache.set(column, list);
+        allValuesRef.current = list;
+      })
+      .catch(err => console.error("Error loading value suggestions:", err))
+      .finally(() => setLoading(false));
+  }, [column]);
+
+  const refreshSuggestions = (text) => {
+    const list = allValuesRef.current;
+    const next = text ? list.filter(v => matchesTextCondition(v.value, "contains", text)) : list;
+    setSuggestions(next.slice(0, 8));
+  };
+
+  const openPanel = () => {
+    const rect = inputRef.current?.getBoundingClientRect();
+    if (rect) setPanelRect({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    refreshSuggestions(value);
+    setIsOpen(true);
+  };
+
+  if (isDate) {
+    return (
+      <input
+        type="date"
+        value={toDateInputValue(value)}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!column}
+        className="w-full px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      />
+    );
+  }
+
+  return (
+    <div className="relative w-full">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); refreshSuggestions(e.target.value); setIsOpen(true); }}
+        onFocus={openPanel}
+        onKeyDown={(e) => {
+          if (e.key === "Tab" && isOpen && suggestions.length > 0) {
+            e.preventDefault();
+            onChange(suggestions[0].value);
+            setIsOpen(false);
+          } else if (e.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
+        disabled={!column}
+        placeholder={column ? "Escribe el valor..." : "Selecciona una columna primero..."}
+        className="w-full px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      />
+      {isOpen && panelRect && column && typeof document !== "undefined" && createPortal(
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={() => setIsOpen(false)} />
+          <div
+            style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
+            className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar p-1"
+          >
+            {loading && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Cargando...</div>}
+            {!loading && suggestions.length === 0 && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Sin sugerencias</div>}
+            {!loading && suggestions.map(s => (
+              <button
+                key={s.value}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onChange(s.value); setIsOpen(false); }}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+              >
+                <span className="truncate">{s.value || "(Vacío)"}</span>
+                <span className="text-[9px] text-slate-400 shrink-0">{s.count}</span>
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef }) {
+  const [movPosData, setMovPosData] = useState(() => {
+    let rawList = [];
+    if (initialMovPosData) {
+      if (Array.isArray(initialMovPosData.results)) rawList = initialMovPosData.results;
+      else if (Array.isArray(initialMovPosData)) rawList = initialMovPosData;
+    }
+    return rawList.filter(row => row.estado_psn === "A" || row.estado_psn === "Activo" || row.estado_psn === "A ");
+  });
 
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -127,7 +364,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [columnFilters, setColumnFilters] = useState({ estado_psn: ["A"] });
+  const [columnFilters, setColumnFilters] = useState({ estado_psn: ["A"], is_latest: ["true"] });
   const [textFilters, setTextFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
@@ -141,6 +378,284 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
+  const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
+  const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
+
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const advConditionIdRef = useRef(1);
+  const [advancedConditions, setAdvancedConditions] = useState(() => [
+    { id: 0, column: null, condition: "contains", compareType: "valor", compareColumn: null, value: "", logic: "AND" }
+  ]);
+
+  const addAdvancedCondition = () => {
+    setAdvancedConditions(prev => [...prev, {
+      id: advConditionIdRef.current++,
+      column: null,
+      condition: "contains",
+      compareType: "valor",
+      compareColumn: null,
+      value: "",
+      logic: "AND"
+    }]);
+  };
+
+  const removeAdvancedCondition = (id) => {
+    setAdvancedConditions(prev => prev.filter(c => c.id !== id));
+  };
+
+  const updateAdvancedCondition = (id, patch) => {
+    setAdvancedConditions(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const next = { ...c, ...patch };
+      if (patch.column !== undefined && patch.column !== c.column) {
+        next.condition = isDateColumn(patch.column) ? "before" : "contains";
+      }
+      return next;
+    }));
+  };
+
+  const [appliedAdvancedFilters, setAppliedAdvancedFilters] = useState([]);
+
+  const applyAdvancedFilters = () => {
+    const valid = advancedConditions.filter(c => {
+      if (!c.column) return false;
+      if (c.compareType === "campo") return !!c.compareColumn;
+      return c.value != null && String(c.value).trim() !== "";
+    }).map(({ column, condition, compareType, compareColumn, value, logic }) => ({ column, condition, compareType, compareColumn, value, logic }));
+
+    setLoading(true);
+    setPage(1);
+    setAppliedAdvancedFilters(valid);
+    setIsAdvancedFiltersOpen(false);
+  };
+
+  const [count, setCount] = useState(() => {
+    let rawList = [];
+    if (initialMovPosData) {
+      if (Array.isArray(initialMovPosData.results)) rawList = initialMovPosData.results;
+      else if (Array.isArray(initialMovPosData)) rawList = initialMovPosData;
+    }
+    const filtered = rawList.filter(row => row.estado_psn === "A" || row.estado_psn === "Activo" || row.estado_psn === "A ");
+    return filtered.length || 0;
+  });
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [stats, setStats] = useState(() => {
+    if (initialMovPosData && initialMovPosData.stats) return initialMovPosData.stats;
+    return {
+      total_movimientos: 0,
+      todas_posiciones: 0,
+      posiciones_activas: 0,
+      posiciones_inactivas: 0
+    };
+  });
+
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setLoading(true);
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 450);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setLoading(true);
+      setDebouncedTextFilters(textFilters);
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [textFilters]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [columnFilters]);
+
+  const [uniqueColumnValues, setUniqueColumnValues] = useState({});
+  const [loadingUniqueValues, setLoadingUniqueValues] = useState(false);
+  const [hasInitializedTemp, setHasInitializedTemp] = useState(false);
+  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFilterSearchText(filterSearchText);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [filterSearchText]);
+
+  const uniqueValuesCacheRef = useRef({});
+  const movPosDataCacheRef = useRef({});
+
+  const hasFetched = useRef(false);
+
+  useEffect(() => {
+    const isDefaultState = 
+      debouncedSearch === "" &&
+      Object.keys(debouncedTextFilters).length === 0 &&
+      columnFilters.estado_psn?.length === 1 && columnFilters.estado_psn[0] === "A" &&
+      columnFilters.is_latest?.length === 1 && columnFilters.is_latest[0] === "true" &&
+      Object.keys(columnFilters).length === 2 &&
+      sortConfig.key === null &&
+      page === 1 &&
+      pageSize === 50 &&
+      appliedAdvancedFilters.length === 0;
+
+    const hasInitialData = initialMovPosData && (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData));
+
+    if (!hasFetched.current && isDefaultState && hasInitialData) {
+      setLoading(false);
+      return;
+    }
+
+    hasFetched.current = true;
+    setLoading(true);
+
+    const filterParams = {};
+    Object.entries(debouncedTextFilters).forEach(([colKey, filterObj]) => {
+      if (filterObj && filterObj.value && filterObj.value.trim()) {
+        const cond = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
+        let suffix = "";
+        if (cond === "contains") suffix = "__icontains";
+        else if (cond === "not_contains") {
+          filterParams[`exclude__${colKey}__icontains`] = filterObj.value.trim();
+          return;
+        }
+        else if (cond === "starts_with") suffix = "__istartswith";
+        else if (cond === "not_starts_with") {
+          filterParams[`exclude__${colKey}__istartswith`] = filterObj.value.trim();
+          return;
+        }
+        else if (cond === "ends_with") suffix = "__iendswith";
+        else if (cond === "not_ends_with") {
+          filterParams[`exclude__${colKey}__iendswith`] = filterObj.value.trim();
+          return;
+        }
+        else if (cond === "equals") suffix = "__iexact";
+        else if (cond === "not_equals") {
+          filterParams[`exclude__${colKey}__iexact`] = filterObj.value.trim();
+          return;
+        }
+        
+        filterParams[`${colKey}${suffix}`] = filterObj.value.trim();
+      }
+    });
+
+    const colParams = {};
+    Object.entries(columnFilters).forEach(([key, values]) => {
+      if (key === "is_latest") return;
+      if (values && values.length > 0) {
+        colParams[`${key}__in`] = values.join(",");
+      }
+    });
+
+    const isLatestVal = columnFilters.is_latest?.includes("true") ? "true" : "false";
+
+    const params = {
+      page,
+      page_size: pageSize,
+      search: debouncedSearch,
+      is_latest: isLatestVal,
+      ...filterParams,
+      ...colParams
+    };
+
+    if (sortConfig.key) {
+      if (sortConfig.key === "custom_movimientos") {
+        params.sort_by = "f_efva,fecha_captura,no_pos_actual";
+        params.sort_order = "desc";
+      } else {
+        params.sort_by = sortConfig.key;
+        params.sort_order = sortConfig.direction || "asc";
+      }
+    }
+
+    if (appliedAdvancedFilters.length > 0) {
+      params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+    }
+
+    const signature = JSON.stringify(params);
+    const cached = movPosDataCacheRef.current[signature];
+    if (cached) {
+      setMovPosData(cached.results || []);
+      setCount(cached.count || 0);
+      if (cached.stats) setStats(cached.stats);
+      setLoading(false);
+      return;
+    }
+
+    VacantesService.getMovPosDetalle(params)
+      .then(res => res.json())
+      .then(resData => {
+        movPosDataCacheRef.current[signature] = resData;
+        setMovPosData(resData.results || []);
+        setCount(resData.count || 0);
+        if (resData.stats) {
+          setStats(resData.stats);
+        }
+      })
+      .catch(err => console.error("Error loading MovPosDetalle:", err))
+      .finally(() => setLoading(false));
+  }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters]);
+
+  useEffect(() => {
+    if (!activeFilterDropdown) return;
+    // "Vista actual" is computed entirely client-side from filteredSortedData
+    // (see render below) — no need to hit the backend while that tab is active,
+    // it was firing a request on every keystroke in the search box for nothing.
+    if (filterDropdownTab === 'actuales' && !DATE_KEYS_MOV.includes(activeFilterDropdown)) return;
+
+    // "Todos los datos" = distinct values over the WHOLE table, with no filters
+    // applied at all (not even is_latest/search/other column filters). The
+    // already-filtered view lives in the "Vista actual" tab, computed
+    // client-side from filteredSortedData.
+    const isDateCol = DATE_KEYS_MOV.includes(activeFilterDropdown);
+    const params = {
+      distinct_field: activeFilterDropdown,
+      distinct_search: (isDateCol || isServerSafeSearchCondition(filterSearchCondition)) ? debouncedFilterSearchText : "",
+      is_latest: "false"
+    };
+
+    const signature = JSON.stringify(params);
+    const initTempSelected = (valuesList) => {
+      setHasInitializedTemp(prevInit => {
+        if (!prevInit) {
+          if (columnFilters[activeFilterDropdown]) {
+            setTempSelectedValues(columnFilters[activeFilterDropdown]);
+          } else {
+            setTempSelectedValues(valuesList.map(v => v.value));
+          }
+          return true;
+        }
+        return prevInit;
+      });
+    };
+
+    const cached = uniqueValuesCacheRef.current[activeFilterDropdown];
+    if (cached && cached.signature === signature) {
+      // Same column, same effective filters/search as last fetch: reuse cached values.
+      setUniqueColumnValues(prev => (prev[activeFilterDropdown] === cached.values ? prev : { ...prev, [activeFilterDropdown]: cached.values }));
+      initTempSelected(cached.values);
+      setLoadingUniqueValues(false);
+      return;
+    }
+
+    setLoadingUniqueValues(true);
+    VacantesService.getMovPosDetalle(params)
+      .then(res => res.json())
+      .then(resData => {
+        const valuesList = Array.isArray(resData) ? resData : [];
+        uniqueValuesCacheRef.current[activeFilterDropdown] = { signature, values: valuesList };
+        setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
+        initTempSelected(valuesList);
+      })
+      .catch(err => console.error("Error loading unique values:", err))
+      .finally(() => setLoadingUniqueValues(false));
+  }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, filterSearchCondition]);
   const [columnSearchText, setColumnSearchText] = useState("");
   const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
@@ -231,8 +746,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     };
   }, [MONTH_NAMES]);
 
-  const posicionesActivas = useMemo(() => movPosData.filter(pos => pos.estado_psn === "A").length, [movPosData]);
-  const posicionesInactivas = useMemo(() => movPosData.filter(pos => pos.estado_psn === "I").length, [movPosData]);
+
 
   const getColumnLetter = useCallback((index) => {
     let temp = index, letter = "";
@@ -259,41 +773,28 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
     targetKeys.forEach(key => {
       const years = {};
-      movPosData.forEach(row => {
-        const val = row[key];
+      const valuesList = uniqueColumnValues[key] || [];
+      valuesList.forEach(item => {
+        const val = item.value;
+        const count = item.count;
         const parts = parseDateParts(val);
         if (!parts) return;
         const { year, month, day, monthName } = parts;
         if (!years[year]) years[year] = { count: 0, months: {} };
-        years[year].count++;
+        years[year].count += count;
         if (!years[year].months[month]) years[year].months[month] = { count: 0, name: monthName, days: {} };
-        years[year].months[month].count++;
-        years[year].months[month].days[day] = (years[year].months[month].days[day] || 0) + 1;
+        years[year].months[month].count += count;
+        years[year].months[month].days[day] = (years[year].months[month].days[day] || 0) + count;
       });
       hierarchies[key] = years;
     });
     return hierarchies;
-  }, [movPosData, activeFilterDropdown, parseDateParts]);
+  }, [uniqueColumnValues, activeFilterDropdown, parseDateParts]);
 
-  const uniqueColumnValues = useMemo(() => {
-    const valuesMap = {};
-    const targetKeys = ["estado_psn"];
-    if (activeFilterDropdown && !targetKeys.includes(activeFilterDropdown)) {
-      targetKeys.push(activeFilterDropdown);
-    }
-
-    targetKeys.forEach(key => {
-      const counts = {};
-      movPosData.forEach(row => {
-        let val = String(row[key] || "").trim();
-        counts[val] = (counts[val] || 0) + 1;
-      });
-      valuesMap[key] = Object.entries(counts)
-        .map(([value, count]) => ({ value, count }))
-        .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
-    });
-    return valuesMap;
-  }, [movPosData, activeFilterDropdown]);
+  const allDateLeafValues = useMemo(() => {
+    if (!activeFilterDropdown || !isDateColumn(activeFilterDropdown)) return [];
+    return [...new Set((uniqueColumnValues[activeFilterDropdown] || []).map(item => String(item.value).trim()))];
+  }, [uniqueColumnValues, activeFilterDropdown, isDateColumn]);
 
   const handleDateSelection = (colKey, type, value, parentPath = "") => {
     const hierarchy = dateHierarchies[colKey];
@@ -301,28 +802,31 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
     let targetRawValues = [];
     if (type === 'year') {
-      targetRawValues = movPosData
-        .filter(row => {
-          const p = parseDateParts(row[colKey]);
+      const valuesList = uniqueColumnValues[colKey] || [];
+      targetRawValues = valuesList
+        .filter(item => {
+          const p = parseDateParts(item.value);
           return p && p.year === value;
         })
-        .map(row => String(row[colKey] || "").trim());
+        .map(item => String(item.value).trim());
     } else if (type === 'month') {
       const year = parentPath;
-      targetRawValues = movPosData
-        .filter(row => {
-          const p = parseDateParts(row[colKey]);
+      const valuesList = uniqueColumnValues[colKey] || [];
+      targetRawValues = valuesList
+        .filter(item => {
+          const p = parseDateParts(item.value);
           return p && p.year === year && p.month === value;
         })
-        .map(row => String(row[colKey] || "").trim());
+        .map(item => String(item.value).trim());
     } else if (type === 'day') {
       const [year, month] = parentPath.split('-');
-      targetRawValues = movPosData
-        .filter(row => {
-          const p = parseDateParts(row[colKey]);
+      const valuesList = uniqueColumnValues[colKey] || [];
+      targetRawValues = valuesList
+        .filter(item => {
+          const p = parseDateParts(item.value);
           return p && p.year === year && p.month === month && p.day === value;
         })
-        .map(row => String(row[colKey] || "").trim());
+        .map(item => String(item.value).trim());
     }
 
     const uniqueTargetValues = [...new Set(targetRawValues)];
@@ -340,24 +844,20 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   };
 
   const openFilterDropdown = (colKey) => {
-    if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
-    else {
+    if (activeFilterDropdown === colKey) {
+      setActiveFilterDropdown(null);
+      setHasInitializedTemp(false);
+    } else {
+      setHasInitializedTemp(false);
       setActiveFilterDropdown(colKey);
       setFilterDropdownTab('todos');
       setFilterSearchText("");
+      setFilterSearchCondition(isMonoColumn(colKey) ? "starts_with" : "contains");
+      setIsFilterSearchConditionOpen(false);
       if (columnFilters[colKey]) {
         setTempSelectedValues(columnFilters[colKey]);
       } else {
-        let uniqueVals = uniqueColumnValues[colKey]?.map(v => v.value);
-        if (!uniqueVals) {
-          const counts = {};
-          movPosData.forEach(row => {
-            let val = String(row[colKey] || "").trim();
-            counts[val] = true;
-          });
-          uniqueVals = Object.keys(counts).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-        }
-        setTempSelectedValues(uniqueVals);
+        setTempSelectedValues([]);
       }
     }
   };
@@ -365,7 +865,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const applyColumnFilter = (colKey) => {
     const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
     startTransition(() => {
-      if (tempSelectedValues.length === totalUnique.length) {
+      if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
         const newFilters = { ...columnFilters };
         delete newFilters[colKey];
         setColumnFilters(newFilters);
@@ -374,6 +874,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       }
     });
     setActiveFilterDropdown(null);
+    setHasInitializedTemp(false);
   };
 
   const clearColumnFilter = (colKey) => {
@@ -383,15 +884,19 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       setColumnFilters(newFilters);
     });
     setActiveFilterDropdown(null);
+    setHasInitializedTemp(false);
   };
 
   const resetAllFilters = () => {
     setSearchQuery("");
-    startTransition(() => { 
-      setColumnFilters({}); 
+    setLoading(true);
+    setAppliedAdvancedFilters([]);
+    setAdvancedConditions([{ id: 0, column: null, condition: "contains", compareType: "valor", compareColumn: null, value: "", logic: "AND" }]);
+    startTransition(() => {
+      setColumnFilters({});
       setTextFilters({});
-      setGlobalSearch(""); 
-      setSortConfig({ key: null, direction: null }); 
+      setGlobalSearch("");
+      setSortConfig({ key: null, direction: null });
     });
   };
 
@@ -428,6 +933,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     let direction = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
     else if (sortConfig.key === key && sortConfig.direction === "desc") direction = null;
+    setLoading(true);
     setSortConfig({ key, direction });
   };
 
@@ -495,66 +1001,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     }
   }, [contextMenu]);
 
-  const filteredSortedData = useMemo(() => {
-    let result = movPosData.filter(row => {
-      if (deferredGlobalSearch) {
-        const searchText = deferredGlobalSearch.toLowerCase();
-        if (!Object.entries(row).some(([key, val]) => String(val || "").toLowerCase().includes(searchText))) return false;
-      }
-      for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
-        if (!selectedVals.includes(String(row[colKey] || "").trim())) return false;
-      }
-      for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
-        if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
-        const searchText = filterObj.value;
-        const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
-        
-        const val = String(row[colKey] || "");
-        const lowerVal = val.toLowerCase().trim();
-        const lowerSearch = searchText.toLowerCase().trim();
-        
-        switch (condition) {
-          case "contains":
-            if (!lowerVal.includes(lowerSearch)) return false;
-            break;
-          case "not_contains":
-            if (lowerVal.includes(lowerSearch)) return false;
-            break;
-          case "starts_with":
-            if (!lowerVal.startsWith(lowerSearch)) return false;
-            break;
-          case "not_starts_with":
-            if (lowerVal.startsWith(lowerSearch)) return false;
-            break;
-          case "ends_with":
-            if (!lowerVal.endsWith(lowerSearch)) return false;
-            break;
-          case "not_ends_with":
-            if (lowerVal.endsWith(lowerSearch)) return false;
-            break;
-          case "equals":
-            if (lowerVal !== lowerSearch) return false;
-            break;
-          case "not_equals":
-            if (lowerVal === lowerSearch) return false;
-            break;
-          default:
-            if (!lowerVal.includes(lowerSearch)) return false;
-        }
-      }
-      return true;
-    });
-    if (sortConfig.key && sortConfig.direction) {
-      const { key, direction } = sortConfig;
-      result.sort((a, b) => {
-        let valA = String(a[key] || "").trim(), valB = String(b[key] || "").trim();
-        const numA = Number(valA), numB = Number(valB);
-        if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;
-        return direction === "asc" ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: "base" }) : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: "base" });
+  const filteredSortedData = movPosData;
+
+  const filterDropdownValues = useMemo(() => {
+    if (!activeFilterDropdown || isDateColumn(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
+
+    let baseUniqueValues = (uniqueColumnValues[activeFilterDropdown] || []).map(v => typeof v === 'object' ? v : { value: v, count: 0 });
+    if (filterDropdownTab === 'actuales') {
+      const counts = {};
+      filteredSortedData.forEach(row => {
+        const val = String(row[activeFilterDropdown] || "").trim();
+        counts[val] = (counts[val] || 0) + 1;
       });
+      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
     }
-    return result;
-  }, [movPosData, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
+
+    const allVals = baseUniqueValues.map(v => v.value);
+    const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
+    const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
+
+    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
+  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
 
   useEffect(() => {
     let active = true;
@@ -585,7 +1052,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return () => { active = false; };
   }, [isHistoryModalOpen, selectedCell, filteredSortedData]);
 
+  const isLatestFilter = columnFilters.is_latest?.includes("true");
   const rowHeight = 37, containerHeight = 800;
+  const totalPages = isLatestFilter ? 1 : (Math.ceil(count / pageSize) || 1);
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
   const endIndex = Math.min(filteredSortedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + 15);
   const paginatedData = filteredSortedData.slice(startIndex, endIndex);
@@ -606,8 +1075,69 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         width: 15
       }));
 
+      // Call server to fetch all results without pagination
+      const filterParams = {};
+      Object.entries(debouncedTextFilters).forEach(([colKey, filterObj]) => {
+        if (filterObj && filterObj.value && filterObj.value.trim()) {
+          const cond = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
+          let suffix = "";
+          if (cond === "contains") suffix = "__icontains";
+          else if (cond === "not_contains") {
+            filterParams[`exclude__${colKey}__icontains`] = filterObj.value.trim();
+            return;
+          }
+          else if (cond === "starts_with") suffix = "__istartswith";
+          else if (cond === "not_starts_with") {
+            filterParams[`exclude__${colKey}__istartswith`] = filterObj.value.trim();
+            return;
+          }
+          else if (cond === "ends_with") suffix = "__iendswith";
+          else if (cond === "not_ends_with") {
+            filterParams[`exclude__${colKey}__iendswith`] = filterObj.value.trim();
+            return;
+          }
+          else if (cond === "equals") suffix = "__iexact";
+          else if (cond === "not_equals") {
+            filterParams[`exclude__${colKey}__iexact`] = filterObj.value.trim();
+            return;
+          }
+          filterParams[`${colKey}${suffix}`] = filterObj.value.trim();
+        }
+      });
+
+      const colParams = {};
+      Object.entries(columnFilters).forEach(([key, values]) => {
+        if (key === "is_latest") return;
+        if (values && values.length > 0) {
+          colParams[`${key}__in`] = values.join(",");
+        }
+      });
+
+      const isLatestVal = columnFilters.is_latest?.includes("true") ? "true" : "false";
+
+      const params = {
+        no_pagination: 'true',
+        search: debouncedSearch,
+        is_latest: isLatestVal,
+        ...filterParams,
+        ...colParams
+      };
+
+      if (sortConfig.key) {
+        if (sortConfig.key === "custom_movimientos") {
+          params.sort_by = "f_efva,fecha_captura,no_pos_actual";
+          params.sort_order = "desc";
+        } else {
+          params.sort_by = sortConfig.key;
+          params.sort_order = sortConfig.direction || "asc";
+        }
+      }
+
+      const res = await VacantesService.getMovPosDetalle(params);
+      const allData = await res.json();
+
       // Add rows
-      filteredSortedData.forEach(row => {
+      allData.forEach(row => {
         const dataRow = {};
         visibleCols.forEach(col => {
           dataRow[col.key] = row[col.key];
@@ -789,38 +1319,49 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     <div className="w-full flex flex-col">
       <div className="w-full px-4 lg:px-6 pt-2">
         <Zoom triggerOnce>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch w-full max-w-5xl mx-auto">
-            <div onClick={() => startTransition(() => setColumnFilters({ ...columnFilters, estado_psn: ["A"] }))} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" ? "bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" ? "bg-white" : "bg-[#621f32]"}`} />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6 items-stretch w-full max-w-6xl mx-auto">
+            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["A"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-[#621f32]"}`} />
               <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" ? "bg-white/20 text-white" : "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]"}`}>
+                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]"}`}>
                   <CheckCircle2 className="size-4" />
                 </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Posiciones Activas</span>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Posiciones Activas</span>
               </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" ? "text-white" : "text-[#621f32] dark:text-[#bc955c]"}`}>{formatNumber(posicionesActivas)}</span>
+              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "text-white" : "text-[#621f32] dark:text-[#bc955c]"}`}>{formatNumber(stats.posiciones_activas)}</span>
             </div>
 
-            <div onClick={() => startTransition(() => setColumnFilters({ ...columnFilters, estado_psn: ["I"] }))} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" ? "bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950 text-white shadow-xl shadow-slate-900/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" ? "bg-white" : "bg-slate-500"}`} />
+            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["I"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950 text-white shadow-xl shadow-slate-900/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-slate-500"}`} />
               <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
+                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
                   <XCircle className="size-4" />
                 </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Posiciones Inactivas</span>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Posiciones Inactivas</span>
               </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" ? "text-white" : "text-slate-700 dark:text-slate-200"}`}>{formatNumber(posicionesInactivas)}</span>
+              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "text-white" : "text-slate-700 dark:text-slate-200"}`}>{formatNumber(stats.posiciones_inactivas)}</span>
             </div>
 
-            <div onClick={() => startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; setColumnFilters(newF); })} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 0 ? "bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-xl shadow-emerald-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 0 ? "bg-white" : "bg-emerald-500"}`} />
+            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; newF.is_latest = ["true"]; setColumnFilters(newF); setSortConfig({ key: null, direction: null }); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-xl shadow-emerald-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-emerald-500"}`} />
               <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 0 ? "bg-white/20 text-white" : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"}`}>
+                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"}`}>
                   <Layers className="size-4" />
                 </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 0 ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Todas las Posiciones</span>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Todas las Posiciones</span>
               </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 0 ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`}>{formatNumber(movPosData.length)}</span>
+              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`}>{formatNumber(stats.todas_posiciones)}</span>
+            </div>
+
+            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; delete newF.is_latest; setColumnFilters(newF); setSortConfig({ key: "custom_movimientos", direction: "desc" }); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-indigo-600 to-indigo-800 text-white shadow-xl shadow-indigo-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-indigo-500"}`} />
+              <div className="flex items-center gap-2 mb-2 relative z-10">
+                <div className={`p-2 rounded-xl transition-colors ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400"}`}>
+                  <Activity className="size-4" />
+                </div>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Mov. de Posiciones</span>
+              </div>
+              <span className={`text-4xl font-black tracking-tighter relative z-10 ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "text-white" : "text-indigo-600 dark:text-indigo-400"}`}>{formatNumber(stats.total_movimientos)}</span>
             </div>
           </div>
         </Zoom>
@@ -844,6 +1385,48 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}><span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" /></button>))}</div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Pagination controls */}
+              {!isLatestFilter && (
+                <div className="flex items-center gap-4 shrink-0 mr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-slate-400">Mostrar:</span>
+                    <select 
+                      value={pageSize} 
+                      onChange={(e) => {
+                        setLoading(true);
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1 text-[10px] font-black uppercase text-[#621f32] dark:text-[#bc955c] outline-none cursor-pointer"
+                    >
+                      {[25, 50, 100, 250, 500].map(sz => (
+                        <option key={sz} value={sz}>{sz}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/50 dark:border-slate-800/50 select-none">
+                    <button 
+                      onClick={() => { setLoading(true); setPage(p => Math.max(1, p - 1)); }} 
+                      disabled={page === 1 || loading}
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <ChevronLeft className="size-3.5" />
+                    </button>
+                    <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 px-1">
+                      Pág. <span className="text-[#621f32] dark:text-[#bc955c]">{page}</span> de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
+                    </span>
+                    <button 
+                      onClick={() => { setLoading(true); setPage(p => Math.min(totalPages, p + 1)); }} 
+                      disabled={page === totalPages || loading}
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <ChevronRightIcon className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <AnimatePresence>
                 {selectedCell && (
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex items-center gap-3 py-2 px-3.5 bg-[#621f32]/5 dark:bg-[#bc955c]/5 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-300 group">
@@ -857,8 +1440,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   </motion.div>
                 )}
               </AnimatePresence>
-              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
+              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
+              <button onClick={() => setIsAdvancedFiltersOpen(true)} className="relative flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer">
+                <SlidersHorizontal className="size-3.5" /><span>Filtros Avanzados</span>
+                {appliedAdvancedFilters.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 size-5 flex items-center justify-center bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[9px] font-black rounded-full">{appliedAdvancedFilters.length}</span>
+                )}
+              </button>
               <button 
                 onClick={handleExportExcel} 
                 disabled={isExportingExcel}
@@ -875,7 +1464,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           </div>
 
           <div onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: '75vh', minHeight: '600px' }}>
-            <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
+
             <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 95 + columns.filter(c => c.visible).reduce((sum, col) => sum + col.width, 0) }}>
                 <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{columns.filter(c => c.visible).map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
                 <thead className="bg-[#501929]/90 dark:bg-[#3e131f]/90 text-white sticky top-0 z-30 shadow-md border-b border-[#bc955c]/30">
@@ -1021,7 +1610,44 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   </tr>
                 </thead>
                 <tbody ref={tbodyRef} className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {paginatedData.length === 0 ? (
+                  {loading || isPending ? (
+                    Array.from({ length: 15 }).map((_, rIdx) => (
+                      <tr key={`skeleton-row-${rIdx}`} className="h-[37px] bg-white dark:bg-slate-950">
+                        <td className="sticky left-0 z-25 text-center border-r h-[37px] px-4 align-middle bg-white dark:bg-slate-950">
+                          <div className="h-3 w-4 bg-slate-200 dark:bg-slate-800 rounded mx-auto animate-pulse" />
+                        </td>
+                        <td className="sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 bg-white dark:bg-slate-950">
+                          <div className="size-5 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto animate-pulse" />
+                        </td>
+                        {columns.filter(c => c.visible).map((col, colIdx, arr) => {
+                          const isSticky = colIdx < 2;
+                          let leftOffset = 95;
+                          if (colIdx === 1) leftOffset = 95 + arr[0].width;
+                          
+                          let widthClass = "w-3/4";
+                          if (col.key === "no_pos_actual" || col.key === "total_movimientos" || col.key === "estado_psn" || col.key === "ocupacion") {
+                            widthClass = "w-1/2 mx-auto";
+                          } else if (col.key === "f_efva" || col.key === "fecha_captura" || col.key === "fecha_vacancia") {
+                            widthClass = "w-2/3 mx-auto";
+                          } else if (colIdx % 3 === 0) {
+                            widthClass = "w-5/6";
+                          } else if (colIdx % 3 === 1) {
+                            widthClass = "w-2/3";
+                          }
+                          
+                          return (
+                            <td 
+                              key={`skeleton-td-${col.key}`} 
+                              style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}}
+                              className="px-4 border-r h-[37px] align-middle bg-white dark:bg-slate-950 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]"
+                            >
+                              <div className={`h-3 ${widthClass} bg-slate-200 dark:bg-slate-800 rounded animate-pulse`} />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  ) : paginatedData.length === 0 ? (
                     <tr>
                       <td colSpan={columns.filter(c => c.visible).length + 2} className="py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
@@ -1041,7 +1667,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                         return (
                           <tr key={row.id || actualRowIdx} className="hover:bg-[#621f32]/[0.015] h-[37px]" onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }} onClick={() => setSelectedCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })}>
                             <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>
-                              {actualRowIdx + 1}
+                              {(page - 1) * pageSize + actualRowIdx + 1}
                             </td>
                             <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}>
                               <button onClick={(e) => { e.stopPropagation(); setSelectedRowData(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button>
@@ -1218,6 +1844,136 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         document.body
       )}
 
+      {mounted && createPortal(
+        <AnimatePresence>
+          {isAdvancedFiltersOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAdvancedFiltersOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
+              <motion.div initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-3xl w-full flex flex-col z-[100] overflow-hidden max-h-[85vh]">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-lg">
+                      <SlidersHorizontal className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Filtros avanzados</h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Combina condiciones sobre cualquier columna</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsAdvancedFiltersOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"><X className="size-4" /></button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar flex flex-col gap-2.5">
+                  {advancedConditions.map((cond, idx) => {
+                    const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
+                    const isDateCol = cond.column && isDateColumn(cond.column);
+                    const conditionOptions = isDateCol ? ADV_DATE_CONDITIONS : CONDITION_OPTIONS;
+
+                    return (
+                      <div key={cond.id} className="flex flex-col gap-2.5">
+                        {idx > 0 && (
+                          <div className="flex items-center gap-2 -my-0.5">
+                            <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+                            <div className="w-24">
+                              <AdvFilterSelect
+                                value={cond.logic}
+                                options={ADV_LOGIC_OPTIONS}
+                                onChange={(val) => updateAdvancedCondition(cond.id, { logic: val })}
+                              />
+                            </div>
+                            <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+                          </div>
+                        )}
+                        <div className="relative bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
+                          <div className="flex items-center justify-between mb-2.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Condición {idx + 1}</span>
+                            {advancedConditions.length > 1 && (
+                              <button onClick={() => removeAdvancedCondition(cond.id)} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer" title="Eliminar condición">
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna</span>
+                              <AdvFilterSelect
+                                value={cond.column}
+                                options={colOptions}
+                                searchable
+                                placeholder="Selecciona columna..."
+                                onChange={(val) => updateAdvancedCondition(cond.id, { column: val })}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Condición</span>
+                              <AdvFilterSelect
+                                value={cond.condition}
+                                options={conditionOptions}
+                                placeholder="Selecciona condición..."
+                                onChange={(val) => updateAdvancedCondition(cond.id, { condition: val })}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Comparar con</span>
+                              <AdvFilterSelect
+                                value={cond.compareType}
+                                options={ADV_COMPARE_TYPE_OPTIONS}
+                                onChange={(val) => updateAdvancedCondition(cond.id, { compareType: val })}
+                              />
+                            </div>
+                          </div>
+
+                          {cond.compareType === "campo" ? (
+                            <div className="mt-2">
+                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna a comparar</span>
+                              <AdvFilterSelect
+                                value={cond.compareColumn}
+                                options={colOptions}
+                                searchable
+                                placeholder="Selecciona columna..."
+                                onChange={(val) => updateAdvancedCondition(cond.id, { compareColumn: val })}
+                              />
+                            </div>
+                          ) : (
+                            <div className="mt-2">
+                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Valor</span>
+                              <AdvValueAutocomplete
+                                column={cond.column}
+                                value={cond.value}
+                                onChange={(val) => updateAdvancedCondition(cond.id, { value: val })}
+                                isDate={isDateCol}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    onClick={addAdvancedCondition}
+                    className="self-start flex items-center gap-1.5 px-3.5 py-2 border border-dashed border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
+                  >
+                    <Plus className="size-3.5" /><span>Agregar condición</span>
+                  </button>
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    onClick={applyAdvancedFilters}
+                    className="w-full bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] font-semibold py-2.5 rounded-xl text-xs transition-opacity active:scale-[0.99] hover:opacity-90"
+                  >
+                    Aplicar Filtros
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
       {/* Dropdown de Filtro por Valores Únicos */}
       <AnimatePresence>
         {activeFilterDropdown && (
@@ -1238,18 +1994,60 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                     <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
                   </div>
                 )}
-                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm">
-                  <Search className="size-3 text-slate-400 mr-2" />
+                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm gap-2">
+                  {!isDateColumn(activeFilterDropdown) && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(o => !o); }}
+                      title={`Condición: ${getConditionLabel(filterSearchCondition)}`}
+                      className="shrink-0 size-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 text-[9px] font-black cursor-pointer select-none transition-colors"
+                    >
+                      {CONDITION_SHORTHANDS[filterSearchCondition] || "*"}
+                    </button>
+                  )}
+                  <Search className="size-3 text-slate-400" />
                   <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
+                  {isFilterSearchConditionOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40 bg-transparent" onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(false); }} />
+                      <div className="absolute top-full left-0 mt-1 z-50 w-40 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200">
+                        {CONDITION_OPTIONS.map(item => (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setFilterSearchCondition(item.key); setIsFilterSearchConditionOpen(false); }}
+                            className={`px-2 py-1 text-[9px] font-bold rounded-lg text-left transition-colors cursor-pointer w-full flex items-center justify-between ${filterSearchCondition === item.key ? "bg-[#bc955c] text-slate-950" : "hover:bg-white/10"}`}
+                          >
+                            <span>{item.label}</span>
+                            {filterSearchCondition === item.key && <Check className="size-2.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-white dark:bg-slate-900">
-                {isDateColumn(activeFilterDropdown) ? (
+                {isDateColumn(activeFilterDropdown) && loadingUniqueValues ? (
+                  <div className="flex flex-col gap-2 p-3">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+                        <div className="size-3 rounded-md bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        <div className="size-4 rounded-md bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" style={{ width: `${35 + (i % 3) * 15}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : isDateColumn(activeFilterDropdown) ? (
                   <div className="flex flex-col gap-1 p-2">
+                    <div className="flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+                      <button onClick={() => setTempSelectedValues(allDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
+                      <button onClick={() => setTempSelectedValues([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
+                    </div>
                     {Object.keys(dateHierarchies[activeFilterDropdown] || {}).sort((a,b) => b - a).map(year => {
                       const yearData = dateHierarchies[activeFilterDropdown][year];
                       const isYearExpanded = expandedDateNodes[year];
-                      const yearLeafValues = [...new Set(movPosData.filter(row => parseDateParts(row[activeFilterDropdown])?.year === year).map(row => String(row[activeFilterDropdown] || "").trim()))];
+                      const yearLeafValues = [...new Set((uniqueColumnValues[activeFilterDropdown] || []).filter(item => parseDateParts(item.value)?.year === year).map(item => String(item.value).trim()))];
                       const isYearSelected = yearLeafValues.length > 0 && yearLeafValues.every(v => tempSelectedValues.includes(v));
                       const isYearPartial = !isYearSelected && yearLeafValues.some(v => tempSelectedValues.includes(v));
 
@@ -1275,10 +2073,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                 const monthData = yearData.months[month];
                                 const monthPath = `${year}-${month}`;
                                 const isMonthExpanded = expandedDateNodes[monthPath];
-                                const monthLeafValues = [...new Set(movPosData.filter(row => {
-                                  const p = parseDateParts(row[activeFilterDropdown]);
+                                const monthLeafValues = [...new Set((uniqueColumnValues[activeFilterDropdown] || []).filter(item => {
+                                  const p = parseDateParts(item.value);
                                   return p && p.year === year && p.month === month;
-                                }).map(row => String(row[activeFilterDropdown] || "").trim()))];
+                                }).map(item => String(item.value).trim()))];
                                 const isMonthSelected = monthLeafValues.length > 0 && monthLeafValues.every(v => tempSelectedValues.includes(v));
                                 const isMonthPartial = !isMonthSelected && monthLeafValues.some(v => tempSelectedValues.includes(v));
 
@@ -1302,11 +2100,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                       <div className="ml-6 grid grid-cols-2 gap-x-2 border-l border-slate-50 dark:border-slate-800/50 pl-2 py-1 mt-1">
                                         {Object.keys(monthData.days).sort().map(day => {
                                           const count = monthData.days[day];
-                                          const dayMatches = movPosData.filter(row => {
-                                            const p = parseDateParts(row[activeFilterDropdown]);
+                                          const dayUniqueValues = [...new Set((uniqueColumnValues[activeFilterDropdown] || []).filter(item => {
+                                            const p = parseDateParts(item.value);
                                             return p && p.year === year && p.month === month && p.day === day;
-                                          });
-                                          const dayUniqueValues = [...new Set(dayMatches.map(row => String(row[activeFilterDropdown] || "").trim()))];
+                                          }).map(item => String(item.value).trim()))];
                                           const isDaySelected = dayUniqueValues.length > 0 && dayUniqueValues.every(v => tempSelectedValues.includes(v));
 
                                           return (
@@ -1330,30 +2127,19 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                       );
                     })}
                   </div>
+                ) : loadingUniqueValues && filterDropdownTab === 'todos' ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="size-6 border-2 border-[#621f32] dark:border-[#bc955c] border-t-transparent rounded-full animate-spin" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargando...</span>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-0.5">
                     {(() => {
-                      let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
-                      if (filterDropdownTab === 'actuales') {
-                        const counts = {};
-                        filteredSortedData.forEach(row => {
-                          const val = String(row[activeFilterDropdown] || "").trim();
-                          counts[val] = (counts[val] || 0) + 1;
-                        });
-                        baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
-                      }
-                      
-                      const allVals = baseUniqueValues.map(v => v.value);
-                      const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
-
+                      const { allVals, isAllSelected, sliced, filteredCount } = filterDropdownValues;
                       const tempSelectedSet = new Set(tempSelectedValues);
-                      const searchNormalized = filterSearchText ? String(filterSearchText).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                      const filtered = baseUniqueValues.filter(v => {
-                        const valNormalized = v.value ? String(v.value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-                        return valNormalized.includes(searchNormalized);
-                      });
-                      const sliced = filtered.slice(0, 100);
-                      
+
                       return (
                         <>
                           <button onClick={() => {
@@ -1378,9 +2164,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                               </div>
                             </button>
                           ))}
-                          {filtered.length > 100 && (
+                          {filteredCount > 100 && (
                             <div className="text-center py-3 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
-                              Mostrando 100 de {filtered.length} resultados. Usa el buscador.
+                              Mostrando 100 de {filteredCount} resultados. Usa el buscador.
                             </div>
                           )}
                         </>

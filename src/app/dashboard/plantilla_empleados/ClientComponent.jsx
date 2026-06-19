@@ -18,6 +18,7 @@ import MovimientosPersonalTab from "@/components/MovimientosPersonalTab";
 import MapaTab from "@/components/MapaTab";
 import BajasTab from "@/components/BajasTab";
 import TorreCaballito3DTab from "@/components/TorreCaballito3DTab";
+import CuadrosVacanciaTab from "@/components/CuadrosVacanciaTab";
 
 export default function PlantillaEmpleadosDetalle({
   resumen,
@@ -27,11 +28,14 @@ export default function PlantillaEmpleadosDetalle({
   movPosData = [],
   bajasData = [],
   bajasMotivos = [],
-  bajasHistorico = []
+  bajasHistorico = [],
+  cuadrosData = [],
+  desgloseJerarquicoData = []
 }) {
   const [activeTab, setActiveTab] = useState("detalle");
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
+  const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
   const [isPending, startTransition] = useTransition();
   const cardRef = useRef(null);
   const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "organigrama" || activeTab === "mapa";
@@ -166,6 +170,34 @@ export default function PlantillaEmpleadosDetalle({
                       ))}
                     </motion.div>
                   )}
+                  {activeTab === "movimientos" && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-center gap-1.5 p-0.5 rounded-lg bg-slate-100/90 dark:bg-slate-950/90 border border-slate-200/30 dark:border-slate-800/30 w-full sm:w-auto"
+                    >
+                      <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-2 select-none hidden sm:inline">
+                        Ver:
+                      </span>
+                      {[
+                        { id: "tabla", label: "Tabla Principal" },
+                        { id: "cuadros", label: "Cuadros Vacancia" }
+                      ].map((sub) => (
+                        <button
+                          key={sub.id}
+                          onClick={() => setActiveMovimientosSubTab(sub.id)}
+                          className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer text-center ${activeMovimientosSubTab === sub.id
+                            ? "bg-gradient-to-r from-[#bc955c] to-[#d0ab75] text-[#3e131f] shadow-md shadow-[#bc955c]/20"
+                            : "text-slate-500 hover:text-[#621f32] dark:text-slate-400 dark:hover:text-[#bc955c]"
+                            }`}
+                        >
+                          {sub.label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
                   {activeTab === "mapa" && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -213,6 +245,10 @@ export default function PlantillaEmpleadosDetalle({
                       <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                         Movimientos de personal
                       </span>
+                    ) : activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" ? (
+                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                        Cuadros de Vacancia
+                      </span>
                     ) : (
                       <>
                         Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">{activeTab === "bajas" ? "Empleados Bajas" : "Empleados Activos"}</span>
@@ -256,13 +292,20 @@ export default function PlantillaEmpleadosDetalle({
                   detalle={detalle}
                 />
               )}
-              {activeTab === "movimientos" && (
+              {activeTab === "movimientos" && activeMovimientosSubTab === "tabla" && (
                 <MovimientosTab
                   movPosData={movPosData}
                   detalle={detalle}
                   isPending={isPending}
                   startTransition={startTransition}
                   cardRef={cardRef}
+                />
+              )}
+              {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
+                <CuadrosVacanciaTab
+                  cuadrosData={cuadrosData}
+                  desgloseJerarquicoData={desgloseJerarquicoData}
+                  onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
                 />
               )}
               {activeTab === "movimientos_personal" && (

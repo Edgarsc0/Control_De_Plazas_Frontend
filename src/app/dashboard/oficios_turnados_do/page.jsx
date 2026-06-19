@@ -19,12 +19,10 @@ export default async function OficiosTurnadosDOSSR() {
     });
 
   return (
-    <section className="bg-transparent pb-20">
-      <div className="py-12 px-4 mx-auto max-w-[1600px] lg:px-6">
-        <Suspense fallback={<div>Cargando oficios turnados...</div>}>
-          <OficiosTurnadosDO oficiosTurnados={oficiosTurnadosResponse.model} />
-        </Suspense>
-      </div>
+    <section className="bg-transparent pb-0 w-full">
+      <Suspense fallback={<div className="text-center py-12 font-semibold text-slate-500">Cargando oficios turnados...</div>}>
+        <OficiosTurnadosDO oficiosTurnados={oficiosTurnadosResponse.model} />
+      </Suspense>
     </section>
   );
 }
