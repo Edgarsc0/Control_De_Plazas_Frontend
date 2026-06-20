@@ -230,12 +230,15 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - [x] DataTable + ColumnFilterDropdown extendidos a modo server (loadingVariant
     skeleton, rowNumberOffset, dateValues, allDateLeafValues, loadingValues).
   - [x] MovimientosTab usa DataTable + ColumnFilterDropdown (server). 2540→2027 L.
-  - [ ] MovimientosPersonalTab: el MÁS divergente — selección {rowIdx,colIdx,colName,
-    value} (no {row,col}), clicks de celda abren timeline modals, dropdownValues
-    inline sin memo. Forzar genéricos = extender DataTable con callbacks de selección
-    (toca los 3 tabs hechos) + extraer dropdownValues. Decisión: queda con hooks +
-    ColumnsModal + utils (nivel de reuso apropiado para tab tan divergente).
-  - PENDIENTE: smoke-test runtime de BajasTab + MovimientosTab (headers normalizados).
+  - [x] DataTable extendido con callbacks de selección (isRowSelected/isCellSelected/
+    isColSelected/onRowClick) + actualRowIdx en renderCell.
+  - [x] MovimientosPersonalTab usa DataTable + ColumnFilterDropdown (modelo
+    {rowIdx,colIdx} vía callbacks; clicks de celda → timeline modals; dropdownValues
+    en memo con normalizeForSearch). 2460→1925 L.
+  - **T3 COMPLETO: los 4 tabs usan DataTable + ColumnFilterDropdown + ColumnsModal +
+    hooks + utils.** Build verde en todos.
+  - PENDIENTE: smoke-test runtime de BajasTab / MovimientosTab / MovPersonal (headers
+    normalizados + en MovPersonal: clicks posicion/num_empleado a timeline modals).
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
