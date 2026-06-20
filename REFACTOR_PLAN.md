@@ -217,7 +217,10 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
     donut, export, scroll, mounted).
   - PILOTO funcionalmente completo (build verde en cada paso). PENDIENTE: smoke-test
     en dev (filtros/columnas/celda) — build ✓ no garantiza paridad runtime.
-  - [ ] replicar hooks/ColumnsModal en MovimientosTab/MovimientosPersonalTab/BajasTab.
+  - [x] replicado: los 3 tabs (BajasTab `~`, MovimientosTab, MovimientosPersonalTab)
+    cablean los 3 hooks de estado. Build verde cada uno. Commits posteriores a `02d8a3a`.
+    useState: PlantillaDetalle 33→14, Bajas 35→17, Movimientos 53→35, MovPersonal 55→40.
+  - [ ] pendiente: swap de `<ColumnsModal>` en los 3 tabs (aún usan modal inline).
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
