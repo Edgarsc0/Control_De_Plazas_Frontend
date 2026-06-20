@@ -224,10 +224,12 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - [x] genéricos construidos + cableados EN EL PILOTO (build ✓):
     `ColumnFilterDropdown` (commit `e303cd5`) y `DataTable` (commit `7dceba6`).
     El tab inyecta `renderCell` (badge estado/moneda/mono) + hooks. Pilot 1672→1265 L.
-  - PENDIENTE: replicar `DataTable` + `ColumnFilterDropdown` en los otros 3 tabs
-    (cada uno con su `renderCell` + handlers de dropdown propios).
-  - PENDIENTE: smoke-test runtime — sobre todo la tabla (virtualización/sticky/resize)
-    del piloto antes de replicar; + los 3 tabs ya con hooks.
+  - [x] BajasTab usa DataTable + ColumnFilterDropdown (renderCell: estado_psn /
+    posicion->history / total_movimientos). 1875→1454 L. Normaliza header (congela
+    2 primeras cols + resalte hasFilter). Build ✓.
+  - PENDIENTE: MovimientosTab + MovimientosPersonalTab (server-side: uniqueColumnValues
+    como estado, filtros avanzados, paginación → más riesgo).
+  - PENDIENTE: smoke-test runtime de BajasTab (sobre todo el header normalizado).
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
