@@ -11,7 +11,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
-import { EmployeeRecordModal } from "./EmployeesModal";
+import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import DatePicker from "react-datepicker";
 
 const MOV_STATUS_BADGE_STYLES = {

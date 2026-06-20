@@ -1,7 +1,7 @@
 import { Noto_Sans } from "next/font/google";
 import "./globals.css";
-import Banner from "@/components/Banner";
-import Navbar from "@/components/Navbar";
+import Banner from "@/components/layout/Banner";
+import Navbar from "@/components/layout/Navbar";
 import { Fade, Slide, Zoom } from "react-awesome-reveal";
 import { TooltipProvider } from "@/components/ui/tooltip"
 

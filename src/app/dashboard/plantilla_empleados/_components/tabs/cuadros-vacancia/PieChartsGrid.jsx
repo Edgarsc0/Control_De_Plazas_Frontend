@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { PieChart } from "./ui/BentoMiniComponents"
+import { PieChart } from "@/components/ui/BentoMiniComponents"
 import { Users, CheckCircle, Briefcase, AlertCircle, Clock, ChevronLeft, ChevronRight, Search, X } from "lucide-react"
 import {
     Tooltip,
@@ -7,7 +7,7 @@ import {
     TooltipTrigger,
     TooltipProvider
 } from "@/components/ui/tooltip"
-import EmployeesModal from "./EmployeesModal"
+import EmployeesModal from "../../shared/EmployeesModal"
 
 const STATUS_CONFIG = [
     { key: 'Activo', label: 'Activo', color: '#621f32', icon: CheckCircle },

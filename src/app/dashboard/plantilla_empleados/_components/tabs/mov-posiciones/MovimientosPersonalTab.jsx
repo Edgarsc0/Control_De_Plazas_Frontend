@@ -10,9 +10,9 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
-import EmpleadoTimelineModal from "./EmpleadoTimelineModal";
-import PosicionTimelineModal from "./PosicionTimelineModal";
-import { EmployeeRecordModal } from "./EmployeesModal";
+import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
+import PosicionTimelineModal from "../../modals/PosicionTimelineModal";
+import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import {
   Select,
   SelectContent,

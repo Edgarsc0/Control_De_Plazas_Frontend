@@ -12,13 +12,13 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { Counter } from "@/components/ui/BentoMiniComponents";
-import RegistrosOficioModal from '@/components/RegistrosOficioModal';
-import OcupacionSankeyView from '@/components/OcupacionSankeyView';
-import OcupacionTableView from '@/components/OcupacionTableView';
-import OcupacionStatsView from '@/components/OcupacionStatsView';
-import OcupacionFilterDrawer from '@/components/OcupacionFilterDrawer';
+import RegistrosOficioModal from './_components/RegistrosOficioModal';
+import OcupacionSankeyView from './_components/OcupacionSankeyView';
+import OcupacionTableView from './_components/OcupacionTableView';
+import OcupacionStatsView from './_components/OcupacionStatsView';
+import OcupacionFilterDrawer from './_components/OcupacionFilterDrawer';
 import { ControlGestionService } from '@/services/control_gestion.service';
-import DetailModal from '@/components/OficioDetailModal';
+import DetailModal from '@/components/shared/OficioDetailModal';
 
 
 export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {

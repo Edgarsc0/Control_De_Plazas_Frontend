@@ -5,9 +5,9 @@ import { PresupuestoService } from '@/services/presupuesto.service';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { Calculator, Settings2, Book, Search } from 'lucide-react';
 
-import SimuladorValuacion from '@/components/SimuladorValuacion';
-import ParametrosValuacion from '@/components/ParametrosValuacion';
-import AsuntosValuacion from '@/components/AsuntosValuacion';
+import SimuladorValuacion from './_components/SimuladorValuacion';
+import ParametrosValuacion from './_components/ParametrosValuacion';
+import AsuntosValuacion from './_components/AsuntosValuacion';
 
 export default function ValuacionPresupuestaria({
     initialCatalogo = [],

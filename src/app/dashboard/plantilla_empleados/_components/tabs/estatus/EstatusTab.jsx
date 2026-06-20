@@ -14,7 +14,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import EmployeesModal from "./EmployeesModal";
+import EmployeesModal from "../../shared/EmployeesModal";
 import { VacantesService } from "@/services/vacantes.service";
 
 // ─── Constants ───────────────────────────────────────────────────────────────

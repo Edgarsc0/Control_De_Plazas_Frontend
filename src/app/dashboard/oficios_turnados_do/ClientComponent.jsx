@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import { PieChart, Counter } from '@/components/ui/BentoMiniComponents';
 import { ControlGestionService } from '@/services/control_gestion.service';
-import DetailModal from '@/components/OficioDetailModal';
-import { customSelectStyles, headerSelectStyles } from '@/components/OficioSelectStyles';
+import DetailModal from '@/components/shared/OficioDetailModal';
+import { customSelectStyles, headerSelectStyles } from '@/components/shared/OficioSelectStyles';
 import {
   Tooltip,
   TooltipContent,

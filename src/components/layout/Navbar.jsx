@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import DashboardSubmenu from './ui/DashboardSubmenu';
+import DashboardSubmenu from '@/components/ui/DashboardSubmenu';
 import { ChevronDown } from 'lucide-react';
 import { PlantillaService } from '@/services/plantilla.service';
 

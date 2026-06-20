@@ -11,14 +11,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import PlantillaDetalleTab from "@/components/PlantillaDetalleTab";
-import EstatusTab from "@/components/EstatusTab";
-import MovimientosTab from "@/components/MovimientosTab";
-import MovimientosPersonalTab from "@/components/MovimientosPersonalTab";
-import MapaTab from "@/components/MapaTab";
-import BajasTab from "@/components/BajasTab";
-import TorreCaballito3DTab from "@/components/TorreCaballito3DTab";
-import CuadrosVacanciaTab from "@/components/CuadrosVacanciaTab";
+import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
+import EstatusTab from "./_components/tabs/estatus/EstatusTab";
+import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
+import MovimientosPersonalTab from "./_components/tabs/mov-posiciones/MovimientosPersonalTab";
+import MapaTab from "./_components/tabs/mapa/MapaTab";
+import BajasTab from "./_components/tabs/bajas/BajasTab";
+import TorreCaballito3DTab from "./_components/tabs/torre-3d/TorreCaballito3DTab";
+import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
 
 export default function PlantillaEmpleadosDetalle({
   resumen,

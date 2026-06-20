@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
-import DetailModal from '@/components/OficioDetailModal';
+import DetailModal from '@/components/shared/OficioDetailModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Counter } from '@/components/ui/BentoMiniComponents';
 

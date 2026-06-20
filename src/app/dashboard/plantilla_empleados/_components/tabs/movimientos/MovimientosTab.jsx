@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import HistoryDataTable from "@/components/ui/HistoryDataTable";
-import { EmployeeRecordModal } from "./EmployeesModal";
+import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 
 const advValueDistinctCache = new Map();
 

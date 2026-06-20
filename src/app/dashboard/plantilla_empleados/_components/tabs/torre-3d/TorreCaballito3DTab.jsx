@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Html, ContactShadows } from "@react-three/drei";
 import { VacantesService } from "@/services/vacantes.service";
 import { Search, MapPin, RotateCcw } from "lucide-react";
-import EmpleadosTableModal from "./EmpleadosTableModal";
+import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
 import * as THREE from "three";
 
 const extractFloorNumber = (pisoStr) => {
