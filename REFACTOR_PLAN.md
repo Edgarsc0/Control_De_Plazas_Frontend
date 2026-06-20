@@ -206,8 +206,15 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - `ColumnsModal` genérico (`_components/shared/`).
   - PENDIENTE: `ColumnFilterDropdown` (panel valores+texto+árbol fecha) y `DataTable`
     (tabla sticky + resize + header 2-filas + virtualización). Son los más grandes.
-- [ ] T3c — piloto: rewrite `PlantillaDetalleTab` (1672 L) usando hooks+componentes
-  → valida vía build. Luego replicar en los otros 3 tabs.
+- [~] T3c — piloto `PlantillaDetalleTab` (incremental, cada paso build ✓):
+  - [x] `<ColumnsModal>` genérico (commit `bf7319d`).
+  - [x] `useColumnState` (commit `322f2ce`).
+  - [x] `useCellSelection` (commit `305862b`, expone setters crudos para drop-in).
+  - [ ] `useColumnFilters` + `useSort` — PARTE PESADA: estado de filtros + panel
+    dropdown (~190 L con pestaña "vista actual" que cruza filtros). Requiere o bien
+    reescribir el panel a la API limpia del hook, o exponer setters planos drop-in.
+  - `useState` del tab: 33 → 26 hasta ahora.
+  - [ ] replicar hooks/ColumnsModal en MovimientosTab/MovimientosPersonalTab/BajasTab.
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,

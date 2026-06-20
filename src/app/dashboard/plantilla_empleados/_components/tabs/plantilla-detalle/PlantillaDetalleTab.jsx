@@ -15,6 +15,7 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -187,21 +188,24 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     { key: "nj_operativo_comb", label: "NJOperativoComb", width: 150, visible: false, isBasic: false },
   ]);
 
-  const [globalSearch, setGlobalSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [columnFilters, setColumnFilters] = useState({ estado_nomina: ["Activo"] });
-  const [textFilters, setTextFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
-  const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
-  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
-  const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
-  const [tempSelectedValues, setTempSelectedValues] = useState([]);
-  const [filterSearchText, setFilterSearchText] = useState("");
-  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
-  const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
-  const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
+  const {
+    globalSearch, setGlobalSearch,
+    columnFilters, setColumnFilters,
+    textFilters, setTextFilters,
+    activeFilterDropdown, setActiveFilterDropdown,
+    filterDropdownTab, setFilterDropdownTab,
+    activeConditionDropdown, setActiveConditionDropdown,
+    tempSelectedValues, setTempSelectedValues,
+    filterSearchText, setFilterSearchText,
+    filterSearchCondition, setFilterSearchCondition,
+    isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
+    expandedDateNodes, setExpandedDateNodes,
+    debouncedFilterSearchText,
+  } = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] } });
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
@@ -219,7 +223,6 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [cadenaError, setCadenaError] = useState(null);
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
-  const [expandedDateNodes, setExpandedDateNodes] = useState({});
 
   const handleBuscarCadena = async (e) => {
     e?.preventDefault();
@@ -555,12 +558,6 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     return result;
   }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilterSearchText(filterSearchText);
-    }, 350);
-    return () => clearTimeout(handler);
-  }, [filterSearchText]);
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
