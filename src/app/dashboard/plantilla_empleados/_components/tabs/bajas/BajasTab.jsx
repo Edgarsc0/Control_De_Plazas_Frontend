@@ -12,6 +12,9 @@ import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import { useColumnState } from "../../../_hooks/useColumnState";
+import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import DatePicker from "react-datepicker";
 
 const MOV_STATUS_BADGE_STYLES = {
@@ -96,8 +99,6 @@ const matchesTextCondition = (value, condition, needle) => {
 export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHistorico = [], isPending, startTransition, cardRef }) {
   const [mounted, setMounted] = useState(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [selectedRowData, setSelectedRowData] = useState(null);
   useEffect(() => setMounted(true), []);
 
   const chartContainerRef = useRef(null);
@@ -194,7 +195,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     }
   }, [cardRef]);
 
-  const [columns, setColumns] = useState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 120, visible: true },
     { key: "no_empleado", label: "No. Empleado", width: 120, visible: true },
     { key: "nombre_completo", label: "Nombre Completo", width: 250, visible: true },
@@ -214,29 +215,29 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     { key: "genero", label: "Género", width: 100, visible: false }
   ]);
 
-  const [globalSearch, setGlobalSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [columnFilters, setColumnFilters] = useState({});
-  const [textFilters, setTextFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
-  const [selectedCell, setSelectedCell] = useState(null);
-  const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
-  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
-  const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
-  const [tempSelectedValues, setTempSelectedValues] = useState([]);
-  const [filterSearchText, setFilterSearchText] = useState("");
-  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
-  const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
-  const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
+  const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
+  const {
+    globalSearch, setGlobalSearch,
+    columnFilters, setColumnFilters,
+    textFilters, setTextFilters,
+    activeFilterDropdown, setActiveFilterDropdown,
+    filterDropdownTab, setFilterDropdownTab,
+    activeConditionDropdown, setActiveConditionDropdown,
+    tempSelectedValues, setTempSelectedValues,
+    filterSearchText, setFilterSearchText,
+    filterSearchCondition, setFilterSearchCondition,
+    isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
+    expandedDateNodes, setExpandedDateNodes,
+    debouncedFilterSearchText,
+  } = useColumnFilters();
   const [columnSearchText, setColumnSearchText] = useState("");
-  const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
-  const [isCellModalOpen, setIsCellModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [modalHistoryData, setModalHistoryData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
-  const [expandedDateNodes, setExpandedDateNodes] = useState({});
   const [activeModalTab, setActiveModalTab] = useState('tabla');
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
@@ -328,9 +329,6 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
   const isMonoColumn = useCallback((key) => ["posicion", "no_empleado", "partida", "grado", "escala", "nivel"].includes(key), []);
 
-  const toggleColumnVisibility = (key) => {
-    setColumns(prev => prev.map(col => (col.key === key ? { ...col, visible: !col.visible } : col)));
-  };
 
   const isDateColumn = useCallback((colKey) => {
     return DATE_KEYS_MOV.includes(colKey);
@@ -603,12 +601,6 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     return result;
   }, [bajasData, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilterSearchText(filterSearchText);
-    }, 350);
-    return () => clearTimeout(handler);
-  }, [filterSearchText]);
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
