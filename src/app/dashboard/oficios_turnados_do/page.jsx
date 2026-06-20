@@ -2,6 +2,10 @@ import { ControlGestionService } from '@/services/control_gestion.service';
 import { Suspense } from 'react';
 import OficiosTurnadosDO from './ClientComponent';
 
+// La data depende de la sesión (apiFetch usa la cookie de token), por lo que la
+// ruta es dinámica: se omite el prerender estático.
+export const dynamic = 'force-dynamic';
+
 export default async function OficiosTurnadosDOSSR() {
   const oficiosTurnadosResponse =
     await ControlGestionService.getOficiosTurnados({

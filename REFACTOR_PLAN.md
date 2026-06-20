@@ -185,7 +185,16 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - `plantilla_empleados/_components/{shared,modals,tabs/<x>}/` ← 8 tabs + EmployeesModal + AdvancedFilterModal + cuadros-vacancia subtree + 2 timeline modals
   - imports reescritos; 2 imports relativos huérfanos de batch1 corregidos (TorreCaballito3DTab).
   - `components/` raíz queda solo con `ui/`, `layout/`, `shared/`.
-- [ ] T2 · [ ] T3a · [ ] T3b · [ ] T3c
+- [x] T2 — capa de servicios (build ✓ limpio, sin ruido de prerender):
+  - `cat_tipo_oficio` (5) y `control_gestion` (6 catálogos Django) migrados de `fetch` crudo a `apiFetch`.
+  - 3 llamadas de `control_gestion` a la API externa de CG quedan en `fetch` directo
+    **intencional** (host distinto, header `Origin`, sin token de sesión); documentado.
+  - `organigrama/page.jsx`: fetch inline `/plantilla/organigrama_search/` → `PlantillaService.getOrganigramaSearch()` (nuevo método).
+  - JSDoc estricto (resumen + `@param` tipados + `@returns`) en los 7 services.
+  - `vacantes`: deduplicado el armado de query string en helper `buildQuery`.
+  - Fetch crudo restante justificado: organigrama L54 (`/organigramas/*.json`, asset estático),
+    `prueba/page.jsx` (`/api/ai/chat/`, página de pruebas — pendiente borrar o migrar).
+- [ ] T3a · [ ] T3b · [ ] T3c
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,

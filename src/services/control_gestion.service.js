@@ -1,52 +1,101 @@
 /**
+ * Servicio para Control de Gestión (movimientos de personal por oficios).
  *
- * Servicio para interactuar con el backend de Control de Gestión, específicamente para la gestión de movimientos de personal por oficios.
- *
+ * Convive con DOS backends:
+ *  - Backend propio de Django: se accede vía `apiFetch`, que inyecta el token
+ *    de sesión (cookie `auth_token`). Son los catálogos.
+ *  - API externa de Control de Gestión (`NEXT_PUBLIC_CONTROL_DE_GESTION_API_URL`):
+ *    host y esquema de autenticación distintos (header `Origin`, sin token de
+ *    sesión). `apiFetch` apunta sólo al backend de Django, por lo que estas
+ *    llamadas se mantienen con `fetch` directo de forma intencional.
  */
 
+import { apiFetch } from '@/lib/fetch-interceptor';
 import { CatTipoOficioService } from './cat_tipo_oficio.service';
 
-const djangoApi =
-  (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/api';
+const CG_API_URL = process.env.NEXT_PUBLIC_CONTROL_DE_GESTION_API_URL;
 
 export const ControlGestionService = {
-  /** Obtener Unidades Responsables desde Django */
-  getUnidadesResponsables: async () => {
-    const res = await fetch(`${djangoApi}/control-gestion/unidad-responsable/`);
+  /**
+   * Obtiene el catálogo de Unidades Responsables (backend Django).
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object[]>} Arreglo de unidades responsables (JSON parseado).
+   */
+  getUnidadesResponsables: async (options = {}) => {
+    const res = await apiFetch('/control-gestion/unidad-responsable/', { method: 'GET', ...options });
     return res.json();
   },
 
-  /** Obtener Instrucciones desde Django */
-  getInstrucciones: async () => {
-    const res = await fetch(`${djangoApi}/control-gestion/instruccion/`);
+  /**
+   * Obtiene el catálogo de Instrucciones (backend Django).
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object[]>} Arreglo de instrucciones (JSON parseado).
+   */
+  getInstrucciones: async (options = {}) => {
+    const res = await apiFetch('/control-gestion/instruccion/', { method: 'GET', ...options });
     return res.json();
   },
 
-  /** Obtener Prioridades desde Django */
-  getPrioridades: async () => {
-    const res = await fetch(`${djangoApi}/control-gestion/prioridad/`);
+  /**
+   * Obtiene el catálogo de Prioridades (backend Django).
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object[]>} Arreglo de prioridades (JSON parseado).
+   */
+  getPrioridades: async (options = {}) => {
+    const res = await apiFetch('/control-gestion/prioridad/', { method: 'GET', ...options });
     return res.json();
   },
 
-  /** Obtener Temas desde Django */
-  getTemas: async () => {
-    const res = await fetch(`${djangoApi}/control-gestion/tema/`);
+  /**
+   * Obtiene el catálogo de Temas (backend Django).
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object[]>} Arreglo de temas (JSON parseado).
+   */
+  getTemas: async (options = {}) => {
+    const res = await apiFetch('/control-gestion/tema/', { method: 'GET', ...options });
     return res.json();
   },
 
-  /** Obtener Status Turnado desde Django */
-  getStatusTurnados: async () => {
-    const res = await fetch(`${djangoApi}/control-gestion/status-turnado/`);
+  /**
+   * Obtiene el catálogo de Status de Turnado (backend Django).
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object[]>} Arreglo de status de turnado (JSON parseado).
+   */
+  getStatusTurnados: async (options = {}) => {
+    const res = await apiFetch('/control-gestion/status-turnado/', { method: 'GET', ...options });
     return res.json();
   },
 
-  /** Obtener Medios de Recepción desde Django */
-  getMediosRecepcion: async () => {
-    const res = await fetch(`${djangoApi}/control-gestion/medio-recepcion/`);
+  /**
+   * Obtiene el catálogo de Medios de Recepción (backend Django).
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object[]>} Arreglo de medios de recepción (JSON parseado).
+   */
+  getMediosRecepcion: async (options = {}) => {
+    const res = await apiFetch('/control-gestion/medio-recepcion/', { method: 'GET', ...options });
     return res.json();
   },
 
-  /** Devuelve la lista de oficios turnados cruzada con los catálogos de Django */
+  /**
+   * Devuelve la lista de oficios turnados desde la API externa de Control de
+   * Gestión y la cruza con los catálogos de Django para enriquecer cada registro
+   * (clasificación, unidad responsable, instrucción, prioridad, etc.).
+   *
+   * Llama a la API externa (`fetch` directo intencional, ver nota del módulo).
+   *
+   * @param {Object} [options={}] - Parámetros de búsqueda y bandera de control.
+   * @param {number} [options.idUnidadResponsable=11]
+   * @param {?string} [options.fechaInicio=null]
+   * @param {?string} [options.fechaFin=null]
+   * @param {?string} [options.folio=null]
+   * @param {string} [options.ordenamiento='fecha']
+   * @param {string} [options.direccion='DESC']
+   * @param {number} [options.limite=10000]
+   * @param {number} [options.offset=0]
+   * @param {boolean} [options.skipCatalogCross] - Si es `true`, omite el cruce con catálogos.
+   * @returns {Promise<Object>} Respuesta de la API externa (JSON), con
+   *   `model.detalleTurnados` enriquecido salvo que `skipCatalogCross` sea `true`.
+   */
   getOficiosTurnados: async (options = {}) => {
     const defaultOptions = {
       idUnidadResponsable: 11,
@@ -63,9 +112,9 @@ export const ControlGestionService = {
     };
     const { skipCatalogCross, ...finalOptions } = { ...defaultOptions, ...options };
 
-    // 1. Obtener la respuesta original
+    // 1. Obtener la respuesta original (API externa de Control de Gestión)
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_CONTROL_DE_GESTION_API_URL}/catalogo/busquedaAvanzadaTurnados`,
+      `${CG_API_URL}/catalogo/busquedaAvanzadaTurnados`,
       {
         method: 'POST',
         headers: {
@@ -188,9 +237,16 @@ export const ControlGestionService = {
 
     return data;
   },
+
+  /**
+   * Consulta el expediente de un asunto en la API externa de Control de Gestión.
+   * `fetch` directo intencional (API externa, ver nota del módulo).
+   * @param {number} idAsunto - Identificador del asunto a consultar.
+   * @returns {Promise<Object>} Expediente del asunto (JSON parseado).
+   */
   getExpedienteAsunto: async (idAsunto) => {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_CONTROL_DE_GESTION_API_URL}/asunto/consultarExpedienteAsunto`,
+      `${CG_API_URL}/asunto/consultarExpedienteAsunto`,
       {
         method: 'POST',
         headers: {
@@ -204,10 +260,17 @@ export const ControlGestionService = {
     return data;
   },
 
-  /** Obtener el blob de un documento para previsualizarlo */
+  /**
+   * Obtiene el blob de un documento para previsualizarlo (API externa de CG).
+   * `fetch` directo intencional (API externa, ver nota del módulo).
+   * @param {number} idAsunto - Identificador del asunto dueño del documento.
+   * @param {string} relativePath - Ruta relativa del documento en el repositorio de CG.
+   * @returns {Promise<Blob>} Blob binario del documento.
+   * @throws {Error} Si la respuesta del servidor no es satisfactoria.
+   */
   getVisualizarDocumento: async (idAsunto, relativePath) => {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_CONTROL_DE_GESTION_API_URL}/asunto/verDocumento`,
+      `${CG_API_URL}/asunto/verDocumento`,
       {
         method: 'POST',
         headers: {

@@ -29,6 +29,7 @@ import {
   Building,
 } from "lucide-react";
 import { toPng } from "html-to-image";
+import { PlantillaService } from "@/services/plantilla.service";
 
 // ─── Catálogo de unidades de negocio ─────────────────────────────────────────
 // Cada entrada: { id, label (descripcion_larga de la raíz), file }
@@ -274,8 +275,7 @@ export default function PruebaPage() {
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/plantilla/organigrama_search/`;
-        const res = await fetch(url);
+        const res = await PlantillaService.getOrganigramaSearch();
         if (res.ok) {
           const data = await res.json();
           setGlobalCatalog(data);
