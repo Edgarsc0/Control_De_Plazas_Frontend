@@ -13,6 +13,7 @@ import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
+import { useColumnState } from "../../../_hooks/useColumnState";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -118,7 +119,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
-  const [columns, setColumns] = useState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
     { key: "id_empleado", label: "Id Empleado", width: 115, visible: true, isBasic: true },
@@ -200,8 +201,6 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
   const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
   const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
-  const [columnSearchText, setColumnSearchText] = useState("");
-  const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [isCellModalOpen, setIsCellModalOpen] = useState(false);
   const [selectedRowData, setSelectedRowData] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -281,9 +280,6 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
 
   const isMonoColumn = useCallback((key) => ["posicion", "id_empleado", "rfc", "curp", "nivel", "codigo_presupuestal", "ua", "cd_ua", "cent", "dir", "subd", "jd", "depto", "numeral"].includes(key), []);
 
-  const toggleColumnVisibility = (key) => {
-    setColumns(prev => prev.map(col => (col.key === key ? { ...col, visible: !col.visible } : col)));
-  };
 
   const isDateColumn = useCallback((colKey) => {
     return DATE_KEYS.includes(colKey);
