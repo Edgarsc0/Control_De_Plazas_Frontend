@@ -14,6 +14,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
+import { useCellSelection } from "../../../_hooks/useCellSelection";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -192,7 +193,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [textFilters, setTextFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
-  const [selectedCell, setSelectedCell] = useState(null);
+  const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
   const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
@@ -201,9 +202,6 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
   const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
   const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
-  const [isCellModalOpen, setIsCellModalOpen] = useState(false);
-  const [selectedRowData, setSelectedRowData] = useState(null);
-  const [contextMenu, setContextMenu] = useState(null);
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);

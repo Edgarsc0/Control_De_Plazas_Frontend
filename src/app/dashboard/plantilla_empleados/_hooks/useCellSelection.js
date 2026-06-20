@@ -40,6 +40,9 @@ export function useCellSelection() {
 
   return {
     selectedCell, selectedRowData, isCellModalOpen, contextMenu,
+    // setters crudos (compatibilidad directa al cablear en los tabs)
+    setSelectedCell, setSelectedRowData, setIsCellModalOpen, setContextMenu,
+    // métodos semánticos (preferidos en código nuevo)
     selectCell, openCellModal, closeCellModal, openContextMenu, closeContextMenu,
   };
 }
