@@ -13,6 +13,9 @@ import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import HistoryDataTable from "@/components/ui/HistoryDataTable";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import { useColumnState } from "../../../_hooks/useColumnState";
+import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 
 const advValueDistinctCache = new Map();
 
@@ -319,7 +322,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
-  const [columns, setColumns] = useState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
@@ -362,24 +365,26 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "nombre_puesto", label: "Nombre Puesto", width: 250, visible: true, isBasic: true },
   ]);
 
-  const [globalSearch, setGlobalSearch] = useState("");
+  const {
+    globalSearch, setGlobalSearch,
+    columnFilters, setColumnFilters,
+    textFilters, setTextFilters,
+    activeFilterDropdown, setActiveFilterDropdown,
+    filterDropdownTab, setFilterDropdownTab,
+    activeConditionDropdown, setActiveConditionDropdown,
+    tempSelectedValues, setTempSelectedValues,
+    filterSearchText, setFilterSearchText,
+    filterSearchCondition, setFilterSearchCondition,
+    isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
+    expandedDateNodes, setExpandedDateNodes,
+    debouncedFilterSearchText,
+  } = useColumnFilters({ initialColumnFilters: { estado_psn: ["A"], is_latest: ["true"] } });
   const [searchQuery, setSearchQuery] = useState("");
-  const [columnFilters, setColumnFilters] = useState({ estado_psn: ["A"], is_latest: ["true"] });
-  const [textFilters, setTextFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
-  const [selectedCell, setSelectedCell] = useState(null);
+  const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [selectedRowData, setSelectedRowData] = useState(null);
 
-  const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
-  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
-  const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
-  const [tempSelectedValues, setTempSelectedValues] = useState([]);
-  const [filterSearchText, setFilterSearchText] = useState("");
-  const [filterSearchCondition, setFilterSearchCondition] = useState("contains");
-  const [isFilterSearchConditionOpen, setIsFilterSearchConditionOpen] = useState(false);
 
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const advConditionIdRef = useRef(1);
@@ -479,14 +484,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [uniqueColumnValues, setUniqueColumnValues] = useState({});
   const [loadingUniqueValues, setLoadingUniqueValues] = useState(false);
   const [hasInitializedTemp, setHasInitializedTemp] = useState(false);
-  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilterSearchText(filterSearchText);
-    }, 350);
-    return () => clearTimeout(handler);
-  }, [filterSearchText]);
 
   const uniqueValuesCacheRef = useRef({});
   const movPosDataCacheRef = useRef({});
@@ -657,13 +655,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       .finally(() => setLoadingUniqueValues(false));
   }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, filterSearchCondition]);
   const [columnSearchText, setColumnSearchText] = useState("");
-  const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
-  const [isCellModalOpen, setIsCellModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [modalHistoryData, setModalHistoryData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
-  const [expandedDateNodes, setExpandedDateNodes] = useState({});
   const [activeModalTab, setActiveModalTab] = useState('tabla');
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
@@ -756,9 +751,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const isMonoColumn = useCallback((key) => ["no_pos_actual", "cd_un", "cd_departamento", "cd_puesto", "maximo", "grado", "esc", "partida_ptal"].includes(key), []);
 
-  const toggleColumnVisibility = (key) => {
-    setColumns(prev => prev.map(col => (col.key === key ? { ...col, visible: !col.visible } : col)));
-  };
 
   const isDateColumn = useCallback((colKey) => {
     return DATE_KEYS_MOV.includes(colKey);
