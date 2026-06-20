@@ -13,6 +13,9 @@ import { VacantesService } from "@/services/vacantes.service";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
 import PosicionTimelineModal from "../../modals/PosicionTimelineModal";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import { useColumnState } from "../../../_hooks/useColumnState";
+import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import {
   Select,
   SelectContent,
@@ -280,10 +283,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
-  const [selectedCell, setSelectedCell] = useState(null);
+  const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [selectedRowData, setSelectedRowData] = useState(null);
 
   // Subtab State
   const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
@@ -378,12 +379,22 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       });
   }, []);
 
-  const [isColumnsModalOpen, setIsColumnsModalOpen] = useState(false);
   const [columnSearchText, setColumnSearchText] = useState("");
-  const [textFilters, setTextFilters] = useState({});
+  const {
+    globalSearch, setGlobalSearch,
+    columnFilters, setColumnFilters,
+    textFilters, setTextFilters,
+    activeFilterDropdown, setActiveFilterDropdown,
+    filterDropdownTab, setFilterDropdownTab,
+    activeConditionDropdown, setActiveConditionDropdown,
+    tempSelectedValues, setTempSelectedValues,
+    filterSearchText, setFilterSearchText,
+    filterSearchCondition, setFilterSearchCondition,
+    isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
+    expandedDateNodes, setExpandedDateNodes,
+    debouncedFilterSearchText,
+  } = useColumnFilters();
   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
-  const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
-  const [isCellModalOpen, setIsCellModalOpen] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedNumEmpleado, setSelectedNumEmpleado] = useState(null);
@@ -500,24 +511,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     });
   }, []);
 
-  const [columnFilters, setColumnFilters] = useState({});
-  const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
-  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
-  const [tempSelectedValues, setTempSelectedValues] = useState([]);
-  const [filterSearchText, setFilterSearchText] = useState("");
-  const [debouncedFilterSearchText, setDebouncedFilterSearchText] = useState("");
   const [hasInitializedTemp, setHasInitializedTemp] = useState(false);
   const [uniqueColumnValues, setUniqueColumnValues] = useState({});
   const [loadingUniqueValues, setLoadingUniqueValues] = useState(false);
-  const [expandedDateNodes, setExpandedDateNodes] = useState({});
   const dropdownRef = useRef(null);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilterSearchText(filterSearchText);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [filterSearchText]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -531,7 +529,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     };
   }, []);
 
-  const [columns, setColumns] = useState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "num_empleado", label: "No. Empleado", width: 120, visible: true, isBasic: true },
     { key: "nombre", label: "Nombre", width: 150, visible: true, isBasic: true },
@@ -772,11 +770,6 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     }
   };
 
-  const toggleColumnVisibility = (key) => {
-    setColumns((prev) =>
-      prev.map((c) => (c.key === key ? { ...c, visible: !c.visible } : c))
-    );
-  };
 
   const handleMouseDown = (e, index, direction = 'right') => {
     e.preventDefault();
@@ -991,7 +984,6 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     setActiveFilterDropdown(colKey);
     setFilterDropdownTab('todos');
     setFilterSearchText("");
-    setDebouncedFilterSearchText("");
     setHasInitializedTemp(false);
     setTempSelectedValues(columnFilters[colKey] || []);
   };
