@@ -13,6 +13,7 @@ import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
+import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
@@ -192,6 +193,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
+  const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] } });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -205,7 +207,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
     expandedDateNodes, setExpandedDateNodes,
     debouncedFilterSearchText,
-  } = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] } });
+  } = filters;
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
@@ -1301,194 +1303,21 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       )}
 
       {/* Dropdown de Filtro por Valores Únicos */}
-      <AnimatePresence>
-        {activeFilterDropdown && (
-          <div key="filter-dropdown" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setActiveFilterDropdown(null)} className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} ref={dropdownRef} className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70]">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-black uppercase tracking-tight text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                    <Filter className="size-3 text-[#621f32] dark:text-[#bc955c]" />
-                    Filtrar {columns.find(c => c.key === activeFilterDropdown)?.label}
-                  </h4>
-                  <button onClick={() => setActiveFilterDropdown(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
-                </div>
-                {!isDateColumn(activeFilterDropdown) && (
-                  <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg mb-3">
-                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('todos'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'todos' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Todos los datos</button>
-                    <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
-                  </div>
-                )}
-                <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm gap-2">
-                  {!isDateColumn(activeFilterDropdown) && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(o => !o); }}
-                      title={`Condición: ${getConditionLabel(filterSearchCondition)}`}
-                      className="shrink-0 size-5 flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 text-[9px] font-black cursor-pointer select-none transition-colors"
-                    >
-                      {CONDITION_SHORTHANDS[filterSearchCondition] || "*"}
-                    </button>
-                  )}
-                  <Search className="size-3 text-slate-400" />
-                  <input type="text" value={filterSearchText} onChange={(e) => setFilterSearchText(e.target.value)} placeholder="Buscar valor..." className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold" />
-                  {isFilterSearchConditionOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40 bg-transparent" onClick={(e) => { e.stopPropagation(); setIsFilterSearchConditionOpen(false); }} />
-                      <div className="absolute top-full left-0 mt-1 z-50 w-40 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200">
-                        {CONDITION_OPTIONS.map(item => (
-                          <button
-                            key={item.key}
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setFilterSearchCondition(item.key); setIsFilterSearchConditionOpen(false); }}
-                            className={`px-2 py-1 text-[9px] font-bold rounded-lg text-left transition-colors cursor-pointer w-full flex items-center justify-between ${filterSearchCondition === item.key ? "bg-[#bc955c] text-slate-950" : "hover:bg-white/10"}`}
-                          >
-                            <span>{item.label}</span>
-                            {filterSearchCondition === item.key && <Check className="size-2.5" />}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-white dark:bg-slate-900">
-                {isDateColumn(activeFilterDropdown) ? (
-                  <div className="flex flex-col gap-1 p-2">
-                    {Object.keys(dateHierarchies[activeFilterDropdown] || {}).sort((a,b) => b - a).map(year => {
-                      const yearData = dateHierarchies[activeFilterDropdown][year];
-                      const isYearExpanded = expandedDateNodes[year];
-                      const yearLeafValues = [...new Set(detalle.filter(row => parseDateParts(row[activeFilterDropdown])?.year === year).map(row => String(row[activeFilterDropdown] || "").trim()))];
-                      const isYearSelected = yearLeafValues.length > 0 && yearLeafValues.every(v => tempSelectedValues.includes(v));
-                      const isYearPartial = !isYearSelected && yearLeafValues.some(v => tempSelectedValues.includes(v));
-
-                      return (
-                        <div key={year} className="flex flex-col">
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg group">
-                            <button onClick={() => toggleDateNode(year)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors text-slate-400">
-                              {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRightIcon className="size-3" />}
-                            </button>
-                            <div onClick={() => handleDateSelection(activeFilterDropdown, 'year', year)} className="flex items-center gap-2 cursor-pointer flex-1">
-                              <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isYearSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                                {isYearSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                                {isYearPartial && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
-                              </div>
-                              <span className="text-xs font-black text-slate-700 dark:text-slate-200">{year}</span>
-                              <span className="text-[10px] font-black text-slate-400">({yearData.count})</span>
-                            </div>
-                          </div>
-                          
-                          {isYearExpanded && (
-                            <div className="ml-6 flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2 mt-1 mb-2 gap-1">
-                              {Object.keys(yearData.months).sort().map(month => {
-                                const monthData = yearData.months[month];
-                                const monthPath = `${year}-${month}`;
-                                const isMonthExpanded = expandedDateNodes[monthPath];
-                                const monthLeafValues = [...new Set(detalle.filter(row => {
-                                  const p = parseDateParts(row[activeFilterDropdown]);
-                                  return p && p.year === year && p.month === month;
-                                }).map(row => String(row[activeFilterDropdown] || "").trim()))];
-                                const isMonthSelected = monthLeafValues.length > 0 && monthLeafValues.every(v => tempSelectedValues.includes(v));
-                                const isMonthPartial = !isMonthSelected && monthLeafValues.some(v => tempSelectedValues.includes(v));
-
-                                return (
-                                  <div key={month} className="flex flex-col">
-                                    <div className="flex items-center gap-2 px-2 py-1 group">
-                                      <button onClick={() => toggleDateNode(monthPath)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-slate-400">
-                                        {isMonthExpanded ? <ChevronDown className="size-2.5" /> : <ChevronRightIcon className="size-2.5" />}
-                                      </button>
-                                      <div onClick={() => handleDateSelection(activeFilterDropdown, 'month', month, year)} className="flex items-center gap-2 cursor-pointer flex-1">
-                                        <div className={`size-3.5 rounded border flex items-center justify-center transition-all ${isMonthSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                                          {isMonthSelected && <Check className="size-2 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                                          {isMonthPartial && <div className="size-1 bg-[#621f32] dark:bg-[#bc955c] rounded-xs" />}
-                                        </div>
-                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{monthData.name}</span>
-                                        <span className="text-[9px] font-black text-slate-400">({monthData.count})</span>
-                                      </div>
-                                    </div>
-
-                                    {isMonthExpanded && (
-                                      <div className="ml-6 grid grid-cols-2 gap-x-2 border-l border-slate-50 dark:border-slate-800/50 pl-2 py-1 mt-1">
-                                        {Object.keys(monthData.days).sort().map(day => {
-                                          const count = monthData.days[day];
-                                          const dayMatches = detalle.filter(row => {
-                                            const p = parseDateParts(row[activeFilterDropdown]);
-                                            return p && p.year === year && p.month === month && p.day === day;
-                                          });
-                                          const dayUniqueValues = [...new Set(dayMatches.map(row => String(row[activeFilterDropdown] || "").trim()))];
-                                          const isDaySelected = dayUniqueValues.length > 0 && dayUniqueValues.every(v => tempSelectedValues.includes(v));
-
-                                          return (
-                                            <div key={day} onClick={() => handleDateSelection(activeFilterDropdown, 'day', day, monthPath)} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded cursor-pointer group">
-                                              <div className={`size-3 rounded border flex items-center justify-center transition-all ${isDaySelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                                                {isDaySelected && <Check className="size-2 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                                              </div>
-                                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">{day}</span>
-                                              <span className="text-[8px] font-black text-slate-300">({count})</span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-0.5">
-                    {(() => {
-                      const { allVals, isAllSelected, sliced, filteredCount } = filterDropdownValues;
-                      const tempSelectedSet = new Set(tempSelectedValues);
-
-                      return (
-                        <>
-                          <button onClick={() => {
-                            setTempSelectedValues(isAllSelected ? [] : allVals);
-                          }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
-                            <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                              {isAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                            </div>
-                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">Seleccionar Todo</span>
-                          </button>
-                          <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
-                          {sliced.map(({ value, count }) => (
-                            <button key={value} onClick={() => {
-                              setTempSelectedValues(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
-                            }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group">
-                              <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${tempSelectedSet.has(value) ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                                {tempSelectedSet.has(value) && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                              </div>
-                              <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
-                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">{value || "(Vacío)"}</span>
-                                <span className="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-lg">{count}</span>
-                              </div>
-                            </button>
-                          ))}
-                          {filteredCount > 100 && (
-                            <div className="text-center py-3 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
-                              Mostrando 100 de {filteredCount} resultados. Usa el buscador.
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2">
-                <button onClick={() => clearColumnFilter(activeFilterDropdown)} className="flex-1 px-3 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">Limpiar</button>
-                <button onClick={() => applyColumnFilter(activeFilterDropdown)} className="flex-[2] px-3 py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl shadow-lg shadow-[#621f32]/20 dark:shadow-none hover:opacity-90 active:scale-95 transition-all">Aplicar Filtro</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ColumnFilterDropdown
+        open={!!activeFilterDropdown}
+        columnKey={activeFilterDropdown}
+        columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
+        isDate={isDateColumn(activeFilterDropdown)}
+        data={detalle}
+        filters={filters}
+        dropdownValues={filterDropdownValues}
+        dateHierarchy={dateHierarchies[activeFilterDropdown]}
+        onDateSelection={(type, value, parentPath) => handleDateSelection(activeFilterDropdown, type, value, parentPath)}
+        onToggleDateNode={toggleDateNode}
+        onApply={() => applyColumnFilter(activeFilterDropdown)}
+        onClear={() => clearColumnFilter(activeFilterDropdown)}
+        onClose={() => setActiveFilterDropdown(null)}
+      />
 
       <AnimatePresence>
         {isCellModalOpen && selectedCell && (
