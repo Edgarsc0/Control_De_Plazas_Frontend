@@ -432,7 +432,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       setActiveFilterDropdown(colKey);
       setFilterDropdownTab('todos');
       setFilterSearchText("");
-      setTempSelectedValues(columnFilters[colKey] || (uniqueColumnValues[colKey] || []).map(v => v.value));
+      // Computar valores únicos inline desde los datos (el memo uniqueColumnValues es
+      // lazy y aún no se ha recomputado para la columna recién activada).
+      setTempSelectedValues(columnFilters[colKey] || [...new Set(bajasData.map(row => String(row[colKey] || "").trim()))]);
     }
   };
 
