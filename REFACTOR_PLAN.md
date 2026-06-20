@@ -194,10 +194,14 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - `vacantes`: deduplicado el armado de query string en helper `buildQuery`.
   - Fetch crudo restante justificado: organigrama L54 (`/organigramas/*.json`, asset estático),
     `prueba/page.jsx` (`/api/ai/chat/`, página de pruebas — pendiente borrar o migrar).
-- [x] T3a — capa pura additiva (build ✓): `utils/filters.js` + hooks
-  `useAdvancedFilter` (refactor), `useDebouncedValue`, `useSort`, `useTableData`.
-  Tabs aún sin tocar. Commit `35a4b5a`.
-- [ ] T3b — genéricos `DataTable` + `FilterModal` (diseño en revisión con el usuario).
+- [x] T3a — capa pura. CORRECCIÓN: los 4 tabs usan filtro Excel-style por-columna
+  (valores + condición de texto + árbol de fecha), NO el rule-chain del hook
+  huérfano (0 importadores). Resultado:
+  - `utils/columnFilters.js` (modelo real, canónico). Commit `2897fd7`.
+  - hooks genéricos `useDebouncedValue`, `useSort`, `useTableData`. Commit `35a4b5a`.
+  - BORRADO código muerto: `utils/filters.js`, `useAdvancedFilter.js`, `AdvancedFilterModal.jsx`.
+- [ ] T3b — genéricos `DataTable` + `ColumnFilterDropdown` + `ColumnsModal` + hooks
+  `useColumnState`/`useColumnFilters`/`useCellSelection` (firmas presentadas, en revisión).
 - [ ] T3c — refactor de los 4 tabs (piloto `PlantillaDetalleTab` primero).
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
