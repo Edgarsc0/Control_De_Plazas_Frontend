@@ -227,9 +227,15 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - [x] BajasTab usa DataTable + ColumnFilterDropdown (renderCell: estado_psn /
     posicion->history / total_movimientos). 1875→1454 L. Normaliza header (congela
     2 primeras cols + resalte hasFilter). Build ✓.
-  - PENDIENTE: MovimientosTab + MovimientosPersonalTab (server-side: uniqueColumnValues
-    como estado, filtros avanzados, paginación → más riesgo).
-  - PENDIENTE: smoke-test runtime de BajasTab (sobre todo el header normalizado).
+  - [x] DataTable + ColumnFilterDropdown extendidos a modo server (loadingVariant
+    skeleton, rowNumberOffset, dateValues, allDateLeafValues, loadingValues).
+  - [x] MovimientosTab usa DataTable + ColumnFilterDropdown (server). 2540→2027 L.
+  - [ ] MovimientosPersonalTab: el MÁS divergente — selección {rowIdx,colIdx,colName,
+    value} (no {row,col}), clicks de celda abren timeline modals, dropdownValues
+    inline sin memo. Forzar genéricos = extender DataTable con callbacks de selección
+    (toca los 3 tabs hechos) + extraer dropdownValues. Decisión: queda con hooks +
+    ColumnsModal + utils (nivel de reuso apropiado para tab tan divergente).
+  - PENDIENTE: smoke-test runtime de BajasTab + MovimientosTab (headers normalizados).
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
