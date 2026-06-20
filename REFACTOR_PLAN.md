@@ -221,10 +221,13 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
     cablean los 3 hooks de estado. Build verde cada uno. Commits posteriores a `02d8a3a`.
     useState: PlantillaDetalle 33→14, Bajas 35→17, Movimientos 53→35, MovPersonal 55→40.
   - [x] `<ColumnsModal>` swapped en los 3 tabs (commit `6d43f14`), -90/-97 L c/u.
-  - PENDIENTE (diferido por elección "drop-in"): genéricos `DataTable` y
-    `ColumnFilterDropdown` — el markup de tabla y el panel de filtro siguen
-    duplicados en cada tab. Requieren el rewrite mayor que se pospuso.
-  - PENDIENTE: smoke-test de los 3 tabs replicados (build ✓, sin probar runtime).
+  - [x] genéricos construidos + cableados EN EL PILOTO (build ✓):
+    `ColumnFilterDropdown` (commit `e303cd5`) y `DataTable` (commit `7dceba6`).
+    El tab inyecta `renderCell` (badge estado/moneda/mono) + hooks. Pilot 1672→1265 L.
+  - PENDIENTE: replicar `DataTable` + `ColumnFilterDropdown` en los otros 3 tabs
+    (cada uno con su `renderCell` + handlers de dropdown propios).
+  - PENDIENTE: smoke-test runtime — sobre todo la tabla (virtualización/sticky/resize)
+    del piloto antes de replicar; + los 3 tabs ya con hooks.
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
