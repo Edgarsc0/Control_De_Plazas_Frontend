@@ -48,6 +48,9 @@ export default function ColumnFilterDropdown({
   onApply,
   onClear,
   onClose,
+  loadingValues = false,
+  dateValues = null,
+  allDateLeafValues = null,
 }) {
   const {
     filterDropdownTab, setFilterDropdownTab,
@@ -58,8 +61,15 @@ export default function ColumnFilterDropdown({
     expandedDateNodes,
   } = filters;
 
-  const leafValues = (predicate) =>
-    [...new Set(data.filter(predicate).map((row) => getCellValue(row, columnKey).trim()))];
+  // Hojas de fecha: en modo server se calculan desde `dateValues` (valores únicos
+  // del backend); en cliente, desde las filas (`data`). El predicado recibe las
+  // partes ya parseadas {year, month, day}.
+  const dateLeaves = (partsPredicate) => {
+    if (dateValues) {
+      return [...new Set(dateValues.filter((v) => { const p = parseDateParts(v); return p && partsPredicate(p); }).map((v) => String(v).trim()))];
+    }
+    return [...new Set(data.filter((row) => { const p = parseDateParts(row[columnKey]); return p && partsPredicate(p); }).map((row) => getCellValue(row, columnKey).trim()))];
+  };
 
   return (
     <AnimatePresence>
@@ -115,12 +125,28 @@ export default function ColumnFilterDropdown({
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-white dark:bg-slate-900">
-              {isDate ? (
+              {loadingValues ? (
+                <div className="flex flex-col gap-2 p-3">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+                      <div className="size-3 rounded-md bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                      <div className="size-4 rounded-md bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" style={{ width: `${35 + (i % 3) * 15}%` }} />
+                    </div>
+                  ))}
+                </div>
+              ) : isDate ? (
                 <div className="flex flex-col gap-1 p-2">
+                  {allDateLeafValues && (
+                    <div className="flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+                      <button onClick={() => setTempSelectedValues(allDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
+                      <button onClick={() => setTempSelectedValues([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
+                    </div>
+                  )}
                   {Object.keys(dateHierarchy || {}).sort((a, b) => b - a).map(year => {
                     const yearData = dateHierarchy[year];
                     const isYearExpanded = expandedDateNodes[year];
-                    const yearLeafValues = leafValues(row => parseDateParts(row[columnKey])?.year === year);
+                    const yearLeafValues = dateLeaves(p => p.year === year);
                     const isYearSelected = yearLeafValues.length > 0 && yearLeafValues.every(v => tempSelectedValues.includes(v));
                     const isYearPartial = !isYearSelected && yearLeafValues.some(v => tempSelectedValues.includes(v));
 
@@ -146,10 +172,7 @@ export default function ColumnFilterDropdown({
                               const monthData = yearData.months[month];
                               const monthPath = `${year}-${month}`;
                               const isMonthExpanded = expandedDateNodes[monthPath];
-                              const monthLeafValues = leafValues(row => {
-                                const p = parseDateParts(row[columnKey]);
-                                return p && p.year === year && p.month === month;
-                              });
+                              const monthLeafValues = dateLeaves(p => p.year === year && p.month === month);
                               const isMonthSelected = monthLeafValues.length > 0 && monthLeafValues.every(v => tempSelectedValues.includes(v));
                               const isMonthPartial = !isMonthSelected && monthLeafValues.some(v => tempSelectedValues.includes(v));
 
@@ -173,10 +196,7 @@ export default function ColumnFilterDropdown({
                                     <div className="ml-6 grid grid-cols-2 gap-x-2 border-l border-slate-50 dark:border-slate-800/50 pl-2 py-1 mt-1">
                                       {Object.keys(monthData.days).sort().map(day => {
                                         const count = monthData.days[day];
-                                        const dayUniqueValues = leafValues(row => {
-                                          const p = parseDateParts(row[columnKey]);
-                                          return p && p.year === year && p.month === month && p.day === day;
-                                        });
+                                        const dayUniqueValues = dateLeaves(p => p.year === year && p.month === month && p.day === day);
                                         const isDaySelected = dayUniqueValues.length > 0 && dayUniqueValues.every(v => tempSelectedValues.includes(v));
 
                                         return (

@@ -80,7 +80,9 @@ export default function DataTable({
   isMonoColumn,
   isPending,
   isLoading,
+  loadingVariant = 'spinner',
   loadingMessage = "Cargando...",
+  rowNumberOffset = 0,
   data = [],
   startIndex,
   endIndex,
@@ -210,14 +212,30 @@ export default function DataTable({
         </thead>
         <tbody ref={tbodyRef} className="divide-y divide-slate-100 dark:divide-slate-800/80">
           {isLoading ? (
-            <tr>
-              <td colSpan={colSpan} className="py-20 text-center">
-                <div className="flex flex-col items-center justify-center gap-4">
-                  <div className="size-10 border-4 border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
-                  <p className="text-xs font-bold text-slate-450 uppercase tracking-widest animate-pulse">{loadingMessage}</p>
-                </div>
-              </td>
-            </tr>
+            loadingVariant === 'skeleton' ? (
+              Array.from({ length: 15 }).map((_, rIdx) => (
+                <tr key={`skeleton-row-${rIdx}`} className="h-[37px] bg-white dark:bg-slate-950">
+                  <td className="sticky left-0 z-25 text-center border-r h-[37px] px-4 align-middle bg-white dark:bg-slate-950"><div className="h-3 w-4 bg-slate-200 dark:bg-slate-800 rounded mx-auto animate-pulse" /></td>
+                  <td className="sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 bg-white dark:bg-slate-950"><div className="size-5 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto animate-pulse" /></td>
+                  {visible.map((col, colIdx, arr) => {
+                    const isSticky = colIdx < 2;
+                    let leftOffset = 95;
+                    if (colIdx === 1) leftOffset = 95 + arr[0].width;
+                    const widthClass = colIdx % 3 === 0 ? "w-5/6" : colIdx % 3 === 1 ? "w-2/3" : "w-3/4";
+                    return (<td key={`skeleton-td-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}} className="px-4 border-r h-[37px] align-middle bg-white dark:bg-slate-950 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]"><div className={`h-3 ${widthClass} bg-slate-200 dark:bg-slate-800 rounded animate-pulse`} /></td>);
+                  })}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={colSpan} className="py-20 text-center">
+                  <div className="flex flex-col items-center justify-center gap-4">
+                    <div className="size-10 border-4 border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
+                    <p className="text-xs font-bold text-slate-450 uppercase tracking-widest animate-pulse">{loadingMessage}</p>
+                  </div>
+                </td>
+              </tr>
+            )
           ) : data.length === 0 ? (
             <tr>
               <td colSpan={colSpan} className="py-20 text-center">
@@ -237,7 +255,7 @@ export default function DataTable({
                 const actualRowIdx = startIndex + rowIdx;
                 return (
                   <tr key={getRowId(row, actualRowIdx)} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onSelectCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })} onContextMenu={(e) => { e.preventDefault(); onRowContextMenu(e, row); }}>
-                    <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{actualRowIdx + 1}</td>
+                    <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
                     <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
                     {visible.map((col, colIdx, arr) => {
                       const isSticky = colIdx < 2;
