@@ -200,9 +200,14 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - `utils/columnFilters.js` (modelo real, canónico). Commit `2897fd7`.
   - hooks genéricos `useDebouncedValue`, `useSort`, `useTableData`. Commit `35a4b5a`.
   - BORRADO código muerto: `utils/filters.js`, `useAdvancedFilter.js`, `AdvancedFilterModal.jsx`.
-- [ ] T3b — genéricos `DataTable` + `ColumnFilterDropdown` + `ColumnsModal` + hooks
-  `useColumnState`/`useColumnFilters`/`useCellSelection` (firmas presentadas, en revisión).
-- [ ] T3c — refactor de los 4 tabs (piloto `PlantillaDetalleTab` primero).
+- [~] T3b — genéricos (firmas aprobadas, hook completo). Construido additivo
+  (commit `bcb8159`), sin cablear aún:
+  - hooks `useColumnState`, `useCellSelection`, `useColumnFilters` (`_hooks/`).
+  - `ColumnsModal` genérico (`_components/shared/`).
+  - PENDIENTE: `ColumnFilterDropdown` (panel valores+texto+árbol fecha) y `DataTable`
+    (tabla sticky + resize + header 2-filas + virtualización). Son los más grandes.
+- [ ] T3c — piloto: rewrite `PlantillaDetalleTab` (1672 L) usando hooks+componentes
+  → valida vía build. Luego replicar en los otros 3 tabs.
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
