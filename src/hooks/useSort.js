@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { getColumnType, parseFlexibleDate } from '@/utils/filters';
+import { getColumnType, parseFlexibleDate } from '@/utils/columnFilters';
 
 /**
  * Compara dos valores según el tipo inferido de la columna (texto, número o fecha).

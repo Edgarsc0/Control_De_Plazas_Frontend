@@ -194,7 +194,11 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - `vacantes`: deduplicado el armado de query string en helper `buildQuery`.
   - Fetch crudo restante justificado: organigrama L54 (`/organigramas/*.json`, asset estático),
     `prueba/page.jsx` (`/api/ai/chat/`, página de pruebas — pendiente borrar o migrar).
-- [ ] T3a · [ ] T3b · [ ] T3c
+- [x] T3a — capa pura additiva (build ✓): `utils/filters.js` + hooks
+  `useAdvancedFilter` (refactor), `useDebouncedValue`, `useSort`, `useTableData`.
+  Tabs aún sin tocar. Commit `35a4b5a`.
+- [ ] T3b — genéricos `DataTable` + `FilterModal` (diseño en revisión con el usuario).
+- [ ] T3c — refactor de los 4 tabs (piloto `PlantillaDetalleTab` primero).
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
 > quedaron en `components/shared/` (no `layout/`) por ser modales/widgets reusables,
