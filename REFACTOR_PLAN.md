@@ -210,10 +210,13 @@ De ~50 `useState` sueltos → ~4 llamadas a hooks + config de columnas + render 
   - [x] `<ColumnsModal>` genérico (commit `bf7319d`).
   - [x] `useColumnState` (commit `322f2ce`).
   - [x] `useCellSelection` (commit `305862b`, expone setters crudos para drop-in).
-  - [ ] `useColumnFilters` + `useSort` — PARTE PESADA: estado de filtros + panel
-    dropdown (~190 L con pestaña "vista actual" que cruza filtros). Requiere o bien
-    reescribir el panel a la API limpia del hook, o exponer setters planos drop-in.
-  - `useState` del tab: 33 → 26 hasta ahora.
+  - [x] `useColumnFilters` (drop-in setters planos, commit `02d8a3a`): agrupa
+    estado de filtros + UI dropdown + debounce. Tab mantiene su `filteredSortedData`
+    y panel, ahora sourcing del hook.
+  - `useState` del tab: **33 → 14** (los 14 restantes son propios: cadena de mando,
+    donut, export, scroll, mounted).
+  - PILOTO funcionalmente completo (build verde en cada paso). PENDIENTE: smoke-test
+    en dev (filtros/columnas/celda) — build ✓ no garantiza paridad runtime.
   - [ ] replicar hooks/ColumnsModal en MovimientosTab/MovimientosPersonalTab/BajasTab.
 
 > Nota desviación menor vs plan: `EmpleadosTableModal` y `CodigoVerificacionDrawer`
