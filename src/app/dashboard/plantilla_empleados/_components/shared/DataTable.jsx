@@ -83,6 +83,10 @@ export default function DataTable({
   loadingVariant = 'spinner',
   loadingMessage = "Cargando...",
   rowNumberOffset = 0,
+  isRowSelected = (idx) => selectedCell?.row === idx,
+  isCellSelected = (idx, colIdx) => selectedCell?.row === idx && selectedCell?.col === colIdx,
+  isColSelected = (idx) => selectedCell?.col === idx,
+  onRowClick = (idx) => onSelectCell({ row: idx, col: selectedCell?.col ?? 0 }),
   data = [],
   startIndex,
   endIndex,
@@ -108,7 +112,7 @@ export default function DataTable({
               let leftOffset = 95;
               if (index === 1) leftOffset = 95 + arr[0].width;
               const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
-              const bgClass = selectedCell?.col === index ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
+              const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
               return (
                 <th key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
                   {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
@@ -254,18 +258,18 @@ export default function DataTable({
               {data.map((row, rowIdx) => {
                 const actualRowIdx = startIndex + rowIdx;
                 return (
-                  <tr key={getRowId(row, actualRowIdx)} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onSelectCell({ row: actualRowIdx, col: selectedCell?.col ?? 0 })} onContextMenu={(e) => { e.preventDefault(); onRowContextMenu(e, row); }}>
-                    <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
-                    <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${selectedCell?.row === actualRowIdx ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
+                  <tr key={getRowId(row, actualRowIdx)} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)} onContextMenu={(e) => { e.preventDefault(); onRowContextMenu(e, row); }}>
+                    <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${isRowSelected(actualRowIdx) ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
+                    <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected(actualRowIdx) ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
                     {visible.map((col, colIdx, arr) => {
                       const isSticky = colIdx < 2;
                       let leftOffset = 95;
                       if (colIdx === 1) leftOffset = 95 + arr[0].width;
                       const value = row[col.key];
-                      const isSelected = selectedCell?.row === actualRowIdx && selectedCell?.col === colIdx;
+                      const isSelected = isCellSelected(actualRowIdx, colIdx);
                       const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
                       const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onRowContextMenu(e, row); };
-                      return renderCell({ row, col, colIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
+                      return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
                     })}
                   </tr>
                 );
