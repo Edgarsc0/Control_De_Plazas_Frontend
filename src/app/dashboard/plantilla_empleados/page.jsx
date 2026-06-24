@@ -1,159 +1,73 @@
 import PlantillaEmpleadosDetalle from "./ClientComponent"
 import { VacantesService } from "@/services/vacantes.service";
+import { Suspense } from 'react';
+import PlantillaEmpleadosSkeleton from '@/components/ui/PlantillaEmpleadosSkeleton';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PlantillaEmpleadosPage() {
+export const metadata = { title: "Plantilla de Empleados" };
+
+const parseJsonResponse = (responsePromise, label) =>
+    responsePromise
+        .then(res => (res && res.ok ? res.json() : null))
+        .catch(err => {
+            console.error(`Error fetching ${label}:`, err);
+            return null;
+        });
+
+// Datos críticos: usados por los tabs default (Detalle, Estatus, Movimientos).
+// Se esperan aquí para que el Suspense de arriba los bloquee — son rápidos y
+// son lo primero que el usuario ve.
+async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromise }) {
     const [
-        responseResumen,
-        responseDetalle,
-        responseEstatus,
-        responseGeografica,
-        responseMovPos,
-        responseBajas,
-        responseMotivos,
-        responseHistorico,
-        responseCuadros,
-        responseDesglose
-    ] = await Promise.all([
-        VacantesService.getEmpleadosCompletosEstatusResumen(),
-        VacantesService.getEmpleadosCompletosActivosDetalle(),
-        VacantesService.getEmpleadosEstatusPorNivelUa().catch(err => {
-            console.error("Error fetching estatus por nivel y UA:", err);
-            return null;
-        }),
-        VacantesService.getEmpleadosDistribucionGeografica().catch(err => {
-            console.error("Error fetching distribución geográfica:", err);
-            return null;
-        }),
-        VacantesService.getMovPosDetalle().catch(err => {
-            console.error("Error fetching mov pos detalle:", err);
-            return null;
-        }),
-        VacantesService.getBajasSig().catch(err => {
-            console.error("Error fetching bajas:", err);
-            return null;
-        }),
-        VacantesService.getBajasMotivos().catch(err => {
-            console.error("Error fetching bajas motivos:", err);
-            return null;
-        }),
-        VacantesService.getBajasHistorico().catch(err => {
-            console.error("Error fetching bajas historico:", err);
-            return null;
-        }),
-        VacantesService.getCuadroVacancia().catch(err => {
-            console.error("Error fetching cuadro vacancia:", err);
-            return null;
-        }),
-        VacantesService.getDesgloseJerarquico().catch(err => {
-            console.error("Error fetching desglose jerarquico:", err);
-            return null;
-        })
-    ]);
+        resumenResult,
+        detalleResult,
+        estatusResult,
+        geograficaResult,
+        movPosResult
+    ] = await criticalDataPromise;
 
-    let resumen = null;
-    if (responseResumen && responseResumen.ok) {
-        try {
-            resumen = await responseResumen.json();
-        } catch (e) {
-            console.error("Error parsing resumen JSON:", e);
-        }
-    }
-
-    let detalle = [];
-    if (responseDetalle && responseDetalle.ok) {
-        try {
-            detalle = await responseDetalle.json();
-        } catch (e) {
-            console.error("Error parsing detalle JSON:", e);
-        }
-    }
-    
-    let estatusPorNivelUa = { por_nivel: {}, por_ua: {} };
-    if (responseEstatus && responseEstatus.ok) {
-        try {
-            estatusPorNivelUa = await responseEstatus.json();
-        } catch (e) {
-            console.error("Error parsing estatus por nivel y UA JSON:", e);
-        }
-    }
-
-    let distribucionGeografica = [];
-    if (responseGeografica && responseGeografica.ok) {
-        try {
-            distribucionGeografica = await responseGeografica.json();
-        } catch (e) {
-            console.error("Error parsing distribución geográfica JSON:", e);
-        }
-    }
-
-    let movPosData = [];
-    if (responseMovPos && responseMovPos.ok) {
-        try {
-            movPosData = await responseMovPos.json();
-        } catch (e) {
-            console.error("Error parsing mov pos detalle JSON:", e);
-        }
-    }
-
-    let bajasData = [];
-    if (responseBajas && responseBajas.ok) {
-        try {
-            bajasData = await responseBajas.json();
-        } catch (e) {
-            console.error("Error parsing bajas JSON:", e);
-        }
-    }
-
-    let bajasMotivos = [];
-    if (responseMotivos && responseMotivos.ok) {
-        try {
-            bajasMotivos = await responseMotivos.json();
-        } catch (e) {
-            console.error("Error parsing bajas motivos JSON:", e);
-        }
-    }
-
-    let bajasHistorico = [];
-    if (responseHistorico && responseHistorico.ok) {
-        try {
-            bajasHistorico = await responseHistorico.json();
-        } catch (e) {
-            console.error("Error parsing bajas historico JSON:", e);
-        }
-    }
-
-    let cuadrosData = [];
-    if (responseCuadros && responseCuadros.ok) {
-        try {
-            cuadrosData = await responseCuadros.json();
-        } catch (e) {
-            console.error("Error parsing cuadros JSON:", e);
-        }
-    }
-
-    let desgloseJerarquicoData = [];
-    if (responseDesglose && responseDesglose.ok) {
-        try {
-            desgloseJerarquicoData = await responseDesglose.json();
-        } catch (e) {
-            console.error("Error parsing desglose jerarquico JSON:", e);
-        }
-    }
+    const resumen = resumenResult.status === 'fulfilled' ? resumenResult.value : null;
+    const detalle = detalleResult.status === 'fulfilled' ? (detalleResult.value || []) : [];
+    const estatusPorNivelUa = estatusResult.status === 'fulfilled' ? (estatusResult.value || { por_nivel: {}, por_ua: {} }) : { por_nivel: {}, por_ua: {} };
+    const distribucionGeografica = geograficaResult.status === 'fulfilled' ? (geograficaResult.value || []) : [];
+    const movPosData = movPosResult.status === 'fulfilled' ? (movPosResult.value || []) : [];
 
     return (
-        <PlantillaEmpleadosDetalle 
-            resumen={resumen} 
-            detalle={detalle} 
-            estatusPorNivelUa={estatusPorNivelUa} 
+        <PlantillaEmpleadosDetalle
+            resumen={resumen}
+            detalle={detalle}
+            estatusPorNivelUa={estatusPorNivelUa}
             distribucionGeografica={distribucionGeografica}
             movPosData={movPosData}
-            bajasData={bajasData}
-            bajasMotivos={bajasMotivos}
-            bajasHistorico={bajasHistorico}
-            cuadrosData={cuadrosData}
-            desgloseJerarquicoData={desgloseJerarquicoData}
+            secondaryDataPromise={secondaryDataPromise}
         />
+    );
+}
+
+export default async function PlantillaEmpleadosPage() {
+    const criticalDataPromise = Promise.allSettled([
+        parseJsonResponse(VacantesService.getEmpleadosCompletosEstatusResumen(), "resumen"),
+        parseJsonResponse(VacantesService.getEmpleadosCompletosActivosDetalle(), "detalle"),
+        parseJsonResponse(VacantesService.getEmpleadosEstatusPorNivelUa(), "estatus por nivel y UA"),
+        parseJsonResponse(VacantesService.getEmpleadosDistribucionGeografica(), "distribución geográfica"),
+        parseJsonResponse(VacantesService.getMovPosDetalle(), "mov pos detalle")
+    ]);
+
+    // Datos secundarios: solo los usan los tabs "Bajas" y "Cuadros de Vacancia".
+    // No se esperan aquí — se pasan como promesa al cliente, que los resuelve
+    // (vía `use()`) recién cuando esos tabs se abren, sin bloquear el resto.
+    const secondaryDataPromise = Promise.allSettled([
+        parseJsonResponse(VacantesService.getBajasSig(), "bajas"),
+        parseJsonResponse(VacantesService.getBajasMotivos(), "bajas motivos"),
+        parseJsonResponse(VacantesService.getBajasHistorico(), "bajas historico"),
+        parseJsonResponse(VacantesService.getCuadroVacancia(), "cuadro vacancia"),
+        parseJsonResponse(VacantesService.getDesgloseJerarquico(), "desglose jerarquico")
+    ]);
+
+    return (
+        <Suspense fallback={<PlantillaEmpleadosSkeleton />}>
+            <PlantillaEmpleadosData criticalDataPromise={criticalDataPromise} secondaryDataPromise={secondaryDataPromise} />
+        </Suspense>
     );
 }

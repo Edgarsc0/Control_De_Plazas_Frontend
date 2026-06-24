@@ -52,8 +52,9 @@ export const parseFlexibleDate = (d) => {
     const sep = dateStr.includes('/') ? '/' : dateStr.includes('-') ? '-' : null;
     if (sep) {
       const parts = dateStr.split(sep);
-      if (parts.length === 3 && parts[0].length <= 2) {
-        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return new Date(`${parts[0]}-${parts[1]}-${parts[2]}T00:00:00`);
+        if (parts[0].length <= 2) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
       }
     }
   }

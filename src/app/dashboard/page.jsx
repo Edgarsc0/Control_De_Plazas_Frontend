@@ -5,19 +5,41 @@ import DashboardSkeleton from '@/components/ui/DashboardSkeleton';
 import { OcupacionService } from '@/services/ocupacion.service';
 import { cookies } from 'next/headers';
 import { ControlGestionService } from '@/services/control_gestion.service';
+
 export const dynamic = 'force-dynamic';
 
-async function DashboardData() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('auth_token')?.value;
+export const metadata = { title: "Dashboard de Control de Plazas" };
 
-  // Fetch all dashboard data concurrently
+async function DashboardData({ dataPromise }) {
+  // Await the promise that was passed in
   const [
     vacantesResult,
     empleadosResult,
     ocupacionResult,
     oficiosResult
-  ] = await Promise.allSettled([
+  ] = await dataPromise;
+
+  const resumenVacantes = vacantesResult.status === 'fulfilled' ? vacantesResult.value : [];
+  const resumenEmpleados = empleadosResult.status === 'fulfilled' ? empleadosResult.value : [];
+  const resumenOcupacion = ocupacionResult.status === 'fulfilled' ? ocupacionResult.value : { filas: [], columnas: [] };
+  const oficiosTurnadosData = oficiosResult.status === 'fulfilled' ? oficiosResult.value : { status: 500, model: { distribucionPorStatus: [], detalleTurnados: [] } };
+
+  return (
+    <Dashboard
+      resumenVacantes={resumenVacantes}
+      resumenEmpleados={resumenEmpleados}
+      ocupacion={resumenOcupacion}
+      oficiosTurnados={oficiosTurnadosData}
+    />
+  );
+}
+
+export default async function DashboardServerCompoment() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth_token')?.value;
+
+  // Initiate the fetch concurrently
+  const dataPromise = Promise.allSettled([
     VacantesService.getVacantesPorNivelResumen().then(res => res.json()),
     VacantesService.getEmpleadosCompletosEstatusResumen().then(res => res.json()),
     OcupacionService.getOcupacionPorOficios({
@@ -35,29 +57,13 @@ async function DashboardData() {
       idUnidadResponsableUsuario: '1',
       idUsuario: 9999,
       idUsuarioRol: 1,
-      skipCatalogCross: true, // Optimización: saltarse el cruce de catálogos en dashboard principal
+      skipCatalogCross: true,
     })
   ]);
 
-  const resumenVacantes = vacantesResult.status === 'fulfilled' ? vacantesResult.value : [];
-  const resumenEmpleados = empleadosResult.status === 'fulfilled' ? empleadosResult.value : [];
-  const resumenOcupacion = ocupacionResult.status === 'fulfilled' ? ocupacionResult.value : { filas: [], columnas: [] };
-  const oficiosTurnadosData = oficiosResult.status === 'fulfilled' ? oficiosResult.value : { status: 500, model: { distribucionPorStatus: [], detalleTurnados: [] } };
-
-  return (
-    <Dashboard
-      resumenVacantes={resumenVacantes}
-      resumenEmpleados={resumenEmpleados}
-      ocupacion={resumenOcupacion}
-      oficiosTurnados={oficiosTurnadosData}
-    />
-  );
-}
-
-export default function DashboardServerCompoment() {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardData />
+      <DashboardData dataPromise={dataPromise} />
     </Suspense>
   );
 }

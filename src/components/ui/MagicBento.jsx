@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { gsap } from 'gsap';
 import { IconBox } from './BentoMiniComponents';
 import './MagicBento.css';
@@ -49,12 +50,11 @@ const ParticleCard = ({
     const memoizedParticles = useRef([]);
     const particlesInitialized = useRef(false);
     const magnetismAnimationRef = useRef(null);
+    const router = useRouter();
 
-
-
-    const redirectTo = (url) => {
-        window.location.href = url;
-    }
+    const handleNavigate = () => {
+        router.push(onClickRedirectTo);
+    };
 
     const initializeParticles = useCallback(() => {
         if (particlesInitialized.current || !cardRef.current) return;
@@ -148,8 +148,8 @@ const ParticleCard = ({
             ref={cardRef}
             role={onClickRedirectTo ? "link" : undefined}
             tabIndex={onClickRedirectTo ? 0 : undefined}
-            onClick={onClickRedirectTo ? () => redirectTo(onClickRedirectTo) : undefined}
-            onKeyDown={onClickRedirectTo ? (e) => { if (e.key === 'Enter' || e.key === ' ') redirectTo(onClickRedirectTo); } : undefined}
+            onClick={onClickRedirectTo ? handleNavigate : undefined}
+            onKeyDown={onClickRedirectTo ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleNavigate(); } : undefined}
             className={`${className} particle-container`}
             style={{ ...style, position: 'relative', overflow: 'hidden' }}
         >
@@ -299,10 +299,7 @@ const MagicBento = ({
     const gridRef = useRef(null);
     const isMobile = useMobileDetection();
     const shouldDisableAnimations = disableAnimations || isMobile;
-
-    const redirectTo = (url) => {
-        window.location.href = url;
-    }
+    const router = useRouter();
 
     return (
         <div className="w-full flex justify-center">
@@ -332,7 +329,6 @@ const MagicBento = ({
                             <ParticleCard
                                 key={card.label || card.title || index}
                                 onClickRedirectTo={card?.onClickRedirectTo}
-
                                 className={baseClassName}
                                 style={cardStyle}
                                 disableAnimations={shouldDisableAnimations}
@@ -352,8 +348,8 @@ const MagicBento = ({
                             key={card.label || card.title || index}
                             role={card?.onClickRedirectTo ? "link" : undefined}
                             tabIndex={card?.onClickRedirectTo ? 0 : undefined}
-                            onClick={card?.onClickRedirectTo ? () => redirectTo(card.onClickRedirectTo) : undefined}
-                            onKeyDown={card?.onClickRedirectTo ? (e) => { if (e.key === 'Enter' || e.key === ' ') redirectTo(card.onClickRedirectTo); } : undefined}
+                            onClick={card?.onClickRedirectTo ? () => router.push(card.onClickRedirectTo) : undefined}
+                            onKeyDown={card?.onClickRedirectTo ? (e) => { if (e.key === 'Enter' || e.key === ' ') router.push(card.onClickRedirectTo); } : undefined}
                             className={baseClassName}
                             style={cardStyle}
                         >

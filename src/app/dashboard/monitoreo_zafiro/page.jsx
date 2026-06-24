@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Monitoreo ZAFIRO | Eje Central',
+  title: 'Monitoreo ZAFIRO',
   description: 'Bitácora de actualizaciones del sistema ZAFIRO',
 };
 

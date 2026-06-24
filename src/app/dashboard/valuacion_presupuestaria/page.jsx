@@ -5,6 +5,8 @@ import Skeleton from './Skeleton';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: "Valuación Presupuestaria" };
+
 async function getData() {
   try {
     const [catRes, constRes, concRes] = await Promise.all([

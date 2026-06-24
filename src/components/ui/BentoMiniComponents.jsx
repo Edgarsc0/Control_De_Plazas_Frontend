@@ -371,7 +371,7 @@ export function SankeyChart({ data, width = 400, height = 250, onLinkClick, onNo
                             key={`link-${link.sourceName}-${link.targetName}-${i}`}
                             d={link.d}
                             fill="none"
-                            stroke={hoveredLink === i ? link.color || '#bc955c' : `${link.color || '#bc955c'}44`}
+                            stroke={hoveredLink === i ? link.color || '#bc955c' : `${link.color || '#bc955c'}66`}
                             onMouseEnter={() => setHoveredLink(i)}
                             onMouseLeave={() => setHoveredLink(null)}
                             onClick={() => {
@@ -393,6 +393,7 @@ export function SankeyChart({ data, width = 400, height = 250, onLinkClick, onNo
                             if (onNodeClick) onNodeClick(node.rawName || node.name, null);
                             setTimeout(() => setClickedNode(null), 300);
                         }}>
+                            <title>{node.name}</title>
                             <motion.rect
                                 width={nodeWidth}
                                 height={node.h}
@@ -402,17 +403,22 @@ export function SankeyChart({ data, width = 400, height = 250, onLinkClick, onNo
                                 style={{ transformOrigin: 'left center' }}
                                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                             />
+                            {/* Solo etiquetar nodos con altura suficiente; los muy
+                                delgados quedan ilegibles/encimados — su nombre se ve
+                                en el tooltip (<title>) y al hacer click. */}
+                            {node.h >= 12 && (
                             <motion.text
                                 x={-5}
                                 y={node.h / 2}
                                 textAnchor="end"
                                 alignmentBaseline="middle"
                                 animate={clickedNode === node.id ? { x: -8 } : { x: -5 }}
-                                style={{ fontSize: 8, fontWeight: 600, fill: '#6b7280' }}
+                                style={{ fontSize: 10, fontWeight: 700, fill: '#621f32' }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                             >
-                                {node.name.length > 20 ? node.name.substring(0, 17) + '...' : node.name}
+                                {node.name.length > 28 ? node.name.substring(0, 25) + '...' : node.name}
                             </motion.text>
+                            )}
                         </g>
                     ))}
 
@@ -423,6 +429,7 @@ export function SankeyChart({ data, width = 400, height = 250, onLinkClick, onNo
                             if (onNodeClick) onNodeClick(null, node.rawName || node.name);
                             setTimeout(() => setClickedNode(null), 300);
                         }}>
+                            <title>{node.name}</title>
                             <motion.rect
                                 width={nodeWidth}
                                 height={node.h}
@@ -432,16 +439,18 @@ export function SankeyChart({ data, width = 400, height = 250, onLinkClick, onNo
                                 style={{ transformOrigin: 'right center' }}
                                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                             />
+                            {node.h >= 12 && (
                             <motion.text
                                 x={nodeWidth + 5}
                                 y={node.h / 2}
                                 alignmentBaseline="middle"
                                 animate={clickedNode === node.id ? { x: nodeWidth + 8 } : { x: nodeWidth + 5 }}
-                                style={{ fontSize: 9, fontWeight: 800, fill: '#111827' }}
+                                style={{ fontSize: 11, fontWeight: 800, fill: '#111827' }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                             >
                                 {node.name}
                             </motion.text>
+                            )}
                         </g>
                     ))}
                 </g>

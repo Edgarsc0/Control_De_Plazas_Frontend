@@ -241,6 +241,7 @@ export const VacantesService = {
     /**
      * Obtiene los empleados de un piso y unidad administrativa de la Torre Caballito.
      * @param {string|number} piso - Piso a consultar.
+     * 
      * @param {string} ua - Unidad administrativa.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.

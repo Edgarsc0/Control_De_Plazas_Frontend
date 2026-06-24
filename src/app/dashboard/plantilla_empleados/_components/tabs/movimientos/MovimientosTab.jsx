@@ -2,11 +2,10 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
-import { 
+import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
-  ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight,
-  X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
-  SlidersHorizontal, Plus, Trash2
+  ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
+  X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
@@ -16,11 +15,12 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
-
-const advValueDistinctCache = new Map();
+import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
+import { matchesTextCondition } from "@/utils/columnFilters";
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -30,6 +30,23 @@ const MOV_STATUS_BADGE_STYLES = {
 const formatNumber = (num) => {
   if (num === undefined || num === null) return "0";
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+const extractRawList = (data) => {
+  if (!data) return [];
+  if (Array.isArray(data.results)) return data.results;
+  if (Array.isArray(data)) return data;
+  return [];
+};
+
+// "A" en backend puede venir con variantes ("Activo", "A "); "I" no las tiene.
+const ESTADO_PSN_VARIANTS = { A: ["A", "Activo", "A "], I: ["I"] };
+
+// estadoKeys vacío/ausente = sin filtro de estado = "Todas las Posiciones".
+const filterByEstado = (list, estadoKeys) => {
+  if (!estadoKeys || estadoKeys.length === 0) return list;
+  const allowed = estadoKeys.flatMap(k => ESTADO_PSN_VARIANTS[k] || [k]);
+  return list.filter(row => allowed.includes(row.estado_psn));
 };
 
 const ALL_MOV_KEYS = [
@@ -44,283 +61,28 @@ const ALL_MOV_KEYS = [
 
 const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia"];
 
-const getConditionLabel = (cond) => {
-  switch (cond) {
-    case "contains": return "Contiene";
-    case "not_contains": return "No contiene";
-    case "starts_with": return "Comienza con";
-    case "not_starts_with": return "No comienza con";
-    case "ends_with": return "Termina con";
-    case "not_ends_with": return "No termina con";
-    case "equals": return "Es igual a";
-    case "not_equals": return "Diferente de";
-    default: return "Contiene";
-  }
-};
-
-const CONDITION_SHORTHANDS = {
-  contains: "*",
-  not_contains: "!*",
-  starts_with: "^",
-  not_starts_with: "!^",
-  ends_with: "$",
-  not_ends_with: "!$",
-  equals: "=",
-  not_equals: "!="
-};
-
-const CONDITION_OPTIONS = [
-  { key: "contains", label: "Contiene (*)" },
-  { key: "not_contains", label: "No contiene (!*)" },
-  { key: "starts_with", label: "Comienza con (^)" },
-  { key: "not_starts_with", label: "No comienza con (!^)" },
-  { key: "ends_with", label: "Termina con ($)" },
-  { key: "not_ends_with", label: "No termina con (!$)" },
-  { key: "equals", label: "Es igual a (=)" },
-  { key: "not_equals", label: "Diferente de (!=)" }
-];
-
-const ADV_DATE_CONDITIONS = [
-  { key: "before", label: "Es antes de" },
-  { key: "after", label: "Es después de" },
-  { key: "equals", label: "Es igual a" },
-  { key: "not_equals", label: "No es igual a" }
-];
-
-const ADV_COMPARE_TYPE_OPTIONS = [
-  { key: "valor", label: "Valor" },
-  { key: "campo", label: "Campo" }
-];
-
-const ADV_LOGIC_OPTIONS = [
-  { key: "AND", label: "Y (AND)" },
-  { key: "OR", label: "O (OR)" }
-];
-
-const normalizeForSearch = (val) => val ? String(val).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() : "";
-
-const matchesTextCondition = (value, condition, needle) => {
-  if (!needle) return true;
-  const v = normalizeForSearch(value);
-  const n = normalizeForSearch(needle);
-  switch (condition) {
-    case "not_contains": return !v.includes(n);
-    case "starts_with": return v.startsWith(n);
-    case "not_starts_with": return !v.startsWith(n);
-    case "ends_with": return v.endsWith(n);
-    case "not_ends_with": return !v.endsWith(n);
-    case "equals": return v === n;
-    case "not_equals": return v !== n;
-    case "contains":
-    default: return v.includes(n);
-  }
-};
-
 // Server-side distinct_search only supports icontains; only safe to forward
 // for "positive" conditions (a match always implies icontains too).
 const isServerSafeSearchCondition = (condition) => ["contains", "starts_with", "ends_with", "equals"].includes(condition);
 
-function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar...", searchable = false }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [panelRect, setPanelRect] = useState(null);
-  const triggerRef = useRef(null);
-
-  const selected = options.find(o => o.key === value);
-  const filteredOptions = searchable && search
-    ? options.filter(o => normalizeForSearch(o.label).includes(normalizeForSearch(search)))
-    : options;
-
-  const openPanel = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setPanelRect({ top: rect.bottom + 6, left: rect.left, width: Math.max(rect.width, 220) });
-    }
-    setIsOpen(true);
-  };
-
-  return (
-    <div className="relative w-full">
-      <button
-        type="button"
-        ref={triggerRef}
-        onClick={(e) => { e.stopPropagation(); isOpen ? setIsOpen(false) : openPanel(); }}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 transition-colors cursor-pointer"
-      >
-        <span className={`truncate ${!selected ? "text-slate-400 font-semibold" : ""}`}>{selected ? selected.label : placeholder}</span>
-        <ChevronDown className={`size-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-      </button>
-      {isOpen && panelRect && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[200]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearch(""); }} />
-          <div
-            style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
-            className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col"
-          >
-            {searchable && (
-              <div className="p-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5">
-                  <Search className="size-3 text-slate-400 shrink-0" />
-                  <input
-                    type="text"
-                    autoFocus
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Buscar columna..."
-                    className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold"
-                  />
-                </div>
-              </div>
-            )}
-            <div className="max-h-56 overflow-y-auto custom-scrollbar p-1">
-              {filteredOptions.length === 0 && (
-                <div className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase">Sin resultados</div>
-              )}
-              {filteredOptions.map(opt => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onChange(opt.key); setIsOpen(false); setSearch(""); }}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${value === opt.key ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {value === opt.key && <Check className="size-3 shrink-0" />}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-function toDateInputValue(val) {
-  if (!val || String(val).trim() === "") return "";
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return "";
-  const y = d.getFullYear();
-  const m = (d.getMonth() + 1).toString().padStart(2, '0');
-  const day = d.getDate().toString().padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function AdvValueAutocomplete({ column, value, onChange, isDate }) {
-  const [suggestions, setSuggestions] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [panelRect, setPanelRect] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef(null);
-  const allValuesRef = useRef([]);
-
-  useEffect(() => {
-    allValuesRef.current = [];
-    setSuggestions([]);
-    if (!column) return;
-
-    const cached = advValueDistinctCache.get(column);
-    if (cached) {
-      allValuesRef.current = cached;
-      return;
-    }
-
-    setLoading(true);
-    VacantesService.getMovPosDetalle({ distinct_field: column, distinct_search: "", is_latest: "false" })
-      .then(res => res.json())
-      .then(resData => {
-        const list = Array.isArray(resData) ? resData : [];
-        advValueDistinctCache.set(column, list);
-        allValuesRef.current = list;
-      })
-      .catch(err => console.error("Error loading value suggestions:", err))
-      .finally(() => setLoading(false));
-  }, [column]);
-
-  const refreshSuggestions = (text) => {
-    const list = allValuesRef.current;
-    const next = text ? list.filter(v => matchesTextCondition(v.value, "contains", text)) : list;
-    setSuggestions(next.slice(0, 8));
-  };
-
-  const openPanel = () => {
-    const rect = inputRef.current?.getBoundingClientRect();
-    if (rect) setPanelRect({ top: rect.bottom + 6, left: rect.left, width: rect.width });
-    refreshSuggestions(value);
-    setIsOpen(true);
-  };
-
-  if (isDate) {
-    return (
-      <input
-        type="date"
-        value={toDateInputValue(value)}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={!column}
-        className="w-full px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      />
-    );
-  }
-
-  return (
-    <div className="relative w-full">
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => { onChange(e.target.value); refreshSuggestions(e.target.value); setIsOpen(true); }}
-        onFocus={openPanel}
-        onKeyDown={(e) => {
-          if (e.key === "Tab" && isOpen && suggestions.length > 0) {
-            e.preventDefault();
-            onChange(suggestions[0].value);
-            setIsOpen(false);
-          } else if (e.key === "Escape") {
-            setIsOpen(false);
-          }
-        }}
-        disabled={!column}
-        placeholder={column ? "Escribe el valor..." : "Selecciona una columna primero..."}
-        className="w-full px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      />
-      {isOpen && panelRect && column && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[200]" onClick={() => setIsOpen(false)} />
-          <div
-            style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
-            className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar p-1"
-          >
-            {loading && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Cargando...</div>}
-            {!loading && suggestions.length === 0 && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Sin sugerencias</div>}
-            {!loading && suggestions.map(s => (
-              <button
-                key={s.value}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); onChange(s.value); setIsOpen(false); }}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-              >
-                <span className="truncate">{s.value || "(Vacío)"}</span>
-                <span className="text-[9px] text-slate-400 shrink-0">{s.count}</span>
-              </button>
-            ))}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  );
-}
+// "" real se descarta en buildQuery (val === '') antes de armar la URL, así
+// que seleccionar solo "(Vacío)" nunca llegaba al backend. El backend espera
+// este sentinel para reconocer la selección de "(Vacío)".
+const EMPTY_VALUE_TOKEN = "__EMPTY__";
+const encodeFilterValues = (values) => values.map(v => (v === "" ? EMPTY_VALUE_TOKEN : v)).join(",");
 
 export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef }) {
-  const [movPosData, setMovPosData] = useState(() => {
-    let rawList = [];
-    if (initialMovPosData) {
-      if (Array.isArray(initialMovPosData.results)) rawList = initialMovPosData.results;
-      else if (Array.isArray(initialMovPosData)) rawList = initialMovPosData;
-    }
-    return rawList.filter(row => row.estado_psn === "A" || row.estado_psn === "Activo" || row.estado_psn === "A ");
-  });
+  const [movPosData, setMovPosData] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]));
+
+  // Cache del set completo (sin filtro de estado, is_latest=true) que el backend
+  // ya manda en una sola llamada. Activas/Inactivas/Todas se derivan de aquí
+  // client-side sin pegarle a la red ni mostrar skeleton.
+  const fullLatestDataRef = useRef(null);
+  if (fullLatestDataRef.current === null && initialMovPosData &&
+      (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData))) {
+    const rawList = extractRawList(initialMovPosData);
+    fullLatestDataRef.current = { list: rawList, stats: initialMovPosData.stats || null };
+  }
 
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -389,65 +151,25 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
 
+  const isDateColumn = useCallback((colKey) => {
+    return DATE_KEYS_MOV.includes(colKey);
+  }, []);
 
-  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
-  const advConditionIdRef = useRef(1);
-  const [advancedConditions, setAdvancedConditions] = useState(() => [
-    { id: 0, column: null, condition: "contains", compareType: "valor", compareColumn: null, value: "", logic: "AND" }
-  ]);
-
-  const addAdvancedCondition = () => {
-    setAdvancedConditions(prev => [...prev, {
-      id: advConditionIdRef.current++,
-      column: null,
-      condition: "contains",
-      compareType: "valor",
-      compareColumn: null,
-      value: "",
-      logic: "AND"
-    }]);
-  };
-
-  const removeAdvancedCondition = (id) => {
-    setAdvancedConditions(prev => prev.filter(c => c.id !== id));
-  };
-
-  const updateAdvancedCondition = (id, patch) => {
-    setAdvancedConditions(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      const next = { ...c, ...patch };
-      if (patch.column !== undefined && patch.column !== c.column) {
-        next.condition = isDateColumn(patch.column) ? "before" : "contains";
-      }
-      return next;
-    }));
-  };
-
-  const [appliedAdvancedFilters, setAppliedAdvancedFilters] = useState([]);
-
-  const applyAdvancedFilters = () => {
-    const valid = advancedConditions.filter(c => {
-      if (!c.column) return false;
-      if (c.compareType === "campo") return !!c.compareColumn;
-      return c.value != null && String(c.value).trim() !== "";
-    }).map(({ column, condition, compareType, compareColumn, value, logic }) => ({ column, condition, compareType, compareColumn, value, logic }));
-
-    setLoading(true);
-    setPage(1);
-    setAppliedAdvancedFilters(valid);
-    setIsAdvancedFiltersOpen(false);
-  };
-
-  const [count, setCount] = useState(() => {
-    let rawList = [];
-    if (initialMovPosData) {
-      if (Array.isArray(initialMovPosData.results)) rawList = initialMovPosData.results;
-      else if (Array.isArray(initialMovPosData)) rawList = initialMovPosData;
-    }
-    const filtered = rawList.filter(row => row.estado_psn === "A" || row.estado_psn === "Activo" || row.estado_psn === "A ");
-    return filtered.length || 0;
+  const {
+    isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
+    advancedConditions,
+    appliedAdvancedFilters,
+    addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    applyAdvancedFilters, resetAdvancedFilters,
+  } = useAdvancedFilters({
+    mode: "server",
+    isDateColumn,
+    onApply: () => { setLoading(true); setPage(1); },
   });
-  const [loading, setLoading] = useState(true);
+
+  const [count, setCount] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]).length || 0);
+  const hasInitialData = initialMovPosData && (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData));
+  const [loading, setLoading] = useState(!hasInitialData);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [stats, setStats] = useState(() => {
@@ -464,22 +186,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
 
   useEffect(() => {
+    // Nothing actually pending: skip regardless of how many times this
+    // effect fires (React StrictMode dev double-invoke included).
+    if (searchQuery === debouncedSearch) return;
     const handler = setTimeout(() => {
       setLoading(true);
       setDebouncedSearch(searchQuery);
       setPage(1);
     }, 450);
     return () => clearTimeout(handler);
-  }, [searchQuery]);
+  }, [searchQuery, debouncedSearch]);
 
   useEffect(() => {
+    // Same no-op guard as above, by content (object refs always differ).
+    if (JSON.stringify(textFilters) === JSON.stringify(debouncedTextFilters)) return;
     const handler = setTimeout(() => {
       setLoading(true);
       setDebouncedTextFilters(textFilters);
       setPage(1);
     }, 500);
     return () => clearTimeout(handler);
-  }, [textFilters]);
+  }, [textFilters, debouncedTextFilters]);
 
   useEffect(() => {
     setPage(1);
@@ -496,25 +223,49 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const hasFetched = useRef(false);
 
   useEffect(() => {
-    const isDefaultState = 
+    // Solo toggle de estado (Activas/Inactivas/Todas) + is_latest=true, sin
+    // búsqueda/orden/filtros/paginación reales: el backend ya manda el set
+    // completo en una sola llamada (is_latest=true bypassa paginación), así
+    // que esto se resuelve client-side desde fullLatestDataRef sin red ni skeleton.
+    const onlyStatusToggle =
       debouncedSearch === "" &&
       Object.keys(debouncedTextFilters).length === 0 &&
-      columnFilters.estado_psn?.length === 1 && columnFilters.estado_psn[0] === "A" &&
-      columnFilters.is_latest?.length === 1 && columnFilters.is_latest[0] === "true" &&
-      Object.keys(columnFilters).length === 2 &&
       sortConfig.key === null &&
       page === 1 &&
       pageSize === 50 &&
-      appliedAdvancedFilters.length === 0;
+      appliedAdvancedFilters.length === 0 &&
+      columnFilters.is_latest?.length === 1 && columnFilters.is_latest[0] === "true" &&
+      Object.keys(columnFilters).every(k => k === "estado_psn" || k === "is_latest");
 
-    const hasInitialData = initialMovPosData && (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData));
+    if (onlyStatusToggle) {
+      if (fullLatestDataRef.current) {
+        const { list, stats: cachedStats } = fullLatestDataRef.current;
+        const view = filterByEstado(list, columnFilters.estado_psn);
+        setMovPosData(view);
+        setCount(view.length);
+        if (cachedStats) setStats(cachedStats);
+        setLoading(false);
+        return;
+      }
 
-    if (!hasFetched.current && isDefaultState && hasInitialData) {
-      setLoading(false);
+      setLoading(true);
+      VacantesService.getMovPosDetalle({ is_latest: "true" })
+        .then(res => res.json())
+        .then(resData => {
+          const rawList = extractRawList(resData);
+          fullLatestDataRef.current = { list: rawList, stats: resData.stats || null };
+          const view = filterByEstado(rawList, columnFilters.estado_psn);
+          setMovPosData(view);
+          setCount(view.length);
+          if (resData.stats) setStats(resData.stats);
+        })
+        .catch(err => console.error("Error loading MovPosDetalle:", err))
+        .finally(() => setLoading(false));
       return;
     }
 
     hasFetched.current = true;
+
     setLoading(true);
 
     const filterParams = {};
@@ -551,7 +302,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     Object.entries(columnFilters).forEach(([key, values]) => {
       if (key === "is_latest") return;
       if (values && values.length > 0) {
-        colParams[`${key}__in`] = values.join(",");
+        colParams[`${key}__in`] = encodeFilterValues(values);
       }
     });
 
@@ -754,10 +505,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const isMonoColumn = useCallback((key) => ["no_pos_actual", "cd_un", "cd_departamento", "cd_puesto", "maximo", "grado", "esc", "partida_ptal"].includes(key), []);
 
-
-  const isDateColumn = useCallback((colKey) => {
-    return DATE_KEYS_MOV.includes(colKey);
-  }, []);
+  const fetchAdvValueSuggestions = useCallback((column) =>
+    VacantesService.getMovPosDetalle({ distinct_field: column, distinct_search: "", is_latest: "false" })
+      .then(res => res.json())
+      .then(data => (Array.isArray(data) ? data : [])), []);
 
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
@@ -885,8 +636,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const resetAllFilters = () => {
     setSearchQuery("");
     setLoading(true);
-    setAppliedAdvancedFilters([]);
-    setAdvancedConditions([{ id: 0, column: null, condition: "contains", compareType: "valor", compareColumn: null, value: "", logic: "AND" }]);
+    resetAdvancedFilters();
     startTransition(() => {
       setColumnFilters({});
       setTextFilters({});
@@ -1008,7 +758,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         const val = String(row[activeFilterDropdown] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
       });
-      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
+      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
     }
 
     const allVals = baseUniqueValues.map(v => v.value);
@@ -1115,7 +865,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       Object.entries(columnFilters).forEach(([key, values]) => {
         if (key === "is_latest") return;
         if (values && values.length > 0) {
-          colParams[`${key}__in`] = values.join(",");
+          colParams[`${key}__in`] = encodeFilterValues(values);
         }
       });
 
@@ -1326,7 +1076,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       <div className="w-full px-4 lg:px-6 pt-2">
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6 items-stretch w-full max-w-6xl mx-auto">
-            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["A"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+            <div onClick={() => { startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["A"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
               <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-[#621f32]"}`} />
               <div className="flex items-center gap-2 mb-2 relative z-10">
                 <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]"}`}>
@@ -1337,7 +1087,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "text-white" : "text-[#621f32] dark:text-[#bc955c]"}`}>{formatNumber(stats.posiciones_activas)}</span>
             </div>
 
-            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["I"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950 text-white shadow-xl shadow-slate-900/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+            <div onClick={() => { startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["I"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950 text-white shadow-xl shadow-slate-900/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
               <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-slate-500"}`} />
               <div className="flex items-center gap-2 mb-2 relative z-10">
                 <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
@@ -1348,7 +1098,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "text-white" : "text-slate-700 dark:text-slate-200"}`}>{formatNumber(stats.posiciones_inactivas)}</span>
             </div>
 
-            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; newF.is_latest = ["true"]; setColumnFilters(newF); setSortConfig({ key: null, direction: null }); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-xl shadow-emerald-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
+            <div onClick={() => { startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; newF.is_latest = ["true"]; setColumnFilters(newF); setSortConfig({ key: null, direction: null }); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-xl shadow-emerald-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
               <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-emerald-500"}`} />
               <div className="flex items-center gap-2 mb-2 relative z-10">
                 <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"}`}>
@@ -1448,12 +1198,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               </AnimatePresence>
               <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
-              <button onClick={() => setIsAdvancedFiltersOpen(true)} className="relative flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer">
-                <SlidersHorizontal className="size-3.5" /><span>Filtros Avanzados</span>
-                {appliedAdvancedFilters.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 size-5 flex items-center justify-center bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[9px] font-black rounded-full">{appliedAdvancedFilters.length}</span>
-                )}
-              </button>
+              <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button 
                 onClick={handleExportExcel} 
                 disabled={isExportingExcel}
@@ -1489,7 +1234,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={isPending}
-            isLoading={loading || isPending}
+            isLoading={loading}
             loadingVariant="skeleton"
             rowNumberOffset={(page - 1) * pageSize}
             data={paginatedData}
@@ -1517,135 +1262,19 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         document.body
       )}
 
-      {mounted && createPortal(
-        <AnimatePresence>
-          {isAdvancedFiltersOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAdvancedFiltersOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
-              <motion.div initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-3xl w-full flex flex-col z-[100] overflow-hidden max-h-[85vh]">
-                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="size-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-lg">
-                      <SlidersHorizontal className="size-4" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Filtros avanzados</h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Combina condiciones sobre cualquier columna</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setIsAdvancedFiltersOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"><X className="size-4" /></button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar flex flex-col gap-2.5">
-                  {advancedConditions.map((cond, idx) => {
-                    const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
-                    const isDateCol = cond.column && isDateColumn(cond.column);
-                    const conditionOptions = isDateCol ? ADV_DATE_CONDITIONS : CONDITION_OPTIONS;
-
-                    return (
-                      <div key={cond.id} className="flex flex-col gap-2.5">
-                        {idx > 0 && (
-                          <div className="flex items-center gap-2 -my-0.5">
-                            <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
-                            <div className="w-24">
-                              <AdvFilterSelect
-                                value={cond.logic}
-                                options={ADV_LOGIC_OPTIONS}
-                                onChange={(val) => updateAdvancedCondition(cond.id, { logic: val })}
-                              />
-                            </div>
-                            <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
-                          </div>
-                        )}
-                        <div className="relative bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                          <div className="flex items-center justify-between mb-2.5">
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Condición {idx + 1}</span>
-                            {advancedConditions.length > 1 && (
-                              <button onClick={() => removeAdvancedCondition(cond.id)} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer" title="Eliminar condición">
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <div>
-                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna</span>
-                              <AdvFilterSelect
-                                value={cond.column}
-                                options={colOptions}
-                                searchable
-                                placeholder="Selecciona columna..."
-                                onChange={(val) => updateAdvancedCondition(cond.id, { column: val })}
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Condición</span>
-                              <AdvFilterSelect
-                                value={cond.condition}
-                                options={conditionOptions}
-                                placeholder="Selecciona condición..."
-                                onChange={(val) => updateAdvancedCondition(cond.id, { condition: val })}
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Comparar con</span>
-                              <AdvFilterSelect
-                                value={cond.compareType}
-                                options={ADV_COMPARE_TYPE_OPTIONS}
-                                onChange={(val) => updateAdvancedCondition(cond.id, { compareType: val })}
-                              />
-                            </div>
-                          </div>
-
-                          {cond.compareType === "campo" ? (
-                            <div className="mt-2">
-                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna a comparar</span>
-                              <AdvFilterSelect
-                                value={cond.compareColumn}
-                                options={colOptions}
-                                searchable
-                                placeholder="Selecciona columna..."
-                                onChange={(val) => updateAdvancedCondition(cond.id, { compareColumn: val })}
-                              />
-                            </div>
-                          ) : (
-                            <div className="mt-2">
-                              <span className="text-[10px] font-medium text-slate-400 mb-1 block">Valor</span>
-                              <AdvValueAutocomplete
-                                column={cond.column}
-                                value={cond.value}
-                                onChange={(val) => updateAdvancedCondition(cond.id, { value: val })}
-                                isDate={isDateCol}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  <button
-                    onClick={addAdvancedCondition}
-                    className="self-start flex items-center gap-1.5 px-3.5 py-2 border border-dashed border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
-                  >
-                    <Plus className="size-3.5" /><span>Agregar condición</span>
-                  </button>
-                </div>
-
-                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    onClick={applyAdvancedFilters}
-                    className="w-full bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] font-semibold py-2.5 rounded-xl text-xs transition-opacity active:scale-[0.99] hover:opacity-90"
-                  >
-                    Aplicar Filtros
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+      <AdvancedFiltersModal
+        open={isAdvancedFiltersOpen}
+        onClose={() => setIsAdvancedFiltersOpen(false)}
+        mounted={mounted}
+        columns={columns}
+        conditions={advancedConditions}
+        onAddCondition={addAdvancedCondition}
+        onRemoveCondition={removeAdvancedCondition}
+        onUpdateCondition={updateAdvancedCondition}
+        onApply={applyAdvancedFilters}
+        isDateColumn={isDateColumn}
+        fetchSuggestions={fetchAdvValueSuggestions}
+      />
 
       {/* Dropdown de Filtro por Valores Únicos */}
       <AnimatePresence>
@@ -1661,7 +1290,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             dateHierarchy={dateHierarchies[activeFilterDropdown]}
             dateValues={(uniqueColumnValues[activeFilterDropdown] || []).map(i => i.value)}
             allDateLeafValues={allDateLeafValues}
-            loadingValues={isDateColumn(activeFilterDropdown) && loadingUniqueValues}
+            loadingValues={loadingUniqueValues}
             onDateSelection={(type, value, parentPath) => handleDateSelection(activeFilterDropdown, type, value, parentPath)}
             onToggleDateNode={(path) => setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }))}
             onApply={() => applyColumnFilter(activeFilterDropdown)}

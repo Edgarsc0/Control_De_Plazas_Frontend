@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useRef, use, Suspense } from "react";
 import { Zoom } from "react-awesome-reveal";
 import {
   LayoutDashboard,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
+import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
@@ -20,17 +21,52 @@ import BajasTab from "./_components/tabs/bajas/BajasTab";
 import TorreCaballito3DTab from "./_components/tabs/torre-3d/TorreCaballito3DTab";
 import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
 
+const SECONDARY_TAB_SKELETON = (
+  <div className="flex items-center justify-center py-24">
+    <div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
+  </div>
+);
+
+// Los tabs "Bajas" y "Cuadros de Vacancia" solo necesitan datos secundarios.
+// `use()` suspende este subárbol hasta que la promesa resuelva, sin bloquear
+// el resto de la página (que ya está montada con los datos críticos).
+function BajasTabSection({ secondaryDataPromise, isPending, startTransition, cardRef }) {
+  const [bajasResult, motivosResult, historicoResult] = use(secondaryDataPromise);
+  const bajasData = bajasResult.status === 'fulfilled' ? (bajasResult.value || []) : [];
+  const bajasMotivos = motivosResult.status === 'fulfilled' ? (motivosResult.value || []) : [];
+  const bajasHistorico = historicoResult.status === 'fulfilled' ? (historicoResult.value || []) : [];
+  return (
+    <BajasTab
+      bajasData={bajasData}
+      bajasMotivos={bajasMotivos}
+      bajasHistorico={bajasHistorico}
+      isPending={isPending}
+      startTransition={startTransition}
+      cardRef={cardRef}
+    />
+  );
+}
+
+function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal }) {
+  const [, , , cuadrosResult, desgloseResult] = use(secondaryDataPromise);
+  const cuadrosData = cuadrosResult.status === 'fulfilled' ? (cuadrosResult.value || []) : [];
+  const desgloseJerarquicoData = desgloseResult.status === 'fulfilled' ? (desgloseResult.value || []) : [];
+  return (
+    <CuadrosVacanciaTab
+      cuadrosData={cuadrosData}
+      desgloseJerarquicoData={desgloseJerarquicoData}
+      onSwitchToTablaPrincipal={onSwitchToTablaPrincipal}
+    />
+  );
+}
+
 export default function PlantillaEmpleadosDetalle({
   resumen,
   detalle = [],
   estatusPorNivelUa = { por_nivel: {}, por_ua: {} },
   distribucionGeografica = [],
   movPosData = [],
-  bajasData = [],
-  bajasMotivos = [],
-  bajasHistorico = [],
-  cuadrosData = [],
-  desgloseJerarquicoData = []
+  secondaryDataPromise
 }) {
   const [activeTab, setActiveTab] = useState("detalle");
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
@@ -38,6 +74,7 @@ export default function PlantillaEmpleadosDetalle({
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
   const [isPending, startTransition] = useTransition();
   const cardRef = useRef(null);
+  useRefreshOnZafiroUpdate();
   const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "organigrama" || activeTab === "mapa";
 
   // Prevent page scroll when on the map tab
@@ -302,11 +339,12 @@ export default function PlantillaEmpleadosDetalle({
                 />
               )}
               {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
-                <CuadrosVacanciaTab
-                  cuadrosData={cuadrosData}
-                  desgloseJerarquicoData={desgloseJerarquicoData}
-                  onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
-                />
+                <Suspense fallback={SECONDARY_TAB_SKELETON}>
+                  <CuadrosVacanciaSection
+                    secondaryDataPromise={secondaryDataPromise}
+                    onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
+                  />
+                </Suspense>
               )}
               {activeTab === "movimientos_personal" && (
                 <MovimientosPersonalTab
@@ -316,14 +354,14 @@ export default function PlantillaEmpleadosDetalle({
                 />
               )}
               {activeTab === "bajas" && (
-                <BajasTab
-                  bajasData={bajasData}
-                  bajasMotivos={bajasMotivos}
-                  bajasHistorico={bajasHistorico}
-                  isPending={isPending}
-                  startTransition={startTransition}
-                  cardRef={cardRef}
-                />
+                <Suspense fallback={SECONDARY_TAB_SKELETON}>
+                  <BajasTabSection
+                    secondaryDataPromise={secondaryDataPromise}
+                    isPending={isPending}
+                    startTransition={startTransition}
+                    cardRef={cardRef}
+                  />
+                </Suspense>
               )}
               {activeTab === "mapa" && activeMapaSubTab === "nacional" && (
                 <MapaTab

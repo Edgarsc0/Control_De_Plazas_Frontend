@@ -6,12 +6,12 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import DashboardSubmenu from '@/components/ui/DashboardSubmenu';
 import { ChevronDown } from 'lucide-react';
-import { PlantillaService } from '@/services/plantilla.service';
+import { useZafiroUpdates } from '@/context/ZafiroUpdatesContext';
 
 export default function Navbar() {
   const { isAuthenticated, logout } = useAuth();
+  const { lastUpdate } = useZafiroUpdates();
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(null);
   const menuRef = useRef(null);
 
   // Cerrar el menú al hacer clic fuera
@@ -23,81 +23,6 @@ export default function Navbar() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Consultar la última actualización de ZAFIRO y escuchar cambios en tiempo real vía SSE
-  useEffect(() => {
-    let active = true;
-
-    const formatAndSetDate = (isoString) => {
-      const date = new Date(isoString);
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      
-      let hours = date.getHours();
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const formattedHours = String(hours).padStart(2, '0');
-
-      setLastUpdate(`${day}/${month}/${year} ${formattedHours}:${minutes} ${ampm}`);
-    };
-
-    const fetchLastUpdate = async () => {
-      try {
-        const response = await PlantillaService.getUltimaActualizacion();
-        if (response.ok && active) {
-          const res = await response.json();
-          if (res && res.fecha) {
-            formatAndSetDate(res.fecha);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching last update:", err);
-      }
-    };
-
-    // Carga inicial
-    fetchLastUpdate();
-
-    // Suscribirse a actualizaciones en tiempo real vía Server-Sent Events (SSE)
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const sseUrl = `${apiBaseUrl}/api/plantilla/bitacora/sse/`;
-    let eventSource;
-
-    const connectSSE = () => {
-      if (!active) return;
-      
-      eventSource = new EventSource(sseUrl);
-      
-      eventSource.onmessage = (event) => {
-        if (!active) return;
-        if (event.data === 'init') {
-          fetchLastUpdate();
-        } else if (event.data !== 'ping' && event.data) {
-          formatAndSetDate(event.data);
-        }
-      };
-
-      eventSource.onerror = (err) => {
-        console.warn("SSE connection error, attempting reconnect in 5s...", err);
-        if (eventSource) {
-          eventSource.close();
-        }
-        setTimeout(connectSSE, 5000);
-      };
-    };
-
-    connectSSE();
-
-    return () => {
-      active = false;
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
   }, []);
 
   return (

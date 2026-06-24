@@ -15,9 +15,13 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
+import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
+import { matchesTextCondition, getUniqueColumnValues } from "@/utils/columnFilters";
+import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -64,61 +68,6 @@ const ALL_DETAIL_KEYS = [
 
 const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso"];
 
-const getConditionLabel = (cond) => {
-  switch (cond) {
-    case "contains": return "Contiene";
-    case "not_contains": return "No contiene";
-    case "starts_with": return "Comienza con";
-    case "not_starts_with": return "No comienza con";
-    case "ends_with": return "Termina con";
-    case "not_ends_with": return "No termina con";
-    case "equals": return "Es igual a";
-    case "not_equals": return "Diferente de";
-    default: return "Contiene";
-  }
-};
-
-const CONDITION_SHORTHANDS = {
-  contains: "*",
-  not_contains: "!*",
-  starts_with: "^",
-  not_starts_with: "!^",
-  ends_with: "$",
-  not_ends_with: "!$",
-  equals: "=",
-  not_equals: "!="
-};
-
-const CONDITION_OPTIONS = [
-  { key: "contains", label: "Contiene (*)" },
-  { key: "not_contains", label: "No contiene (!*)" },
-  { key: "starts_with", label: "Comienza con (^)" },
-  { key: "not_starts_with", label: "No comienza con (!^)" },
-  { key: "ends_with", label: "Termina con ($)" },
-  { key: "not_ends_with", label: "No termina con (!$)" },
-  { key: "equals", label: "Es igual a (=)" },
-  { key: "not_equals", label: "Diferente de (!=)" }
-];
-
-const normalizeForSearch = (val) => val ? String(val).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
-
-const matchesTextCondition = (value, condition, needle) => {
-  if (!needle) return true;
-  const v = normalizeForSearch(value);
-  const n = normalizeForSearch(needle);
-  switch (condition) {
-    case "not_contains": return !v.includes(n);
-    case "starts_with": return v.startsWith(n);
-    case "not_starts_with": return !v.startsWith(n);
-    case "ends_with": return v.endsWith(n);
-    case "not_ends_with": return !v.endsWith(n);
-    case "equals": return v === n;
-    case "not_equals": return v !== n;
-    case "contains":
-    default: return v.includes(n);
-  }
-};
-
 export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPending, startTransition, cardRef, isLoading }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -127,8 +76,8 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
     { key: "id_empleado", label: "Id Empleado", width: 115, visible: true, isBasic: true },
-    { key: "rfc", label: "RFC", width: 140, visible: true, isBasic: true },
-    { key: "curp", label: "CURP", width: 185, visible: true, isBasic: true },
+    { key: "rfc", label: "RFC", width: 140, visible: false, isBasic: true },
+    { key: "curp", label: "CURP", width: 185, visible: false, isBasic: true },
     { key: "nombres", label: "Nombres", width: 280, visible: true, isBasic: true },
     { key: "motivo", label: "Motivo", width: 200, visible: true, isBasic: true },
     { key: "fecha_efectiva_personal", label: "Fecha efectiva (Personal)", width: 180, visible: true, isBasic: true },
@@ -289,6 +238,20 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     return DATE_KEYS.includes(colKey);
   }, []);
 
+  const getAdvCellValue = useCallback((row, key) =>
+    key === "estado_nomina" ? mapEstadoNomina(row[key]) : (row[key] === null || row[key] === undefined ? "" : String(row[key])), []);
+
+  const fetchAdvSuggestions = useCallback((column) =>
+    getUniqueColumnValues(detalle, column, getAdvCellValue), [detalle, getAdvCellValue]);
+
+  const {
+    isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
+    advancedConditions,
+    appliedAdvancedFilters,
+    addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    applyAdvancedFilters, resetAdvancedFilters,
+  } = useAdvancedFilters({ mode: "client", isDateColumn });
+
   // OPTIMIZACIÓN CRÍTICA: Los cálculos pesados dependen solo de los datos y de la columna activa
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
@@ -417,11 +380,12 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
 
   const resetAllFilters = () => {
     setSearchQuery("");
-    startTransition(() => { 
-      setColumnFilters({}); 
+    resetAdvancedFilters();
+    startTransition(() => {
+      setColumnFilters({});
       setTextFilters({});
-      setGlobalSearch(""); 
-      setSortConfig({ key: null, direction: null }); 
+      setGlobalSearch("");
+      setSortConfig({ key: null, direction: null });
     });
   };
 
@@ -546,6 +510,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
             if (!lowerVal.includes(lowerSearch)) return false;
         }
       }
+      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return false;
       return true;
     });
     if (sortConfig.key && sortConfig.direction) {
@@ -559,7 +524,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       });
     }
     return result;
-  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn]);
+  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
 
 
   const filterDropdownValues = useMemo(() => {
@@ -601,12 +566,12 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         const val = activeFilterDropdown === "estado_nomina" ? mapEstadoNomina(row[activeFilterDropdown]) : String(row[activeFilterDropdown] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
       });
-      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
+      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
     }
 
     const allVals = baseUniqueValues.map(v => v.value);
     const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
-    const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
+    const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
     return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
   }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
@@ -907,7 +872,8 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
                   </motion.div>
                 )}
               </AnimatePresence>
-              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
+              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
+              <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex-shrink-0"><Columns className="size-3.5" /><span>Columnas</span></button>
               <button 
@@ -1175,6 +1141,20 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         onApply={() => applyColumnFilter(activeFilterDropdown)}
         onClear={() => clearColumnFilter(activeFilterDropdown)}
         onClose={() => setActiveFilterDropdown(null)}
+      />
+
+      <AdvancedFiltersModal
+        open={isAdvancedFiltersOpen}
+        onClose={() => setIsAdvancedFiltersOpen(false)}
+        mounted={mounted}
+        columns={columns}
+        conditions={advancedConditions}
+        onAddCondition={addAdvancedCondition}
+        onRemoveCondition={removeAdvancedCondition}
+        onUpdateCondition={updateAdvancedCondition}
+        onApply={applyAdvancedFilters}
+        isDateColumn={isDateColumn}
+        fetchSuggestions={fetchAdvSuggestions}
       />
 
       <AnimatePresence>

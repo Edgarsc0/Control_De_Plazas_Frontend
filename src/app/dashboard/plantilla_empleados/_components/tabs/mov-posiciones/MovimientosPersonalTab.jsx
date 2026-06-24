@@ -16,10 +16,12 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
+import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import {
   Select,
   SelectContent,
@@ -289,6 +291,18 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [sortConfig, setSortConfig] = useState({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
+
+  const {
+    isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
+    advancedConditions,
+    appliedAdvancedFilters,
+    addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    applyAdvancedFilters, resetAdvancedFilters,
+  } = useAdvancedFilters({
+    mode: "server",
+    isDateColumn,
+    onApply: () => { setLoading(true); setPage(1); },
+  });
 
   // Subtab State
   const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
@@ -637,6 +651,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       params.fecha_efectiva__year = yearFilter;
     }
 
+    if (appliedAdvancedFilters.length > 0) {
+      params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+    }
+
     VacantesService.getMovimientosPersonal(params)
       .then((res) => res.json())
       .then((resData) => {
@@ -645,7 +663,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
-  }, [activeSubTab, bitacoraDates, page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, selectedYear, selectedMotifYear, selectedActionName]);
+  }, [activeSubTab, bitacoraDates, page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, selectedYear, selectedMotifYear, selectedActionName, appliedAdvancedFilters]);
 
   const handleRequestSort = (key) => {
     const actualKey = key === "fecha_efectiva" ? "fecha_efectiva,fecha_captura" : key;
@@ -658,6 +676,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     setSortConfig({ key: actualKey, direction });
     setPage(1);
   };
+
+  const fetchAdvValueSuggestions = useCallback((column) =>
+    VacantesService.getMovimientosPersonal({ distinct_field: column, distinct_search: "" })
+      .then((res) => res.json())
+      .then((data) => (Array.isArray(data) ? data : [])), []);
 
   const movPersonalDropdownValues = useMemo(() => {
     if (!activeFilterDropdown || isDateColumn(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
@@ -679,7 +702,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     } else if (["sal_base", "smb", "smn", "sueldo_bruto", "sueldo_neto"].includes(col.key) && val) {
       val = `$${formatNumber(val)}`;
     }
-    let cellClass = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "ring-2 ring-inset ring-[#621f32] dark:ring-[#bc955c] bg-white dark:bg-slate-950 font-black text-[#621f32] dark:text-[#bc955c] shadow-lg relative z-[25]" : "font-semibold"}`;
+    let cellClass = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "ring-2 ring-inset ring-[#621f32] dark:ring-[#bc955c] bg-white dark:bg-slate-950 font-black text-[#621f32] dark:text-[#bc955c] shadow-lg relative z-[25]" : "font-semibold text-slate-900 dark:text-slate-100"}`;
     if (isSticky) cellClass += isSelectedRow ? " bg-[#f0e4e6] dark:bg-[#621f32]/20" : " bg-white/95 dark:bg-slate-900/95";
     if (col.key === "posicion" || col.key === "num_empleado") cellClass += " font-mono font-bold hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer";
     else if (col.key === "accion_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
@@ -734,6 +757,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
       if (yearFilter && activeSubTab !== "bitacora") {
         params.fecha_efectiva__year = yearFilter;
+      }
+
+      if (appliedAdvancedFilters.length > 0) {
+        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
       }
 
       const res = await VacantesService.getMovimientosPersonal(params);
@@ -857,10 +884,9 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     setColumnFilters({});
     setSearchQuery("");
     setSortConfig({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
+    resetAdvancedFilters();
     setPage(1);
   };
-
-  const isDateColumn = (key) => ["fecha_efectiva", "fecha_captura", "fecha_ult_actz", "fecha_inicial", "fecha_entrada", "fecha_posicion"].includes(key);
 
   const MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -1672,18 +1698,20 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                 <Columns className="size-3.5" />
                 <span className="hidden sm:inline">Columnas</span>
               </button>
-              <button 
+              <button
                 onClick={() => {
                   setTextFilters({});
                   setColumnFilters({});
                   setSortConfig({ key: null, direction: null });
                   setSearchQuery("");
-                }} 
+                  resetAdvancedFilters();
+                }}
                 className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350 hover:text-[#621f32] dark:hover:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"
                 title="Restablecer"
               >
                 <RotateCcw className="size-3.5" />
               </button>
+              <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button onClick={handleExportExcel} disabled={isExportingExcel || data.length === 0} className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 disabled:opacity-75 disabled:pointer-events-none">
                 {isExportingExcel ? (
                   <div className="size-3.5 border-2 border-white/20 border-t-white dark:border-[#3e131f]/20 dark:border-t-[#3e131f] rounded-full animate-spin" />
@@ -1746,6 +1774,20 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         onClose={() => setIsColumnsModalOpen(false)}
       />
 
+      <AdvancedFiltersModal
+        open={isAdvancedFiltersOpen}
+        onClose={() => setIsAdvancedFiltersOpen(false)}
+        mounted={mounted}
+        columns={columns}
+        conditions={advancedConditions}
+        onAddCondition={addAdvancedCondition}
+        onRemoveCondition={removeAdvancedCondition}
+        onUpdateCondition={updateAdvancedCondition}
+        onApply={applyAdvancedFilters}
+        isDateColumn={isDateColumn}
+        fetchSuggestions={fetchAdvValueSuggestions}
+      />
+
       {/* Dropdown de Filtro por Valores Únicos */}
       <AnimatePresence>
         {activeFilterDropdown && (
@@ -1759,7 +1801,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             dropdownValues={movPersonalDropdownValues}
             dateHierarchy={dateHierarchies[activeFilterDropdown]}
             dateValues={(uniqueColumnValues[activeFilterDropdown] || []).map(i => i.value)}
-            loadingValues={isDateColumn(activeFilterDropdown) && loadingUniqueValues}
+            loadingValues={loadingUniqueValues}
             onDateSelection={(type, value, parentPath) => handleDateSelection(activeFilterDropdown, type, value, parentPath)}
             onToggleDateNode={(path) => setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }))}
             onApply={() => applyColumnFilter(activeFilterDropdown)}

@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: "Ocupación por Oficios" };
+
 export default async function ServerComponent() {
     // Obtenemos el token de las cookies para usarlo como llave de caché
     const cookieStore = await cookies();

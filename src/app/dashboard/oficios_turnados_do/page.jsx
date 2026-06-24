@@ -6,6 +6,8 @@ import OficiosTurnadosDO from './ClientComponent';
 // ruta es dinámica: se omite el prerender estático.
 export const dynamic = 'force-dynamic';
 
+export const metadata = { title: "Oficios Turnados a DO" };
+
 export default async function OficiosTurnadosDOSSR() {
   const oficiosTurnadosResponse =
     await ControlGestionService.getOficiosTurnados({
