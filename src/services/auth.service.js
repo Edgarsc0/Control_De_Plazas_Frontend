@@ -36,13 +36,14 @@ export const AuthService = {
      * @returns {void}
      */
     saveToken: (token) => {
-        // En desarrollo permitimos HTTP (secure: false) para que funcione en red local
-        const isProduction = process.env.NODE_ENV === 'production';
+        // Producción corre sobre HTTP (sin TLS), así que se chequea el protocolo real
+        // en vez de NODE_ENV: NODE_ENV==='production' pondría secure:true y rompería la cookie.
+        const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
         Cookies.set('auth_token', token, {
             expires: 7,
-            secure: isProduction, // Solo true en producción (HTTPS)
-            sameSite: 'lax'       // Más permisivo para desarrollo en red local
+            secure: isHttps,
+            sameSite: 'lax'
         });
     },
 
