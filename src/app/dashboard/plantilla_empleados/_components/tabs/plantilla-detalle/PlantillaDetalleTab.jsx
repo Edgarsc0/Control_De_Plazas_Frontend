@@ -15,6 +15,8 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import MobileCardList from "@/components/ui/MobileCardList";
+import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
@@ -774,6 +776,34 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const activeHoverData = hoveredSlice !== null ? donutData[hoveredSlice] : null;
   const activeStatusFilter = columnFilters["estado_nomina"] || [];
 
+  // Badge de estado para la vista de tarjetas en móvil (mismo lenguaje visual que la celda).
+  const renderEstadoBadge = useCallback((row) => {
+    const est = mapEstadoNomina(row.estado_nomina);
+    const Icon = STATUS_ICONS[est] || UserCheck;
+    const badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[9px] font-black uppercase ${badge.bg} ${badge.text} ${badge.border}`}>
+        <Icon className="size-3" />{est}
+      </span>
+    );
+  }, []);
+
+  // Config de la tarjeta móvil para Plantilla Detalle (qué campos muestra cada fila).
+  const mobileCardConfig = {
+    getRowId: (row, i) => row.posicion ?? i,
+    getTitle: (row) => (row.nombres && String(row.nombres).trim()) ? row.nombres : "Vacante",
+    getSubtitle: (row) => (row.posicion ? `POS ${row.posicion}` : ""),
+    renderBadge: renderEstadoBadge,
+    fields: [
+      { key: "id_empleado", label: "Id Empleado", mono: true },
+      { key: "nivel", label: "Nivel", mono: true },
+      { key: "nj", label: "NJ", mono: true },
+      { key: "codigo_presupuestal", label: "Cód. Presup.", mono: true },
+      { key: "fecha_efectiva_personal", label: "Fecha efectiva" },
+      { key: "qna", label: "Qna", mono: true },
+    ],
+  };
+
   // Auto-scroll when navigating with keyboard
   useEffect(() => {
     if (!selectedCell || !tableContainerRef.current) return;
@@ -842,8 +872,28 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       </div>
 
       <div className="w-full flex justify-center mt-4">
-        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl max-h-[calc(100vh-144px)] h-fit flex flex-col sticky bottom-0 z-30 overflow-hidden w-full scroll-mt-36" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
-          <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
+          {/* Toolbar móvil (búsqueda + Excel + Drawer de herramientas) */}
+          <MobileTableToolbar
+            searchValue={searchQuery}
+            onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
+            count={filteredSortedData.length}
+            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
+            actions={[
+              { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0 },
+              { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
+              { icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) },
+              { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
+            ]}
+            chips={activeStatusFilter.map(status => (
+              <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
+                {STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}
+                <span>{status}</span><X className="size-3" />
+              </button>
+            ))}
+          />
+
+          <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:ring-2 focus-within:ring-[#621f32]/10 rounded-2xl transition-all shadow-sm">
@@ -891,6 +941,8 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
             </div>
           </div>
 
+          {/* Tabla densa estilo Excel: sólo desktop */}
+          <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
           <DataTable
             containerRef={tableContainerRef}
             tbodyRef={tbodyRef}
@@ -921,9 +973,20 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
             rowHeight={rowHeight}
             renderCell={renderCell}
           />
+          </div>
 
+          {/* Vista de tarjetas: sólo móvil */}
+          <div className="md:hidden">
+            <MobileCardList
+              data={filteredSortedData}
+              config={mobileCardConfig}
+              onCardClick={(row) => setSelectedRowData(row)}
+              isLoading={isLoading}
+              isPending={isPending}
+            />
+          </div>
 
-          <div className="absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
+          <div className="hidden md:block absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
         </div>
       </div>
 

@@ -16,6 +16,8 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import MobileCardList from "@/components/ui/MobileCardList";
+import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import { useColumnState } from "../../../_hooks/useColumnState";
@@ -51,6 +53,110 @@ const MOTIVOS_COUNT_MAP = {
   "Reincorp Licencia Médica": 1,
   "Reincorp Suspensión": 1,
   "Reincorporación Licencia s/Goce de Sueldo": 1
+};
+
+// Catálogo UN: clave normalizada a 5 dígitos con ceros a la izquierda
+const UN_CATALOG = {
+  "00001": "Agencia Nacional de Aduanas de México",
+  "00002": "Órgano Interno de Control",
+  "00003": "Dirección General de Evaluación",
+  "00004": "Dirección General de Procesamiento Electrónico de Datos Aduaneros",
+  "00100": "Dirección General de Operación Aduanera",
+  "00200": "Dirección General de Investigación Aduanera",
+  "00300": "Dirección General de Atención Aduanera y Asuntos Internacionales",
+  "00400": "Dirección General de Modernización, Equipamiento e Infraestructura Aduanera",
+  "00500": "Dirección General Jurídica de Aduanas",
+  "00600": "Dirección General de Recaudación",
+  "00700": "Dirección General de Tecnologías de la Información",
+  "00800": "Dirección General de Planeación Aduanera",
+  "00900": "Unidad de Administración y Finanzas",
+};
+
+// Catálogo UA: clave normalizada a 3 dígitos con ceros a la izquierda
+const UA_CATALOG = {
+  "001": "Agencia Nacional de Aduanas de México",
+  "002": "Órgano Interno de Control",
+  "003": "Dirección General de Evaluación",
+  "004": "Dirección General de Procesamiento Electrónico de Datos Aduaneros",
+  "100": "Dirección General de Operación Aduanera",
+  "101": "Aduana de Agua Prieta (Sonora)",
+  "102": "Aduana de Ciudad Acuña (Coahuila)",
+  "103": "Aduana de Ciudad Camargo (Tamaulipas)",
+  "104": "Aduana de Ciudad Hidalgo (Chiapas)",
+  "105": "Aduana de Ciudad Juárez (Chihuahua)",
+  "106": "Aduana de Ciudad Miguel Alemán (Tamaulipas)",
+  "107": "Aduana de Ciudad Reynosa (Tamaulipas)",
+  "108": "Aduana de Colombia (Nuevo León)",
+  "109": "Aduana de Matamoros (Tamaulipas)",
+  "110": "Aduana de Mexicali (Baja California)",
+  "111": "Aduana de Naco (Sonora)",
+  "112": "Aduana de Nogales (Sonora)",
+  "113": "Aduana de Nuevo Laredo (Tamaulipas)",
+  "114": "Aduana de Ojinaga (Chihuahua)",
+  "115": "Aduana de Piedras Negras (Coahuila)",
+  "116": "Aduana de Puerto Palomas (Chihuahua)",
+  "117": "Aduana de San Luis Río Colorado (Sonora)",
+  "118": "Aduana de Sonoyta (Sonora)",
+  "119": "Aduana de Tecate (Baja California)",
+  "120": "Aduana de Tijuana (Baja California)",
+  "121": "Aduana de Subteniente López (Quintana Roo)",
+  "122": "Aduana de Acapulco (Guerrero)",
+  "123": "Aduana de Altamira (Tamaulipas)",
+  "124": "Aduana de Cancún (Quintana Roo)",
+  "125": "Aduana de Ciudad del Carmen (Campeche)",
+  "126": "Aduana de Coatzacoalcos (Veracruz)",
+  "127": "Aduana de Dos Bocas (Tabasco)",
+  "128": "Aduana de Ensenada (Baja California)",
+  "129": "Aduana de Guaymas (Sonora)",
+  "130": "Aduana de La Paz (Baja California Sur)",
+  "131": "Aduana de Lázaro Cárdenas (Michoacán)",
+  "132": "Aduana de Manzanillo (Colima)",
+  "133": "Aduana de Mazatlán (Sinaloa)",
+  "134": "Aduana de Progreso (Yucatán)",
+  "135": "Aduana de Salina Cruz (Oaxaca)",
+  "136": "Aduana de Tampico (Tamaulipas)",
+  "137": "Aduana de Tuxpan (Veracruz)",
+  "138": "Aduana de Veracruz (Veracruz)",
+  "139": "Aduana AICM (Ciudad de México)",
+  "140": "Aduana Aeropuerto Felipe Ángeles (Estado de México)",
+  "141": "Aduana de Aguascalientes (Aguascalientes)",
+  "142": "Aduana de Chihuahua (Chihuahua)",
+  "143": "Aduana de Guadalajara (Jalisco)",
+  "144": "Aduana de Guanajuato (Guanajuato)",
+  "145": "Aduana de Monterrey (Nuevo León)",
+  "146": "Aduana de Puebla (Puebla)",
+  "147": "Aduana de Querétaro (Querétaro)",
+  "148": "Aduana de Toluca (Estado de México)",
+  "149": "Aduana de Torreón (Coahuila)",
+  "150": "Aduana de México (Ciudad de México)",
+  "200": "Dirección General de Investigación Aduanera",
+  "300": "Dirección General de Atención Aduanera y Asuntos Internacionales",
+  "400": "Dirección General de Modernización, Equipamiento e Infraestructura Aduanera",
+  "500": "Dirección General Jurídica de Aduanas",
+  "600": "Dirección General de Recaudación",
+  "700": "Dirección General de Tecnologías de la Información",
+  "800": "Dirección General de Planeación Aduanera",
+  "900": "Unidad de Administración y Finanzas",
+  "909": "Dirección Operativa de Administración y Finanzas (CDMX)",
+  "922": "Dirección Operativa de Administración y Finanzas (Chichimequillas, Qro.)",
+};
+
+// Normaliza código UN (→ 5 dígitos) y devuelve "CODE (NOMBRE)" o "CODE" si no existe
+const labelUN = (code) => {
+  if (!code && code !== 0) return "—";
+  const raw = String(code).trim();
+  const padded = raw.replace(/\D/g, "").padStart(5, "0");
+  const name = UN_CATALOG[padded];
+  return name ? `${raw} (${name})` : raw;
+};
+
+// Normaliza código UA (→ 3 dígitos) y devuelve "CODE (NOMBRE)" o "CODE" si no existe
+const labelUA = (code) => {
+  if (!code && code !== 0) return "—";
+  const raw = String(code).trim();
+  const padded = raw.replace(/\D/g, "").padStart(3, "0");
+  const name = UA_CATALOG[padded];
+  return name ? `${raw} (${name})` : raw;
 };
 
 const getTodayString = () => {
@@ -278,6 +384,7 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
 export default function MovimientosPersonalTab({ isPending, startTransition, cardRef }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [data, setData] = useState([]);
   const tbodyRef = useRef(null);
   const bitacoraDateInputRef = useRef(null);
@@ -702,7 +809,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     } else if (["sal_base", "smb", "smn", "sueldo_bruto", "sueldo_neto"].includes(col.key) && val) {
       val = `$${formatNumber(val)}`;
     }
-    let cellClass = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "ring-2 ring-inset ring-[#621f32] dark:ring-[#bc955c] bg-white dark:bg-slate-950 font-black text-[#621f32] dark:text-[#bc955c] shadow-lg relative z-[25]" : "font-semibold text-slate-900 dark:text-slate-100"}`;
+    let cellClass = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "ring-2 ring-inset ring-[#621f32] dark:ring-[#bc955c] bg-white dark:bg-slate-950 font-black text-[#621f32] dark:text-[#bc955c] shadow-lg relative z-[25]" : "font-semibold text-slate-700 dark:text-slate-300"}`;
     if (isSticky) cellClass += isSelectedRow ? " bg-[#f0e4e6] dark:bg-[#621f32]/20" : " bg-white/95 dark:bg-slate-900/95";
     if (col.key === "posicion" || col.key === "num_empleado") cellClass += " font-mono font-bold hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer";
     else if (col.key === "accion_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
@@ -837,6 +944,427 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       console.error(err);
     } finally {
       setIsExportingExcel(false);
+    }
+  };
+
+  const handleDownloadYearReport = async (year) => {
+    if (!year || isDownloadingReport) return;
+    setIsDownloadingReport(true);
+    try {
+      // Catálogo de departamentos y fetch de movimientos en paralelo
+      const [res, deptoRes] = await Promise.all([
+        VacantesService.getMovimientosPersonal({
+          no_pagination: true,
+          fecha_captura__year: year,
+          sort_by: "accion_nombre,fecha_captura,fecha_efectiva",
+          sort_order: "asc",
+        }),
+        VacantesService.getOrganigramaDeptos(),
+      ]);
+      const rows = await res.json();
+      const allRows = Array.isArray(rows) ? rows : [];
+
+      const deptoData = await deptoRes.json();
+      const DEPTO_CATALOG = new Map(
+        Array.isArray(deptoData)
+          ? deptoData.map((d) => [String(d.departamento || "").trim(), String(d.descripcion_larga || "").trim()])
+          : []
+      );
+      const labelDepto = (code) => {
+        if (!code && code !== 0) return "—";
+        const raw = String(code).trim();
+        const name = DEPTO_CATALOG.get(raw);
+        return name ? `${raw} (${name})` : raw;
+      };
+
+      // Agregaciones
+      const accionCounts = new Map();   // accion_nombre -> total
+      const accionMotivos = new Map();  // accion_nombre -> Map(motivo_nombre -> total)
+      allRows.forEach((row) => {
+        const accion = String(row.accion_nombre || "Sin acción").trim();
+        const motivo = String(row.motivo_nombre || "Sin motivo").trim();
+        accionCounts.set(accion, (accionCounts.get(accion) || 0) + 1);
+        if (!accionMotivos.has(accion)) accionMotivos.set(accion, new Map());
+        accionMotivos.get(accion).set(motivo, (accionMotivos.get(accion).get(motivo) || 0) + 1);
+      });
+
+      const totalMovs = allRows.length;
+      const accionesSorted = [...accionCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+      // Nombre seguro para hoja de Excel (máx 31 chars, sin \ / * ? [ ] :)
+      const safeSheetName = (name) => name.replace(/[\\/*?[\]:]/g, '-').substring(0, 31);
+      const accionSheetNames = new Map([...accionCounts.keys()].map(a => [a, safeSheetName(a)]));
+
+      // Índices de allRows agrupados por accion_nombre (para generar hojas por acción)
+      const rowsByAccion = new Map();
+      allRows.forEach((row, idx) => {
+        const accion = String(row.accion_nombre || "Sin acción").trim();
+        if (!rowsByAccion.has(accion)) rowsByAccion.set(accion, []);
+        rowsByAccion.get(accion).push(idx);
+      });
+
+      // ── Detalle Cambio Adscripción ────────────────────────────────────────────
+      // Para cada fila con motivo "Cmbio Adscripción *", buscamos el registro
+      // inmediatamente anterior del mismo empleado (historia completa, sin filtro
+      // de año) y comparamos UN / UN Admin.
+      const MOTIVOS_ADSC = new Set([
+        "Cmbio Adscripción s/Cambio Sal",
+        "Cmbio Adscripción c/Cambio Sal",
+      ]);
+
+      // detalleAdscripcion: índice en allRows -> texto del detalle
+      const detalleAdscripcion = new Map();
+
+      const adscRows = allRows
+        .map((row, idx) => ({ row, idx }))
+        .filter(({ row }) => MOTIVOS_ADSC.has(String(row.motivo_nombre || "").trim()));
+
+      if (adscRows.length > 0) {
+        const empIds = [...new Set(adscRows.map(({ row }) => row.num_empleado).filter(Boolean))];
+
+        // Traer TODO el historial de esos empleados via raw SQL (sin filtro de año)
+        // ordenado por num_empleado, fecha_efectiva, sec ASC directo en DB
+        const hRes = await VacantesService.getMovimientosPersonalHistorial(empIds);
+        const hData = await hRes.json();
+        const histRows = Array.isArray(hData) ? hData : [];
+
+        // Agrupar historial por empleado
+        const byEmp = new Map();
+        histRows.forEach((r) => {
+          const k = String(r.num_empleado || "");
+          if (!byEmp.has(k)) byEmp.set(k, []);
+          byEmp.get(k).push(r);
+        });
+
+        adscRows.forEach(({ row, idx }) => {
+          const empKey = String(row.num_empleado || "");
+          const hist = byEmp.get(empKey) || [];
+
+          // Localizar este registro exacto en el historial
+          const rowFecha  = String(row.fecha_efectiva || "");
+          const rowSec    = String(row.sec            || "");
+          const rowPos    = String(row.posicion       || "");
+          const rowMotivo = String(row.motivo_nombre  || "").trim();
+
+          const pos = hist.findIndex(
+            (r) =>
+              String(r.fecha_efectiva || "") === rowFecha &&
+              String(r.sec            || "") === rowSec   &&
+              String(r.posicion       || "") === rowPos   &&
+              String(r.motivo_nombre  || "").trim() === rowMotivo
+          );
+
+          if (pos > 0) {
+            const prev = hist[pos - 1];
+            detalleAdscripcion.set(idx, {
+              ua_antes:     labelUA(String(prev.un_admin || "").trim()),
+              ua_despues:   labelUA(String(row.un_admin  || "").trim()),
+              un_antes:     labelUN(String(prev.un       || "").trim()),
+              un_despues:   labelUN(String(row.un        || "").trim()),
+              depto_antes:  labelDepto(String(prev.id_depto || "").trim()),
+              depto_despues:labelDepto(String(row.id_depto  || "").trim()),
+            });
+          }
+        });
+      }
+
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "ANAM — Eje Central";
+      workbook.created = new Date();
+
+      // ── Paleta ──────────────────────────────────────────────────────────────
+      const VINO      = "FF621F32";
+      const ORO       = "FFBC955C";
+      const AZUL      = "FF2B4C7E";
+      const VINO_LITE = "FFF3E7EB";
+      const ORO_LITE  = "FFF6EEE0";
+      const GRIS      = "FFE2D9C9";
+      const LINK      = "FF0563C1";
+
+      const thin = {
+        top:    { style: "thin", color: { argb: GRIS } },
+        left:   { style: "thin", color: { argb: GRIS } },
+        bottom: { style: "thin", color: { argb: GRIS } },
+        right:  { style: "thin", color: { argb: GRIS } },
+      };
+      const medOro = (side) => ({ style: "medium", color: { argb: ORO } });
+      const headerBorder = { top: medOro(), left: medOro(), bottom: medOro(), right: medOro() };
+
+      // ── Hoja 1: Detalle ─────────────────────────────────────────────────────
+      const detName = `Año ${year}`;
+      const ws = workbook.addWorksheet(detName, { views: [{ state: "frozen", ySplit: 1 }] });
+
+      // Las 6 columnas de adscripción van al final
+      const ADSC_COLS = [
+        { header: "Unidad Administrativa Antes",   key: "__adsc_ua_antes__",     width: 38 },
+        { header: "Unidad Administrativa Después",  key: "__adsc_ua_despues__",   width: 38 },
+        { header: "Unidad de Negocio Antes",        key: "__adsc_un_antes__",     width: 38 },
+        { header: "Unidad de Negocio Después",      key: "__adsc_un_despues__",   width: 38 },
+        { header: "Departamento Antes",             key: "__adsc_depto_antes__",  width: 28 },
+        { header: "Departamento Después",           key: "__adsc_depto_despues__",width: 28 },
+      ];
+      const totalDataCols = columns.length + ADSC_COLS.length;
+      ws.columns = [
+        ...columns.map((c) => ({ header: c.label, key: c.key, width: 15 })),
+        ...ADSC_COLS,
+      ];
+
+      allRows.forEach((row, idx) => {
+        const rd = {};
+        columns.forEach((c) => { rd[c.key] = row[c.key]; });
+        const det = detalleAdscripcion.get(idx);
+        rd.__adsc_ua_antes__     = det ? det.ua_antes     : "";
+        rd.__adsc_ua_despues__   = det ? det.ua_despues   : "";
+        rd.__adsc_un_antes__     = det ? det.un_antes     : "";
+        rd.__adsc_un_despues__   = det ? det.un_despues   : "";
+        rd.__adsc_depto_antes__  = det ? det.depto_antes  : "";
+        rd.__adsc_depto_despues__= det ? det.depto_despues: "";
+        const addedRow = ws.addRow(rd);
+        addedRow.eachCell((cell) => { cell.border = thin; });
+        // Resaltar las 6 celdas de adscripción cuando hay registro previo
+        if (det) {
+          for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+            addedRow.getCell(ci).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: VINO } };
+          }
+        }
+      });
+
+      // Estilo encabezado detalle
+      const detHeader = ws.getRow(1);
+      detHeader.height = 24;
+      detHeader.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } };
+        cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = headerBorder;
+      });
+      // Las 6 columnas de adscripción tienen encabezado vino para distinguirlas
+      for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+        const hc = detHeader.getCell(ci);
+        hc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
+        hc.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+      }
+
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: totalMovs + 1, column: totalDataCols } };
+
+      // Auto-ancho columnas detalle (excluye la extra que ya tiene width fijo)
+      ws.columns.slice(0, columns.length).forEach((col) => {
+        let max = col.header ? col.header.length : 0;
+        col.eachCell({ includeEmpty: false }, (cell) => {
+          const v = cell.value != null ? String(cell.value) : "";
+          if (v.length > max) max = v.length;
+        });
+        col.width = Math.min(Math.max(max + 2, 10), 50);
+      });
+
+      // ── Hoja 2: Resumen ──────────────────────────────────────────────────────
+      const rs = workbook.addWorksheet("Resumen", { views: [{ showGridLines: false }] });
+      rs.getColumn(1).width = 46;
+      rs.getColumn(2).width = 16;
+      rs.getColumn(3).width = 14;
+      rs.getColumn(4).width = 26;
+
+      // Helpers de estilo Resumen
+      const secTitle = (text) => {
+        const r = rs.addRow([text]);
+        rs.mergeCells(r.number, 1, r.number, 4);
+        const c = r.getCell(1);
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
+        c.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+        c.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+        r.height = 26;
+      };
+      const tableHeader = (labels) => {
+        const r = rs.addRow(labels);
+        labels.forEach((_, i) => {
+          const c = r.getCell(i + 1);
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } };
+          c.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+          c.alignment = { horizontal: "center", vertical: "middle" };
+          c.border = thin;
+        });
+        r.height = 22;
+        return r;
+      };
+      const dataCell = (cell, value, opts = {}) => {
+        cell.value = value;
+        cell.font = { name: "Segoe UI", size: 10, ...(opts.font || {}) };
+        cell.alignment = { ...(opts.align || {}) };
+        cell.border = thin;
+        if (opts.fill) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
+        if (opts.numFmt) cell.numFmt = opts.numFmt;
+      };
+
+      // ── Título ───────────────────────────────────────────────────────────────
+      const tit = rs.addRow([`Reporte de Movimientos de Personal — Año ${year}`]);
+      rs.mergeCells(tit.number, 1, tit.number, 4);
+      tit.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
+      tit.getCell(1).font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+      tit.getCell(1).alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+      tit.height = 40;
+
+      const sub = rs.addRow([`Total de movimientos: ${totalMovs}   ·   ${accionesSorted.length} acciones distintas`]);
+      rs.mergeCells(sub.number, 1, sub.number, 4);
+      sub.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
+      sub.getCell(1).font = { name: "Segoe UI", size: 10, color: { argb: ORO } };
+      sub.getCell(1).alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+      sub.height = 18;
+
+      rs.addRow([]);
+
+      // ── Tabla 1: Acciones ────────────────────────────────────────────────────
+      secTitle("Acciones  ·  Clic en Total → ver detalle");
+      tableHeader(["Acción", "Total", "% del total", "Participación visual"]);
+      const firstAccRow = rs.rowCount + 1;
+
+      accionesSorted.forEach(([accion, cnt]) => {
+        const r = rs.addRow([]);
+        const pct = totalMovs > 0 ? cnt / totalMovs : 0;
+        const accionSheet = accionSheetNames.get(accion) || detName;
+
+        dataCell(r.getCell(1), accion, { font: { bold: true, color: { argb: VINO } } });
+
+        // Hipervínculo a la hoja pre-filtrada de esa acción (A2 = primera fila de datos)
+        r.getCell(2).value = { formula: `HYPERLINK("#'${accionSheet}'!A2","${cnt}")`, result: cnt };
+        r.getCell(2).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: LINK }, underline: true };
+        r.getCell(2).alignment = { horizontal: "center" };
+        r.getCell(2).border = thin;
+
+        dataCell(r.getCell(3), pct, { numFmt: "0.0%", align: { horizontal: "center" } });
+
+        // Columna D: valor numérico invisible — el data bar la usa
+        r.getCell(4).value = cnt;
+        r.getCell(4).font = { color: { argb: "FFFFFFFF" }, size: 1 };
+        r.getCell(4).border = thin;
+        r.height = 18;
+      });
+
+      const lastAccRow = rs.rowCount;
+
+      // Fila TOTAL
+      const tot = rs.addRow(["TOTAL", totalMovs, 1, ""]);
+      tot.getCell(3).numFmt = "0%";
+      [1, 2, 3, 4].forEach((i) => {
+        tot.getCell(i).fill = { type: "pattern", pattern: "solid", fgColor: { argb: ORO_LITE } };
+        tot.getCell(i).font = { name: "Segoe UI", size: 10, bold: true };
+        tot.getCell(i).border = thin;
+        if (i > 1) tot.getCell(i).alignment = { horizontal: "center" };
+      });
+      tot.height = 20;
+
+      // Data bar en columna D
+      rs.addConditionalFormatting({
+        ref: `D${firstAccRow}:D${lastAccRow}`,
+        rules: [{ type: "dataBar", cfvo: [{ type: "num", value: 0 }, { type: "max" }], color: { argb: VINO }, gradient: true, border: false, showValue: false }],
+      });
+
+      rs.addRow([]);
+
+      // ── Tabla 2: Motivos por Acción ──────────────────────────────────────────
+      secTitle("Motivos por Acción  ·  Clic en Total → ver detalle");
+      tableHeader(["Acción / Motivo", "Total", "% dentro de la acción", "% del total"]);
+
+      accionesSorted.forEach(([accion, accCnt]) => {
+        const mMap = accionMotivos.get(accion) || new Map();
+        const motivosSorted = [...mMap.entries()].sort((a, b) => b[1] - a[1]);
+        const accionSheet = accionSheetNames.get(accion) || detName;
+
+        // Fila encabezado de acción
+        const ar = rs.addRow([]);
+        dataCell(ar.getCell(1), accion, { font: { bold: true, color: { argb: VINO } }, fill: VINO_LITE });
+        ar.getCell(1).border = thin;
+
+        ar.getCell(2).value = { formula: `HYPERLINK("#'${accionSheet}'!A2","${accCnt}")`, result: accCnt };
+        ar.getCell(2).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: LINK }, underline: true };
+        ar.getCell(2).alignment = { horizontal: "center" };
+        ar.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO_LITE } };
+        ar.getCell(2).border = thin;
+
+        dataCell(ar.getCell(3), "", { fill: VINO_LITE });
+        dataCell(ar.getCell(4), "", { fill: VINO_LITE });
+        ar.height = 20;
+
+        // Filas de motivo
+        motivosSorted.forEach(([motivo, mCnt]) => {
+          const mr = rs.addRow([]);
+          const pctAcc  = accCnt  > 0 ? mCnt / accCnt  : 0;
+          const pctTot  = totalMovs > 0 ? mCnt / totalMovs : 0;
+
+          dataCell(mr.getCell(1), `    ${motivo}`, { font: { color: { argb: "FF374151" } } });
+          dataCell(mr.getCell(2), mCnt, { align: { horizontal: "center" }, font: { bold: true, color: { argb: VINO } } });
+          dataCell(mr.getCell(3), pctAcc, { numFmt: "0.0%", align: { horizontal: "center" } });
+          dataCell(mr.getCell(4), pctTot, { numFmt: "0.0%", align: { horizontal: "center" } });
+          mr.height = 17;
+        });
+      });
+
+      // ── Hojas por Acción (pre-filtradas) ────────────────────────────────────
+      for (const [accion, idxList] of rowsByAccion) {
+        const sheetName = accionSheetNames.get(accion) || accion;
+        const aws = workbook.addWorksheet(sheetName, { views: [{ state: "frozen", ySplit: 1 }] });
+        aws.columns = [
+          ...columns.map((c) => ({ header: c.label, key: c.key, width: 15 })),
+          ...ADSC_COLS,
+        ];
+
+        idxList.forEach((idx) => {
+          const row = allRows[idx];
+          const rd = {};
+          columns.forEach((c) => { rd[c.key] = row[c.key]; });
+          const det = detalleAdscripcion.get(idx);
+          rd.__adsc_ua_antes__     = det ? det.ua_antes     : "";
+          rd.__adsc_ua_despues__   = det ? det.ua_despues   : "";
+          rd.__adsc_un_antes__     = det ? det.un_antes     : "";
+          rd.__adsc_un_despues__   = det ? det.un_despues   : "";
+          rd.__adsc_depto_antes__  = det ? det.depto_antes  : "";
+          rd.__adsc_depto_despues__= det ? det.depto_despues: "";
+          const addedRow = aws.addRow(rd);
+          addedRow.eachCell((cell) => { cell.border = thin; });
+          if (det) {
+            for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+              addedRow.getCell(ci).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: VINO } };
+            }
+          }
+        });
+
+        const awsHeader = aws.getRow(1);
+        awsHeader.height = 24;
+        awsHeader.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } };
+          cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = headerBorder;
+        });
+        for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+          const hc = awsHeader.getCell(ci);
+          hc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
+          hc.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        }
+
+        aws.autoFilter = { from: { row: 1, column: 1 }, to: { row: idxList.length + 1, column: totalDataCols } };
+
+        aws.columns.slice(0, columns.length).forEach((col) => {
+          let max = col.header ? col.header.length : 0;
+          col.eachCell({ includeEmpty: false }, (cell) => {
+            const v = cell.value != null ? String(cell.value) : "";
+            if (v.length > max) max = v.length;
+          });
+          col.width = Math.min(Math.max(max + 2, 10), 50);
+        });
+      }
+
+      // ── Exportar ─────────────────────────────────────────────────────────────
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Reporte_Movimientos_${year}.xlsx`;
+      link.click();
+    } catch (err) {
+      console.error("Error generando reporte del año:", err);
+    } finally {
+      setIsDownloadingReport(false);
     }
   };
 
@@ -1389,11 +1917,28 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                       </div>
                     </div>
 
-                    <div className="absolute top-4 right-5 flex flex-col items-end">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total en el periodo</span>
-                      <span className="text-xl font-black text-[#621f32] dark:text-[#bc955c] leading-none">
-                        {formatNumber(temporalChartData.reduce((acc, curr) => acc + curr.total, 0))}
-                      </span>
+                    <div className="absolute top-4 right-5 flex items-center gap-3">
+                      {barChartSelection.year && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDownloadYearReport(barChartSelection.year); }}
+                          disabled={isDownloadingReport}
+                          title={`Descargar reporte Excel del año ${barChartSelection.year}`}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-xl text-[9px] uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-60 disabled:pointer-events-none"
+                        >
+                          {isDownloadingReport ? (
+                            <svg className="size-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                          ) : (
+                            <Download className="size-3" />
+                          )}
+                          {isDownloadingReport ? "Generando..." : `Descargar Reporte del año ${barChartSelection.year}`}
+                        </button>
+                      )}
+                      <div className="flex flex-col items-end">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total en el periodo</span>
+                        <span className="text-xl font-black text-[#621f32] dark:text-[#bc955c] leading-none">
+                          {formatNumber(temporalChartData.reduce((acc, curr) => acc + curr.total, 0))}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="w-full flex-1 flex items-end justify-between gap-1 sm:gap-2 mt-8 px-2 overflow-x-auto pb-2 custom-scrollbar">
@@ -1612,7 +2157,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         </Zoom>
       </div>
       <div className="w-full flex justify-center mt-4">
-        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl max-h-[calc(100vh-144px)] h-fit flex flex-col sticky bottom-0 z-30 overflow-hidden w-full scroll-mt-36" style={{ width: cardWidth ? `${cardWidth}px` : '100%' }}>
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%' }}>
           <div className="flex items-center gap-2 p-3 bg-slate-50/50 dark:bg-slate-900/10 border-b border-slate-200/50 dark:border-slate-800/80">
             {[
               { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
@@ -1628,7 +2173,19 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             })}
           </div>
 
-          <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
+          <MobileTableToolbar
+            searchValue={searchQuery}
+            onSearch={(v) => setSearchQuery(v)}
+            count={data.length}
+            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel, disabled: data.length === 0 }}
+            actions={[
+              { icon: RotateCcw, label: "Restablecer filtros", onClick: () => { setTextFilters({}); setColumnFilters({}); setSortConfig({ key: null, direction: null }); setSearchQuery(""); resetAdvancedFilters(); } },
+              { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
+              { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
+            ]}
+          />
+
+          <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
               {activeSubTab === "bitacora" ? (
                 <div className="flex items-center gap-2">
@@ -1723,9 +2280,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             </div>
           </div>
           
-          <div className="absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
+          <div className="hidden md:block absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
 
-            {/* Shared Scrollable Table Area */}
+            {/* Tabla densa: sólo desktop */}
+            <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
             <DataTable
             containerRef={tbodyRef}
             onScroll={() => {}}
@@ -1760,6 +2318,31 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             rowHeight={37}
             renderCell={renderCell}
           />
+            </div>
+
+            {/* Vista de tarjetas: sólo móvil */}
+            <div className="md:hidden">
+              <MobileCardList
+                data={data}
+                config={{
+                  getRowId: (r, i) => `${r.posicion ?? ""}-${r.sec ?? i}`,
+                  getTitle: (r) => [r.nombre, r.ap_pat, r.ap_mat].filter(Boolean).join(" ").trim() || "Sin nombre",
+                  getSubtitle: (r) => (r.posicion ? `POS ${r.posicion}` : (r.num_empleado ? `Emp ${r.num_empleado}` : "")),
+                  renderBadge: (r) => (r.accion_nombre ? <span className="inline-flex items-center px-2 py-1 rounded-md border text-[9px] font-black uppercase bg-[#621f32]/8 text-[#621f32] border-[#621f32]/20 max-w-[120px] truncate">{r.accion_nombre}</span> : null),
+                  fields: [
+                    { key: "num_empleado", label: "No. Empleado", mono: true },
+                    { key: "motivo_nombre", label: "Motivo" },
+                    { key: "fecha_efectiva", label: "F. Efectiva" },
+                    { key: "fecha_captura", label: "F. Captura" },
+                    { key: "un_admin", label: "Unidad Admin" },
+                    { key: "sec", label: "Sec", mono: true },
+                  ],
+                }}
+                onCardClick={(row) => setSelectedRowData(row)}
+                isLoading={loading}
+                isPending={false}
+              />
+            </div>
 
       </div>
     </div>

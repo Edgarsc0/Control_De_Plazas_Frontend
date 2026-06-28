@@ -30,6 +30,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import MobileCardList from '@/components/ui/MobileCardList';
+
+// Formato de fecha determinista (UTC) — evita el mismatch de hidratación que
+// causaba `toLocaleDateString()` (depende del locale/zona del runtime).
+const fmtFecha = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+};
 
 const getColumnLetter = (colIdx) => {
   let letter = "";
@@ -97,6 +107,8 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
   const tableRef = React.useRef(null);
   const [columnWidths, setColumnWidths] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const itemsPerPage = 50;
 
   useEffect(() => {
@@ -615,7 +627,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
             </div>
 
             {/* Main Table Container */}
-            <div className="overflow-auto relative flex-1 min-h-0 select-none custom-scrollbar" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            <div className="hidden md:block overflow-auto relative flex-1 min-h-0 select-none custom-scrollbar" style={{ maxHeight: 'calc(100vh - 200px)' }}>
               <table ref={tableRef} className="min-w-full w-full text-left border-collapse table-fixed select-none text-xs text-slate-700 dark:text-slate-350" style={{ width: '100%', minWidth: 95 + Object.values(columnWidths).reduce((sum, w) => sum + w, 0) }}>
                 <colgroup>
                   <col style={{ width: 50 }} />
@@ -668,7 +680,8 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
                     })}
                   </tr>
 
-                  {/* Row 2: integrated filters per column */}
+                  {/* Row 2: filtros por columna — sólo cliente (evita mismatch SSR de react-select) */}
+                  {mounted && (
                   <tr className="bg-[#40121e] dark:bg-[#2b0d15] border-b border-[#bc955c]/25">
                     {/* Clear all filters button cell */}
                     <th className="sticky left-0 z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35 py-2 px-2 text-center align-middle">
@@ -734,6 +747,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
                       <Select menuPortalTarget={typeof document !== 'undefined' ? document.body : null} menuPlacement="auto" isMulti closeMenuOnSelect={false} instanceId="select-status" isClearable isSearchable placeholder="Estatus..." options={distinctOptions.status} value={filters.status} onChange={(v) => handleFilterChange('status', v)} styles={headerSelectStyles} />
                     </th>
                   </tr>
+                  )}
                 </thead>
 
                 {/* Body Section */}
@@ -864,7 +878,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
                                 <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="size-2 rounded-full shrink-0 shadow-sm" style={config.styleDot} />
                                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">{item.statusTurnado}</span>
                               </div>
-                              <span className="text-[8px] font-bold text-slate-400">{item.fechaRegistro ? new Date(item.fechaRegistro).toLocaleDateString() : ''}</span>
+                              <span className="text-[8px] font-bold text-slate-400">{fmtFecha(item.fechaRegistro)}</span>
                             </div>
                           </td>
                         </motion.tr>
@@ -875,9 +889,34 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
               </table>
             </div>
 
+            {/* Vista de tarjetas: sólo móvil */}
+            <div className="md:hidden">
+              <MobileCardList
+                data={filteredData}
+                config={{
+                  getRowId: (r, i) => r.idTurnado ?? i,
+                  getTitle: (r) => r.asuntoNoOficio || 'Sin oficio',
+                  getSubtitle: (r) => (r.asuntoFolio ? `Folio ${r.asuntoFolio}` : ''),
+                  renderBadge: (r) => {
+                    const c = getStatusConfig(r.statusTurnado);
+                    return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[9px] font-black uppercase bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"><span className="size-1.5 rounded-full" style={c?.styleDot} />{r.statusTurnado}</span>;
+                  },
+                  fields: [
+                    { key: 'asuntoTema', label: 'Tema' },
+                    { key: 'asuntoRemitente', label: 'Remitente' },
+                    { key: 'unidadArea', label: 'Unidad' },
+                    { key: 'asuntoPrioridad', label: 'Prioridad' },
+                    { label: 'Instrucción', render: (r) => r.nombreInstruccionCruzada || r.nombreInstruccion },
+                    { label: 'Fecha', render: (r) => fmtFecha(r.fechaRegistro) },
+                  ],
+                }}
+                onCardClick={(row) => handleSelectItem(row)}
+              />
+            </div>
+
             {/* Empty State */}
             {filteredData.length === 0 && (
-              <div className="p-24 flex flex-col items-center justify-center text-slate-300 gap-6">
+              <div className="hidden md:flex p-24 flex-col items-center justify-center text-slate-300 gap-6">
                 <div className="p-8 bg-white/20 dark:bg-slate-900/40 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
                   <Filter className="size-16 opacity-10" />
                 </div>
@@ -889,7 +928,7 @@ export default function OficiosTurnadosDO({ oficiosTurnados }) {
             )}
 
             {/* Sticky bottom pagination & footer */}
-            <div className="px-8 py-5 border-t border-slate-200/50 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <div className="hidden md:flex px-8 py-5 border-t border-slate-200/50 dark:border-slate-800/80 bg-slate-50/30 dark:bg-slate-900/10 flex-col sm:flex-row gap-4 items-center justify-between">
               <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                   Mostrando <span className="text-[#621f32] dark:text-[#bc955c]">{paginatedData.length}</span> de <span className="text-[#621f32] dark:text-[#bc955c]">{filteredData.length}</span> resultados (Pág. {currentPage} de {totalPages || 1})

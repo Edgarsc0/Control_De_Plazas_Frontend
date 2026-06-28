@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, use, Suspense } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback, use, Suspense } from "react";
 import { Zoom } from "react-awesome-reveal";
 import {
   LayoutDashboard,
@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
+import { useRegisterPageTabs } from "@/context/PageTabsContext";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
@@ -20,6 +21,15 @@ import MapaTab from "./_components/tabs/mapa/MapaTab";
 import BajasTab from "./_components/tabs/bajas/BajasTab";
 import TorreCaballito3DTab from "./_components/tabs/torre-3d/TorreCaballito3DTab";
 import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
+
+const TABS = [
+  { id: "detalle", label: "Plantilla Detalle" },
+  { id: "estatus", label: "Estatus Nómina" },
+  { id: "movimientos", label: "Mov. Posiciones" },
+  { id: "movimientos_personal", label: "Movimientos" },
+  { id: "bajas", label: "Empleados Bajas" },
+  { id: "mapa", label: "Distribución Geográfica" }
+];
 
 const SECONDARY_TAB_SKELETON = (
   <div className="flex items-center justify-center py-24">
@@ -76,6 +86,23 @@ export default function PlantillaEmpleadosDetalle({
   const cardRef = useRef(null);
   useRefreshOnZafiroUpdate();
   const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "organigrama" || activeTab === "mapa";
+  // En móvil la tarjeta de header sólo aparece cuando el tab activo tiene
+  // sub-controles (Agrupar/Ver); el cambio de tab principal vive en el Drawer
+  // del BottomNav.
+  const hasSecondaryControls = activeTab === "estatus" || activeTab === "movimientos" || activeTab === "mapa";
+
+  const handleSelectTab = useCallback((id) => {
+    startTransition(() => setActiveTab(id));
+  }, [startTransition]);
+
+  // Publica los tabs de esta página al BottomNav para abrirlos en un Drawer
+  // (móvil). El check sigue a activeTab; al desmontar se limpia el registro.
+  useRegisterPageTabs({
+    tabs: TABS,
+    activeTab,
+    onSelect: handleSelectTab,
+    title: "Plantilla de Empleados",
+  });
 
   // Prevent page scroll when on the map tab
   useEffect(() => {
@@ -98,6 +125,20 @@ export default function PlantillaEmpleadosDetalle({
     const isTableTab = isTightLayout && activeTab !== "mapa";
     if (!isTableTab) return;
 
+    // El clamp es para la tabla sticky de DESKTOP. En móvil la lista de tarjetas
+    // fluye en el flujo normal: aplicar el clamp ahí impide bajar la página
+    // (sólo se verían las primeras tarjetas). Por eso se omite en < md.
+    if (typeof window !== "undefined" && window.innerWidth < 768) return;
+
+    // Altura de la navegación fija (banner + navbar). Se resuelve desde la
+    // variable CSS --stack-h (fuente única) en vez del 144 mágico repetido.
+    const cs = getComputedStyle(document.documentElement);
+    const rootFont = parseFloat(cs.fontSize) || 16;
+    const rawStack = cs.getPropertyValue("--stack-h").trim();
+    const stackH = rawStack.endsWith("rem")
+      ? parseFloat(rawStack) * rootFont
+      : parseFloat(rawStack) || 144;
+
     const handleWindowScroll = () => {
       if (!cardRef.current) return;
 
@@ -109,8 +150,7 @@ export default function PlantillaEmpleadosDetalle({
         el = el.offsetParent;
       }
 
-      // 144px is the height of the fixed top navigation + banner (scroll-mt-36)
-      const maxScroll = Math.max(0, absoluteTop - 144);
+      const maxScroll = Math.max(0, absoluteTop - stackH);
       if (window.scrollY > maxScroll) {
         window.scrollTo(window.scrollX, maxScroll);
       }
@@ -154,20 +194,14 @@ export default function PlantillaEmpleadosDetalle({
             </Zoom>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-md w-full lg:w-auto z-10 pointer-events-auto">
-              <div className="flex p-0.5 gap-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/90 border border-slate-200/30 dark:border-slate-800/30 w-full sm:w-auto">
-                {[
-                  { id: "detalle", label: "Plantilla Detalle" },
-                  { id: "estatus", label: "Estatus Nómina" },
-                  { id: "movimientos", label: "Mov. Posiciones" },
-                  { id: "movimientos_personal", label: "Movimientos" },
-                  { id: "bajas", label: "Empleados Bajas" },
-                  { id: "mapa", label: "Distribución Geográfica" }
-                ].map((tab) => (
+            <div className={`${hasSecondaryControls ? "flex" : "hidden"} sm:flex flex-col sm:flex-row items-center gap-3 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-md w-full lg:w-auto z-10 pointer-events-auto`}>
+              {/* Tabs en pills (sm+). En móvil el cambio de tab vive en el Drawer del BottomNav. */}
+              <div className="hidden sm:flex p-0.5 gap-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/90 border border-slate-200/30 dark:border-slate-800/30 w-full sm:w-auto overflow-x-auto [&::-webkit-scrollbar]:hidden">
+                {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => startTransition(() => setActiveTab(tab.id))}
-                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer text-center ${activeTab === tab.id
+                    className={`flex-shrink-0 whitespace-nowrap sm:flex-initial px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer text-center ${activeTab === tab.id
                       ? "bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white shadow-md shadow-[#621f32]/20"
                       : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
                       }`}
@@ -177,7 +211,7 @@ export default function PlantillaEmpleadosDetalle({
                 ))}
               </div>
 
-              <div className="min-h-[36px] flex items-center justify-center w-full sm:w-auto">
+              <div className="empty:hidden sm:min-h-[36px] flex items-center justify-center w-full sm:w-auto">
                 <AnimatePresence mode="wait">
                   {activeTab === "estatus" && (
                     <motion.div
@@ -272,12 +306,12 @@ export default function PlantillaEmpleadosDetalle({
           <Zoom triggerOnce>
             <div className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-8 transition-all duration-300 ${isTightLayout ? "mb-4" : "mb-12"}`}>
               <div className="flex items-start sm:items-center gap-6">
-                <div className="relative p-5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] rounded-[2.2rem] shadow-xl shadow-[#621f32]/20 flex-shrink-0 group overflow-hidden transition-all duration-300 hover:scale-105">
+                <div className="relative p-4 sm:p-5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] rounded-[1.8rem] sm:rounded-[2.2rem] shadow-xl shadow-[#621f32]/20 flex-shrink-0 group overflow-hidden transition-all duration-300 hover:scale-105">
                   <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <Users className="size-10 text-white" />
+                  <Users className="size-8 sm:size-10 text-white" />
                 </div>
                 <div className="max-w-screen-md">
-                  <h2 className="text-4xl sm:text-5xl tracking-tight font-black text-gray-900 dark:text-white leading-tight">
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl tracking-tight font-black text-gray-900 dark:text-white leading-tight">
                     {activeTab === "movimientos_personal" ? (
                       <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                         Movimientos de personal

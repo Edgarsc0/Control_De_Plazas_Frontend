@@ -4,9 +4,61 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html,
+body {
+  /* clip (no hidden) evita scroll horizontal fantasma sin romper sticky */
+  overflow-x: clip;
+}
+
 body {
   position: relative;
   min-height: 100vh;
+}
+
+/* Alturas de la navegación fija — fuente única (evita el 144px mágico repetido) */
+:root {
+  --banner-h: 5rem; /* Banner gob.mx: h-20 */
+  --navbar-h: 4rem; /* Navbar: h-16 */
+  --stack-h: 9rem; /* banner + navbar = 144px */
+  --bottomnav-h: 4rem; /* BottomNav móvil: h-16 */
+}
+
+/* Shimmer reusable para skeletons — barrido de luz (más bonito que animate-pulse,
+   sobre todo en móvil). Usar `skeleton-box` en cada bloque gris del skeleton. */
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-box {
+  position: relative;
+  overflow: hidden;
+  background-color: rgb(226 232 240 / 0.65); /* slate-200 */
+}
+
+.dark .skeleton-box {
+  background-color: rgb(51 65 85 / 0.5); /* slate-700 */
+}
+
+.skeleton-box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.6),
+    transparent
+  );
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-box::after {
+    animation: none;
+  }
 }
 
 body::before {

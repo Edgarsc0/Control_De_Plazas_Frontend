@@ -75,7 +75,7 @@ export default function OficiosTurnadosDOSkeleton() {
           </div>
 
           {/* Table header row */}
-          <div className="bg-[#501929] grid grid-cols-6 gap-4 px-6 py-4">
+          <div className="hidden md:grid bg-[#501929] grid-cols-6 gap-4 px-6 py-4">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-2.5 rounded bg-white/15 mx-auto w-3/4" />
             ))}
@@ -85,7 +85,7 @@ export default function OficiosTurnadosDOSkeleton() {
           {Array.from({ length: 8 }).map((_, row) => (
             <div
               key={row}
-              className={`grid grid-cols-6 gap-4 px-6 py-4 border-b border-slate-100 ${row % 2 === 0 ? 'bg-white/40' : ''}`}
+              className={`hidden md:grid grid-cols-6 gap-4 px-6 py-4 border-b border-slate-100 ${row % 2 === 0 ? 'bg-white/40' : ''}`}
             >
               {Array.from({ length: 6 }).map((_, col) => (
                 <div
@@ -97,8 +97,31 @@ export default function OficiosTurnadosDOSkeleton() {
             </div>
           ))}
 
+          {/* Tarjetas: sólo móvil */}
+          <div className="md:hidden flex flex-col gap-3 p-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-2xl p-4 border border-slate-200/70 bg-white flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-2 flex-1">
+                    <div className={`h-3.5 w-2/3 rounded ${BG_LIGHT}`} />
+                    <div className={`h-2.5 w-1/3 rounded ${BG_LIGHTER}`} />
+                  </div>
+                  <div className={`h-5 w-16 rounded-md ${BG_LIGHT}`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 pt-2.5 border-t border-slate-100">
+                  {Array.from({ length: 4 }).map((__, j) => (
+                    <div key={j} className="space-y-1.5">
+                      <div className={`h-2 w-12 rounded ${BG_LIGHTER}`} />
+                      <div className={`h-2.5 w-16 rounded ${BG_LIGHT}`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
           {/* Footer */}
-          <div className="px-8 py-5 border-t border-slate-200/50 bg-slate-50/30 flex items-center justify-between">
+          <div className="hidden md:flex px-8 py-5 border-t border-slate-200/50 bg-slate-50/30 items-center justify-between">
             <span className={`h-2.5 w-64 rounded ${BG_LIGHTER}`} />
             <div className="flex items-center gap-2">
               <div className={`size-9 rounded-xl ${BG_LIGHTER}`} />

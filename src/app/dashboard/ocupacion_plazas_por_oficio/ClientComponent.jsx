@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Zoom, Fade } from "react-awesome-reveal"
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,7 +19,15 @@ import OcupacionStatsView from './_components/OcupacionStatsView';
 import OcupacionFilterDrawer from './_components/OcupacionFilterDrawer';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import DetailModal from '@/components/shared/OficioDetailModal';
+import { useRegisterPageTabs } from '@/context/PageTabsContext';
 
+
+// Tabs de vista (sin "Plantilla": esa sólo se accede desde la barra de PC).
+const OCUPACION_TABS = [
+    { id: 'sankey', label: 'Sankey' },
+    { id: 'table', label: 'Tabla' },
+    { id: 'charts', label: 'Estadísticas' },
+];
 
 export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
     const searchParams = useSearchParams();
@@ -136,11 +144,24 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
         }
     }, [tabParam]);
 
-    const handleTabChange = (tab) => {
-        const params = new URLSearchParams(searchParams);
+    // Ref para leer los params actuales sin volver inestable el callback
+    // (así el registro al BottomNav no se re-ejecuta en cada render).
+    const searchParamsRef = useRef(searchParams);
+    searchParamsRef.current = searchParams;
+    const handleTabChange = useCallback((tab) => {
+        const params = new URLSearchParams(searchParamsRef.current);
         params.set('tab', tab);
         router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
+    }, [router, pathname]);
+
+    // Publica los tabs al BottomNav (móvil) para abrirlos en un Drawer.
+    // "Plantilla" queda fuera: sólo accesible desde la barra de PC.
+    useRegisterPageTabs({
+        tabs: OCUPACION_TABS,
+        activeTab: activeView,
+        onSelect: handleTabChange,
+        title: "Ocupación de Plazas",
+    });
 
     // Delay to allow Zoom animation to finish before starting bar fill animation (ms)
     const ZOOM_END_DELAY = 500;
@@ -325,8 +346,8 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
                         </div>
                     </Fade>
 
-                    <Fade direction="right" triggerOnce>
-                        <div className="flex bg-white p-1 rounded-2xl border border-gray-200 shadow-sm">
+                    <Fade direction="right" triggerOnce className="hidden md:block">
+                        <div className="hidden md:flex bg-white p-1 rounded-2xl border border-gray-200 shadow-sm">
                             <TabButton 
                                 active={activeView === 'sankey'} 
                                 onClick={() => handleTabChange('sankey')}

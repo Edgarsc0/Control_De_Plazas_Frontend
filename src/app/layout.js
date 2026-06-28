@@ -2,9 +2,11 @@ import { Noto_Sans } from "next/font/google";
 import "./globals.css";
 import Banner from "@/components/layout/Banner";
 import Navbar from "@/components/layout/Navbar";
+import BottomNav from "@/components/layout/BottomNav";
 import { Fade, Slide, Zoom } from "react-awesome-reveal";
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ZafiroUpdatesProvider } from "@/context/ZafiroUpdatesContext"
+import { PageTabsProvider } from "@/context/PageTabsContext"
 import { ToastProvider } from "@/hooks/useToast"
 import Toaster from "@/components/ui/Toaster"
 
@@ -36,17 +38,20 @@ export default function RootLayout({ children }) {
         {/* Banner fuera de cualquier animación */}
         <Banner />
         <ToastProvider>
-          <Fade>
-            <main className="flex-grow relative z-10 flex flex-col pt-36">
-              <ZafiroUpdatesProvider>
-                <Navbar />
-                <TooltipProvider>
-                  {children}
-                </TooltipProvider>
-              </ZafiroUpdatesProvider>
-            </main>
-          </Fade>
-          <Toaster position="top-right" />
+          <PageTabsProvider>
+            <Fade>
+              <main className="flex-grow relative z-10 flex flex-col pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
+                <ZafiroUpdatesProvider>
+                  <Navbar />
+                  <TooltipProvider>
+                    {children}
+                  </TooltipProvider>
+                </ZafiroUpdatesProvider>
+              </main>
+            </Fade>
+            <BottomNav />
+            <Toaster position="top-right" />
+          </PageTabsProvider>
         </ToastProvider>
       </body>
     </html>

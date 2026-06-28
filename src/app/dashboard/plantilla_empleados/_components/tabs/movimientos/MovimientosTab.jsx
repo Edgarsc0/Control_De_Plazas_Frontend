@@ -15,6 +15,8 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import MobileCardList from "@/components/ui/MobileCardList";
+import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
@@ -818,159 +820,52 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const ExcelJS = (await import("exceljs")).default;
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Movimientos_Posiciones");
-
       const visibleCols = columns.filter(c => c.visible);
 
-      // Define columns
-      worksheet.columns = visibleCols.map(col => ({
-        header: col.label,
-        key: col.key,
-        width: 15
-      }));
-
-      // Call server to fetch all results without pagination
       const filterParams = {};
       Object.entries(debouncedTextFilters).forEach(([colKey, filterObj]) => {
         if (filterObj && filterObj.value && filterObj.value.trim()) {
           const cond = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
-          let suffix = "";
-          if (cond === "contains") suffix = "__icontains";
-          else if (cond === "not_contains") {
-            filterParams[`exclude__${colKey}__icontains`] = filterObj.value.trim();
-            return;
-          }
-          else if (cond === "starts_with") suffix = "__istartswith";
-          else if (cond === "not_starts_with") {
-            filterParams[`exclude__${colKey}__istartswith`] = filterObj.value.trim();
-            return;
-          }
-          else if (cond === "ends_with") suffix = "__iendswith";
-          else if (cond === "not_ends_with") {
-            filterParams[`exclude__${colKey}__iendswith`] = filterObj.value.trim();
-            return;
-          }
-          else if (cond === "equals") suffix = "__iexact";
-          else if (cond === "not_equals") {
-            filterParams[`exclude__${colKey}__iexact`] = filterObj.value.trim();
-            return;
-          }
-          filterParams[`${colKey}${suffix}`] = filterObj.value.trim();
+          if (cond === "not_contains") { filterParams[`exclude__${colKey}__icontains`] = filterObj.value.trim(); return; }
+          if (cond === "not_starts_with") { filterParams[`exclude__${colKey}__istartswith`] = filterObj.value.trim(); return; }
+          if (cond === "not_ends_with") { filterParams[`exclude__${colKey}__iendswith`] = filterObj.value.trim(); return; }
+          if (cond === "not_equals") { filterParams[`exclude__${colKey}__iexact`] = filterObj.value.trim(); return; }
+          const suffixMap = { contains: "__icontains", starts_with: "__istartswith", ends_with: "__iendswith", equals: "__iexact" };
+          filterParams[`${colKey}${suffixMap[cond] || "__icontains"}`] = filterObj.value.trim();
         }
       });
 
       const colParams = {};
       Object.entries(columnFilters).forEach(([key, values]) => {
         if (key === "is_latest") return;
-        if (values && values.length > 0) {
-          colParams[`${key}__in`] = encodeFilterValues(values);
-        }
+        if (values && values.length > 0) colParams[`${key}__in`] = encodeFilterValues(values);
       });
 
       const isLatestVal = columnFilters.is_latest?.includes("true") ? "true" : "false";
-
       const params = {
-        no_pagination: 'true',
         search: debouncedSearch,
         is_latest: isLatestVal,
+        visible_columns: visibleCols.map(c => c.key).join(","),
         ...filterParams,
-        ...colParams
+        ...colParams,
       };
 
       if (sortConfig.key) {
-        if (sortConfig.key === "custom_movimientos") {
-          params.sort_by = "f_efva,fecha_captura,no_pos_actual";
-          params.sort_order = "desc";
-        } else {
-          params.sort_by = sortConfig.key;
-          params.sort_order = sortConfig.direction || "asc";
-        }
+        params.sort_by = sortConfig.key === "custom_movimientos" ? "f_efva,fecha_captura,no_pos_actual" : sortConfig.key;
+        params.sort_order = sortConfig.key === "custom_movimientos" ? "desc" : (sortConfig.direction || "asc");
       }
 
-      const res = await VacantesService.getMovPosDetalle(params);
-      const allData = await res.json();
+      if (appliedAdvancedFilters.length > 0) {
+        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+      }
 
-      // Add rows
-      allData.forEach(row => {
-        const dataRow = {};
-        visibleCols.forEach(col => {
-          dataRow[col.key] = row[col.key];
-        });
-        worksheet.addRow(dataRow);
-      });
+      const res = await VacantesService.exportMovPosExcel(params);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || err.error || `HTTP ${res.status}`);
+      }
 
-      // Header styling
-      const headerRow = worksheet.getRow(1);
-      headerRow.height = 24;
-      headerRow.eachCell(cell => {
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF2B4C7E" } // Navy Blue
-        };
-        cell.font = {
-          name: "Segoe UI",
-          size: 10,
-          bold: true,
-          color: { argb: "FFFFFFFF" }
-        };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.border = {
-          top: { style: "thin", color: { argb: "FFBC955C" } },
-          left: { style: "thin", color: { argb: "FFBC955C" } },
-          bottom: { style: "thin", color: { argb: "FFBC955C" } },
-          right: { style: "thin", color: { argb: "FFBC955C" } }
-        };
-      });
-
-      // Data rows styling
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // skip header
-        row.height = 20;
-        const isZebra = rowNumber % 2 === 0;
-
-        row.eachCell((cell, colNumber) => {
-          cell.font = {
-            name: "Segoe UI",
-            size: 9
-          };
-          cell.border = {
-            top: { style: "thin", color: { argb: "FFBC955C" } },
-            left: { style: "thin", color: { argb: "FFBC955C" } },
-            bottom: { style: "thin", color: { argb: "FFBC955C" } },
-            right: { style: "thin", color: { argb: "FFBC955C" } }
-          };
-          if (isZebra) {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFF4F7FA" } // Zebra background
-            };
-          }
-
-          const colKey = visibleCols[colNumber - 1]?.key;
-          if (isMonoColumn(colKey)) {
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-          } else {
-            cell.alignment = { horizontal: "left", vertical: "middle" };
-          }
-        });
-      });
-
-      // Auto-fit columns
-      worksheet.columns.forEach(column => {
-        let maxLen = 0;
-        column.eachCell({ includeEmpty: true }, cell => {
-          const val = cell.value ? String(cell.value) : "";
-          maxLen = Math.max(maxLen, val.length);
-        });
-        column.width = Math.max(maxLen + 4, 12);
-      });
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1124,8 +1019,25 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       </div>
 
       <div className="w-full flex items-start justify-center">
-        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl max-h-[calc(100vh-144px)] h-fit flex flex-col sticky bottom-0 z-30 overflow-hidden w-full scroll-mt-36" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
-          <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
+          <MobileTableToolbar
+            searchValue={searchQuery}
+            onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
+            count={filteredSortedData.length}
+            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
+            actions={[
+              { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters },
+              { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
+              { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
+            ]}
+            chips={activeStatusFilter.map(status => (
+              <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}>
+                <span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" />
+              </button>
+            ))}
+          />
+
+          <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl transition-all shadow-sm">
@@ -1214,6 +1126,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             </div>
           </div>
 
+          {/* Tabla densa: sólo desktop */}
+          <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
           <DataTable
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
@@ -1244,7 +1158,36 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             rowHeight={rowHeight}
             renderCell={renderCell}
           />
-            <div className="absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
+          </div>
+
+          {/* Vista de tarjetas: sólo móvil */}
+          <div className="md:hidden">
+            <MobileCardList
+              data={filteredSortedData}
+              config={{
+                getRowId: (r, i) => r.no_pos_actual ?? i,
+                getTitle: (r) => r.nombre_puesto || (r.no_pos_actual ? `Posición ${r.no_pos_actual}` : "Posición"),
+                getSubtitle: (r) => (r.no_pos_actual ? `POS ${r.no_pos_actual}` : ""),
+                renderBadge: (r) => {
+                  const a = r.estado_psn === "A";
+                  return <span className={`inline-flex items-center px-2 py-1 rounded-md border text-[9px] font-black uppercase ${a ? "bg-[#621f32]/8 text-[#621f32] border-[#621f32]/20" : "bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700"}`}>{a ? "Activo" : "Inactivo"}</span>;
+                },
+                fields: [
+                  { key: "total_movimientos", label: "Histórico", mono: true },
+                  { key: "ocupacion", label: "Ocupación" },
+                  { key: "fecha_vacancia", label: "Vacancia" },
+                  { key: "motivo", label: "Motivo" },
+                  { key: "unidad_de_negocio", label: "Unidad" },
+                  { key: "f_efva", label: "F. Efectiva" },
+                ],
+              }}
+              onCardClick={(row) => setSelectedRowData(row)}
+              isLoading={loading}
+              isPending={isPending}
+            />
+          </div>
+
+          <div className="hidden md:block absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
           </div>
         </div>
 

@@ -140,6 +140,13 @@ export const VacantesService = {
         });
     },
 
+    exportMovPosExcel: (query = {}, options = {}) => {
+        return apiFetch(`/plantilla/mov_pos_detalle/export_excel/${buildQuery(query)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
     /**
      * Obtiene el cuadro de vacancia.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
@@ -287,6 +294,26 @@ export const VacantesService = {
      */
     getMovimientosPersonal: (params = {}, options = {}) => {
         return apiFetch(`/plantilla/movimientos-personal/${buildQuery(params)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Historial completo de empleados desde cp_tbl_mov_completo_29_05_26 via raw SQL.
+     * Sin filtro de año. Ordenado por num_empleado, fecha_efectiva, sec ASC.
+     * @param {string[]} numEmpleadoList - Array de num_empleado
+     * @returns {Promise<Response>}
+     */
+    getOrganigramaDeptos: (options = {}) => {
+        return apiFetch(`/plantilla/organigrama-deptos/`, { method: 'GET', ...options });
+    },
+
+    getMovimientosPersonalHistorial: (numEmpleadoList = [], options = {}) => {
+        const q = numEmpleadoList.length
+            ? `?num_empleado__in=${numEmpleadoList.join(",")}`
+            : "";
+        return apiFetch(`/plantilla/movimientos-personal/historial/${q}`, {
             method: 'GET',
             ...options
         });

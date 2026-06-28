@@ -93,6 +93,15 @@
   .card-grid {
     grid-template-columns: 1fr;
     padding: 1rem;
+    gap: 1rem;
+  }
+
+  /* Reset de spans: sin esto, col-span-2/col-span-1 inline fuerzan una columna
+     implícita y descuadran el stack en móvil. */
+  .card-grid > .magic-bento-card {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    min-height: 200px;
   }
 }
 

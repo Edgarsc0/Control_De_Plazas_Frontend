@@ -609,6 +609,7 @@ export function OficiosTurnadosDO({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexWrap: 'wrap',
               gap: 32,
               background: 'rgba(0,0,0,0.02)',
               borderRadius: 24,
@@ -846,13 +847,8 @@ export function PlantillaEmpleados({ resumenEmpleados }) {
 
   return (
     <div
-      style={{
-        display: 'flex',
-        height: '100%',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 32,
-      }}
+      className="flex flex-col items-stretch gap-6 md:flex-row md:items-center md:justify-between md:gap-8"
+      style={{ height: '100%' }}
     >
       {/* Lado Izquierdo: Header, Título y Números */}
       <div
@@ -978,17 +974,7 @@ export function PlantillaEmpleados({ resumenEmpleados }) {
       </div>
 
       {/* Lado Derecho: Gráfica Destacada */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 24,
-          background: 'rgba(0,0,0,0.03)',
-          padding: '24px 32px',
-          borderRadius: 28,
-          height: '100%',
-        }}
-      >
+      <div className="flex items-center justify-center gap-5 md:gap-6 w-full md:w-auto md:h-full rounded-[28px] bg-black/[0.03] p-5 md:py-6 md:px-8">
         <PieChart data={displayData} size={110} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {displayData.map((item) => (
@@ -1194,6 +1180,7 @@ export function PresupuestarVolumenContent() {
         flexDirection: 'column',
         gap: 12,
         width: '100%',
+        overflowX: 'auto',
       }}
     >
       {/* Header con Meses */}
@@ -1202,6 +1189,7 @@ export function PresupuestarVolumenContent() {
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
           gap: 8,
+          minWidth: 460,
           paddingBottom: 8,
           borderBottom: '2px solid #e5e7eb',
         }}

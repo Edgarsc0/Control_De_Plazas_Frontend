@@ -15,6 +15,8 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import MobileCardList from "@/components/ui/MobileCardList";
+import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
@@ -1025,8 +1027,20 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       </div>
 
       <div className="w-full flex items-start justify-center">
-        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl max-h-[calc(100vh-144px)] h-fit flex flex-col sticky bottom-0 z-30 overflow-hidden w-full scroll-mt-36" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
-          <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
+          <MobileTableToolbar
+            searchValue={searchQuery}
+            onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
+            count={filteredSortedData.length}
+            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
+            actions={[
+              { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters },
+              { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
+              { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
+            ]}
+          />
+
+          <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl transition-all shadow-sm">
@@ -1073,6 +1087,8 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             </div>
           </div>
 
+          {/* Tabla densa: sólo desktop */}
+          <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
           <DataTable
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
@@ -1101,8 +1117,33 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             rowHeight={rowHeight}
             renderCell={renderCell}
           />
+          </div>
 
-          <div className="absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
+          {/* Vista de tarjetas: sólo móvil */}
+          <div className="md:hidden">
+            <MobileCardList
+              data={filteredSortedData}
+              config={{
+                getRowId: (r, i) => r.posicion ?? r.no_empleado ?? i,
+                getTitle: (r) => r.nombre_completo || "Sin nombre",
+                getSubtitle: (r) => (r.posicion ? `POS ${r.posicion}` : ""),
+                renderBadge: (r) => (r.accion_descr ? <span className="inline-flex items-center px-2 py-1 rounded-md border text-[9px] font-black uppercase bg-[#621f32]/8 text-[#621f32] border-[#621f32]/20 max-w-[110px] truncate">{r.accion_descr}</span> : null),
+                fields: [
+                  { key: "no_empleado", label: "No. Empleado", mono: true },
+                  { key: "motivo_descr", label: "Motivo" },
+                  { key: "fecha_efectiva", label: "F. Efectiva" },
+                  { key: "unidad_admon", label: "Unidad" },
+                  { key: "puesto", label: "Puesto" },
+                  { key: "nomina_status", label: "Estatus Nómina" },
+                ],
+              }}
+              onCardClick={(row) => setSelectedRowData(row)}
+              isLoading={false}
+              isPending={isPending}
+            />
+          </div>
+
+          <div className="hidden md:block absolute top-0 right-0 h-full w-2.5 cursor-col-resize z-30" onMouseDown={handleCardResizeMouseDown} />
         </div>
       </div>
 

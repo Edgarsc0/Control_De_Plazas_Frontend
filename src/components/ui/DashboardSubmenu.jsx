@@ -171,7 +171,7 @@ export default function DashboardSubmenu({ onClose }) {
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, y: 8, scale: 0.97, filter: 'blur(8px)' }}
       transition={{ type: 'spring', damping: 28, stiffness: 420 }}
-      className="group/submenu absolute top-full left-0 mt-3 w-[540px] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.15)] border border-slate-200/80 p-4 z-50 overflow-hidden"
+      className="group/submenu absolute top-full left-0 mt-3 w-[540px] max-w-[calc(100vw-1.5rem)] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.15)] border border-slate-200/80 p-4 z-50 overflow-hidden"
     >
       {/* Spotlight */}
       <motion.div

@@ -50,8 +50,8 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Navigation Links */}
-        <div className="flex items-center gap-x-8">
+        {/* Navigation Links (desktop) — en móvil viven en el BottomNav */}
+        <div className="hidden md:flex items-center gap-x-8">
           <Link
             href="/"
             className="text-gray-700 hover:text-[#621f32] font-medium transition-colors"
@@ -93,6 +93,16 @@ export default function Navbar() {
             </Link>
           )}
         </div>
+
+        {/* Móvil: solo Login si no hay sesión (el resto está en el BottomNav) */}
+        {!isAuthenticated && (
+          <Link
+            href="/login"
+            className="md:hidden bg-[#621f32] text-white px-4 py-2 rounded-md text-sm font-medium"
+          >
+            Login
+          </Link>
+        )}
       </div>
     </nav>
   );

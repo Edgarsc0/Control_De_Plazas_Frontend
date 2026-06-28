@@ -362,8 +362,8 @@ export function SankeyChart({ data, width = 400, height = 250, onLinkClick, onNo
     }).filter(Boolean);
 
     return (
-        <div style={{ position: 'relative', width, height }} onMouseMove={handleMouseMove}>
-            <svg width={width} height={height} style={{ overflow: 'visible' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: width, aspectRatio: `${width} / ${height}` }} onMouseMove={handleMouseMove}>
+            <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible', display: 'block' }}>
                 <g transform={`translate(0, ${padding})`}>
                     {/* Links */}
                     {links.map((link, i) => (
