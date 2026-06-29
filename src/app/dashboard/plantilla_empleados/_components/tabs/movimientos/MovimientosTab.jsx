@@ -1111,8 +1111,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
-              <button 
-                onClick={handleExportExcel} 
+              <button
+                onClick={handleExportExcel}
                 disabled={isExportingExcel}
                 className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-[#621f32] to-[#802842] text-white font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-75 disabled:pointer-events-none"
               >
@@ -1165,7 +1165,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             <MobileCardList
               data={filteredSortedData}
               config={{
-                getRowId: (r, i) => r.no_pos_actual ?? i,
+                getRowId: (r, i) => r.id ?? r.no_pos_actual ?? i,
                 getTitle: (r) => r.nombre_puesto || (r.no_pos_actual ? `Posición ${r.no_pos_actual}` : "Posición"),
                 getSubtitle: (r) => (r.no_pos_actual ? `POS ${r.no_pos_actual}` : ""),
                 renderBadge: (r) => {

@@ -20,6 +20,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const pdfRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -246,6 +247,19 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       alert('Hubo un error al exportar la imagen.');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const { generateCuadroVacanciaExcel } = await import('@/utils/cuadroVacanciaExcel');
+      await generateCuadroVacanciaExcel(cuadrosData, desgloseJerarquicoData);
+    } catch (err) {
+      console.error('Error generando Excel de Cuadro de Vacancia:', err);
+      alert('Error al generar Excel: ' + err.message);
+    } finally {
+      setIsExportingExcel(false);
     }
   };
 
@@ -817,6 +831,17 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                       <span>Borrar filtros</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={isExportingExcel}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {isExportingExcel
+                      ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      : <Download className="size-3.5" />}
+                    <span>{isExportingExcel ? 'Generando...' : 'Descargar Excel'}</span>
+                  </button>
 
                   <button
                     onClick={handleExportImage}

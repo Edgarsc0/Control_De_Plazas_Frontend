@@ -14,11 +14,11 @@ const TABS = [
 
 export default function PlantillaEmpleadosSkeleton() {
   return (
-    <section className="bg-transparent relative overflow-hidden pb-20">
+    <section className="bg-transparent relative overflow-hidden">
       <div className="absolute -top-40 -right-40 size-[32rem] bg-gradient-to-br from-[#621f32]/8 to-transparent rounded-full blur-[100px] -z-10" />
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
-      <div className="mx-auto w-full max-w-full flex flex-col items-center pt-6 md:pt-12 pb-12">
+      <div className="mx-auto w-full max-w-full flex flex-col items-center pt-6 md:pt-12">
         <div className="w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 gap-4 md:gap-6">
 
           {/* Breadcrumb + tabs */}

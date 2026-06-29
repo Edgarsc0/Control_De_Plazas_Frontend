@@ -1124,7 +1124,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             <MobileCardList
               data={filteredSortedData}
               config={{
-                getRowId: (r, i) => r.posicion ?? r.no_empleado ?? i,
+                getRowId: (r, i) => r.id ?? r.posicion ?? r.no_empleado ?? i,
                 getTitle: (r) => r.nombre_completo || "Sin nombre",
                 getSubtitle: (r) => (r.posicion ? `POS ${r.posicion}` : ""),
                 renderBadge: (r) => (r.accion_descr ? <span className="inline-flex items-center px-2 py-1 rounded-md border text-[9px] font-black uppercase bg-[#621f32]/8 text-[#621f32] border-[#621f32]/20 max-w-[110px] truncate">{r.accion_descr}</span> : null),

@@ -790,7 +790,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
 
   // Config de la tarjeta móvil para Plantilla Detalle (qué campos muestra cada fila).
   const mobileCardConfig = {
-    getRowId: (row, i) => row.posicion ?? i,
+    getRowId: (row, i) => row.id ?? row.posicion ?? i,
     getTitle: (row) => (row.nombres && String(row.nombres).trim()) ? row.nombres : "Vacante",
     getSubtitle: (row) => (row.posicion ? `POS ${row.posicion}` : ""),
     renderBadge: renderEstadoBadge,

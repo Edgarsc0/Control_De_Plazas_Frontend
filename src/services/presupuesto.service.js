@@ -99,5 +99,19 @@ export const PresupuestoService = {
             body: JSON.stringify({ meses, plazas }),
             ...options
         });
-    }
+    },
+
+    getEventualesOcupadas: (options = {}) => {
+        return apiFetch("/presupuesto/catalogo-plazas/eventuales_ocupadas/", {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    getPermanentesOcupadas: (options = {}) => {
+        return apiFetch("/presupuesto/catalogo-plazas/permanentes_ocupadas/", {
+            method: 'GET',
+            ...options
+        });
+    },
 };

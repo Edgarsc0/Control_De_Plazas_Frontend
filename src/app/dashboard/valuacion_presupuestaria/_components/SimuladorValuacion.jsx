@@ -90,6 +90,10 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     const [plazasInput, setPlazasInput] = useState({});
     const [calculating, setCalculating] = useState(false);
     const [resultado, setResultado] = useState(null);
+    const [eventualesData, setEventualesData] = useState(null);
+    const [loadingEventuales, setLoadingEventuales] = useState(false);
+    const [permanentesData, setPermanentesData] = useState(null);
+    const [loadingPermanentes, setLoadingPermanentes] = useState(false);
 
     // Document loading states for split pane layout
     const [expedienteData, setExpedienteData] = useState(null);
@@ -164,6 +168,46 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         }
     };
 
+    const handleCargarEventuales = async () => {
+        setLoadingEventuales(true);
+        try {
+            const res = await PresupuestoService.getEventualesOcupadas();
+            if (res.ok) {
+                const data = await res.json();
+                const map = {};
+                const newInput = {};
+                data.forEach(({ nivel, cantidad }) => {
+                    map[nivel] = cantidad;
+                    newInput[nivel] = cantidad;
+                });
+                setEventualesData(map);
+                setPermanentesData(null);
+                setPlazasInput(newInput);
+            }
+        } catch (e) { console.error(e); }
+        finally { setLoadingEventuales(false); }
+    };
+
+    const handleCargarPermanentes = async () => {
+        setLoadingPermanentes(true);
+        try {
+            const res = await PresupuestoService.getPermanentesOcupadas();
+            if (res.ok) {
+                const data = await res.json();
+                const map = {};
+                const newInput = {};
+                data.forEach(({ nivel, cantidad }) => {
+                    map[nivel] = cantidad;
+                    newInput[nivel] = cantidad;
+                });
+                setPermanentesData(map);
+                setEventualesData(null);
+                setPlazasInput(newInput);
+            }
+        } catch (e) { console.error(e); }
+        finally { setLoadingPermanentes(false); }
+    };
+
     const filteredCatalogo = useMemo(() => {
         if (!searchTerm) return catalogo;
         const t = searchTerm.toLowerCase();
@@ -220,21 +264,35 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         const doc = new jsPDF('p', 'mm', 'a4');
         const now = new Date().toLocaleDateString('es-MX');
 
+        const modoLabel = eventualesData ? 'EVENTUALES OCUPADAS' : permanentesData ? 'PERMANENTES OCUPADAS' : null;
+        const headerHeight = modoLabel ? 48 : 40;
+
         doc.setFillColor(98, 31, 50);
-        doc.rect(0, 0, 210, 40, 'F');
+        doc.rect(0, 0, 210, headerHeight, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(18);
         doc.text('REPORTE DE VALUACIÓN PRESUPUESTARIA', 15, 20);
         doc.setFontSize(10);
         doc.text(`FUMP 2025 · SISTEMA DE CONTROL DE PLAZAS · ${now}`, 15, 28);
         doc.text(`Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'}`, 15, 34);
+        if (modoLabel) {
+            doc.setFillColor(188, 149, 92);
+            doc.roundedRect(15, 38, 60, 7, 1, 1, 'F');
+            doc.setTextColor(98, 31, 50);
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            doc.text(modoLabel, 17, 43.5);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(255, 255, 255);
+        }
 
+        const conceptosStartY = headerHeight + 10;
         doc.setTextColor(98, 31, 50);
         doc.setFontSize(12);
-        doc.text('DESGLOSE POR CONCEPTO', 15, 50);
+        doc.text('DESGLOSE POR CONCEPTO', 15, conceptosStartY);
 
         autoTable(doc, {
-            startY: 55,
+            startY: conceptosStartY + 5,
             head: [['PARTIDA', 'CONCEPTO', `PERÍODO (${meses}m)`, 'ANUAL (12m)', 'COMPLEMENTO']],
             body: [
                 ...resultado.tabla_q322_t348.map(r => [
@@ -259,21 +317,60 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         doc.setFontSize(12);
         doc.text('DESGLOSE ANALÍTICO POR NIVEL', 15, finalY + 15);
 
+        const totSueldo        = resultado.tabla_2022.reduce((t, r) => t + r.sueldo, 0);
+        const totSueldoPer     = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo, 0);
+        const totComp          = resultado.tabla_2022.reduce((t, r) => t + r.compensacion, 0);
+        const totCompPer       = resultado.tabla_2022.reduce((t, r) => t + r.compensacion_colectiva_periodo, 0);
+        const totTotal         = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion, 0);
+        const totPlazas        = selectedPlazas.reduce((t, p) => t + p.qty, 0);
+
         autoTable(doc, {
             startY: finalY + 20,
             head: [['NIVEL', 'PLAZAS', 'SUELDO BASE', 'SUELDO PER.', 'COMP. GAR.', 'COMP. GAR. PER.', 'TOTAL']],
-            body: resultado.tabla_2022.map(r => [
-                r.nivel,
-                r.plazas,
-                fmt(r.sueldo),
-                fmt(r.sueldo_colectivo_periodo),
-                fmt(r.compensacion),
-                fmt(r.compensacion_colectiva_periodo),
-                fmt(r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion)
-            ]),
+            body: [
+                ...resultado.tabla_2022.map(r => [
+                    r.nivel,
+                    r.plazas,
+                    fmt(r.sueldo),
+                    fmt(r.sueldo_colectivo_periodo),
+                    fmt(r.compensacion),
+                    fmt(r.compensacion_colectiva_periodo),
+                    fmt(r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion)
+                ]),
+                [
+                    { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+                    { content: totPlazas, styles: { fontStyle: 'bold' } },
+                    { content: fmt(totSueldo), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totSueldoPer), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totComp), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totCompPer), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totTotal), styles: { fontStyle: 'bold' } },
+                ],
+                [
+                    { content: 'QUINCENA', styles: { fontStyle: 'bold' } },
+                    { content: totPlazas, styles: { fontStyle: 'bold' } },
+                    { content: fmt(totSueldo / meses / 2), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totSueldoPer / meses / 2), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totComp / meses / 2), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totCompPer / meses / 2), styles: { fontStyle: 'bold' } },
+                    { content: fmt(totTotal / meses / 2), styles: { fontStyle: 'bold' } },
+                ],
+            ],
             styles: { fontSize: 7, cellPadding: 2 },
             headStyles: { fillColor: [78, 24, 40], textColor: [255, 255, 255] },
             alternateRowStyles: { fillColor: [250, 250, 250] },
+            didParseCell: (data) => {
+                const totalRowIdx = resultado.tabla_2022.length;
+                const quincenaRowIdx = totalRowIdx + 1;
+                if (data.row.index === totalRowIdx) {
+                    data.cell.styles.fillColor = [40, 40, 40];
+                    data.cell.styles.textColor = [255, 255, 255];
+                }
+                if (data.row.index === quincenaRowIdx) {
+                    data.cell.styles.fillColor = [26, 74, 122];
+                    data.cell.styles.textColor = [255, 255, 255];
+                }
+            },
         });
 
         doc.save(`Valuacion_Presupuestaria_${new Date().getTime()}.pdf`);
@@ -380,7 +477,39 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 {/* Column 1 — Catalogue */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden flex flex-col h-[580px]">
                     <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
-                        <StepBadge n="1" label="Selección de Niveles" icon={ClipboardList} />
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <StepBadge n="1" label="Selección de Niveles" icon={ClipboardList} />
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleCargarEventuales}
+                                    disabled={loadingEventuales || loadingPermanentes}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all
+                                               border disabled:opacity-50 disabled:cursor-not-allowed
+                                               ${eventualesData
+                                                   ? 'border-[#621f32] text-white bg-[#621f32]'
+                                                   : 'border-[#621f32]/30 text-[#621f32] bg-[#621f32]/5 hover:bg-[#621f32]/10'}`}
+                                >
+                                    {loadingEventuales
+                                        ? <><div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" /> Cargando...</>
+                                        : <><User className="w-3 h-3" /> Eventuales Ocupadas</>
+                                    }
+                                </button>
+                                <button
+                                    onClick={handleCargarPermanentes}
+                                    disabled={loadingPermanentes || loadingEventuales}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all
+                                               border disabled:opacity-50 disabled:cursor-not-allowed
+                                               ${permanentesData
+                                                   ? 'border-[#1a4a7a] text-white bg-[#1a4a7a]'
+                                                   : 'border-[#1a4a7a]/30 text-[#1a4a7a] bg-[#1a4a7a]/5 hover:bg-[#1a4a7a]/10'}`}
+                                >
+                                    {loadingPermanentes
+                                        ? <><div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" /> Cargando...</>
+                                        : <><User className="w-3 h-3" /> Permanentes Ocupadas</>
+                                    }
+                                </button>
+                            </div>
+                        </div>
                         <div className="mt-4 relative">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 w-3.5 h-3.5" />
                             <input
@@ -407,7 +536,19 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                 {filteredCatalogo.map((item) => (
                                     <tr key={item.id} className="hover:bg-[#621f32]/[0.02] transition-colors group">
                                         <td className="px-5 py-3.5">
-                                            <div className="font-black text-[#621f32] text-xs">{item.nivel}</div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-black text-[#621f32] text-xs">{item.nivel}</span>
+                                                {eventualesData?.[item.nivel] != null && (
+                                                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15">
+                                                        {eventualesData[item.nivel]} ocp.
+                                                    </span>
+                                                )}
+                                                {permanentesData?.[item.nivel] != null && (
+                                                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#1a4a7a]/8 text-[#1a4a7a] border border-[#1a4a7a]/15">
+                                                        {permanentesData[item.nivel]} ocp.
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="text-[9px] text-gray-400 font-medium uppercase truncate max-w-[160px] mt-0.5">{item.denominacion}</div>
                                         </td>
                                         <td className="px-5 py-3.5 text-right">
@@ -734,7 +875,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                         <td className="px-7 py-5 sticky left-0 bg-gray-800 z-10 font-black text-sm uppercase tracking-wider">TOTAL</td>
                                         <td className="px-7 py-5 text-center">
                                             <span className="bg-white/10 text-amber-400 border border-white/10 font-black rounded-lg px-3 py-1 text-xs">
-                                                {resultado.tabla_2022.reduce((t, r) => t + r.plazas, 0)}
+                                                {selectedPlazas.reduce((t, p) => t + p.qty, 0)}
                                             </span>
                                         </td>
                                         <td className="px-7 py-5 text-right text-sm font-mono font-semibold text-gray-400 border-r border-gray-700">
