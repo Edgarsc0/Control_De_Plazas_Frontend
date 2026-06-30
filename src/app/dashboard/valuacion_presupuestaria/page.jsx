@@ -43,12 +43,10 @@ async function PageContent() {
 
 export default function Page() {
   return (
-    <section className="bg-transparent pb-20">
-      <div className="py-12 px-4 mx-auto max-w-[1700px] lg:px-6">
-        <Suspense fallback={<Skeleton />}>
-          <PageContent />
-        </Suspense>
-      </div>
+    <section className="bg-transparent w-full">
+      <Suspense fallback={<Skeleton />}>
+        <PageContent />
+      </Suspense>
     </section>
   );
 }

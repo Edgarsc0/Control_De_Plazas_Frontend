@@ -182,7 +182,7 @@ export default function PlantillaEmpleadosDetalle({
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
       {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-16 = top-36 = 144px) */}
-      <div ref={tabsBarRef} className="fixed top-36 right-0 z-30 hidden sm:flex items-stretch bg-white/95 backdrop-blur-md border-l border-b border-slate-200/50 shadow-md">
+      <div ref={tabsBarRef} className="fixed top-36 left-0 right-0 z-30 hidden sm:flex items-stretch bg-white/95 backdrop-blur-md border-b border-slate-200/50 shadow-md">
         {TABS.map((tab) => {
           const subtabConfig = {
             estatus: {
@@ -204,7 +204,20 @@ export default function PlantillaEmpleadosDetalle({
           const isActive = activeTab === tab.id;
           const isDropdownOpen = openSubtabId === tab.id;
           return (
-            <div key={tab.id} className="relative">
+            <div
+              key={tab.id}
+              className="relative flex-1"
+              onMouseEnter={() => {
+                if (subtabConfig) {
+                  setOpenSubtabId(tab.id);
+                }
+              }}
+              onMouseLeave={() => {
+                if (subtabConfig) {
+                  setOpenSubtabId(null);
+                }
+              }}
+            >
               <button
                 onClick={() => {
                   if (activeTab !== tab.id) {
@@ -214,7 +227,7 @@ export default function PlantillaEmpleadosDetalle({
                     setOpenSubtabId(isDropdownOpen ? null : (subtabConfig ? tab.id : null));
                   }
                 }}
-                className={`flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide transition-all duration-200 cursor-pointer border-r border-slate-200/50 ${isActive
+                className={`flex items-center justify-center gap-1.5 w-full whitespace-nowrap px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide transition-all duration-200 cursor-pointer border-r border-slate-200/50 ${isActive
                   ? "bg-gradient-to-b from-[#621f32] to-[#8d2c48] text-white"
                   : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                   }`}
@@ -238,6 +251,9 @@ export default function PlantillaEmpleadosDetalle({
                       <button
                         key={sub.id}
                         onClick={() => {
+                          if (activeTab !== tab.id) {
+                            startTransition(() => setActiveTab(tab.id));
+                          }
                           subtabConfig.setActive(sub.id);
                           setOpenSubtabId(null);
                         }}

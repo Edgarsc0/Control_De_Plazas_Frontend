@@ -1,60 +1,85 @@
 'use client';
 
 import React from 'react';
-import { LayoutDashboard, ChevronRight, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 const TABS = [
-  'Plantilla Detalle',
-  'Estatus Nómina',
-  'Mov. Posiciones',
-  'Movimientos',
-  'Empleados Bajas',
-  'Distribución Geográfica',
+  { id: "detalle", label: "Plantilla Detalle" },
+  { id: "estatus", label: "Estatus Nómina" },
+  { id: "movimientos", label: "Mov. Posiciones" },
+  { id: "movimientos_personal", label: "Movimientos" },
+  { id: "bajas", label: "Empleados Bajas" },
+  { id: "mapa", label: "Distribución Geográfica" }
 ];
 
 export default function PlantillaEmpleadosSkeleton() {
   return (
-    <section className="bg-transparent relative overflow-hidden">
-      <div className="absolute -top-40 -right-40 size-[32rem] bg-gradient-to-br from-[#621f32]/8 to-transparent rounded-full blur-[100px] -z-10" />
+    <section className="bg-transparent relative transition-all duration-300 overflow-hidden pb-0">
+      <div className="absolute -top-40 -right-40 size-[32rem] bg-gradient-to-br from-[#621f32]/8 to-transparent rounded-full blur-[100px] -z-10 animate-pulse duration-[8000ms]" />
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
-      <div className="mx-auto w-full max-w-full flex flex-col items-center pt-6 md:pt-12">
-        <div className="w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 gap-4 md:gap-6">
+      {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-16 = top-36 = 144px) */}
+      <div className="fixed top-36 left-0 right-0 z-30 hidden sm:flex items-stretch bg-white/95 backdrop-blur-md border-b border-slate-200/50 shadow-md">
+        {TABS.map((tab) => {
+          const subtabConfig = {
+            estatus: true,
+            movimientos: true,
+            mapa: true,
+          }[tab.id];
+          const isActive = tab.id === "detalle";
+          return (
+            <div key={tab.id} className="relative flex-1">
+              <div
+                className={`flex items-center justify-center gap-2 w-full whitespace-nowrap px-3.5 py-2.5 border-r border-slate-200/50 ${isActive
+                  ? "bg-gradient-to-b from-[#621f32] to-[#8d2c48]"
+                  : "bg-white"
+                  }`}
+              >
+                {/* Icon placeholder */}
+                <div
+                  className="skeleton-box size-3.5 flex-shrink-0 rounded"
+                  style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
+                />
 
-          {/* Breadcrumb + tabs */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full mb-2 md:mb-6">
-            <div className="flex items-center">
-              <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-slate-200/50 dark:border-slate-800/50 bg-white/95 dark:bg-slate-900/95 shadow-md">
-                <LayoutDashboard className="size-3.5 text-slate-300 dark:text-slate-600" />
-                <span className="skeleton-box h-3 w-16 rounded" />
-                <ChevronRight className="size-3 text-slate-300 dark:text-slate-600" />
-                <span className="skeleton-box h-3 w-28 rounded" />
-              </div>
-            </div>
+                {/* Label placeholder */}
+                <div
+                  className="skeleton-box rounded px-1"
+                  style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
+                >
+                  <span className="opacity-0 text-xs font-bold uppercase tracking-wide">
+                    {tab.label}
+                  </span>
+                </div>
 
-            <div className="flex items-center gap-3 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 bg-white/95 dark:bg-slate-900/95 shadow-md w-full lg:w-auto">
-              <div className="flex p-0.5 gap-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/90 border border-slate-200/30 dark:border-slate-800/30 w-full sm:w-auto overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                {TABS.map((label, i) => (
+                {/* Chevron placeholder */}
+                {subtabConfig && (
                   <div
-                    key={label}
-                    className={`flex-shrink-0 px-4 py-2 rounded-lg ${i === 0 ? 'bg-[#621f32]/20' : 'skeleton-box'}`}
-                  >
-                    <span className="text-[10px] font-black uppercase tracking-wider opacity-0">{label}</span>
-                  </div>
-                ))}
+                    className="skeleton-box size-3 flex-shrink-0 rounded-sm"
+                    style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
+                  />
+                )}
               </div>
             </div>
-          </div>
+          );
+        })}
+      </div>
 
+      <div className="mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 pt-14 pb-0">
+        <div className="w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 transition-all duration-300 gap-2">
           {/* Header */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-8 mb-6 md:mb-12">
-            <div className="flex items-center gap-4 sm:gap-6">
-              <div className="relative p-4 sm:p-5 bg-gradient-to-tr from-[#621f32]/40 to-[#8d2c48]/40 rounded-[1.8rem] sm:rounded-[2.2rem] shadow-xl flex-shrink-0">
-                <Users className="size-8 sm:size-10 text-white/40" />
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 transition-all duration-300 mb-4">
+            <div className="flex items-start sm:items-center gap-6">
+              <div className="relative p-4 sm:p-5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] rounded-[1.8rem] sm:rounded-[2.2rem] shadow-xl shadow-[#621f32]/20 flex-shrink-0 group overflow-hidden transition-all duration-300 hover:scale-105">
+                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Users className="size-8 sm:size-10 text-white" />
               </div>
-              <div className="max-w-screen-md space-y-3">
-                <div className="skeleton-box h-8 sm:h-9 w-56 sm:w-72 rounded-lg" />
-                <div className="skeleton-box h-4 w-64 sm:w-96 rounded-md" />
+              <div className="max-w-screen-md">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl tracking-tight font-black text-gray-900 dark:text-white leading-tight">
+                  Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">Empleados Activos</span>
+                </h2>
+                <p className="mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
+                  Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM.
+                </p>
               </div>
             </div>
           </div>
