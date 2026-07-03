@@ -6,6 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
+  Calendar, Hash, User, Info,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
@@ -23,6 +24,57 @@ import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition } from "@/utils/columnFilters";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const CATEGORIA_VACANCIA_TOOLTIP = {
+  A: "Posición vacante porque empleado que la ocupaba causó baja",
+  B: "Posición vacante porque empleado que la ocupaba cambió a otra posición, vacancia = fecha en que tomó esa nueva posición",
+  C: "Posición vacante porque jamás tuvo ocupante, vacancia = fecha creación posición",
+};
+
+const VACANCIA_CATEGORIA_STYLE = {
+  A: {
+    icon: XCircle,
+    label: "Baja de Personal",
+    gradient: "from-red-500 to-red-600",
+    ring: "shadow-red-500/20",
+    badgeBg: "bg-red-50 dark:bg-red-950/30",
+    badgeText: "text-red-600 dark:text-red-400",
+    badgeBorder: "border-red-200/60 dark:border-red-900/40",
+    accent: "text-red-600 dark:text-red-400",
+  },
+  B: {
+    icon: Layers,
+    label: "Cambio de Posición",
+    gradient: "from-blue-500 to-blue-600",
+    ring: "shadow-blue-500/20",
+    badgeBg: "bg-blue-50 dark:bg-blue-950/30",
+    badgeText: "text-blue-600 dark:text-blue-400",
+    badgeBorder: "border-blue-200/60 dark:border-blue-900/40",
+    accent: "text-blue-600 dark:text-blue-400",
+  },
+  C: {
+    icon: Eye,
+    label: "Nunca Ocupada",
+    gradient: "from-slate-400 to-slate-500",
+    ring: "shadow-slate-500/10",
+    badgeBg: "bg-slate-100 dark:bg-slate-800/60",
+    badgeText: "text-slate-500 dark:text-slate-400",
+    badgeBorder: "border-slate-200/60 dark:border-slate-700",
+    accent: "text-slate-500 dark:text-slate-400",
+  },
+};
+
+const VACANCIA_CATEGORIA_DEFAULT = {
+  icon: Activity,
+  label: "Vacancia",
+  gradient: "from-[#621f32] to-[#8d2c48]",
+  ring: "shadow-[#621f32]/20",
+  badgeBg: "bg-[#621f32]/8",
+  badgeText: "text-[#621f32]",
+  badgeBorder: "border-[#621f32]/20",
+  accent: "text-[#621f32] dark:text-[#bc955c]",
+};
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -58,7 +110,8 @@ const ALL_MOV_KEYS = [
   "depnd_indrt", "ubicacion", "nvl_direc", "plan_sal", "grado", "esc", 
   "partida_ptal", "gp_pago", "prog_beneficios", "fecha_captura", "fh_ult_actz", "por",
   "hr_estd_semn", "descr", "gp_trabajo", "org_code", "grupo_cd_sal", "formal_desc", 
-  "pto_compt", "posn_clv", "presupuesto", "nombre_puesto", "fecha_vacancia"
+  "pto_compt", "posn_clv", "presupuesto", "nombre_puesto", "fecha_vacancia",
+  "categoria_vacancia",
 ];
 
 const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia"];
@@ -94,6 +147,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
+    { key: "categoria_vacancia", label: "Categoría Vacancia", width: 180, visible: true, isBasic: true },
     { key: "estado_psn", label: "Estado (A/I)", width: 110, visible: true, isBasic: true },
     { key: "f_efva", label: "Fecha Efectiva", width: 130, visible: true, isBasic: true },
     { key: "cd_motivo", label: "Cod. Motivo", width: 120, visible: true, isBasic: true },
@@ -419,6 +473,17 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
 
+  const [isVacanciaModalOpen, setIsVacanciaModalOpen] = useState(false);
+  const [vacanciaRowId, setVacanciaRowId] = useState(null);
+  const [vacanciaDetalle, setVacanciaDetalle] = useState(null);
+  const [isVacanciaLoading, setIsVacanciaLoading] = useState(false);
+
+  const openVacanciaModal = useCallback((row) => {
+    if (!row || row.id === undefined || row.id === null) return;
+    setVacanciaRowId(row.id);
+    setIsVacanciaModalOpen(true);
+  }, []);
+
 
   const timelineData = useMemo(() => {
     if (!modalHistoryData || modalHistoryData.length === 0) return [];
@@ -711,7 +776,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   }, []);
 
   useEffect(() => {
-    const shouldLock = !!activeFilterDropdown || isColumnsModalOpen;
+    const shouldLock = 
+      !!activeFilterDropdown || 
+      isColumnsModalOpen || 
+      isVacanciaModalOpen || 
+      isHistoryModalOpen || 
+      isCellModalOpen || 
+      isAdvancedFiltersOpen || 
+      !!selectedRowData;
     if (shouldLock) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -720,7 +792,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [activeFilterDropdown, isColumnsModalOpen]);
+  }, [
+    activeFilterDropdown, 
+    isColumnsModalOpen, 
+    isVacanciaModalOpen, 
+    isHistoryModalOpen, 
+    isCellModalOpen, 
+    isAdvancedFiltersOpen, 
+    selectedRowData
+  ]);
 
   // Adjust ContextMenu position to prevent clipping
   useEffect(() => {
@@ -799,6 +879,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return () => { active = false; };
   }, [isHistoryModalOpen, selectedCell, filteredSortedData]);
 
+  useEffect(() => {
+    let active = true;
+    if (isVacanciaModalOpen && vacanciaRowId !== null) {
+      setIsVacanciaLoading(true);
+      setVacanciaDetalle(null);
+      VacantesService.getMovPosVacanciaDetalle(vacanciaRowId)
+        .then(res => res.json())
+        .then(data => {
+          if (active) setVacanciaDetalle(data);
+        })
+        .catch(err => {
+          console.error("Error fetching vacancia detalle:", err);
+          if (active) setVacanciaDetalle({ error: "Error al cargar el detalle de la vacancia." });
+        })
+        .finally(() => { if (active) setIsVacanciaLoading(false); });
+    } else {
+      setVacanciaDetalle(null);
+    }
+    return () => { active = false; };
+  }, [isVacanciaModalOpen, vacanciaRowId]);
+
   const isLatestFilter = columnFilters.is_latest?.includes("true");
   const rowHeight = 37, containerHeight = 800;
   const totalPages = isLatestFilter ? 1 : (Math.ceil(count / pageSize) || 1);
@@ -814,6 +915,29 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     }
     const isPosicionCol = col.key === "no_pos_actual";
     const handleCellClick = (e) => { onClick(e); if (isPosicionCol) { setActiveModalTab('tabla'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
+    if (col.key === "fecha_vacancia") {
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{hasValue ? String(value) : <span className="text-slate-300">-</span>}</td>);
+    }
+    if (col.key === "categoria_vacancia") {
+      const cat = value ? String(value).trim().toUpperCase() : "";
+      const tooltipText = CATEGORIA_VACANCIA_TOOLTIP[cat];
+      const content = cat === "" ? <span className="text-slate-300">-</span> : String(value);
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${tooltipText ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      if (!tooltipText) {
+        return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>);
+      }
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipText}</TooltipContent>
+        </Tooltip>
+      );
+    }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : col.key === "ocupacion" ? (<div className="flex items-center">{value && (<span className={`inline-flex flex-shrink-0 items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase leading-none shadow-sm ${value === 'Ocupada' ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>{value}</span>)}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span></div>) : (String(value))}</td>);
   };
 
@@ -967,6 +1091,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     };
   }, [filteredSortedData, columns]);
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="w-full flex flex-col">
       <div className="w-full px-4 lg:px-6 pt-2">
         <Zoom triggerOnce>
@@ -1265,7 +1390,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   </div>
                   {/* Title */}
                   <div>
-                    <h3 className="text-lg font-extrabold text-slate-900 dark:text-white leading-tight">
+                    <h3 className="text-lg font-extrabold text-slate-700 dark:text-slate-100 leading-tight">
                       Detalle de Posición
                     </h3>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
@@ -1358,7 +1483,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                     );
                                   }
                                   return (
-                                    <td key={col.key} className={`px-4 text-xs border-r truncate h-[37px] align-middle bg-white/10 text-slate-950 dark:text-slate-50 ${isMonoColumn(col.key) ? 'font-mono font-bold' : 'font-bold'}`}>
+                                    <td key={col.key} className={`px-4 text-xs border-r truncate h-[37px] align-middle bg-white/10 text-slate-600 dark:text-slate-300 ${isMonoColumn(col.key) ? 'font-mono font-bold' : 'font-medium'}`}>
                                       {val === undefined || val === null || String(val).trim() === '' ? <span className="text-slate-300">-</span> : String(val)}
                                     </td>
                                   );
@@ -1416,7 +1541,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                                 <div>
                                   <div className="flex items-center gap-2.5 mb-1 flex-wrap">
-                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">{row.motivo || 'Actualización Inicial'}</h4>
+                                    <h4 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">{row.motivo || 'Actualización Inicial'}</h4>
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[10px] font-bold uppercase ${MOV_STATUS_BADGE_STYLES[row.estado_psn]?.bg || 'bg-slate-50'} ${MOV_STATUS_BADGE_STYLES[row.estado_psn]?.text || 'text-slate-600'} ${MOV_STATUS_BADGE_STYLES[row.estado_psn]?.border || 'border-slate-200'}`}>
                                       {MOV_STATUS_BADGE_STYLES[row.estado_psn]?.label || row.estado_psn || '-'}
                                     </span>
@@ -1439,7 +1564,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                     <div className="p-1.5 bg-[#621f32]/10 dark:bg-[#bc955c]/10 rounded-lg">
                                       <Activity className="size-3.5 text-[#621f32] dark:text-[#bc955c]" />
                                     </div>
-                                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-800 dark:text-slate-200">Cambios Estructurales</p>
+                                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 dark:text-slate-400">Cambios Estructurales</p>
                                     <span className="ml-auto text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{row.changes.length} detectados</span>
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1459,7 +1584,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                           </div>
                                           <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
                                             <span className="text-[8px] font-black uppercase text-emerald-600 dark:text-emerald-400 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-md text-center w-full border border-emerald-100 dark:border-emerald-800/50">Nuevo</span>
-                                            <span className="text-xs font-bold text-slate-800 dark:text-white truncate w-full text-center" title={change.after}>{change.after}</span>
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate w-full text-center" title={change.after}>{change.after}</span>
                                           </div>
                                         </div>
                                       </div>
@@ -1489,6 +1614,268 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             </motion.div>
           </div>
         )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Modal de Detalle de Vacancia */}
+      {mounted && createPortal(
+        <AnimatePresence>
+        {isVacanciaModalOpen && (() => {
+          const catStyle = VACANCIA_CATEGORIA_STYLE[vacanciaDetalle?.categoria_vacancia] || VACANCIA_CATEGORIA_DEFAULT;
+          const CatIcon = catStyle.icon;
+          return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsVacanciaModalOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 24 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 24 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+              className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/85 shadow-[0_32px_96px_-24px_rgba(15,23,42,0.3)] w-full max-w-lg overflow-hidden flex flex-col z-[90]"
+            >
+              {/* Linea superior con gradiente de categoría */}
+              <div className={`h-1.5 w-full bg-gradient-to-r ${catStyle.gradient}`} />
+
+              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/10 flex items-center justify-between">
+                <div className="flex items-center gap-3.5">
+                  <div className={`p-2.5 bg-gradient-to-br ${catStyle.gradient} text-white rounded-2xl shadow-md ${catStyle.ring} shrink-0`}>
+                    <CatIcon className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">Detalle de Vacancia</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Posición</span>
+                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300 rounded-md text-[10px] font-mono font-bold">
+                        {vacanciaDetalle?.no_pos_actual || '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsVacanciaModalOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-800/80 transition-all active:scale-95 shrink-0"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="p-6 flex flex-col gap-5 max-h-[65vh] overflow-y-auto">
+                {isVacanciaLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="size-10 border-4 border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando detalle...</p>
+                  </div>
+                ) : !vacanciaDetalle ? null : vacanciaDetalle.error && !vacanciaDetalle.categoria_vacancia ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                    <XCircle className="size-10 text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{vacanciaDetalle.error}</p>
+                  </div>
+                ) : (
+                  <motion.div 
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                      hidden: { opacity: 0 },
+                      visible: {
+                        opacity: 1,
+                        transition: {
+                          staggerChildren: 0.08
+                        }
+                      }
+                    }}
+                    className="flex flex-col gap-5"
+                  >
+                    <motion.div 
+                      variants={{
+                        hidden: { opacity: 0, y: 12 },
+                        visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                      }}
+                      className={`flex flex-col gap-2 p-4 rounded-2xl border relative overflow-hidden ${catStyle.badgeBg} ${catStyle.badgeBorder}`}
+                    >
+                      <div className="absolute right-4 top-4 opacity-[0.08] pointer-events-none">
+                        <CatIcon className="size-16" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-white dark:bg-slate-900/60 shadow-sm border border-slate-200/40 dark:border-slate-800/40 ${catStyle.badgeText}`}>
+                          Categoría {vacanciaDetalle.categoria_vacancia}
+                        </span>
+                        <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                          {catStyle.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed pr-12">
+                        {CATEGORIA_VACANCIA_TOOLTIP[vacanciaDetalle.categoria_vacancia]}
+                      </p>
+                    </motion.div>
+
+                    {vacanciaDetalle.error && (
+                      <motion.div 
+                        variants={{
+                          hidden: { opacity: 0, y: 12 },
+                          visible: { opacity: 1, y: 0 }
+                        }}
+                        className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex items-start gap-3"
+                      >
+                        <Info className="size-4.5 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{vacanciaDetalle.error}</p>
+                      </motion.div>
+                    )}
+
+                    {!vacanciaDetalle.error && (
+                      <>
+                        <motion.div 
+                          variants={{
+                            hidden: { opacity: 0, y: 12 },
+                            visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                          }}
+                          className="grid grid-cols-2 gap-4"
+                        >
+                          <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors group">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em]">Fecha de Vacancia</span>
+                              <Calendar className="size-3.5 text-slate-400 group-hover:text-[#bc955c] transition-colors" />
+                            </div>
+                            <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{vacanciaDetalle.fecha_vacancia || '—'}</p>
+                          </div>
+                          <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors group">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em]">
+                                {vacanciaDetalle.categoria_vacancia === "B" ? "Posición Destino" : "Nº Posición"}
+                              </span>
+                              <Hash className="size-3.5 text-slate-400 group-hover:text-[#bc955c] transition-colors" />
+                            </div>
+                            <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100 font-mono">
+                              {vacanciaDetalle.categoria_vacancia === "B" ? vacanciaDetalle.posicion_destino : vacanciaDetalle.no_pos_actual || '—'}
+                            </p>
+                          </div>
+                        </motion.div>
+
+                        {(vacanciaDetalle.categoria_vacancia === "A" || vacanciaDetalle.categoria_vacancia === "B") && (
+                          <>
+                            <motion.div 
+                              variants={{
+                                hidden: { opacity: 0, y: 12 },
+                                visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                              }}
+                              className="p-4 bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-950/40 dark:to-slate-900/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex items-center gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                            >
+                              <div className="size-12 bg-gradient-to-br from-[#621f32] to-[#8d2c48] text-white rounded-full flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-[#621f32]/10 shrink-0">
+                                {vacanciaDetalle.empleado?.nombre_completo
+                                  ? vacanciaDetalle.empleado.nombre_completo.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+                                  : <User className="size-5" />
+                                }
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] block mb-1">
+                                  {vacanciaDetalle.categoria_vacancia === "A" ? "Empleado Saliente (Baja)" : "Empleado Trasladado"}
+                                </span>
+                                <h4 className="text-sm font-extrabold text-slate-850 dark:text-slate-100 truncate" title={vacanciaDetalle.empleado?.nombre_completo}>
+                                  {vacanciaDetalle.empleado?.nombre_completo || '—'}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-semibold text-slate-400">ID Empleado:</span>
+                                  <span className="text-[10px] font-bold text-slate-650 dark:text-slate-300 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                    {vacanciaDetalle.empleado?.num_empleado || '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            </motion.div>
+
+                            <motion.div 
+                              variants={{
+                                hidden: { opacity: 0, y: 12 },
+                                visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                              }}
+                              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                            >
+                              <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                <div>
+                                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2 block">
+                                    {vacanciaDetalle.categoria_vacancia === "A" ? "Motivo de Baja" : "Motivo del Cambio"}
+                                  </label>
+                                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">{vacanciaDetalle.motivo_nombre || '—'}</p>
+                                </div>
+                                {vacanciaDetalle.motivo && (
+                                  <div className="mt-2.5">
+                                    <span className="inline-block text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded font-mono">
+                                      Cód. {vacanciaDetalle.motivo}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                <div>
+                                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2 block">Acción Administrativa</label>
+                                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">{vacanciaDetalle.accion_nombre || '—'}</p>
+                                </div>
+                                {vacanciaDetalle.accion && (
+                                  <div className="mt-2.5">
+                                    <span className="inline-block text-[10px] font-bold text-[#621f32] dark:text-[#bc955c] bg-[#621f32]/5 dark:bg-[#bc955c]/10 px-2 py-0.5 rounded font-mono">
+                                      Acción: {vacanciaDetalle.accion}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+
+                        {vacanciaDetalle.categoria_vacancia === "C" && (
+                          <motion.div 
+                            variants={{
+                              hidden: { opacity: 0, y: 12 },
+                              visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                            }}
+                            className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex gap-3.5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                          >
+                            <div className="p-2 bg-slate-100 dark:bg-slate-850 rounded-xl text-slate-500 shrink-0 h-fit">
+                              <Eye className="size-4.5" />
+                            </div>
+                            <div className="flex-1">
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] block mb-1">Nota del Sistema</span>
+                              <p className="text-xs font-medium text-slate-650 dark:text-slate-400 leading-relaxed">
+                                Esta posición nunca ha tenido un ocupante registrado. Las fechas y detalles reflejados corresponden al primer movimiento documentado en el historial de esta plaza.
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        <motion.div 
+                          variants={{
+                            hidden: { opacity: 0, y: 12 },
+                            visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                          }}
+                          className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 grid grid-cols-2 gap-4 divide-x divide-slate-200/60 dark:divide-slate-800/80"
+                        >
+                          <div className="flex flex-col">
+                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5">Fecha Efectiva</label>
+                            <p className={`text-sm font-extrabold ${catStyle.accent}`}>{vacanciaDetalle.fecha_efectiva || '—'}</p>
+                          </div>
+                          <div className="flex flex-col pl-4">
+                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5">Fecha de Captura</label>
+                            <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{vacanciaDetalle.fecha_captura || '—'}</p>
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="px-6 py-4.5 border-t border-slate-100 dark:border-slate-800 flex justify-end bg-slate-50/30 dark:bg-slate-850/10 gap-3">
+                <button
+                  onClick={() => setIsVacanciaModalOpen(false)}
+                  className="px-6 py-2.5 bg-gradient-to-r from-[#621f32] to-[#8d2c48] dark:from-[#bc955c] dark:to-[#d4af73] text-white dark:text-[#3e131f] text-[10px] font-black uppercase tracking-wider rounded-xl transition-all hover:opacity-90 active:scale-95 shadow-md shadow-[#621f32]/10 dark:shadow-[#bc955c]/10"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+          );
+        })()}
         </AnimatePresence>,
         document.body
       )}
@@ -1592,6 +1979,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       })()}
 
     </div>
+    </TooltipProvider>
   );
 }
 

@@ -18,50 +18,52 @@ export default function PlantillaEmpleadosSkeleton() {
       <div className="absolute -top-40 -right-40 size-[32rem] bg-gradient-to-br from-[#621f32]/8 to-transparent rounded-full blur-[100px] -z-10 animate-pulse duration-[8000ms]" />
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
-      {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-16 = top-36 = 144px) */}
-      <div className="fixed top-36 left-0 right-0 z-30 hidden sm:flex items-stretch bg-white/95 backdrop-blur-md border-b border-slate-200/50 shadow-md">
-        {TABS.map((tab) => {
-          const subtabConfig = {
-            estatus: true,
-            movimientos: true,
-            mapa: true,
-          }[tab.id];
-          const isActive = tab.id === "detalle";
-          return (
-            <div key={tab.id} className="relative flex-1">
-              <div
-                className={`flex items-center justify-center gap-2 w-full whitespace-nowrap px-3.5 py-2.5 border-r border-slate-200/50 ${isActive
-                  ? "bg-gradient-to-b from-[#621f32] to-[#8d2c48]"
-                  : "bg-white"
-                  }`}
-              >
-                {/* Icon placeholder */}
+      {/* Barra de tabs fija: pill flotante centrada, igual layout que PageTabBar */}
+      <div className="fixed top-36 inset-x-0 z-30 hidden sm:flex justify-center px-4">
+        <div className="flex items-center justify-between gap-1 p-1.5 w-full max-w-full overflow-x-auto rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/70 shadow-lg shadow-slate-900/[0.06]">
+          {TABS.map((tab) => {
+            const subtabConfig = {
+              estatus: true,
+              movimientos: true,
+              mapa: true,
+            }[tab.id];
+            const isActive = tab.id === "detalle";
+            return (
+              <div key={tab.id} className="relative flex-1">
                 <div
-                  className="skeleton-box size-3.5 flex-shrink-0 rounded"
-                  style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
-                />
-
-                {/* Label placeholder */}
-                <div
-                  className="skeleton-box rounded px-1"
-                  style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
+                  className={`relative flex w-full items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-lg ${isActive
+                    ? "bg-gradient-to-br from-[#621f32] to-[#8d2c48] shadow-md shadow-[#621f32]/25"
+                    : ""
+                    }`}
                 >
-                  <span className="opacity-0 text-xs font-bold uppercase tracking-wide">
-                    {tab.label}
-                  </span>
-                </div>
-
-                {/* Chevron placeholder */}
-                {subtabConfig && (
+                  {/* Icon placeholder */}
                   <div
-                    className="skeleton-box size-3 flex-shrink-0 rounded-sm"
+                    className="skeleton-box size-3.5 flex-shrink-0 rounded"
                     style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
                   />
-                )}
+
+                  {/* Label placeholder */}
+                  <div
+                    className="skeleton-box rounded px-1"
+                    style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
+                  >
+                    <span className="opacity-0 text-xs font-bold">
+                      {tab.label}
+                    </span>
+                  </div>
+
+                  {/* Chevron placeholder */}
+                  {subtabConfig && (
+                    <div
+                      className="skeleton-box size-3 flex-shrink-0 rounded-sm"
+                      style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       <div className="mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 pt-14 pb-0">

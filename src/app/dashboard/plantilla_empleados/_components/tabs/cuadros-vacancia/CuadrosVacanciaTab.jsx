@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Zoom } from "react-awesome-reveal";
-import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, Users, Briefcase, AlertCircle, Percent, Activity } from "lucide-react";
+import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import { PlantillaService } from '@/services/plantilla.service';
@@ -16,18 +17,25 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
   const yearFilterRef = useRef(null);
   const qnaFilterRef = useRef(null);
+  const yearBtnRef = useRef(null);
+  const qnaBtnRef = useRef(null);
+  const yearDropdownRef = useRef(null);
+  const qnaDropdownRef = useRef(null);
+  const [yearDropdownPos, setYearDropdownPos] = useState({ top: 0, left: 0 });
+  const [qnaDropdownPos, setQnaDropdownPos] = useState({ top: 0, left: 0 });
   const tableRef = useRef(null);
   const pdfRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (yearFilterRef.current && !yearFilterRef.current.contains(event.target)) {
+      if (!yearFilterRef.current?.contains(event.target) && !yearDropdownRef.current?.contains(event.target)) {
         setYearFilterOpen(false);
       }
-      if (qnaFilterRef.current && !qnaFilterRef.current.contains(event.target)) {
+      if (!qnaFilterRef.current?.contains(event.target) && !qnaDropdownRef.current?.contains(event.target)) {
         setQnaFilterOpen(false);
       }
     }
@@ -887,37 +895,18 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             Año
                             <div className="relative" ref={yearFilterRef}>
                               <button
-                                onClick={() => setYearFilterOpen(!yearFilterOpen)}
+                                ref={yearBtnRef}
+                                onClick={() => {
+                                  if (!yearFilterOpen && yearBtnRef.current) {
+                                    const rect = yearBtnRef.current.getBoundingClientRect();
+                                    setYearDropdownPos({ top: rect.bottom + 8, left: rect.left });
+                                  }
+                                  setYearFilterOpen(!yearFilterOpen);
+                                }}
                                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedYears.length > 0 ? 'bg-[#bc955c] text-[#10243e] font-bold' : 'hover:bg-white/20'}`}
                               >
                                 <Filter className="size-3" />
                               </button>
-                              {yearFilterOpen && (
-                                <div className="absolute top-full mt-2 left-0 w-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200/60 dark:border-slate-800/80 py-2 z-50 text-slate-800 dark:text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-                                  <div className="px-3 pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                    <span className="font-bold text-[10px] text-slate-450 dark:text-slate-500 uppercase tracking-wider">Filtrar Año</span>
-                                    {selectedYears.length > 0 && (
-                                      <button onClick={clearYearFilter} className="text-[9px] text-[#621f32] dark:text-[#bc955c] font-black hover:underline uppercase tracking-wider cursor-pointer">Limpiar</button>
-                                    )}
-                                  </div>
-                                  <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => selectedYears.length === 0 ? unselectAllYears() : selectAllYears()}>
-                                      <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedYears.length === 0 ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : selectedYears.length > 0 && selectedYears[0] !== '__NONE__' ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                                        {selectedYears.length === 0 ? <Check className="size-3" /> : selectedYears.length > 0 && selectedYears[0] !== '__NONE__' ? <Minus className="size-3" /> : null}
-                                      </div>
-                                      <span className="font-extrabold text-[11px] text-[#10243e] dark:text-[#bc955c] uppercase tracking-wider">(Seleccionar todo)</span>
-                                    </div>
-                                    {uniqueYears.map(year => (
-                                      <div key={year} onClick={() => toggleYear(year)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
-                                        <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedYears.includes(year) ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                                          {selectedYears.includes(year) && <Check className="size-3" />}
-                                        </div>
-                                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{year}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           </div>
                         </th>
@@ -926,86 +915,18 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             Qna.
                             <div className="relative" ref={qnaFilterRef}>
                               <button
-                                onClick={() => setQnaFilterOpen(!qnaFilterOpen)}
+                                ref={qnaBtnRef}
+                                onClick={() => {
+                                  if (!qnaFilterOpen && qnaBtnRef.current) {
+                                    const rect = qnaBtnRef.current.getBoundingClientRect();
+                                    setQnaDropdownPos({ top: rect.bottom + 8, left: rect.left });
+                                  }
+                                  setQnaFilterOpen(!qnaFilterOpen);
+                                }}
                                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedQnas.length > 0 ? 'bg-[#bc955c] text-[#10243e] font-bold' : 'hover:bg-white/20'}`}
                               >
                                 <Filter className="size-3" />
                               </button>
-                              {qnaFilterOpen && (
-                                <div className="absolute top-full mt-2 left-0 w-52 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200/60 dark:border-slate-800/80 py-2 z-50 text-slate-800 dark:text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-                                  <div className="px-3 pb-2 mb-2 border-b border-slate-100 dark:border-slate-850 flex justify-between items-center">
-                                    <span className="font-bold text-[10px] text-slate-450 dark:text-slate-500 uppercase tracking-wider">Filtrar Qna.</span>
-                                    {selectedQnas.length > 0 && (
-                                      <button onClick={clearQnaFilter} className="text-[9px] text-[#621f32] dark:text-[#bc955c] font-black hover:underline uppercase tracking-wider cursor-pointer">Limpiar</button>
-                                    )}
-                                  </div>
-                                  <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 dark:border-slate-855 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => selectedQnas.length === 0 ? unselectAllQnas() : selectAllQnas()}>
-                                      <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedQnas.length === 0 ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : selectedQnas.length > 0 && selectedQnas[0] !== '__NONE__' ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                                        {selectedQnas.length === 0 ? <Check className="size-3" /> : selectedQnas.length > 0 && selectedQnas[0] !== '__NONE__' ? <Minus className="size-3" /> : null}
-                                      </div>
-                                      <span className="font-extrabold text-[11px] text-[#10243e] dark:text-[#bc955c] uppercase tracking-wider">(Seleccionar todo)</span>
-                                    </div>
-                                    {Object.entries(qnaTree).map(([treeYear, months]) => {
-                                      const yearDays = Object.values(months).flat();
-                                      const isYearChecked = selectedQnas.length === 0 || yearDays.every(d => selectedQnas.includes(d));
-                                      const isYearIndeterminate = !isYearChecked && yearDays.some(d => selectedQnas.includes(d));
-                                      const isYearExpanded = expandedNodes[treeYear];
-
-                                      return (
-                                        <div key={treeYear} className="mb-1">
-                                          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/40 sticky top-0 z-10 border-y border-slate-100 dark:border-slate-800/60">
-                                            <button onClick={() => toggleExpand(treeYear)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer">
-                                              {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-                                            </button>
-                                            <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => toggleYearGroup(treeYear)}>
-                                              <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isYearChecked || isYearIndeterminate ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                                                {isYearChecked ? <Check className="size-3" /> : isYearIndeterminate ? <Minus className="size-3" /> : null}
-                                              </div>
-                                              <span className="font-black text-xs text-slate-700 dark:text-slate-200">{treeYear}</span>
-                                            </div>
-                                          </div>
-
-                                          {isYearExpanded && Object.entries(months).map(([month, days]) => {
-                                            const monthKey = `${treeYear}-${month}`;
-                                            const isMonthChecked = selectedQnas.length === 0 || days.every(d => selectedQnas.includes(d));
-                                            const isMonthIndeterminate = !isMonthChecked && days.some(d => selectedQnas.includes(d));
-                                            const isMonthExpanded = expandedNodes[monthKey];
-
-                                            return (
-                                              <div key={monthKey} className="ml-3 border-l border-slate-150 dark:border-slate-800">
-                                                <div className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-855/50">
-                                                  <button onClick={() => toggleExpand(monthKey)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer">
-                                                    {isMonthExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-                                                  </button>
-                                                  <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => toggleMonth(treeYear, month)}>
-                                                    <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isMonthChecked || isMonthIndeterminate ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                                                      {isMonthChecked ? <Check className="size-3" /> : isMonthIndeterminate ? <Minus className="size-3" /> : null}
-                                                    </div>
-                                                    <span className="font-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">{month}</span>
-                                                  </div>
-                                                </div>
-
-                                                {isMonthExpanded && days.map(qna => {
-                                                  const isDayChecked = selectedQnas.length === 0 || selectedQnas.includes(qna);
-                                                  return (
-                                                    <div key={qna} onClick={() => toggleDay(qna)} className="flex items-center gap-2 pl-8 pr-3 py-1 hover:bg-slate-50 dark:hover:bg-slate-855/50 cursor-pointer">
-                                                      <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isDayChecked ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                                                        {isDayChecked && <Check className="size-3" />}
-                                                      </div>
-                                                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-355 leading-tight">{qna}</span>
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           </div>
                         </th>
@@ -1049,7 +970,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           </td>
                         </tr>
                       ) : (
-                        filteredData.map((row, index) => {
+                        (isTableExpanded ? filteredData : filteredData.slice(0, 1)).map((row, index) => {
                           const rowSpan = yearSpans[index];
                           const isNewYear = rowSpan !== undefined;
                           const isMostRecent = row.id === sortedDescData[0]?.id;
@@ -1064,7 +985,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             >
                               {isNewYear && (
                                 <td
-                                  rowSpan={rowSpan}
+                                  rowSpan={isTableExpanded ? rowSpan : 1}
                                   className={`px-4 py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#bc955c]/15 dark:bg-[#bc955c]/25" : "bg-white dark:bg-slate-900"
                                     }`}
                                 >
@@ -1123,6 +1044,25 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                       )}
                     </tbody>
                   </table>
+
+                  {filteredData.length > 1 && (
+                    <button
+                      onClick={() => setIsTableExpanded(prev => !prev)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-[#10243e] dark:hover:text-[#bc955c] hover:bg-slate-50 dark:hover:bg-slate-800/60 border-t border-slate-200/60 dark:border-slate-800/60 transition-all duration-200 cursor-pointer group"
+                    >
+                      {isTableExpanded ? (
+                        <>
+                          <ChevronsDownUp className="size-3.5 group-hover:-translate-y-0.5 transition-transform duration-200" />
+                          <span>Contraer histórico</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronsUpDown className="size-3.5 group-hover:translate-y-0.5 transition-transform duration-200" />
+                          <span>Ver histórico completo ({filteredData.length - 1} registros más)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1139,6 +1079,121 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           <DetalleVacantesTablas data={desgloseJerarquicoData} />
         </div>
       </div>
+
+      {/* Portal: filtro Año */}
+      {yearFilterOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={yearDropdownRef}
+          style={{ position: 'fixed', top: yearDropdownPos.top, left: yearDropdownPos.left, zIndex: 9999 }}
+          className="w-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200/60 dark:border-slate-800/80 py-2 text-slate-800 dark:text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <div className="px-3 pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+            <span className="font-bold text-[10px] text-slate-450 dark:text-slate-500 uppercase tracking-wider">Filtrar Año</span>
+            {selectedYears.length > 0 && (
+              <button onClick={clearYearFilter} className="text-[9px] text-[#621f32] dark:text-[#bc955c] font-black hover:underline uppercase tracking-wider cursor-pointer">Limpiar</button>
+            )}
+          </div>
+          <div className="max-h-48 overflow-y-auto custom-scrollbar">
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => selectedYears.length === 0 ? unselectAllYears() : selectAllYears()}>
+              <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedYears.length === 0 ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : selectedYears.length > 0 && selectedYears[0] !== '__NONE__' ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                {selectedYears.length === 0 ? <Check className="size-3" /> : selectedYears.length > 0 && selectedYears[0] !== '__NONE__' ? <Minus className="size-3" /> : null}
+              </div>
+              <span className="font-extrabold text-[11px] text-[#10243e] dark:text-[#bc955c] uppercase tracking-wider">(Seleccionar todo)</span>
+            </div>
+            {uniqueYears.map(year => (
+              <div key={year} onClick={() => toggleYear(year)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedYears.includes(year) ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                  {selectedYears.includes(year) && <Check className="size-3" />}
+                </div>
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{year}</span>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Portal: filtro Qna */}
+      {qnaFilterOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={qnaDropdownRef}
+          style={{ position: 'fixed', top: qnaDropdownPos.top, left: qnaDropdownPos.left, zIndex: 9999 }}
+          className="w-52 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200/60 dark:border-slate-800/80 py-2 text-slate-800 dark:text-slate-200 animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <div className="px-3 pb-2 mb-2 border-b border-slate-100 dark:border-slate-850 flex justify-between items-center">
+            <span className="font-bold text-[10px] text-slate-450 dark:text-slate-500 uppercase tracking-wider">Filtrar Qna.</span>
+            {selectedQnas.length > 0 && (
+              <button onClick={clearQnaFilter} className="text-[9px] text-[#621f32] dark:text-[#bc955c] font-black hover:underline uppercase tracking-wider cursor-pointer">Limpiar</button>
+            )}
+          </div>
+          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 dark:border-slate-855 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => selectedQnas.length === 0 ? unselectAllQnas() : selectAllQnas()}>
+              <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedQnas.length === 0 ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : selectedQnas.length > 0 && selectedQnas[0] !== '__NONE__' ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                {selectedQnas.length === 0 ? <Check className="size-3" /> : selectedQnas.length > 0 && selectedQnas[0] !== '__NONE__' ? <Minus className="size-3" /> : null}
+              </div>
+              <span className="font-extrabold text-[11px] text-[#10243e] dark:text-[#bc955c] uppercase tracking-wider">(Seleccionar todo)</span>
+            </div>
+            {Object.entries(qnaTree).map(([treeYear, months]) => {
+              const yearDays = Object.values(months).flat();
+              const isYearChecked = selectedQnas.length === 0 || yearDays.every(d => selectedQnas.includes(d));
+              const isYearIndeterminate = !isYearChecked && yearDays.some(d => selectedQnas.includes(d));
+              const isYearExpanded = expandedNodes[treeYear];
+
+              return (
+                <div key={treeYear} className="mb-1">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/40 sticky top-0 z-10 border-y border-slate-100 dark:border-slate-800/60">
+                    <button onClick={() => toggleExpand(treeYear)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer">
+                      {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+                    </button>
+                    <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => toggleYearGroup(treeYear)}>
+                      <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isYearChecked || isYearIndeterminate ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                        {isYearChecked ? <Check className="size-3" /> : isYearIndeterminate ? <Minus className="size-3" /> : null}
+                      </div>
+                      <span className="font-black text-xs text-slate-700 dark:text-slate-200">{treeYear}</span>
+                    </div>
+                  </div>
+
+                  {isYearExpanded && Object.entries(months).map(([month, days]) => {
+                    const monthKey = `${treeYear}-${month}`;
+                    const isMonthChecked = selectedQnas.length === 0 || days.every(d => selectedQnas.includes(d));
+                    const isMonthIndeterminate = !isMonthChecked && days.some(d => selectedQnas.includes(d));
+                    const isMonthExpanded = expandedNodes[monthKey];
+
+                    return (
+                      <div key={monthKey} className="ml-3 border-l border-slate-150 dark:border-slate-800">
+                        <div className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-855/50">
+                          <button onClick={() => toggleExpand(monthKey)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer">
+                            {isMonthExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+                          </button>
+                          <div className="flex items-center gap-2 cursor-pointer flex-1" onClick={() => toggleMonth(treeYear, month)}>
+                            <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isMonthChecked || isMonthIndeterminate ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                              {isMonthChecked ? <Check className="size-3" /> : isMonthIndeterminate ? <Minus className="size-3" /> : null}
+                            </div>
+                            <span className="font-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">{month}</span>
+                          </div>
+                        </div>
+
+                        {isMonthExpanded && days.map(qna => {
+                          const isDayChecked = selectedQnas.length === 0 || selectedQnas.includes(qna);
+                          return (
+                            <div key={qna} onClick={() => toggleDay(qna)} className="flex items-center gap-2 pl-8 pr-3 py-1 hover:bg-slate-50 dark:hover:bg-slate-855/50 cursor-pointer">
+                              <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isDayChecked ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                                {isDayChecked && <Check className="size-3" />}
+                              </div>
+                              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-355 leading-tight">{qna}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

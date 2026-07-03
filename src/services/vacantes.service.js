@@ -185,6 +185,20 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene el detalle dinámico (por categoría A/B/C) del registro decisivo
+     * que originó la fecha de vacancia de un renglón de MOV_POS.
+     * @param {string|number} id - Id del renglón de MOV_POS (no el idRegistroDesicivo).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getMovPosVacanciaDetalle: (id, options = {}) => {
+        return apiFetch(`/plantilla/mov_pos_vacancia_detalle/?id=${id}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene la cadena de mando para una búsqueda dada.
      * @param {string} query - Texto de búsqueda.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.

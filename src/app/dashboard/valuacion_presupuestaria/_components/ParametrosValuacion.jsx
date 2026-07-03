@@ -108,7 +108,7 @@ export default function ParametrosValuacion({
     const { icon: TabIcon, label: tabLabel } = TAB_META[activeParamTab] ?? TAB_META.catalogo;
 
     return (
-        <div className="animate-in fade-in duration-400 sticky bottom-0 flex flex-col overflow-hidden bg-white border-y border-gray-200/80 shadow-sm md:max-h-[calc(100vh-var(--stack-h,9rem)-2.5rem)]">
+        <div className="animate-in fade-in duration-400 sticky bottom-0 flex flex-col overflow-hidden bg-white border-y border-gray-200/80 shadow-sm md:max-h-[calc(100vh-var(--stack-h,9rem)-3.5rem)]">
 
             {/* ── Subtab header ─────────────────────────────────────────────── */}
             <div className="shrink-0 flex items-center justify-between gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50/60">

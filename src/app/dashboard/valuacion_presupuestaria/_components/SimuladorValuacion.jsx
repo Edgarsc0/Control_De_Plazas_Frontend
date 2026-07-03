@@ -538,6 +538,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-2">
                                                 <span className="font-black text-[#621f32] text-xs">{item.nivel}</span>
+                                                <span className="text-amber-500 font-bold text-[10px]">({item.codigo})</span>
                                                 {eventualesData?.[item.nivel] != null && (
                                                     <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15">
                                                         {eventualesData[item.nivel]} ocp.
@@ -612,8 +613,11 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                             <div className="text-[9px] text-gray-400 font-medium uppercase truncate mt-0.5">{p.denominacion}</div>
                                         </div>
                                         <div className="flex items-center gap-3 ml-3 shrink-0">
-                                            <div className="bg-[#621f32] text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-sm shadow-[#621f32]/20">
-                                                {p.qty} pl.
+                                            <div className="flex items-baseline gap-1 bg-[#621f32]/8 border border-[#621f32]/15 rounded-lg px-3 py-1.5">
+                                                <span className="text-sm font-black text-[#621f32] leading-none">{p.qty}</span>
+                                                <span className="text-[8px] font-bold text-[#621f32]/60 uppercase tracking-wider leading-none">
+                                                    {p.qty === 1 ? 'plaza' : 'plazas'}
+                                                </span>
                                             </div>
                                             <button onClick={() => handlePlazaChange(p.nivel, 0)}
                                                 className="text-gray-200 hover:text-red-400 transition-colors">

@@ -3,7 +3,6 @@
 import { useState, useTransition, useEffect, useRef, useCallback, use, Suspense } from "react";
 import { Zoom } from "react-awesome-reveal";
 import {
-  ChevronDown,
   Users,
   Briefcase,
   Globe,
@@ -16,6 +15,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
+import PageTabBar from "@/components/ui/PageTabBar";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
@@ -87,8 +87,6 @@ export default function PlantillaEmpleadosDetalle({
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
   const [isPending, startTransition] = useTransition();
   const cardRef = useRef(null);
-  const [openSubtabId, setOpenSubtabId] = useState(null);
-  const tabsBarRef = useRef(null);
   useRefreshOnZafiroUpdate();
   const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "organigrama" || activeTab === "mapa";
   // En móvil la tarjeta de header sólo aparece cuando el tab activo tiene
@@ -166,15 +164,23 @@ export default function PlantillaEmpleadosDetalle({
     };
   }, [activeTab]);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (tabsBarRef.current && !tabsBarRef.current.contains(e.target)) {
-        setOpenSubtabId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const subtabConfigs = {
+    estatus: {
+      options: [{ id: "nivel", label: "Por Nivel" }, { id: "ua", label: "Por UA" }],
+      active: activeEstatusSubTab,
+      setActive: setActiveEstatusSubTab,
+    },
+    movimientos: {
+      options: [{ id: "tabla", label: "Tabla Principal" }, { id: "cuadros", label: "Cuadros Vacancia" }],
+      active: activeMovimientosSubTab,
+      setActive: setActiveMovimientosSubTab,
+    },
+    mapa: {
+      options: [{ id: "nacional", label: "Mapa Nacional" }, { id: "caballito", label: "Torre Caballito" }],
+      active: activeMapaSubTab,
+      setActive: setActiveMapaSubTab,
+    },
+  };
 
   return (
     <section className={`bg-transparent relative transition-all duration-300 overflow-hidden ${isTightLayout ? "pb-0" : "pb-20"}`}>
@@ -182,96 +188,12 @@ export default function PlantillaEmpleadosDetalle({
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
       {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-16 = top-36 = 144px) */}
-      <div ref={tabsBarRef} className="fixed top-36 left-0 right-0 z-30 hidden sm:flex items-stretch bg-white/95 backdrop-blur-md border-b border-slate-200/50 shadow-md">
-        {TABS.map((tab) => {
-          const subtabConfig = {
-            estatus: {
-              options: [{ id: "nivel", label: "Por Nivel" }, { id: "ua", label: "Por UA" }],
-              active: activeEstatusSubTab,
-              setActive: setActiveEstatusSubTab,
-            },
-            movimientos: {
-              options: [{ id: "tabla", label: "Tabla Principal" }, { id: "cuadros", label: "Cuadros Vacancia" }],
-              active: activeMovimientosSubTab,
-              setActive: setActiveMovimientosSubTab,
-            },
-            mapa: {
-              options: [{ id: "nacional", label: "Mapa Nacional" }, { id: "caballito", label: "Torre Caballito" }],
-              active: activeMapaSubTab,
-              setActive: setActiveMapaSubTab,
-            },
-          }[tab.id];
-          const isActive = activeTab === tab.id;
-          const isDropdownOpen = openSubtabId === tab.id;
-          return (
-            <div
-              key={tab.id}
-              className="relative flex-1"
-              onMouseEnter={() => {
-                if (subtabConfig) {
-                  setOpenSubtabId(tab.id);
-                }
-              }}
-              onMouseLeave={() => {
-                if (subtabConfig) {
-                  setOpenSubtabId(null);
-                }
-              }}
-            >
-              <button
-                onClick={() => {
-                  if (activeTab !== tab.id) {
-                    startTransition(() => setActiveTab(tab.id));
-                    setOpenSubtabId(subtabConfig ? tab.id : null);
-                  } else {
-                    setOpenSubtabId(isDropdownOpen ? null : (subtabConfig ? tab.id : null));
-                  }
-                }}
-                className={`flex items-center justify-center gap-1.5 w-full whitespace-nowrap px-3.5 py-2.5 text-xs font-bold uppercase tracking-wide transition-all duration-200 cursor-pointer border-r border-slate-200/50 ${isActive
-                  ? "bg-gradient-to-b from-[#621f32] to-[#8d2c48] text-white"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                  }`}
-              >
-                <tab.icon className="size-3.5 flex-shrink-0" />
-                {tab.label}
-                {subtabConfig && (
-                  <ChevronDown className={`size-3 ml-0.5 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
-                )}
-              </button>
-              <AnimatePresence>
-                {isDropdownOpen && subtabConfig && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full right-0 bg-white/95 backdrop-blur-md border border-t-0 border-slate-200/50 shadow-lg z-40 min-w-full"
-                  >
-                    {subtabConfig.options.map((sub) => (
-                      <button
-                        key={sub.id}
-                        onClick={() => {
-                          if (activeTab !== tab.id) {
-                            startTransition(() => setActiveTab(tab.id));
-                          }
-                          subtabConfig.setActive(sub.id);
-                          setOpenSubtabId(null);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 text-[10px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer whitespace-nowrap border-b border-slate-100 last:border-b-0 ${subtabConfig.active === sub.id
-                          ? "bg-gradient-to-r from-[#bc955c] to-[#d0ab75] text-[#3e131f]"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-[#621f32]"
-                          }`}
-                      >
-                        {sub.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
-      </div>
+      <PageTabBar
+        tabs={TABS}
+        activeTab={activeTab}
+        onSelect={handleSelectTab}
+        subtabConfigs={subtabConfigs}
+      />
 
       <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isTightLayout ? "pt-14 pb-0" : "pt-14 pb-12"}`}>
         <div className={`w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 transition-all duration-300 ${isTightLayout ? "gap-2" : "gap-6"}`}>

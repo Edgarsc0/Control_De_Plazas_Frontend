@@ -310,7 +310,7 @@ export default function HistoryDataTable({ data = [] }) {
                     }
 
                     return (
-                      <td key={col.key} className="px-4 text-[10px] text-slate-950 dark:text-slate-50 font-bold border-r align-middle h-[37px] whitespace-nowrap truncate overflow-hidden bg-white/10" title={String(val)}>
+                      <td key={col.key} className="px-4 text-[10px] text-slate-600 dark:text-slate-300 font-medium border-r align-middle h-[37px] whitespace-nowrap truncate overflow-hidden bg-white/10" title={String(val)}>
                         {String(val)}
                       </td>
                     );

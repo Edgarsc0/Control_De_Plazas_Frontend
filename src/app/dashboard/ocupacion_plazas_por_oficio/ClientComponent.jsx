@@ -347,8 +347,8 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
                     </Fade>
 
                     <Fade direction="right" triggerOnce className="hidden md:block">
-                        <div className="hidden md:flex bg-white p-1 rounded-2xl border border-gray-200 shadow-sm">
-                            <TabButton 
+                        <div className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-full border border-slate-200/70 shadow-sm">
+                            <TabButton
                                 active={activeView === 'sankey'} 
                                 onClick={() => handleTabChange('sankey')}
                                 icon={<GitBranch className="size-4" />}
@@ -366,10 +366,10 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
                                 icon={<BarChart3 className="size-4" />}
                                 label="Estadísticas"
                             />
-                            <div className="w-px h-6 bg-gray-200 self-center mx-1" />
+                            <div className="w-px h-5 bg-slate-300/70 self-center mx-1" />
                             <Link
                                 href="/dashboard/ocupacion_plazas_por_oficio/plantilla"
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:text-[#621f32] hover:bg-[#621f32]/5 transition-all"
+                                className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-slate-500 hover:text-[#621f32] hover:bg-white transition-colors"
                             >
                                 <SquarePen className="size-4" />
                                 Plantilla
@@ -611,23 +611,19 @@ function TabButton({ active, onClick, icon, label }) {
     return (
         <button
             onClick={onClick}
-            className={`
-                relative flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-200 font-black text-xs
-                ${active 
-                    ? 'text-[#621f32] bg-white shadow-sm ring-1 ring-gray-100' 
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                }
-            `}
+            className={`relative flex items-center gap-2 px-4 py-2 rounded-full transition-colors duration-200 font-bold text-xs cursor-pointer ${
+                active ? 'text-white' : 'text-slate-500 hover:text-slate-800'
+            }`}
         >
-            {icon}
-            {label}
             {active && (
-                <motion.div 
-                    layoutId="activeTab"
-                    className="absolute inset-0 bg-white rounded-xl -z-10 shadow-sm"
-                    transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+                <motion.div
+                    layoutId="ocupacionActiveTab"
+                    className="absolute inset-0 -z-10 rounded-full bg-gradient-to-br from-[#621f32] to-[#8d2c48] shadow-md shadow-[#621f32]/25"
+                    transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                 />
             )}
+            {icon}
+            {label}
         </button>
     );
 }
