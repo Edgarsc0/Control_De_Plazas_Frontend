@@ -27,13 +27,14 @@ export default function PosicionTimelineModal({ open, onOpenChange, posicion }) 
 
   useEffect(() => {
     if (open && posicion) {
+      const ctrl = new AbortController();
       setLoading(true);
       VacantesService.getMovimientosPersonal({
         posicion__iexact: posicion,
         sort_by: "fecha_efectiva",
         sort_order: "asc", // ASC to process timeline from start to finish
         no_pagination: true,
-      })
+      }, { signal: ctrl.signal })
         .then((res) => res.json())
         .then((resData) => {
           const data = resData || [];
@@ -86,8 +87,9 @@ export default function PosicionTimelineModal({ open, onOpenChange, posicion }) 
           processedOccupants.reverse();
           setOccupants(processedOccupants);
         })
-        .catch((err) => console.error("Error fetching position timeline:", err))
+        .catch((err) => { if (err.name !== "AbortError") console.error("Error fetching position timeline:", err); })
         .finally(() => setLoading(false));
+      return () => ctrl.abort();
     } else {
       setOccupants([]);
     }

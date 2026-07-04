@@ -324,11 +324,9 @@ export const VacantesService = {
     },
 
     getMovimientosPersonalHistorial: (numEmpleadoList = [], options = {}) => {
-        const q = numEmpleadoList.length
-            ? `?num_empleado__in=${numEmpleadoList.join(",")}`
-            : "";
-        return apiFetch(`/plantilla/movimientos-personal/historial/${q}`, {
-            method: 'GET',
+        return apiFetch(`/plantilla/movimientos-personal/historial/`, {
+            method: 'POST',
+            body: JSON.stringify({ num_empleado: numEmpleadoList }),
             ...options
         });
     }

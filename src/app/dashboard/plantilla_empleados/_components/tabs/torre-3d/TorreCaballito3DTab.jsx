@@ -460,6 +460,7 @@ export default function TorreCaballito3DTab() {
     // Show spinner immediately when user has typed at least one character
     setIsSearching(true);
 
+    const ctrl = new AbortController();
     const delayDebounceFn = setTimeout(() => {
       if (searchQuery.trim().length < 3) {
         setSearchResults([]);
@@ -468,17 +469,17 @@ export default function TorreCaballito3DTab() {
         return;
       }
 
-      VacantesService.searchTorreCaballito(searchQuery)
+      VacantesService.searchTorreCaballito(searchQuery, { signal: ctrl.signal })
         .then(res => res.json())
         .then(data => {
            setSearchResults(data.results || []);
            setShowDropdown(true);
         })
-        .catch(err => console.error(err))
+        .catch(err => { if (err.name !== "AbortError") console.error(err); })
         .finally(() => setIsSearching(false));
     }, 400);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => { clearTimeout(delayDebounceFn); ctrl.abort(); };
   }, [searchQuery]);
 
   const handleSelectEmployee = (emp) => {

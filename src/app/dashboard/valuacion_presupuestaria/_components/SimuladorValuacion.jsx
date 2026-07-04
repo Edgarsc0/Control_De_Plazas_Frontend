@@ -2,7 +2,6 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import {
@@ -376,10 +375,12 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         doc.save(`Valuacion_Presupuestaria_${new Date().getTime()}.pdf`);
     };
 
-    const exportToExcel = () => {
-        const wb = XLSX.utils.book_new();
+    const exportToExcel = async () => {
+        const ExcelJS = (await import('exceljs')).default;
+        const wb = new ExcelJS.Workbook();
 
-        const ws1Data = [
+        const ws1 = wb.addWorksheet('Resumen por Concepto');
+        ws1.addRows([
             ['REPORTE DE VALUACIÓN PRESUPUESTARIA'],
             [`Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'}`],
             [''],
@@ -392,11 +393,10 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 r.complemento
             ]),
             ['TOTAL', '', resultado.total.periodo, resultado.total.anual, resultado.total.complemento]
-        ];
-        const ws1 = XLSX.utils.aoa_to_sheet(ws1Data);
-        XLSX.utils.book_append_sheet(wb, ws1, 'Resumen por Concepto');
+        ]);
 
-        const ws2Data = [
+        const ws2 = wb.addWorksheet('Desglose Analítico');
+        ws2.addRows([
             ['DESGLOSE ANALÍTICO POR NIVEL'],
             [''],
             ['NIVEL', 'PLAZAS', 'SUELDO BASE', 'SUELDO PERÍODO', 'COMP. GAR.', 'COMP. GAR. PERÍODO', 'TOTAL NIVEL'],
@@ -409,11 +409,16 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 r.compensacion_colectiva_periodo,
                 r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion
             ])
-        ];
-        const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
-        XLSX.utils.book_append_sheet(wb, ws2, 'Desglose Analítico');
+        ]);
 
-        XLSX.writeFile(wb, `Valuacion_Presupuestaria_${new Date().getTime()}.xlsx`);
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Valuacion_Presupuestaria_${new Date().getTime()}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
     };
 
     const renderSimulatorContent = () => {

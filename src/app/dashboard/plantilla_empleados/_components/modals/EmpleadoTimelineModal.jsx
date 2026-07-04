@@ -130,19 +130,21 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
 
   useEffect(() => {
     if (open && numEmpleado) {
+      const ctrl = new AbortController();
       setLoading(true);
       VacantesService.getMovimientosPersonal({
         num_empleado__iexact: numEmpleado,
         sort_by: "fecha_efectiva,sec",
         sort_order: "desc",
         no_pagination: true,
-      })
+      }, { signal: ctrl.signal })
         .then((res) => res.json())
         .then((resData) => {
           setData(resData || []);
         })
-        .catch((err) => console.error("Error fetching timeline:", err))
+        .catch((err) => { if (err.name !== "AbortError") console.error("Error fetching timeline:", err); })
         .finally(() => setLoading(false));
+      return () => ctrl.abort();
     } else {
       setData([]);
     }

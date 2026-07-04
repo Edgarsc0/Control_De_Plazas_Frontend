@@ -21,6 +21,7 @@ import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { normalizeForSearch } from "@/utils/columnFilters";
+import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
@@ -33,132 +34,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+// Referencia estable (no recreada en cada render) para no invalidar el React.memo de DataTable.
+const noop = () => {};
+
 const DATE_KEYS = ["fecha_efectiva", "fecha_captura", "salida_prevista", "fecha_ult_actz", "ult_inicio", "fecha_inicial", "fecha_entrada", "fecha_posicion"];
 const isDateColumn = (key) => DATE_KEYS.includes(key);
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-const MOTIVOS_COUNT_MAP = {
-  "Baja": 18,
-  "Cambio Organizacional": 12,
-  "Recontratación": 6,
-  "Cambio Posición": 5,
-  "Reclutamiento Interno": 5,
-  "Suspensión": 4,
-  "Contratación": 3,
-  "Cambio Remuneración": 2,
-  "Continuidad": 2,
-  "Incorporación Temporal por Mandato": 1,
-  "Licencia Médica S/Sueldo": 1,
-  "Licencia Pre-Jubilatoria": 1,
-  "Licencia s/Goce de Sueldo": 1,
-  "Reincorp Licencia Médica": 1,
-  "Reincorp Suspensión": 1,
-  "Reincorporación Licencia s/Goce de Sueldo": 1
-};
-
-// Catálogo UN: clave normalizada a 5 dígitos con ceros a la izquierda
-const UN_CATALOG = {
-  "00001": "Agencia Nacional de Aduanas de México",
-  "00002": "Órgano Interno de Control",
-  "00003": "Dirección General de Evaluación",
-  "00004": "Dirección General de Procesamiento Electrónico de Datos Aduaneros",
-  "00100": "Dirección General de Operación Aduanera",
-  "00200": "Dirección General de Investigación Aduanera",
-  "00300": "Dirección General de Atención Aduanera y Asuntos Internacionales",
-  "00400": "Dirección General de Modernización, Equipamiento e Infraestructura Aduanera",
-  "00500": "Dirección General Jurídica de Aduanas",
-  "00600": "Dirección General de Recaudación",
-  "00700": "Dirección General de Tecnologías de la Información",
-  "00800": "Dirección General de Planeación Aduanera",
-  "00900": "Unidad de Administración y Finanzas",
-};
-
-// Catálogo UA: clave normalizada a 3 dígitos con ceros a la izquierda
-const UA_CATALOG = {
-  "001": "Agencia Nacional de Aduanas de México",
-  "002": "Órgano Interno de Control",
-  "003": "Dirección General de Evaluación",
-  "004": "Dirección General de Procesamiento Electrónico de Datos Aduaneros",
-  "100": "Dirección General de Operación Aduanera",
-  "101": "Aduana de Agua Prieta (Sonora)",
-  "102": "Aduana de Ciudad Acuña (Coahuila)",
-  "103": "Aduana de Ciudad Camargo (Tamaulipas)",
-  "104": "Aduana de Ciudad Hidalgo (Chiapas)",
-  "105": "Aduana de Ciudad Juárez (Chihuahua)",
-  "106": "Aduana de Ciudad Miguel Alemán (Tamaulipas)",
-  "107": "Aduana de Ciudad Reynosa (Tamaulipas)",
-  "108": "Aduana de Colombia (Nuevo León)",
-  "109": "Aduana de Matamoros (Tamaulipas)",
-  "110": "Aduana de Mexicali (Baja California)",
-  "111": "Aduana de Naco (Sonora)",
-  "112": "Aduana de Nogales (Sonora)",
-  "113": "Aduana de Nuevo Laredo (Tamaulipas)",
-  "114": "Aduana de Ojinaga (Chihuahua)",
-  "115": "Aduana de Piedras Negras (Coahuila)",
-  "116": "Aduana de Puerto Palomas (Chihuahua)",
-  "117": "Aduana de San Luis Río Colorado (Sonora)",
-  "118": "Aduana de Sonoyta (Sonora)",
-  "119": "Aduana de Tecate (Baja California)",
-  "120": "Aduana de Tijuana (Baja California)",
-  "121": "Aduana de Subteniente López (Quintana Roo)",
-  "122": "Aduana de Acapulco (Guerrero)",
-  "123": "Aduana de Altamira (Tamaulipas)",
-  "124": "Aduana de Cancún (Quintana Roo)",
-  "125": "Aduana de Ciudad del Carmen (Campeche)",
-  "126": "Aduana de Coatzacoalcos (Veracruz)",
-  "127": "Aduana de Dos Bocas (Tabasco)",
-  "128": "Aduana de Ensenada (Baja California)",
-  "129": "Aduana de Guaymas (Sonora)",
-  "130": "Aduana de La Paz (Baja California Sur)",
-  "131": "Aduana de Lázaro Cárdenas (Michoacán)",
-  "132": "Aduana de Manzanillo (Colima)",
-  "133": "Aduana de Mazatlán (Sinaloa)",
-  "134": "Aduana de Progreso (Yucatán)",
-  "135": "Aduana de Salina Cruz (Oaxaca)",
-  "136": "Aduana de Tampico (Tamaulipas)",
-  "137": "Aduana de Tuxpan (Veracruz)",
-  "138": "Aduana de Veracruz (Veracruz)",
-  "139": "Aduana AICM (Ciudad de México)",
-  "140": "Aduana Aeropuerto Felipe Ángeles (Estado de México)",
-  "141": "Aduana de Aguascalientes (Aguascalientes)",
-  "142": "Aduana de Chihuahua (Chihuahua)",
-  "143": "Aduana de Guadalajara (Jalisco)",
-  "144": "Aduana de Guanajuato (Guanajuato)",
-  "145": "Aduana de Monterrey (Nuevo León)",
-  "146": "Aduana de Puebla (Puebla)",
-  "147": "Aduana de Querétaro (Querétaro)",
-  "148": "Aduana de Toluca (Estado de México)",
-  "149": "Aduana de Torreón (Coahuila)",
-  "150": "Aduana de México (Ciudad de México)",
-  "200": "Dirección General de Investigación Aduanera",
-  "300": "Dirección General de Atención Aduanera y Asuntos Internacionales",
-  "400": "Dirección General de Modernización, Equipamiento e Infraestructura Aduanera",
-  "500": "Dirección General Jurídica de Aduanas",
-  "600": "Dirección General de Recaudación",
-  "700": "Dirección General de Tecnologías de la Información",
-  "800": "Dirección General de Planeación Aduanera",
-  "900": "Unidad de Administración y Finanzas",
-  "909": "Dirección Operativa de Administración y Finanzas (CDMX)",
-  "922": "Dirección Operativa de Administración y Finanzas (Chichimequillas, Qro.)",
-};
-
-// Normaliza código UN (→ 5 dígitos) y devuelve "CODE (NOMBRE)" o "CODE" si no existe
-const labelUN = (code) => {
-  if (!code && code !== 0) return "—";
-  const raw = String(code).trim();
-  const padded = raw.replace(/\D/g, "").padStart(5, "0");
-  const name = UN_CATALOG[padded];
-  return name ? `${raw} (${name})` : raw;
-};
-
-// Normaliza código UA (→ 3 dígitos) y devuelve "CODE (NOMBRE)" o "CODE" si no existe
-const labelUA = (code) => {
-  if (!code && code !== 0) return "—";
-  const raw = String(code).trim();
-  const padded = raw.replace(/\D/g, "").padStart(3, "0");
-  const name = UA_CATALOG[padded];
-  return name ? `${raw} (${name})` : raw;
-};
 
 const getTodayString = () => {
   const today = new Date();
@@ -395,7 +276,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const bitacoraDateInputRef = useRef(null);
 
   const [count, setCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [searchQuery, setSearchQuery] = useState("");
@@ -421,6 +302,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   
   // Bitacora Date Selector State
   const [distinctDates, setDistinctDates] = useState([]);
+  const [distinctDatesLoading, setDistinctDatesLoading] = useState(true);
   const [bitacoraDates, setBitacoraDates] = useState([getTodayString()]);
 
   // Stats for personal movements
@@ -434,20 +316,22 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [barChartSelection, setBarChartSelection] = useState({ year: null, month: null });
 
   useEffect(() => {
+    const ctrl = new AbortController();
     setStatsLoading(true);
     const params = {};
     if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
       params.fecha_captura__in = bitacoraDates.join(",");
     }
-    VacantesService.getMovimientosPersonalStats(params)
+    VacantesService.getMovimientosPersonalStats(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
         if (resData && (resData.by_year || resData.all)) {
           setStatsData(resData);
         }
       })
-      .catch((err) => console.error("Error fetching movements stats:", err))
-      .finally(() => setStatsLoading(false));
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error fetching movements stats:", err); })
+      .finally(() => { if (!ctrl.signal.aborted) setStatsLoading(false); });
+    return () => ctrl.abort();
   }, [activeSubTab, bitacoraDates]);
 
   const activeStatsList = useMemo(() => {
@@ -490,6 +374,43 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     });
   }, [activeStatsList, pieTotal]);
 
+  // Conteo real de "motivos diferentes" por acción (reemplaza mapa hardcodeado).
+  // Se calcula bajo demanda por acción visible, cacheado por contexto de filtro (bitácora/fecha).
+  const motivosCountRef = useRef({});
+  const [motivosCountVersion, setMotivosCountVersion] = useState(0);
+
+  useEffect(() => {
+    const contextKey = activeSubTab === "bitacora" ? `bitacora:${bitacoraDates.join(",")}` : "global";
+    const namesToFetch = activeStatsList
+      .map((d) => d.accion_nombre)
+      .filter((name) => name && !(`${contextKey}|${name}` in motivosCountRef.current));
+
+    if (namesToFetch.length === 0) return;
+
+    const controller = new AbortController();
+    Promise.all(
+      namesToFetch.map((accion) => {
+        const params = { accion_nombre: accion };
+        if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+          params.fecha_captura__in = bitacoraDates.join(",");
+        }
+        return VacantesService.getMovimientosPersonalStats(params, { signal: controller.signal })
+          .then((res) => res.json())
+          .then((resData) => {
+            motivosCountRef.current[`${contextKey}|${accion}`] = (resData?.all || []).length;
+          })
+          .catch((err) => { if (err.name !== "AbortError") console.error("Error fetching motivos count:", err); });
+      })
+    ).then(() => setMotivosCountVersion((v) => v + 1));
+
+    return () => controller.abort();
+  }, [activeStatsList, activeSubTab, bitacoraDates]);
+
+  const getMotivosCount = useCallback((accion) => {
+    const contextKey = activeSubTab === "bitacora" ? `bitacora:${bitacoraDates.join(",")}` : "global";
+    return motivosCountRef.current[`${contextKey}|${accion}`];
+  }, [activeSubTab, bitacoraDates, motivosCountVersion]);
+
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [pieTooltipPos, setPieTooltipPos] = useState({ x: 0, y: 0 });
 
@@ -506,7 +427,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           if (!hasToday) dates.unshift({ value: todayStr, count: 0 });
           setDistinctDates(dates);
         }
-      });
+      })
+      .finally(() => setDistinctDatesLoading(false));
   }, []);
 
   const filters = useColumnFilters();
@@ -550,20 +472,22 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       setMotifStatsData({ by_year: {}, all: [] });
       return;
     }
+    const ctrl = new AbortController();
     setMotifStatsLoading(true);
     const params = { accion_nombre: selectedActionName };
     if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
       params.fecha_captura__in = bitacoraDates.join(",");
     }
-    VacantesService.getMovimientosPersonalStats(params)
+    VacantesService.getMovimientosPersonalStats(params, { signal: ctrl.signal })
       .then(res => res.json())
       .then(resData => {
         if (resData && (resData.by_year || resData.all)) {
           setMotifStatsData(resData);
         }
       })
-      .catch(err => console.error("Error fetching motif stats:", err))
-      .finally(() => setMotifStatsLoading(false));
+      .catch(err => { if (err.name !== "AbortError") console.error("Error fetching motif stats:", err); })
+      .finally(() => { if (!ctrl.signal.aborted) setMotifStatsLoading(false); });
+    return () => ctrl.abort();
   }, [selectedActionName, activeSubTab, bitacoraDates]);
 
   useEffect(() => {
@@ -727,6 +651,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   useEffect(() => {
     if (activeSubTab === "bitacora" && bitacoraDates.length === 0) return;
+    const ctrl = new AbortController();
     setLoading(true);
     const filterParams = getTextFilterParams(debouncedTextFilters);
     const colParams = {};
@@ -767,14 +692,15 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
     }
 
-    VacantesService.getMovimientosPersonal(params)
+    VacantesService.getMovimientosPersonal(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
         setData(resData.results || []);
         setCount(resData.count || 0);
       })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+      .catch((err) => { if (err.name !== "AbortError") console.error(err); })
+      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+    return () => ctrl.abort();
   }, [activeSubTab, bitacoraDates, page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, selectedYear, selectedMotifYear, selectedActionName, appliedAdvancedFilters]);
 
   const handleRequestSort = (key) => {
@@ -804,7 +730,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
   }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterSearchText, tempSelectedValues]);
 
-  const renderCell = ({ row, col, colIdx, actualRowIdx, isSticky, leftOffset, isSelected }) => {
+  const renderCell = useCallback(({ row, col, colIdx, actualRowIdx, isSticky, leftOffset, isSelected }) => {
     const globalRowIdx = (page - 1) * pageSize + actualRowIdx;
     const isSelectedRow = selectedCell?.rowIdx === globalRowIdx;
     let val = row[col.key];
@@ -838,7 +764,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         ) : "-"}
       </td>
     );
-  };
+  }, [page, pageSize, selectedCell]);
+
+  const handleCellContextMenu = useCallback((e, value, rect) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
+  }, []);
 
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
@@ -1599,6 +1529,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   useEffect(() => {
     if (!activeFilterDropdown) return;
+    const ctrl = new AbortController();
     setLoadingUniqueValues(true);
     const filterParams = getTextFilterParams(debouncedTextFilters);
     const colParams = {};
@@ -1635,7 +1566,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       }
     }
 
-    VacantesService.getMovimientosPersonal(params)
+    VacantesService.getMovimientosPersonal(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
         const valuesList = Array.isArray(resData) ? resData : [];
@@ -1652,8 +1583,9 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           return prevInit;
         });
       })
-      .catch((err) => console.error("Error al obtener valores únicos:", err))
-      .finally(() => setLoadingUniqueValues(false));
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error al obtener valores únicos:", err); })
+      .finally(() => { if (!ctrl.signal.aborted) setLoadingUniqueValues(false); });
+    return () => ctrl.abort();
   }, [activeFilterDropdown, debouncedFilterSearchText, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, filterDropdownTab, activeSubTab, bitacoraDates]);
 
   const applyColumnFilter = (colKey) => {
@@ -1873,8 +1805,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                       }`}
                     >
                       <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
-                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={`${slice.accion_nombre} (con ${MOTIVOS_COUNT_MAP[slice.accion_nombre] || 0} motivos diferentes)`}>
-                        {slice.accion_nombre} <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500"> (con {MOTIVOS_COUNT_MAP[slice.accion_nombre] || 0} motivos diferentes)</span>
+                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={`${slice.accion_nombre} (con ${getMotivosCount(slice.accion_nombre) ?? "…"} motivos diferentes)`}>
+                        {slice.accion_nombre} <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500"> (con {getMotivosCount(slice.accion_nombre) ?? "…"} motivos diferentes)</span>
                       </span>
                       <span className="text-[10px] font-black text-slate-500 shrink-0">
                         {formatNumber(slice.total)}
@@ -1886,7 +1818,16 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               </div>
             ) : null) : (
               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col items-center justify-center relative min-h-[224px]">
-                {temporalChartData.length === 0 ? (
+                {distinctDatesLoading ? (
+                  <div className="w-full h-full flex items-end justify-between gap-1 sm:gap-2 px-2 pb-2 animate-pulse">
+                    {[40, 65, 50, 80, 60, 90, 45, 70, 55, 85].map((h, i) => (
+                      <div key={i} className="flex flex-col items-center gap-2 flex-1 min-w-[20px] max-w-[60px]">
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-t-md" style={{ height: `${h}%` }} />
+                        <div className="h-2 w-6 bg-slate-200 dark:bg-slate-800 rounded-md" />
+                      </div>
+                    ))}
+                  </div>
+                ) : temporalChartData.length === 0 ? (
                   <div className="flex flex-col items-center justify-center text-slate-400">
                     <BarChart className="size-8 mb-2 opacity-50" />
                     <span className="text-xs font-bold uppercase tracking-wider">No hay datos temporales</span>
@@ -2306,12 +2247,12 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             activeConditionDropdown={activeConditionDropdown}
             setActiveConditionDropdown={setActiveConditionDropdown}
             selectedCell={selectedCell}
-            onSelectCell={() => {}}
-            onRowClick={() => {}}
+            onSelectCell={noop}
+            onRowClick={noop}
             isRowSelected={(idx) => selectedCell?.rowIdx === (page - 1) * pageSize + idx}
             isCellSelected={(idx, colIdx) => selectedCell?.rowIdx === (page - 1) * pageSize + idx && selectedCell?.colIdx === colIdx}
             isColSelected={(idx) => selectedCell?.colIdx === idx}
-            onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
+            onCellContextMenu={handleCellContextMenu}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
             onSort={handleRequestSort}

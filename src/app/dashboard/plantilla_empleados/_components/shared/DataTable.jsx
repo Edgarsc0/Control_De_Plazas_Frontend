@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowUpDown, Filter, X, Check, Search, Eye } from "lucide-react";
 import { getConditionLabel } from "@/utils/columnFilters";
@@ -18,6 +19,44 @@ const CONDITION_SYMBOLS = {
   contains: "*", not_contains: "!*", starts_with: "^", not_starts_with: "!^",
   ends_with: "$", not_ends_with: "!$", equals: "=", not_equals: "!=",
 };
+
+/**
+ * Fila memoizada: sólo se re-renderiza si cambian sus propias props (row, selección,
+ * columnas visibles...), no en cada `setState` no relacionado del tab padre (hover,
+ * tooltip, dropdown, etc). Requiere que `renderCell`/`onRowClick`/`onSelectCell`/
+ * `onCellContextMenu`/`onShowRecord` lleguen con identidad estable (useCallback) desde
+ * el consumidor; de lo contrario el memo se invalida en cada render igualmente.
+ */
+const TableRow = memo(function TableRow({
+  row,
+  actualRowIdx,
+  visible,
+  rowNumberOffset,
+  isRowSelected,
+  selectedColIdx,
+  renderCell,
+  onRowClick,
+  onSelectCell,
+  onCellContextMenu,
+  onShowRecord,
+}) {
+  return (
+    <tr className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)}>
+      <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
+      <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
+      {visible.map((col, colIdx, arr) => {
+        const isSticky = colIdx < 2;
+        let leftOffset = 95;
+        if (colIdx === 1) leftOffset = 95 + arr[0].width;
+        const value = row[col.key];
+        const isSelected = isRowSelected && colIdx === selectedColIdx;
+        const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
+        const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect()); };
+        return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
+      })}
+    </tr>
+  );
+});
 
 /**
  * Tabla genérica estilo Excel (sticky + resize + header de 2 filas +
@@ -58,7 +97,7 @@ const CONDITION_SYMBOLS = {
  * @param {(args: {row: Object, col: Object, colIdx: number, value: *, isSticky: boolean, leftOffset: number, isSelected: boolean, onClick: Function, onContextMenu: Function}) => JSX.Element} props.renderCell - Render del `<td>` de cada celda.
  * @returns {JSX.Element}
  */
-export default function DataTable({
+function DataTable({
   containerRef,
   tbodyRef,
   onScroll,
@@ -86,7 +125,7 @@ export default function DataTable({
   isRowSelected = (idx) => selectedCell?.row === idx,
   isCellSelected = (idx, colIdx) => selectedCell?.row === idx && selectedCell?.col === colIdx,
   isColSelected = (idx) => selectedCell?.col === idx,
-  onRowClick = (idx) => onSelectCell({ row: idx, col: selectedCell?.col ?? 0 }),
+  onRowClick: onRowClickProp,
   data = [],
   startIndex,
   endIndex,
@@ -95,8 +134,16 @@ export default function DataTable({
   getRowId = (row, i) => row.id ?? i,
   renderCell,
 }) {
-  const visible = columns.filter(c => c.visible);
+  const visible = useMemo(() => columns.filter(c => c.visible), [columns]);
   const colSpan = visible.length + 2;
+
+  // Identidad estable: si el consumidor no pasa `onRowClick`, el default no debe
+  // recrearse en cada render (invalidaría el memo de TableRow).
+  const fallbackOnRowClick = useCallback(
+    (idx) => onSelectCell({ row: idx, col: selectedCell?.col ?? 0 }),
+    [onSelectCell, selectedCell?.col]
+  );
+  const onRowClick = onRowClickProp ?? fallbackOnRowClick;
 
   return (
     <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: 'calc(100vh - 280px)' }}>
@@ -257,21 +304,27 @@ export default function DataTable({
               {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={colSpan} /></tr>}
               {data.map((row, rowIdx) => {
                 const actualRowIdx = startIndex + rowIdx;
+                const rowSelected = isRowSelected(actualRowIdx);
+                let selectedColIdx = null;
+                if (rowSelected) {
+                  const foundIdx = visible.findIndex((_, colIdx) => isCellSelected(actualRowIdx, colIdx));
+                  selectedColIdx = foundIdx === -1 ? null : foundIdx;
+                }
                 return (
-                  <tr key={getRowId(row, actualRowIdx)} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)}>
-                    <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${isRowSelected(actualRowIdx) ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
-                    <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected(actualRowIdx) ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
-                    {visible.map((col, colIdx, arr) => {
-                      const isSticky = colIdx < 2;
-                      let leftOffset = 95;
-                      if (colIdx === 1) leftOffset = 95 + arr[0].width;
-                      const value = row[col.key];
-                      const isSelected = isCellSelected(actualRowIdx, colIdx);
-                      const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
-                      const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect()); };
-                      return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
-                    })}
-                  </tr>
+                  <TableRow
+                    key={getRowId(row, actualRowIdx)}
+                    row={row}
+                    actualRowIdx={actualRowIdx}
+                    visible={visible}
+                    rowNumberOffset={rowNumberOffset}
+                    isRowSelected={rowSelected}
+                    selectedColIdx={selectedColIdx}
+                    renderCell={renderCell}
+                    onRowClick={onRowClick}
+                    onSelectCell={onSelectCell}
+                    onCellContextMenu={onCellContextMenu}
+                    onShowRecord={onShowRecord}
+                  />
                 );
               })}
               {endIndex < totalCount && <tr style={{ height: (totalCount - endIndex) * rowHeight }}><td colSpan={colSpan} /></tr>}
@@ -282,3 +335,5 @@ export default function DataTable({
     </div>
   );
 }
+
+export default memo(DataTable);

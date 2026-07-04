@@ -12,7 +12,6 @@ import {
   UserCog,
   UserMinus
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
 import PageTabBar from "@/components/ui/PageTabBar";
@@ -87,9 +86,32 @@ export default function PlantillaEmpleadosDetalle({
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
-  const cardRef = useRef(null);
+  // Refs independientes por tab: los 4 tabs con tabla densa se mantienen
+  // montados a la vez (ver comentario de `visitedTabs`), así que compartir un
+  // único cardRef causaba que React lo reasignara al último `<div ref={cardRef}>`
+  // montado en el árbol (normalmente un tab oculto con `display:none`), rompiendo
+  // el clamp de scroll de abajo (offsetTop de un nodo oculto es 0 → maxScroll 0 →
+  // el scroll saltaba siempre hasta arriba).
+  const cardRefDetalle = useRef(null);
+  const cardRefMovimientos = useRef(null);
+  const cardRefMovPersonal = useRef(null);
+  const cardRefBajas = useRef(null);
+  const activeCardRef =
+    activeTab === "detalle" ? cardRefDetalle :
+    activeTab === "movimientos" ? cardRefMovimientos :
+    activeTab === "movimientos_personal" ? cardRefMovPersonal :
+    activeTab === "bajas" ? cardRefBajas :
+    null;
   useRefreshOnZafiroUpdate();
-  const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "organigrama" || activeTab === "mapa";
+  const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa";
+
+  // Tabs con datos propios (filtros, orden, fetch en cliente) que ya se visitaron:
+  // se mantienen montados y se ocultan con CSS al cambiar de tab, en vez de
+  // desmontarse, para no perder su estado ni volver a pedir datos al backend.
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set(["detalle"]));
+  useEffect(() => {
+    setVisitedTabs((prev) => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
+  }, [activeTab]);
   // En móvil la tarjeta de header sólo aparece cuando el tab activo tiene
   // sub-controles (Agrupar/Ver); el cambio de tab principal vive en el Drawer
   // del BottomNav.
@@ -126,7 +148,7 @@ export default function PlantillaEmpleadosDetalle({
   // Window scroll clamping to prevent scrolling below the table
   useEffect(() => {
     const isTableTab = isTightLayout && activeTab !== "mapa";
-    if (!isTableTab) return;
+    if (!isTableTab || !activeCardRef) return;
 
     // El clamp es para la tabla sticky de DESKTOP. En móvil la lista de tarjetas
     // fluye en el flujo normal: aplicar el clamp ahí impide bajar la página
@@ -143,10 +165,10 @@ export default function PlantillaEmpleadosDetalle({
       : parseFloat(rawStack) || 144;
 
     const handleWindowScroll = () => {
-      if (!cardRef.current) return;
+      if (!activeCardRef.current) return;
 
       // Calculate absolute page-relative offset top
-      let el = cardRef.current;
+      let el = activeCardRef.current;
       let absoluteTop = 0;
       while (el) {
         absoluteTop += el.offsetTop;
@@ -242,77 +264,80 @@ export default function PlantillaEmpleadosDetalle({
         </div>
 
         <div className="w-full mt-2">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {activeTab === "detalle" && (
-                <PlantillaDetalleTab
-                  detalle={detalle}
-                  resumen={resumen}
+          {/* Tabs con estado propio (filtros, orden, scroll, datos por fetch de cliente):
+              se mantienen montados una vez visitados y se ocultan con CSS al salir,
+              en vez de desmontarse, para no perder su estado ni re-fetchear. */}
+          {visitedTabs.has("detalle") && (
+            <div className={activeTab === "detalle" ? "block" : "hidden"}>
+              <PlantillaDetalleTab
+                detalle={detalle}
+                resumen={resumen}
+                isPending={isPending}
+                startTransition={startTransition}
+                cardRef={cardRefDetalle}
+              />
+            </div>
+          )}
+          {visitedTabs.has("estatus") && (
+            <div className={activeTab === "estatus" ? "block" : "hidden"}>
+              <EstatusTab
+                estatusPorNivelUa={estatusPorNivelUa}
+                activeSubTab={activeEstatusSubTab}
+                detalle={detalle}
+              />
+            </div>
+          )}
+          {visitedTabs.has("movimientos") && (
+            <div className={activeTab === "movimientos" && activeMovimientosSubTab === "tabla" ? "block" : "hidden"}>
+              <MovimientosTab
+                movPosData={movPosData}
+                detalle={detalle}
+                isPending={isPending}
+                startTransition={startTransition}
+                cardRef={cardRefMovimientos}
+                onCardTitleChange={setMovCardTitle}
+              />
+            </div>
+          )}
+          {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
+            <Suspense fallback={SECONDARY_TAB_SKELETON}>
+              <CuadrosVacanciaSection
+                secondaryDataPromise={secondaryDataPromise}
+                onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
+              />
+            </Suspense>
+          )}
+          {visitedTabs.has("movimientos_personal") && (
+            <div className={activeTab === "movimientos_personal" ? "block" : "hidden"}>
+              <MovimientosPersonalTab
+                isPending={isPending}
+                startTransition={startTransition}
+                cardRef={cardRefMovPersonal}
+              />
+            </div>
+          )}
+          {visitedTabs.has("bajas") && (
+            <div className={activeTab === "bajas" ? "block" : "hidden"}>
+              <Suspense fallback={SECONDARY_TAB_SKELETON}>
+                <BajasTabSection
+                  secondaryDataPromise={secondaryDataPromise}
                   isPending={isPending}
                   startTransition={startTransition}
-                  cardRef={cardRef}
+                  cardRef={cardRefBajas}
                 />
-              )}
-              {activeTab === "estatus" && (
-                <EstatusTab
-                  estatusPorNivelUa={estatusPorNivelUa}
-                  activeSubTab={activeEstatusSubTab}
-                  detalle={detalle}
-                />
-              )}
-              {activeTab === "movimientos" && activeMovimientosSubTab === "tabla" && (
-                <MovimientosTab
-                  movPosData={movPosData}
-                  detalle={detalle}
-                  isPending={isPending}
-                  startTransition={startTransition}
-                  cardRef={cardRef}
-                  onCardTitleChange={setMovCardTitle}
-                />
-              )}
-              {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
-                <Suspense fallback={SECONDARY_TAB_SKELETON}>
-                  <CuadrosVacanciaSection
-                    secondaryDataPromise={secondaryDataPromise}
-                    onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
-                  />
-                </Suspense>
-              )}
-              {activeTab === "movimientos_personal" && (
-                <MovimientosPersonalTab
-                  isPending={isPending}
-                  startTransition={startTransition}
-                  cardRef={cardRef}
-                />
-              )}
-              {activeTab === "bajas" && (
-                <Suspense fallback={SECONDARY_TAB_SKELETON}>
-                  <BajasTabSection
-                    secondaryDataPromise={secondaryDataPromise}
-                    isPending={isPending}
-                    startTransition={startTransition}
-                    cardRef={cardRef}
-                  />
-                </Suspense>
-              )}
-              {activeTab === "mapa" && activeMapaSubTab === "nacional" && (
-                <MapaTab
-                  distribucionGeografica={distribucionGeografica}
-                />
-              )}
-              {activeTab === "mapa" && activeMapaSubTab === "caballito" && (
-                <div className="w-full h-[calc(100vh-144px)] min-h-[500px] overflow-hidden relative">
-                  <TorreCaballito3DTab />
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+              </Suspense>
+            </div>
+          )}
+          {activeTab === "mapa" && activeMapaSubTab === "nacional" && (
+            <MapaTab
+              distribucionGeografica={distribucionGeografica}
+            />
+          )}
+          {activeTab === "mapa" && activeMapaSubTab === "caballito" && (
+            <div className="w-full h-[calc(100vh-144px)] min-h-[500px] overflow-hidden relative">
+              <TorreCaballito3DTab />
+            </div>
+          )}
         </div>
       </div>
     </section>

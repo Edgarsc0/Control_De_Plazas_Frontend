@@ -463,8 +463,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         return;
       }
 
+      const toggleCtrl = new AbortController();
       setLoading(true);
-      VacantesService.getMovPosDetalle({ is_latest: "true" })
+      VacantesService.getMovPosDetalle({ is_latest: "true" }, { signal: toggleCtrl.signal })
         .then(res => res.json())
         .then(resData => {
           const rawList = extractRawList(resData);
@@ -474,9 +475,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           setCount(view.length);
           if (resData.stats) setStats(resData.stats);
         })
-        .catch(err => console.error("Error loading MovPosDetalle:", err))
+        .catch(err => { if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err); })
         .finally(() => setLoading(false));
-      return;
+      return () => toggleCtrl.abort();
     }
 
     hasFetched.current = true;
@@ -556,7 +557,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       return;
     }
 
-    VacantesService.getMovPosDetalle(params)
+    const listCtrl = new AbortController();
+    VacantesService.getMovPosDetalle(params, { signal: listCtrl.signal })
       .then(res => res.json())
       .then(resData => {
         movPosDataCacheRef.current[signature] = resData;
@@ -566,8 +568,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           setStats(resData.stats);
         }
       })
-      .catch(err => console.error("Error loading MovPosDetalle:", err))
+      .catch(err => { if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err); })
       .finally(() => setLoading(false));
+    return () => listCtrl.abort();
   }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters]);
 
   useEffect(() => {
@@ -613,7 +616,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     }
 
     setLoadingUniqueValues(true);
-    VacantesService.getMovPosDetalle(params)
+    const ctrl = new AbortController();
+    VacantesService.getMovPosDetalle(params, { signal: ctrl.signal })
       .then(res => res.json())
       .then(resData => {
         const valuesList = Array.isArray(resData) ? resData : [];
@@ -621,8 +625,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
         initTempSelected(valuesList);
       })
-      .catch(err => console.error("Error loading unique values:", err))
+      .catch(err => { if (err.name !== "AbortError") console.error("Error loading unique values:", err); })
       .finally(() => setLoadingUniqueValues(false));
+    return () => ctrl.abort();
   }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, filterSearchCondition]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [modalHistoryData, setModalHistoryData] = useState(null);
@@ -1052,7 +1057,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const endIndex = Math.min(filteredSortedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + 15);
   const paginatedData = filteredSortedData.slice(startIndex, endIndex);
 
-  const renderCell = ({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+  const renderCell = useCallback(({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
     const stickyStyle = isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {};
     if (col.key === "estado_psn") {
       const badge = MOV_STATUS_BADGE_STYLES[value] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", label: value };
@@ -1168,7 +1173,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       );
     }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (String(value))}</td>);
-  };
+  }, [isMonoColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen]);
+
+  const handleCellContextMenu = useCallback((e, value, rect) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
+  }, []);
 
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
@@ -1644,7 +1653,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             setActiveConditionDropdown={setActiveConditionDropdown}
             selectedCell={selectedCell}
             onSelectCell={setSelectedCell}
-            onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
+            onCellContextMenu={handleCellContextMenu}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
             onSort={handleSort}

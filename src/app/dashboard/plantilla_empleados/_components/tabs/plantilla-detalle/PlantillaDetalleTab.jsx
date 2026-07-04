@@ -466,11 +466,31 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     };
   }, [activeFilterDropdown, isColumnsModalOpen]);
 
-  const filteredSortedData = useMemo(() => {
-    let result = detalle.filter(row => {
+  // Índice de búsqueda precomputado por fila: un solo string en minúsculas por fila,
+  // calculado una vez cuando cambia `detalle` (no en cada tecla de la búsqueda global).
+  // Antes se hacía Object.entries + toLowerCase de las 70+ columnas de cada fila en
+  // cada pulsación; ahora es una búsqueda O(1) sobre un blob ya normalizado.
+  const searchIndex = useMemo(() => {
+    const map = new Map();
+    detalle.forEach((row) => {
+      const blob = Object.entries(row)
+        .map(([key, val]) => (key === "estado_nomina" ? mapEstadoNomina(val) : String(val || "")))
+        .join(" ")
+        .toLowerCase();
+      map.set(row, blob);
+    });
+    return map;
+  }, [detalle]);
+
+  // Filtro y orden se memoizan por separado: cambiar sólo el orden (click en encabezado)
+  // no debe re-ejecutar todo el pipeline de filtros (búsqueda global, columnas, texto,
+  // filtros avanzados), sólo re-ordenar el resultado ya filtrado.
+  const filteredData = useMemo(() => {
+    return detalle.filter(row => {
       if (deferredGlobalSearch) {
         const searchText = deferredGlobalSearch.toLowerCase();
-        if (!Object.entries(row).some(([key, val]) => (key === "estado_nomina" ? mapEstadoNomina(val) : String(val || "")).toLowerCase().includes(searchText))) return false;
+        const blob = searchIndex.get(row) || "";
+        if (!blob.includes(searchText)) return false;
       }
       for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
         if (!selectedVals.includes(colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim())) return false;
@@ -479,11 +499,11 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
         const searchText = filterObj.value;
         const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
-        
+
         const val = colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "");
         const lowerVal = val.toLowerCase().trim();
         const lowerSearch = searchText.toLowerCase().trim();
-        
+
         switch (condition) {
           case "contains":
             if (!lowerVal.includes(lowerSearch)) return false;
@@ -516,18 +536,21 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return false;
       return true;
     });
-    if (sortConfig.key && sortConfig.direction) {
-      const { key, direction } = sortConfig;
-      result.sort((a, b) => {
-        let valA = key === "estado_nomina" ? mapEstadoNomina(a[key]) : String(a[key] || "").trim();
-        let valB = key === "estado_nomina" ? mapEstadoNomina(b[key]) : String(b[key] || "").trim();
-        const numA = Number(valA), numB = Number(valB);
-        if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;
-        return direction === "asc" ? valA.localeCompare(valB, undefined, { numeric: true }) : valB.localeCompare(valA, undefined, { numeric: true });
-      });
-    }
+  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
+
+  const filteredSortedData = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return filteredData;
+    const { key, direction } = sortConfig;
+    const result = [...filteredData];
+    result.sort((a, b) => {
+      let valA = key === "estado_nomina" ? mapEstadoNomina(a[key]) : String(a[key] || "").trim();
+      let valB = key === "estado_nomina" ? mapEstadoNomina(b[key]) : String(b[key] || "").trim();
+      const numA = Number(valA), numB = Number(valB);
+      if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;
+      return direction === "asc" ? valA.localeCompare(valB, undefined, { numeric: true }) : valB.localeCompare(valA, undefined, { numeric: true });
+    });
     return result;
-  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
+  }, [filteredData, sortConfig]);
 
 
   const filterDropdownValues = useMemo(() => {
@@ -539,7 +562,8 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       detalle.forEach(row => {
         if (deferredGlobalSearch) {
           const searchText = deferredGlobalSearch.toLowerCase();
-          if (!Object.entries(row).some(([key, val]) => (key === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(val) : String(val || "")).toLowerCase().includes(searchText))) return;
+          const blob = searchIndex.get(row) || "";
+          if (!blob.includes(searchText)) return;
         }
         for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
           if (colKey === activeFilterDropdown) continue;
@@ -577,52 +601,64 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
     return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
-  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
+  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, searchIndex]);
 
   const rowHeight = 37, containerHeight = 1200;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
   const endIndex = Math.min(filteredSortedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + 15);
   const paginatedData = filteredSortedData.slice(startIndex, endIndex);
 
-  const renderCell = ({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+  const renderCell = useCallback(({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
     const stickyStyle = isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {};
     if (col.key === "estado_nomina") {
       const est = mapEstadoNomina(value), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
       return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span></td>);
     }
     return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}</td>);
-  };
+  }, [isMonoColumn]);
+
+  const handleCellContextMenu = useCallback((e, value, rect) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
+  }, []);
+  // Refs actualizadas sin re-suscribir el listener global de teclado (ver más abajo):
+  // antes el efecto dependía de [columns, filteredSortedData], así que se removía y
+  // re-agregaba en cada tecla de búsqueda (cualquier cambio en los datos filtrados).
+  const columnsRef = useRef(columns);
+  useEffect(() => { columnsRef.current = columns; }, [columns]);
+  const filteredSortedDataRef = useRef(filteredSortedData);
+  useEffect(() => { filteredSortedDataRef.current = filteredSortedData; }, [filteredSortedData]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      
+
       if (!e.key.startsWith('Arrow')) {
         if (e.key === 'Escape') setContextMenu(null);
         return;
       }
-      
+
       e.preventDefault();
-      
+
       if (e.repeat) {
         arrowRepeatRef.current += 1;
       } else {
         arrowRepeatRef.current = 1;
       }
-      
+
       let step = 1;
       if (arrowRepeatRef.current > 5) step = 2;
       if (arrowRepeatRef.current > 12) step = 5;
       if (arrowRepeatRef.current > 20) step = 10;
       if (arrowRepeatRef.current > 35) step = 20;
-      
-      const visibleCols = columns.filter(c => c.visible).length;
-      
+
+      const visibleCols = columnsRef.current.filter(c => c.visible).length;
+
       setSelectedCell(prev => {
         if (!prev) return prev; // Do nothing if no cell is selected
         let newRow = prev.row;
         let newCol = prev.col;
         if (e.key === 'ArrowUp') newRow = Math.max(0, prev.row - step);
-        if (e.key === 'ArrowDown') newRow = Math.min(filteredSortedData.length - 1, prev.row + step);
+        if (e.key === 'ArrowDown') newRow = Math.min(filteredSortedDataRef.current.length - 1, prev.row + step);
         if (e.key === 'ArrowLeft') newCol = Math.max(0, prev.col - step);
         if (e.key === 'ArrowRight') newCol = Math.min(visibleCols - 1, prev.col + step);
         return { row: newRow, col: newCol };
@@ -641,7 +677,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [columns, filteredSortedData]);
+  }, []);
 
 
   const handleExportExcel = async () => {
@@ -956,7 +992,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
             setActiveConditionDropdown={setActiveConditionDropdown}
             selectedCell={selectedCell}
             onSelectCell={setSelectedCell}
-            onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
+            onCellContextMenu={handleCellContextMenu}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
             onSort={handleSort}

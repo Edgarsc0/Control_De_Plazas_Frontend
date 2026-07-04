@@ -93,9 +93,14 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
         <div className="fixed top-36 inset-x-0 z-30 hidden sm:flex justify-center">
             <div
                 ref={barRef}
-                className="flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm [&::-webkit-scrollbar]:hidden"
+                className="relative flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none [&::-webkit-scrollbar]:hidden"
                 style={{ scrollbarWidth: 'none' }}
             >
+                {/* Fondo con blur aislado en capa propia: si comparte elemento con
+                    el pill animado, Chrome/Firefox recalculan el backdrop-filter en
+                    cada frame del spring aunque el pill sólo use transform, causando
+                    la traba visible. Separado, el fondo no repinta durante la animación. */}
+                <div className="absolute inset-0 -z-10 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm" aria-hidden="true" />
                 {tabs.map((tab) => {
                     const subtabConfig = subtabConfigs[tab.id];
                     const isActive = activeTab === tab.id;
@@ -130,8 +135,8 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
                                 {isActive && (
                                     <motion.div
                                         layoutId={layoutId}
-                                        className="absolute inset-0 -z-10 rounded-lg bg-gradient-to-br from-[#621f32] to-[#8d2c48] shadow-md shadow-[#621f32]/25"
-                                        transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                                        className="absolute inset-0 -z-10 rounded-lg bg-gradient-to-br from-[#621f32] to-[#8d2c48] shadow-sm shadow-[#621f32]/15"
+                                        transition={{ type: 'tween', duration: 0.25, ease: 'easeOut' }}
                                     />
                                 )}
                                 {Icon && <Icon className="size-[15px] flex-shrink-0" />}

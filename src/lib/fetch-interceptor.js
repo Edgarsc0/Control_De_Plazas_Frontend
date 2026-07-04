@@ -37,8 +37,13 @@ export const apiFetch = async (endpoint, options = {}) => {
         headers['Authorization'] = `Token ${token}`;
     }
 
+    // Next.js no permite combinar `cache: 'no-store'` con `next.revalidate`.
+    // Si el caller pide revalidación explícita, respetamos esa estrategia de caché
+    // en vez de forzar no-store por defecto.
+    const defaultCache = options.next || options.cache ? {} : { cache: 'no-store' };
+
     const response = await fetch(`${API_BASE_URL}/api${endpoint}`, {
-        cache: 'no-store',
+        ...defaultCache,
         ...options,
         headers,
     });
