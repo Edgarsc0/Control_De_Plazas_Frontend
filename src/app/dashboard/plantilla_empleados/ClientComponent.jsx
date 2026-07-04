@@ -104,7 +104,7 @@ export default function PlantillaEmpleadosDetalle({
     activeTab === "bajas" ? cardRefBajas :
     null;
   useRefreshOnZafiroUpdate();
-  const isTightLayout = activeTab === "detalle" || activeTab === "movimientos" || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa";
+  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab === "tabla") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa";
 
   // Tabs con datos propios (filtros, orden, fetch en cliente) que ya se visitaron:
   // se mantienen montados y se ocultan con CSS al cambiar de tab, en vez de
