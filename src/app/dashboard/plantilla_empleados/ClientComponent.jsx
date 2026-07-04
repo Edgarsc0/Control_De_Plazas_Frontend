@@ -94,11 +94,12 @@ export default function PlantillaEmpleadosDetalle({
   // el scroll saltaba siempre hasta arriba).
   const cardRefDetalle = useRef(null);
   const cardRefMovimientos = useRef(null);
+  const cardRefCuadros = useRef(null);
   const cardRefMovPersonal = useRef(null);
   const cardRefBajas = useRef(null);
   const activeCardRef =
     activeTab === "detalle" ? cardRefDetalle :
-    activeTab === "movimientos" ? cardRefMovimientos :
+    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : cardRefMovimientos) :
     activeTab === "movimientos_personal" ? cardRefMovPersonal :
     activeTab === "bajas" ? cardRefBajas :
     null;
@@ -185,7 +186,7 @@ export default function PlantillaEmpleadosDetalle({
     return () => {
       window.removeEventListener("scroll", handleWindowScroll);
     };
-  }, [activeTab]);
+  }, [activeTab, activeMovimientosSubTab]);
 
   const subtabConfigs = {
     estatus: {
@@ -300,12 +301,14 @@ export default function PlantillaEmpleadosDetalle({
             </div>
           )}
           {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
-            <Suspense fallback={SECONDARY_TAB_SKELETON}>
-              <CuadrosVacanciaSection
-                secondaryDataPromise={secondaryDataPromise}
-                onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
-              />
-            </Suspense>
+            <div ref={cardRefCuadros}>
+              <Suspense fallback={SECONDARY_TAB_SKELETON}>
+                <CuadrosVacanciaSection
+                  secondaryDataPromise={secondaryDataPromise}
+                  onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
+                />
+              </Suspense>
+            </div>
           )}
           {visitedTabs.has("movimientos_personal") && (
             <div className={activeTab === "movimientos_personal" ? "block" : "hidden"}>
