@@ -752,7 +752,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setTimelineModalOpen(true); }
           else { setSelectedCell({ rowIdx: globalRowIdx, colIdx, colName: col.label, value: val }); }
         }}
-        onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleCellContextMenu(e, val, e.currentTarget.getBoundingClientRect()); }}
       >
         {val ? (
           (col.key === "posicion" || col.key === "num_empleado") ? (
