@@ -157,8 +157,13 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
                             transition={{ duration: 0.15 }}
                             onMouseEnter={() => openDropdown(openSubtabId)}
                             onMouseLeave={closeDropdown}
-                            style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                            className="p-1.5 rounded-lg bg-white/95 backdrop-blur-md border border-slate-200/70 shadow-xl shadow-slate-900/10 z-[60]"
+                            style={{
+                                position: 'fixed',
+                                top: dropdownPos.top,
+                                left: dropdownPos.left,
+                                minWidth: Math.max(200, dropdownPos.width)
+                            }}
+                            className="p-1 rounded-xl bg-white/98 backdrop-blur-md border border-slate-200/60 shadow-[0_12px_36px_rgba(98,31,50,0.08),0_4px_12px_rgba(0,0,0,0.03)] z-[60]"
                         >
                             {subtabConfigs[openSubtabId].options.map((sub) => {
                                 const SubIcon = sub.icon;
@@ -171,13 +176,19 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
                                             subtabConfigs[openSubtabId].setActive(sub.id);
                                             closeDropdownNow();
                                         }}
-                                        className={`w-full text-left flex items-center gap-2 px-3.5 py-2.5 rounded-md text-xs font-bold transition-colors duration-150 cursor-pointer whitespace-nowrap ${
+                                        className={`w-full text-left flex items-center gap-2.5 px-3.5 py-2 rounded-lg text-[13px] font-bold transition-all duration-200 cursor-pointer whitespace-nowrap ${
                                             isSubActive
-                                                ? 'bg-gradient-to-r from-[#bc955c] to-[#d0ab75] text-[#3e131f]'
+                                                ? 'bg-[#8d2c48]/12 text-[#621f32] shadow-sm shadow-[#8d2c48]/5'
                                                 : 'text-slate-600 hover:bg-slate-50 hover:text-[#621f32]'
                                         }`}
                                     >
-                                        {SubIcon && <SubIcon className="size-3.5 shrink-0" />}
+                                        {SubIcon && (
+                                            <SubIcon
+                                                className={`size-3.5 shrink-0 transition-transform duration-200 ${
+                                                    isSubActive ? 'scale-105 text-[#621f32]' : 'text-slate-400'
+                                                    }`}
+                                            />
+                                        )}
                                         {sub.label}
                                     </button>
                                 );

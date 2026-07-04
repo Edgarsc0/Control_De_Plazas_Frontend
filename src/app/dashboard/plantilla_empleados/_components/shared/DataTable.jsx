@@ -38,7 +38,7 @@ const CONDITION_SYMBOLS = {
  * @param {Function} props.setActiveConditionDropdown - Setter del anterior.
  * @param {?{row: number, col: number}} props.selectedCell - Celda seleccionada.
  * @param {(cell: {row: number, col: number}) => void} props.onSelectCell - Selecciona celda.
- * @param {(event: MouseEvent, row: Object) => void} props.onRowContextMenu - Menú contextual de fila.
+ * @param {(event: MouseEvent, value: *, rect: DOMRect) => void} props.onCellContextMenu - Click derecho sobre celda (menú "copiar valor"); rect posiciona el resaltado punteado.
  * @param {(row: Object) => void} props.onShowRecord - Abre el expediente de la fila (botón VER).
  * @param {{key: ?string, direction: ?string}} props.sortConfig - Estado de orden.
  * @param {(key: string) => void} props.onSort - Alterna orden por columna.
@@ -70,7 +70,7 @@ export default function DataTable({
   setActiveConditionDropdown,
   selectedCell,
   onSelectCell,
-  onRowContextMenu,
+  onCellContextMenu,
   onShowRecord,
   sortConfig,
   onSort,
@@ -258,7 +258,7 @@ export default function DataTable({
               {data.map((row, rowIdx) => {
                 const actualRowIdx = startIndex + rowIdx;
                 return (
-                  <tr key={getRowId(row, actualRowIdx)} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)} onContextMenu={(e) => { e.preventDefault(); onRowContextMenu(e, row); }}>
+                  <tr key={getRowId(row, actualRowIdx)} className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)}>
                     <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${isRowSelected(actualRowIdx) ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
                     <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected(actualRowIdx) ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
                     {visible.map((col, colIdx, arr) => {
@@ -268,7 +268,7 @@ export default function DataTable({
                       const value = row[col.key];
                       const isSelected = isCellSelected(actualRowIdx, colIdx);
                       const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
-                      const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onRowContextMenu(e, row); };
+                      const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect()); };
                       return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
                     })}
                   </tr>

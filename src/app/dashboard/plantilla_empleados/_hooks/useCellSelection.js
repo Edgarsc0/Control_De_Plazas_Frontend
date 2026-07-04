@@ -7,11 +7,11 @@ import { useState, useCallback } from 'react';
  *   selectedCell: ({row: number, col: number}|null),
  *   selectedRowData: (Object|null),
  *   isCellModalOpen: boolean,
- *   contextMenu: ({x: number, y: number, row: Object}|null),
+ *   contextMenu: ({x: number, y: number, value: *, rect: ?DOMRect}|null),
  *   selectCell: (cell: {row: number, col: number}) => void,
  *   openCellModal: (cell: {row: number, col: number}, rowData: Object) => void,
  *   closeCellModal: () => void,
- *   openContextMenu: (event: MouseEvent, row: Object) => void,
+ *   openContextMenu: (event: MouseEvent, value: *, rect: ?DOMRect) => void,
  *   closeContextMenu: () => void
  * }}
  */
@@ -31,9 +31,9 @@ export function useCellSelection() {
 
   const closeCellModal = useCallback(() => setIsCellModalOpen(false), []);
 
-  const openContextMenu = useCallback((event, row) => {
+  const openContextMenu = useCallback((event, value, rect) => {
     event.preventDefault();
-    setContextMenu({ x: event.clientX, y: event.clientY, row });
+    setContextMenu({ x: event.clientX, y: event.clientY, value, rect });
   }, []);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);

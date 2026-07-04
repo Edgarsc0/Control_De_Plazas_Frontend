@@ -19,8 +19,11 @@ export default function PlantillaEmpleadosSkeleton() {
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
       {/* Barra de tabs fija: pill flotante centrada, igual layout que PageTabBar */}
-      <div className="fixed top-36 inset-x-0 z-30 hidden sm:flex justify-center px-4">
-        <div className="flex items-center justify-between gap-1 p-1.5 w-full max-w-full overflow-x-auto rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/70 shadow-lg shadow-slate-900/[0.06]">
+      <div className="fixed top-36 inset-x-0 z-30 hidden sm:flex justify-center">
+        <div
+          className="flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm [&::-webkit-scrollbar]:hidden"
+          style={{ scrollbarWidth: 'none' }}
+        >
           {TABS.map((tab) => {
             const subtabConfig = {
               estatus: true,
@@ -31,14 +34,16 @@ export default function PlantillaEmpleadosSkeleton() {
             return (
               <div key={tab.id} className="relative flex-1">
                 <div
-                  className={`relative flex w-full items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-lg ${isActive
-                    ? "bg-gradient-to-br from-[#621f32] to-[#8d2c48] shadow-md shadow-[#621f32]/25"
-                    : ""
-                    }`}
+                  className="relative flex w-full items-center justify-center gap-1.5 whitespace-nowrap px-4 py-1.5 rounded-lg text-[13px] font-bold"
                 >
+                  {isActive && (
+                    <div
+                      className="absolute inset-0 -z-10 rounded-lg bg-gradient-to-br from-[#621f32] to-[#8d2c48] shadow-md shadow-[#621f32]/25"
+                    />
+                  )}
                   {/* Icon placeholder */}
                   <div
-                    className="skeleton-box size-3.5 flex-shrink-0 rounded"
+                    className="skeleton-box size-[15px] flex-shrink-0 rounded"
                     style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
                   />
 
@@ -47,7 +52,7 @@ export default function PlantillaEmpleadosSkeleton() {
                     className="skeleton-box rounded px-1"
                     style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
                   >
-                    <span className="opacity-0 text-xs font-bold">
+                    <span className="opacity-0 text-[13px] font-bold">
                       {tab.label}
                     </span>
                   </div>
@@ -55,7 +60,7 @@ export default function PlantillaEmpleadosSkeleton() {
                   {/* Chevron placeholder */}
                   {subtabConfig && (
                     <div
-                      className="skeleton-box size-3 flex-shrink-0 rounded-sm"
+                      className="skeleton-box size-[13px] flex-shrink-0 rounded-sm"
                       style={isActive ? { backgroundColor: 'rgba(255, 255, 255, 0.25)' } : undefined}
                     />
                   )}

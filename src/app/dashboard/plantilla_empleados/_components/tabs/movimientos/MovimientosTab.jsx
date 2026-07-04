@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
-  Calendar, Hash, User, Info,
+  Calendar, Hash, User, Info, AlertTriangle, MousePointerClick,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
@@ -16,6 +16,7 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import CopyCellMenu from "../../shared/CopyCellMenu";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -30,6 +31,16 @@ const CATEGORIA_VACANCIA_TOOLTIP = {
   A: "Posición vacante porque empleado que la ocupaba causó baja",
   B: "Posición vacante porque empleado que la ocupaba cambió a otra posición, vacancia = fecha en que tomó esa nueva posición",
   C: "Posición vacante porque jamás tuvo ocupante, vacancia = fecha creación posición",
+};
+
+const TUVO_INSUBSISTENCIA_TOOLTIP = {
+  S: "La fecha de vacancia ignoró una Insubsistencia (Nombramiento o Contrato HH) y, si la acompañaba, su Contratación/Recontratación, recalculando con el movimiento válido siguiente",
+  N: "La fecha de vacancia se calculó sin encontrar insubsistencias en el historial de la posición",
+};
+
+const TUVO_INSUBSISTENCIA_BADGE = {
+  S: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", label: "Sí" },
+  N: { bg: "bg-slate-100 dark:bg-slate-800/60", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200/60 dark:border-slate-700", label: "No" },
 };
 
 const VACANCIA_CATEGORIA_STYLE = {
@@ -111,7 +122,7 @@ const ALL_MOV_KEYS = [
   "partida_ptal", "gp_pago", "prog_beneficios", "fecha_captura", "fh_ult_actz", "por",
   "hr_estd_semn", "descr", "gp_trabajo", "org_code", "grupo_cd_sal", "formal_desc", 
   "pto_compt", "posn_clv", "presupuesto", "nombre_puesto", "fecha_vacancia",
-  "categoria_vacancia",
+  "categoria_vacancia", "tuvo_insubsistencia",
 ];
 
 const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia"];
@@ -126,7 +137,7 @@ const isServerSafeSearchCondition = (condition) => ["contains", "starts_with", "
 const EMPTY_VALUE_TOKEN = "__EMPTY__";
 const encodeFilterValues = (values) => values.map(v => (v === "" ? EMPTY_VALUE_TOKEN : v)).join(",");
 
-export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef }) {
+export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef, onCardTitleChange }) {
   const [movPosData, setMovPosData] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]));
 
   // Cache del set completo (sin filtro de estado, is_latest=true) que el backend
@@ -148,6 +159,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
     { key: "categoria_vacancia", label: "Categoría Vacancia", width: 180, visible: true, isBasic: true },
+    { key: "tuvo_insubsistencia", label: "Tuvo Insubsistencia", width: 160, visible: true, isBasic: true },
     { key: "estado_psn", label: "Estado (A/I)", width: 110, visible: true, isBasic: true },
     { key: "f_efva", label: "Fecha Efectiva", width: 130, visible: true, isBasic: true },
     { key: "cd_motivo", label: "Cod. Motivo", width: 120, visible: true, isBasic: true },
@@ -237,6 +249,153 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       posiciones_inactivas: 0
     };
   });
+
+  const activeStatusFilter = columnFilters["estado_psn"] || [];
+  const isLatestFilter = columnFilters.is_latest?.includes("true");
+
+  const [hoveredSlice, setHoveredSlice] = useState(null);
+
+  const donutData = useMemo(() => {
+    const total = stats.todas_posiciones || (stats.posiciones_activas + stats.posiciones_inactivas) || 1;
+    const slices = [
+      { label: "Activo", count: stats.posiciones_activas || 0, color: "#621f32", key: "A" },
+      { label: "Inactivo", count: stats.posiciones_inactivas || 0, color: "#dc2626", key: "I" },
+    ];
+    let cumulativePercent = 0;
+    return slices.map(slice => {
+      const percent = slice.count / total, startPercent = cumulativePercent;
+      cumulativePercent += percent;
+      const endPercent = cumulativePercent;
+      const getCoords = (p) => { const angle = 2 * Math.PI * p - Math.PI / 2; return [Math.cos(angle), Math.sin(angle)]; };
+      const [startX, startY] = getCoords(startPercent), [endX, endY] = getCoords(endPercent);
+      const largeArc = percent > 0.5 ? 1 : 0;
+      return { ...slice, percent, pathData: `M ${startX.toFixed(8)} ${startY.toFixed(8)} A 1 1 0 ${largeArc} 1 ${endX.toFixed(8)} ${endY.toFixed(8)} L 0 0 Z` };
+    });
+  }, [stats]);
+
+  const activeHoverData = hoveredSlice !== null ? donutData[hoveredSlice] : null;
+
+  const handleTabCardClick = (type) => {
+    if (type === "A") {
+      startTransition(() => {
+        const newF = { ...columnFilters };
+        newF.estado_psn = ["A"];
+        newF.is_latest = ["true"];
+        delete newF.ocupacion;
+        setColumnFilters(newF);
+        setScrollTop(0);
+      });
+    } else if (type === "I") {
+      startTransition(() => {
+        const newF = { ...columnFilters };
+        newF.estado_psn = ["I"];
+        newF.is_latest = ["true"];
+        delete newF.ocupacion;
+        setColumnFilters(newF);
+        setScrollTop(0);
+      });
+    } else if (type === "Todas") {
+      startTransition(() => {
+        const newF = { ...columnFilters };
+        delete newF.estado_psn;
+        newF.is_latest = ["true"];
+        delete newF.ocupacion;
+        setColumnFilters(newF);
+        setSortConfig({ key: null, direction: null });
+        setScrollTop(0);
+      });
+    } else if (type === "Movimientos") {
+      setLoading(true);
+      startTransition(() => {
+        const newF = { ...columnFilters };
+        delete newF.estado_psn;
+        delete newF.is_latest;
+        delete newF.ocupacion;
+        setColumnFilters(newF);
+        setSortConfig({ key: "custom_movimientos", direction: "desc" });
+        setScrollTop(0);
+      });
+    }
+  };
+
+  const activeOcupacionFilter = columnFilters["ocupacion"]?.length === 1 ? columnFilters["ocupacion"][0] : null;
+
+  const handleOcupacionFilter = (e, value) => {
+    e.stopPropagation();
+    setLoading(true);
+    startTransition(() => {
+      const newF = { ...columnFilters, estado_psn: ["A"], is_latest: ["true"] };
+      if (activeOcupacionFilter === value) {
+        delete newF.ocupacion;
+      } else {
+        newF.ocupacion = [value];
+      }
+      setColumnFilters(newF);
+      setScrollTop(0);
+    });
+  };
+
+  const cardData = useMemo(() => {
+    const total = stats.todas_posiciones || 1;
+    return [
+      {
+        key: "A",
+        label: "Posiciones Activas",
+        count: stats.posiciones_activas,
+        percent: stats.posiciones_activas / total,
+        color: "#621f32",
+        icon: CheckCircle2,
+        isActive: activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && isLatestFilter,
+        onClick: () => handleTabCardClick("A"),
+        hoverIndex: 0,
+      },
+      {
+        key: "I",
+        label: "Posiciones Inactivas",
+        count: stats.posiciones_inactivas,
+        percent: stats.posiciones_inactivas / total,
+        color: "#dc2626",
+        icon: XCircle,
+        isActive: activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && isLatestFilter,
+        onClick: () => handleTabCardClick("I"),
+        hoverIndex: 1,
+      },
+      {
+        key: "Todas",
+        label: "Todas las Posiciones",
+        count: stats.todas_posiciones,
+        percent: 1.0,
+        color: "#059669",
+        icon: Layers,
+        isActive: activeStatusFilter.length === 0 && isLatestFilter,
+        onClick: () => handleTabCardClick("Todas"),
+        hoverIndex: null,
+      },
+      {
+        key: "Movimientos",
+        label: "Mov. de Posiciones",
+        count: stats.total_movimientos,
+        percent: null,
+        color: "#4f46e5",
+        icon: Activity,
+        isActive: !isLatestFilter,
+        onClick: () => handleTabCardClick("Movimientos"),
+        hoverIndex: null,
+      }
+    ];
+  }, [stats, activeStatusFilter, isLatestFilter]);
+
+  const isAnyCardActive = useMemo(() => cardData.some(c => c.isActive), [cardData]);
+
+  const activeCard = useMemo(() => {
+    return cardData.find(c => c.isActive);
+  }, [cardData]);
+
+  useEffect(() => {
+    if (onCardTitleChange && activeCard) {
+      onCardTitleChange(activeCard.label);
+    }
+  }, [activeCard, onCardTitleChange]);
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
@@ -705,10 +864,23 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     setLoading(true);
     resetAdvancedFilters();
     startTransition(() => {
-      setColumnFilters({});
+      const newFilters = {};
+      if (columnFilters.estado_psn) {
+        newFilters.estado_psn = columnFilters.estado_psn;
+      }
+      if (columnFilters.is_latest) {
+        newFilters.is_latest = columnFilters.is_latest;
+      }
+      setColumnFilters(newFilters);
       setTextFilters({});
       setGlobalSearch("");
-      setSortConfig({ key: null, direction: null });
+      
+      const isLatest = columnFilters.is_latest?.includes("true");
+      if (!isLatest) {
+        setSortConfig({ key: "custom_movimientos", direction: "desc" });
+      } else {
+        setSortConfig({ key: null, direction: null });
+      }
     });
   };
 
@@ -802,32 +974,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     selectedRowData
   ]);
 
-  // Adjust ContextMenu position to prevent clipping
-  useEffect(() => {
-    if (contextMenu) {
-      const menuWidth = 256; // estimated w-64
-      const menuHeight = 280; // estimated height
-      const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-      const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-
-      let { x, y } = contextMenu;
-      let adjusted = false;
-
-      if (x + menuWidth > windowWidth) {
-        x = windowWidth - menuWidth - 16;
-        adjusted = true;
-      }
-      if (y + menuHeight > windowHeight) {
-        y = windowHeight - menuHeight - 16;
-        adjusted = true;
-      }
-
-      if (adjusted) {
-        setContextMenu({ ...contextMenu, x, y });
-      }
-    }
-  }, [contextMenu]);
-
   const filteredSortedData = movPosData;
 
   const filterDropdownValues = useMemo(() => {
@@ -900,7 +1046,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return () => { active = false; };
   }, [isVacanciaModalOpen, vacanciaRowId]);
 
-  const isLatestFilter = columnFilters.is_latest?.includes("true");
   const rowHeight = 37, containerHeight = 800;
   const totalPages = isLatestFilter ? 1 : (Math.ceil(count / pageSize) || 1);
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
@@ -919,7 +1064,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
-      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{hasValue ? String(value) : <span className="text-slate-300">-</span>}</td>);
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{hasValue ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>}</td>);
     }
     if (col.key === "categoria_vacancia") {
       const cat = value ? String(value).trim().toUpperCase() : "";
@@ -938,7 +1083,91 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         </Tooltip>
       );
     }
-    return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : col.key === "ocupacion" ? (<div className="flex items-center">{value && (<span className={`inline-flex flex-shrink-0 items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase leading-none shadow-sm ${value === 'Ocupada' ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>{value}</span>)}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span></div>) : (String(value))}</td>);
+    if (col.key === "tuvo_insubsistencia") {
+      const key = value ? String(value).trim().toUpperCase() : "N";
+      const badge = TUVO_INSUBSISTENCIA_BADGE[key] || TUVO_INSUBSISTENCIA_BADGE.N;
+      const tooltipText = TUVO_INSUBSISTENCIA_TOOLTIP[key];
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} cursor-help ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}>{badge.label}</span>;
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipText}</TooltipContent>
+        </Tooltip>
+      );
+    }
+    if (col.key === "ocupacion") {
+      const isOcupada = value === "Ocupada";
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${
+        isSelected
+          ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]"
+          : isSticky
+          ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
+          : "bg-white/10 text-slate-700 dark:text-slate-300"
+      } font-semibold ${isOcupada ? "cursor-help" : ""} ${
+        isSticky ? "shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]" : ""
+      }`;
+      const badge = value && (
+        <span
+          className={`inline-flex flex-shrink-0 items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase leading-none shadow-sm ${
+            isOcupada
+              ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
+              : "bg-slate-100 text-slate-500 border border-slate-200"
+          }`}
+        >
+          {value}
+        </span>
+      );
+      const content = <div className="flex items-center">{badge}</div>;
+
+      if (isOcupada && (row.ocupante_id || row.ocupante_nombre)) {
+        return (
+          <Tooltip key={col.key}>
+            <TooltipTrigger asChild>
+              <td
+                style={stickyStyle}
+                onContextMenu={onContextMenu}
+                onClick={handleCellClick}
+                className={tdClassName}
+              >
+                {content}
+              </td>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="bg-slate-900 dark:bg-slate-800 text-slate-100 dark:text-slate-100 border border-slate-700/60 p-2.5 rounded-lg shadow-xl z-50 text-xs flex flex-col gap-1 min-w-[240px] max-w-[360px] w-max"
+            >
+              <div className="font-bold border-b border-slate-800 pb-1 mb-1 text-emerald-400">
+                Ocupante de la Plaza
+              </div>
+              <div className="flex justify-between gap-4 items-center">
+                <span className="text-slate-400 font-medium">No. Empleado:</span>
+                <span className="font-mono font-bold">{row.ocupante_id || "N/A"}</span>
+              </div>
+              <div className="mt-0.5 leading-relaxed break-words">
+                <span className="text-slate-400 font-medium">Nombre: </span>
+                <span className="font-bold">{row.ocupante_nombre || "N/A"}</span>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        );
+      }
+
+      return (
+        <td
+          key={col.key}
+          style={stickyStyle}
+          onContextMenu={onContextMenu}
+          onClick={handleCellClick}
+          className={tdClassName}
+        >
+          {content}
+        </td>
+      );
+    }
+    return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (String(value))}</td>);
   };
 
   const handleExportExcel = async () => {
@@ -1003,8 +1232,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       setIsExportingExcel(false);
     }
   };
-
-  const activeStatusFilter = columnFilters["estado_psn"] || [];
 
 
   // Auto-scroll when navigating with keyboard
@@ -1090,54 +1317,207 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [filteredSortedData, columns]);
+
+  const canReset = useMemo(() => {
+    const isLatest = columnFilters.is_latest?.includes("true");
+    const defaultSortKey = isLatest ? null : "custom_movimientos";
+    const defaultSortDir = isLatest ? null : "desc";
+    const hasActiveSort = sortConfig.key !== defaultSortKey || (sortConfig.key && sortConfig.direction !== defaultSortDir);
+    const hasColumnFilters = Object.keys(columnFilters).some(k => k !== "estado_psn" && k !== "is_latest");
+    const hasTextFilters = Object.values(textFilters).some(v => v && v.value);
+    const hasAdvancedFilters = appliedAdvancedFilters.length > 0;
+    const hasGlobalSearch = !!globalSearch;
+    return hasGlobalSearch || hasColumnFilters || hasTextFilters || hasAdvancedFilters || hasActiveSort;
+  }, [columnFilters, sortConfig, textFilters, appliedAdvancedFilters, globalSearch]);
+
   return (
     <TooltipProvider delayDuration={150}>
     <div className="w-full flex flex-col">
       <div className="w-full px-4 lg:px-6 pt-2">
         <Zoom triggerOnce>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6 items-stretch w-full max-w-6xl mx-auto">
-            <div onClick={() => { startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["A"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-[#621f32]"}`} />
-              <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]"}`}>
-                  <CheckCircle2 className="size-4" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch max-w-6xl mx-auto">
+            {/* Donut Chart */}
+            <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">
+              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
+              <div className="relative size-28 flex items-center justify-center">
+                <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none">
+                  <defs>
+                    <mask id="donut-mask-movimientos">
+                      <circle cx="0" cy="0" r="1" fill="white" />
+                      <circle cx="0" cy="0" r="0.65" fill="black" />
+                    </mask>
+                  </defs>
+                  <g mask="url(#donut-mask-movimientos)">
+                    {donutData.map((slice, i) => (
+                      <path
+                        key={slice.label}
+                        d={slice.pathData}
+                        fill={slice.color}
+                        className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90"
+                        style={{
+                          transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)",
+                          opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.key) ? 0.35 : 1
+                        }}
+                        onMouseEnter={() => setHoveredSlice(i)}
+                        onMouseLeave={() => setHoveredSlice(null)}
+                        onClick={() => handleTabCardClick(slice.key)}
+                      />
+                    ))}
+                  </g>
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1">
+                  <AnimatePresence mode="wait">
+                    {activeHoverData ? (
+                      <motion.div
+                        key={activeHoverData.label}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">
+                          {activeHoverData.label}
+                        </span>
+                        <br />
+                        <span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">
+                          {formatNumber(activeHoverData.count)}
+                        </span>
+                        <br />
+                        <span
+                          className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current"
+                          style={{
+                            color: activeHoverData.color,
+                            backgroundColor: `${activeHoverData.color}15`
+                          }}
+                        >
+                          {(activeHoverData.percent * 100).toFixed(1)}%
+                        </span>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="total"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                          Total L.
+                        </span>
+                        <br />
+                        <span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">
+                          {formatNumber(stats.todas_posiciones)}
+                        </span>
+                        <br />
+                        <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">
+                          100%
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Posiciones Activas</span>
               </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" && columnFilters.is_latest?.includes("true") ? "text-white" : "text-[#621f32] dark:text-[#bc955c]"}`}>{formatNumber(stats.posiciones_activas)}</span>
             </div>
 
-            <div onClick={() => { startTransition(() => { const newF = { ...columnFilters }; newF.estado_psn = ["I"]; newF.is_latest = ["true"]; setColumnFilters(newF); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-800 dark:to-slate-950 text-white shadow-xl shadow-slate-900/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-slate-500"}`} />
-              <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-                  <XCircle className="size-4" />
-                </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Posiciones Inactivas</span>
-              </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 1 && activeStatusFilter[0] === "I" && columnFilters.is_latest?.includes("true") ? "text-white" : "text-slate-700 dark:text-slate-200"}`}>{formatNumber(stats.posiciones_inactivas)}</span>
-            </div>
-
-            <div onClick={() => { startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; newF.is_latest = ["true"]; setColumnFilters(newF); setSortConfig({ key: null, direction: null }); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-xl shadow-emerald-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-emerald-500"}`} />
-              <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400"}`}>
-                  <Layers className="size-4" />
-                </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Todas las Posiciones</span>
-              </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${activeStatusFilter.length === 0 && columnFilters.is_latest?.includes("true") ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`}>{formatNumber(stats.todas_posiciones)}</span>
-            </div>
-
-            <div onClick={() => { setLoading(true); startTransition(() => { const newF = { ...columnFilters }; delete newF.estado_psn; delete newF.is_latest; setColumnFilters(newF); setSortConfig({ key: "custom_movimientos", direction: "desc" }); }); }} className={`relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col justify-between cursor-pointer transition-all duration-300 group ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "bg-gradient-to-br from-indigo-600 to-indigo-800 text-white shadow-xl shadow-indigo-600/25 scale-[1.02] ring-2 ring-white/20" : "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 hover:shadow-md hover:bg-white dark:hover:bg-slate-900"}`}>
-              <div className={`absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 transition-all ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "bg-white" : "bg-indigo-500"}`} />
-              <div className="flex items-center gap-2 mb-2 relative z-10">
-                <div className={`p-2 rounded-xl transition-colors ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "bg-white/20 text-white" : "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400"}`}>
-                  <Activity className="size-4" />
-                </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "text-white/90" : "text-slate-500 dark:text-slate-400"}`}>Mov. de Posiciones</span>
-              </div>
-              <span className={`text-4xl font-black tracking-tighter relative z-10 ${!columnFilters.is_latest || !columnFilters.is_latest?.includes("true") ? "text-white" : "text-indigo-600 dark:text-indigo-400"}`}>{formatNumber(stats.total_movimientos)}</span>
+            {/* Grid of cards */}
+            <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {cardData.map((card, index) => {
+                const IconComponent = card.icon;
+                return (
+                  <div
+                    key={card.key}
+                    onMouseEnter={() => {
+                      if (card.hoverIndex !== null) setHoveredSlice(card.hoverIndex);
+                    }}
+                    onMouseLeave={() => setHoveredSlice(null)}
+                    className={`rounded-xl border-2 transition-all duration-200 shadow-sm flex flex-col relative overflow-hidden ${
+                      card.isActive
+                        ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900"
+                        : isAnyCardActive
+                        ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60"
+                        : hoveredSlice === card.hoverIndex && card.hoverIndex !== null
+                        ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900"
+                        : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"
+                    }`}
+                  >
+                    {card.isActive && (
+                      <div className="absolute top-2 right-2 z-20">
+                        <span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: card.color }}>
+                          <span
+                            className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75"
+                            style={{ backgroundColor: card.color }}
+                          />
+                        </span>
+                      </div>
+                    )}
+                    <motion.div
+                      onClick={card.onClick}
+                      whileHover={{ scale: 1.03, y: -2 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                      className="px-3 py-3 flex flex-col justify-between flex-1 group cursor-pointer relative"
+                    >
+                      <div
+                        className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none"
+                        style={{ backgroundColor: card.color }}
+                      />
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div
+                          className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: `${card.color}15`, color: card.color }}
+                        >
+                          <IconComponent className="size-3.5" />
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">
+                          {card.label}
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
+                          {formatNumber(card.count)}
+                        </h4>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2">
+                          <motion.div
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: card.color }}
+                            initial={{ width: 0 }}
+                            animate={{ width: card.percent !== null ? `${card.percent * 100}%` : "100%" }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                          />
+                        </div>
+                        <p className="text-[8px] font-bold text-slate-400 mt-1">
+                          {card.percent !== null ? `${(card.percent * 100).toFixed(1)}%` : "Historial completo"}
+                        </p>
+                      </div>
+                    </motion.div>
+                    {card.key === "A" && (
+                      <div className="px-3 pb-3">
+                        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                          <button
+                            onClick={(e) => handleOcupacionFilter(e, "Ocupada")}
+                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                              activeOcupacionFilter === "Ocupada"
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                : "bg-slate-50 dark:bg-slate-800/40 text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:text-emerald-600 hover:border-emerald-300"
+                            }`}
+                          >
+                            <UserCheck className="size-3" /> Ocupadas
+                          </button>
+                          <button
+                            onClick={(e) => handleOcupacionFilter(e, "Vacante")}
+                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                              activeOcupacionFilter === "Vacante"
+                                ? "bg-[#bc955c]/10 text-[#8d6a3d] dark:text-[#ebd1ac] border-[#bc955c]/30"
+                                : "bg-slate-50 dark:bg-slate-800/40 text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:text-[#bc955c] hover:border-[#bc955c]/40"
+                            }`}
+                          >
+                            <Briefcase className="size-3" /> Vacantes
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Zoom>
@@ -1151,7 +1531,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             count={filteredSortedData.length}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
             actions={[
-              { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters },
+              { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: !canReset },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
             ]}
@@ -1233,7 +1613,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   </motion.div>
                 )}
               </AnimatePresence>
-              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
+              <button onClick={resetAllFilters} disabled={!canReset} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button
@@ -1264,7 +1644,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             setActiveConditionDropdown={setActiveConditionDropdown}
             selectedCell={selectedCell}
             onSelectCell={setSelectedCell}
-            onRowContextMenu={(e, row) => setContextMenu({ x: e.clientX, y: e.clientY, row })}
+            onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
             onSort={handleSort}
@@ -1710,7 +2090,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                     </motion.div>
 
                     {vacanciaDetalle.error && (
-                      <motion.div 
+                      <motion.div
                         variants={{
                           hidden: { opacity: 0, y: 12 },
                           visible: { opacity: 1, y: 0 }
@@ -1719,6 +2099,69 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                       >
                         <Info className="size-4.5 text-amber-500 shrink-0 mt-0.5" />
                         <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{vacanciaDetalle.error}</p>
+                      </motion.div>
+                    )}
+
+                    {vacanciaDetalle.tuvo_insubsistencia === "S" && (
+                      <motion.div
+                        variants={{
+                          hidden: { opacity: 0, y: 12 },
+                          visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+                        }}
+                        className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex flex-col gap-3"
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="size-4 text-amber-500 shrink-0" />
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Insubsistencia Detectada</span>
+                        </div>
+                        <p className="text-xs text-amber-700/80 dark:text-amber-400/80 font-medium leading-relaxed">
+                          {TUVO_INSUBSISTENCIA_TOOLTIP.S}
+                        </p>
+
+                        {vacanciaDetalle.insubsistencia?.error ? (
+                          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{vacanciaDetalle.insubsistencia.error}</p>
+                        ) : vacanciaDetalle.insubsistencia && (
+                          <>
+                            <div className="flex items-center gap-3 pt-1 border-t border-amber-200/50 dark:border-amber-900/40">
+                              <div className="size-10 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-3">
+                                {vacanciaDetalle.insubsistencia.empleado?.nombre_completo
+                                  ? vacanciaDetalle.insubsistencia.empleado.nombre_completo.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+                                  : <User className="size-4" />
+                                }
+                              </div>
+                              <div className="min-w-0 flex-1 mt-3">
+                                <h4 className="text-sm font-extrabold text-slate-850 dark:text-slate-100 truncate" title={vacanciaDetalle.insubsistencia.empleado?.nombre_completo}>
+                                  {vacanciaDetalle.insubsistencia.empleado?.nombre_completo || '—'}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] font-semibold text-amber-600/70 dark:text-amber-500/70">ID Empleado:</span>
+                                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 font-mono bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">
+                                    {vacanciaDetalle.insubsistencia.empleado?.num_empleado || '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[9px] font-black uppercase text-amber-600/70 dark:text-amber-500/70 tracking-[0.15em] mb-1 block">Motivo</label>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">{vacanciaDetalle.insubsistencia.motivo_nombre || '—'}</p>
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-black uppercase text-amber-600/70 dark:text-amber-500/70 tracking-[0.15em] mb-1 block">Posición</label>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-100 font-mono">{vacanciaDetalle.insubsistencia.posicion || '—'}</p>
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-black uppercase text-amber-600/70 dark:text-amber-500/70 tracking-[0.15em] mb-1 block">Fecha Insubsistencia</label>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{vacanciaDetalle.insubsistencia.fecha_efectiva || '—'}</p>
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-black uppercase text-amber-600/70 dark:text-amber-500/70 tracking-[0.15em] mb-1 block">Fecha Captura</label>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{vacanciaDetalle.insubsistencia.fecha_captura || '—'}</p>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </motion.div>
                     )}
 
@@ -1929,33 +2372,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       document.body
       )}
 
-      {contextMenu && (
-        <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}></div>
-      )}
-      <AnimatePresence>
-        {contextMenu && (
-          <motion.div
-            key="context-menu"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl py-1.5 w-56"
-          >
-            <button
-              onClick={() => {
-                setSelectedRowData(contextMenu.row);
-                setContextMenu(null);
-              }}
-              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors"
-            >
-              <Briefcase className="size-4" />
-              Ver Registro Completo
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
       
       {selectedRowData && (() => {
         const empDetail = detalle.find(emp => String(emp.posicion) === String(selectedRowData.no_pos_actual));

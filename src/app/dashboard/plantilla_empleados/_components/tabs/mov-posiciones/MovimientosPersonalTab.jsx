@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, 
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
-, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart } from "lucide-react";
+, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -16,6 +16,7 @@ import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import CopyCellMenu from "../../shared/CopyCellMenu";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -827,7 +828,14 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         }}
         onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, row }); }}
       >
-        {String(val) || "-"}
+        {val ? (
+          (col.key === "posicion" || col.key === "num_empleado") ? (
+            <div className="flex items-center justify-between gap-2">
+              <span>{String(val)}</span>
+              <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title={col.key === "posicion" ? "Clic para ver histórico de la posición" : "Clic para ver histórico del empleado"} />
+            </div>
+          ) : String(val)
+        ) : "-"}
       </td>
     );
   };
@@ -2303,7 +2311,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             isRowSelected={(idx) => selectedCell?.rowIdx === (page - 1) * pageSize + idx}
             isCellSelected={(idx, colIdx) => selectedCell?.rowIdx === (page - 1) * pageSize + idx && selectedCell?.colIdx === colIdx}
             isColSelected={(idx) => selectedCell?.colIdx === idx}
-            onRowContextMenu={(e, row) => setContextMenu({ x: e.clientX, y: e.clientY, row })}
+            onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
             onSort={handleRequestSort}
@@ -2430,10 +2438,6 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         document.body
       )}
 
-      {contextMenu && (
-        <div className="fixed inset-0 z-[9998]" onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}></div>
-      )}
-
       {/* PIE CHART TOOLTIP */}
       {typeof window !== 'undefined' && createPortal(
         <AnimatePresence>
@@ -2490,30 +2494,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         </AnimatePresence>,
         document.body
       )}
-      <AnimatePresence>
-        {contextMenu && (
-          <motion.div
-            key="context-menu"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-xl py-1.5 w-56"
-          >
-            <button
-              onClick={() => {
-                setSelectedRowData(contextMenu.row);
-                setContextMenu(null);
-              }}
-              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors"
-            >
-              <Briefcase className="size-4" />
-              Ver Registro Completo
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
       <AnimatePresence>
         {selectedRowData && (() => {
           const mappedEmployee = {

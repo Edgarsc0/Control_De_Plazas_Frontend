@@ -85,6 +85,7 @@ export default function PlantillaEmpleadosDetalle({
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
+  const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
   const cardRef = useRef(null);
   useRefreshOnZafiroUpdate();
@@ -218,7 +219,13 @@ export default function PlantillaEmpleadosDetalle({
                         </span>
                       ) : (
                         <>
-                          Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">{activeTab === "bajas" ? "Empleados Bajas" : "Empleados Activos"}</span>
+                          Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                            {activeTab === "bajas"
+                              ? "Empleados Bajas"
+                              : activeTab === "movimientos"
+                                ? movCardTitle
+                                : "Empleados Activos"}
+                          </span>
                         </>
                       )}
                     </h2>
@@ -266,6 +273,7 @@ export default function PlantillaEmpleadosDetalle({
                   isPending={isPending}
                   startTransition={startTransition}
                   cardRef={cardRef}
+                  onCardTitleChange={setMovCardTitle}
                 />
               )}
               {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
