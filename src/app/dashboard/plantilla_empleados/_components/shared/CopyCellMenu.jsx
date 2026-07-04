@@ -16,16 +16,43 @@ export default function CopyCellMenu({ contextMenu, onClose }) {
 
   if (!contextMenu) return null;
 
+  const copyWithFallback = (text) => {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  };
+
   const handleCopy = async () => {
+    const text = contextMenu.value == null ? "" : String(contextMenu.value);
     try {
-      await navigator.clipboard.writeText(contextMenu.value == null ? "" : String(contextMenu.value));
+      // navigator.clipboard requiere secure context (HTTPS o localhost);
+      // en el servidor por IP/HTTP plano no existe, cae a execCommand.
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        copyWithFallback(text);
+      }
       setCopied(true);
       setTimeout(() => {
         setCopied(false);
         onClose();
       }, 550);
     } catch {
-      onClose();
+      try {
+        copyWithFallback(text);
+        setCopied(true);
+        setTimeout(() => {
+          setCopied(false);
+          onClose();
+        }, 550);
+      } catch {
+        onClose();
+      }
     }
   };
 
