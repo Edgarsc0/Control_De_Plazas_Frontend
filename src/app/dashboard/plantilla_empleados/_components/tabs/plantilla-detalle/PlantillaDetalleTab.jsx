@@ -23,7 +23,7 @@ import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
@@ -596,11 +596,14 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
     }
 
-    const allVals = baseUniqueValues.map(v => v.value);
-    const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
-    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
+    return finalizeFilterDropdownValues({
+      baseUniqueValues,
+      filtered,
+      tempSelectedValues,
+      committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+    });
   }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, searchIndex]);
 
   const rowHeight = 37, containerHeight = 1200;

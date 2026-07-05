@@ -23,7 +23,7 @@ import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import DatePicker from "react-datepicker";
 
@@ -588,12 +588,15 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
     }
 
-    const allVals = baseUniqueValues.map(v => v.value);
-    const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
-    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
-  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
+    return finalizeFilterDropdownValues({
+      baseUniqueValues,
+      filtered,
+      tempSelectedValues,
+      committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+    });
+  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   useEffect(() => {
     let active = true;

@@ -24,7 +24,7 @@ import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition } from "@/utils/columnFilters";
+import { matchesTextCondition, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const CATEGORIA_VACANCIA_TOOLTIP = {
@@ -994,12 +994,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
     }
 
-    const allVals = baseUniqueValues.map(v => v.value);
-    const isAllSelected = allVals.length > 0 && allVals.every(v => tempSelectedValues.includes(v));
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
 
-    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
-  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText]);
+    return finalizeFilterDropdownValues({
+      baseUniqueValues,
+      filtered,
+      tempSelectedValues,
+      committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+    });
+  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   useEffect(() => {
     let active = true;

@@ -160,6 +160,9 @@ function DataTable({
               if (index === 1) leftOffset = 95 + arr[0].width;
               const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
               const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
+              const filterTitle = columnFilters[col.key]?.length > 0
+                ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
+                : "Filtrar columna";
               return (
                 <th key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
                   {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
@@ -171,7 +174,7 @@ function DataTable({
                         <span>{col.label}</span>
                         <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
+                      <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
                         <Filter className="size-3 fill-current" />
                       </button>
                     </div>

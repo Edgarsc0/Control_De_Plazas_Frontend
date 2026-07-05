@@ -206,6 +206,57 @@ export const buildDateHierarchy = (data, key) => {
  * @param {(key: string) => boolean} [config.isMonoColumn] - Si la columna es "mono" (default condición `starts_with`).
  * @returns {Object[]} Filas que pasan todos los filtros.
  */
+/**
+ * Cierra el cómputo de `dropdownValues` que consume `ColumnFilterDropdown`, a
+ * partir de las piezas que cada tab ya arma a su manera (`baseUniqueValues`,
+ * `filtered`). Centraliza lo que antes se repetía 4 veces: universo completo
+ * vs. visible (post-búsqueda), estado indeterminado y orden "seleccionados
+ * arriba" (congelado al valor ya aplicado, no al de la selección en curso, para
+ * que la lista no salte mientras el usuario sigue marcando casillas).
+ *
+ * @param {Object} params
+ * @param {Array<{value: string, count: number}>} params.baseUniqueValues - Universo de valores de la columna (todos o "vista actual").
+ * @param {Array<{value: string, count: number}>} params.filtered - Subconjunto de `baseUniqueValues` que matchea el buscador del dropdown.
+ * @param {string[]} params.tempSelectedValues - Selección en curso (no aplicada aún).
+ * @param {string[]} [params.committedSelectedValues=[]] - Selección ya aplicada (`columnFilters[colKey]`); ancla el orden.
+ * @returns {{allVals: string[], isAllSelected: boolean, isPartialSelected: boolean, visibleVals: string[], isVisibleAllSelected: boolean, isVisiblePartialSelected: boolean, sliced: Array<{value: string, count: number}>, filteredCount: number}}
+ */
+export const finalizeFilterDropdownValues = ({
+  baseUniqueValues,
+  filtered,
+  tempSelectedValues,
+  committedSelectedValues = [],
+}) => {
+  const allVals = baseUniqueValues.map((v) => v.value);
+  const tempSet = new Set(tempSelectedValues);
+  const isAllSelected = allVals.length > 0 && allVals.every((v) => tempSet.has(v));
+  const isPartialSelected = !isAllSelected && allVals.some((v) => tempSet.has(v));
+
+  const committedSet = new Set(committedSelectedValues);
+  const ordered = committedSet.size > 0
+    ? [...filtered].sort((a, b) => {
+        const aSel = committedSet.has(a.value);
+        const bSel = committedSet.has(b.value);
+        return aSel === bSel ? 0 : aSel ? -1 : 1;
+      })
+    : filtered;
+
+  const visibleVals = filtered.map((v) => v.value);
+  const isVisibleAllSelected = visibleVals.length > 0 && visibleVals.every((v) => tempSet.has(v));
+  const isVisiblePartialSelected = !isVisibleAllSelected && visibleVals.some((v) => tempSet.has(v));
+
+  return {
+    allVals,
+    isAllSelected,
+    isPartialSelected,
+    visibleVals,
+    isVisibleAllSelected,
+    isVisiblePartialSelected,
+    sliced: ordered,
+    filteredCount: filtered.length,
+  };
+};
+
 export const applyColumnFilters = (data, config = {}) => {
   const {
     globalSearch = '',

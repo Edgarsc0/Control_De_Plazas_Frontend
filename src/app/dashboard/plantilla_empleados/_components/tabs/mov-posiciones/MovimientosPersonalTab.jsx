@@ -20,7 +20,7 @@ import CopyCellMenu from "../../shared/CopyCellMenu";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
-import { normalizeForSearch } from "@/utils/columnFilters";
+import { normalizeForSearch, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
@@ -725,10 +725,13 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     const list = uniqueColumnValues[activeFilterDropdown] || [];
     const searchNorm = normalizeForSearch(filterSearchText);
     const filtered = list.filter((v) => normalizeForSearch(v.value).includes(searchNorm));
-    const allVals = list.map((v) => v.value);
-    const isAllSelected = allVals.length > 0 && allVals.every((v) => tempSelectedValues.includes(v));
-    return { allVals, isAllSelected, sliced: filtered.slice(0, 100), filteredCount: filtered.length };
-  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterSearchText, tempSelectedValues]);
+    return finalizeFilterDropdownValues({
+      baseUniqueValues: list,
+      filtered,
+      tempSelectedValues,
+      committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+    });
+  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterSearchText, tempSelectedValues, columnFilters]);
 
   const renderCell = useCallback(({ row, col, colIdx, actualRowIdx, isSticky, leftOffset, isSelected }) => {
     const globalRowIdx = (page - 1) * pageSize + actualRowIdx;
