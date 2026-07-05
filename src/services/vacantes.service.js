@@ -172,6 +172,18 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene el desglose jerárquico de posiciones OCUPADAS de la plantilla.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getDesgloseJerarquicoOcupados: (options = {}) => {
+        return apiFetch('/plantilla/desglose_jerarquico_ocupados/', {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el histórico de movimientos de una posición.
      * @param {string|number} posicion - Identificador de la posición.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.

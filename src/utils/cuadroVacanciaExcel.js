@@ -1,35 +1,49 @@
-// ARGB color constants
+// ARGB color constants — guinda/azul/dorado son los colores institucionales de
+// ANAM (mismos que usa la app en pantalla); el resto son tonos slate a juego.
 const C = {
-  GUINDA:   'FF621F32',
-  AZUL:     'FF10243E',
-  DORADO:   'FFBC955C',
-  BLANCO:   'FFFFFFFF',
-  GRIS:     'FFF5F5F8',
-  AMARILLO: 'FFFFF3CD',
-  BLUE_LNK: 'FF1D4ED8',
+  GUINDA:    'FF621F32',
+  AZUL:      'FF10243E',
+  DORADO:    'FFBC955C',
+  BLANCO:    'FFFFFFFF',
+  GRIS:      'FFF8FAFC',  // slate-50 — fila alterna
+  DORADO_BG: 'FFFBEEDC',  // tinte dorado tenue — resalta la fila "Actual"
+  TEXTO:     'FF334155',  // slate-700 — texto de celda
+  BLUE_LNK:  'FF1D4ED8',
 };
 
-const TIPO = { E: 'Eventual', NC: 'NvaCr', P: 'Permanente' };
-const DDS  = 3;     // Det_ Data Start row (row1=title, row2=headers, row3+=data)
-const DMAX = 9999;  // upper bound for COUNTIFS range
+const TIPO = { E: 'Eventual', NC: 'Nueva Creación', P: 'Permanente' };
+const FONT = 'Calibri';
+const DDS  = 3;      // Det_ Data Start row (row1=title, row2=headers, row3+=data)
+const DMAX = 30000;  // upper bound for COUNTIFS range — must exceed max rows in any Det_/Detalle Global sheet
 
 const DET_COLS = [
   { key: '_tipo',                   label: 'Tipo Vacante',           width: 14 },
   { key: 'Nivel',                   label: 'Nivel',                  width: 10 },
-  { key: 'Posición',                label: 'No. Posición',           width: 16 },
+  { key: 'Posición',                label: 'Número de Posición',     width: 18 },
   { key: 'Nombre Puesto Funcional', label: 'Puesto Funcional',       width: 42 },
   { key: 'Unidad de Negocio',       label: 'Unidad de Negocio',      width: 36 },
   { key: 'nombre_ua',               label: 'Unidad Administrativa',  width: 30 },
-  { key: 'Cd UA',                   label: 'Cód. UA',                width: 10 },
+  { key: 'Cd UA',                   label: 'Código UA',              width: 12 },
   { key: 'NJ',                      label: 'NJ',                     width:  8 },
   { key: 'nombreNJ',                label: 'Nombre NJ',              width: 30 },
-  { key: 'Cd UN',                   label: 'Cód. UN',                width: 10 },
-  { key: 'Código Presupuestal',     label: 'Cód. Presupuestal',      width: 18 },
+  { key: 'Cd UN',                   label: 'Código UN',              width: 12 },
+  { key: 'Código Presupuestal',     label: 'Código Presupuestal',    width: 18 },
   { key: 'Escala',                  label: 'Escala',                 width: 10 },
   { key: 'Partida',                 label: 'Partida',                width: 10 },
   { key: 'TIPO DE CONTRATACIÓN',    label: 'Tipo Contratación',      width: 18 },
   { key: 'Sindicato',               label: 'Sindicato',              width: 14 },
   { key: 'Entidad Federativa',      label: 'Entidad Federativa',     width: 22 },
+];
+
+// Detalle Global: mismas columnas que Det_ + Estatus (Ocupada/Vacante) al frente
+// + datos del empleado al final (solo aplican a filas Ocupada; Vacante queda en blanco)
+const GLOBAL_COLS = [
+  { key: '_estatus', label: 'Estatus', width: 12 },
+  ...DET_COLS,
+  { key: 'Id Empleado', label: 'Número de Empleado', width: 18 },
+  { key: 'Nombres',     label: 'Nombre',       width: 34 },
+  { key: 'RFC',         label: 'RFC',           width: 16 },
+  { key: 'CURP',        label: 'CURP',          width: 20 },
 ];
 
 const fmt = (n) => (n == null ? 0 : Number(n));
@@ -54,13 +68,27 @@ function cntNEvt(sn, nivel) {
 function cntNAll(sn, nivel) {
   return `COUNTIFS(${nivelRng(sn)},"${nivel}")`;
 }
-function cntAllTipo(sheetNames, tipo) {
-  return sheetNames.map(sn => `COUNTIFS(${tipoRng(sn)},"${tipo}")`).join('+');
+// ── COUNTIFS helpers for the combined "Detalle Global" sheet (col A=Estatus, B=Tipo) ──
+function estatusRng(sn) { return `'${sn}'!$A$${DDS}:$A$${DMAX}`; }
+function tipoRngG(sn)   { return `'${sn}'!$B$${DDS}:$B$${DMAX}`; }
+
+function cntGEstatusTipo(sn, estatus, tipo) {
+  return `COUNTIFS(${estatusRng(sn)},"${estatus}",${tipoRngG(sn)},"${tipo}")`;
 }
-function cntAllEvt(sheetNames) {
-  return sheetNames.map(sn =>
-    `COUNTIFS(${tipoRng(sn)},"${TIPO.E}")+COUNTIFS(${tipoRng(sn)},"${TIPO.NC}")`
-  ).join('+');
+function cntGEstatusEvt(sn, estatus) {
+  return `${cntGEstatusTipo(sn, estatus, TIPO.E)}+${cntGEstatusTipo(sn, estatus, TIPO.NC)}`;
+}
+function cntGEstatus(sn, estatus) {
+  return `COUNTIFS(${estatusRng(sn)},"${estatus}")`;
+}
+function cntGTipo(sn, tipo) {
+  return `COUNTIFS(${tipoRngG(sn)},"${tipo}")`;
+}
+function cntGEvtTotal(sn) {
+  return `${cntGTipo(sn, TIPO.E)}+${cntGTipo(sn, TIPO.NC)}`;
+}
+function cntGAll(sn) {
+  return `${cntGEstatus(sn, 'Ocupada')}+${cntGEstatus(sn, 'Vacante')}`;
 }
 
 // Dynamic cell: shows count; if > 0 is also a hyperlink to the Det_ sheet row
@@ -78,16 +106,16 @@ function styleTitle(ws, rowNum, text, numCols, bg = C.GUINDA) {
   if (numCols > 1) ws.mergeCells(rowNum, 1, rowNum, numCols);
   const cell = ws.getCell(rowNum, 1);
   cell.value = text;
-  cell.font  = { bold: true, color: { argb: C.BLANCO }, size: 11, name: 'Arial' };
+  cell.font  = { bold: true, color: { argb: C.BLANCO }, size: 13, name: FONT };
   cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-  cell.alignment = { vertical: 'middle', horizontal: 'left' };
-  ws.getRow(rowNum).height = 26;
+  cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+  ws.getRow(rowNum).height = 30;
 }
 
 function styleHeader(row) {
-  row.height = 28;
+  row.height = 30;
   row.eachCell(cell => {
-    cell.font  = { bold: true, color: { argb: C.BLANCO }, size: 9, name: 'Arial' };
+    cell.font  = { bold: true, color: { argb: C.BLANCO }, size: 10, name: FONT };
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.AZUL } };
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = {
@@ -100,21 +128,21 @@ function styleHeader(row) {
 }
 
 function styleDataRow(row, idx) {
-  row.height = 19;
+  row.height = 21;
   const bg = idx % 2 === 0 ? C.BLANCO : C.GRIS;
   row.eachCell(cell => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    cell.font = { size: 9, name: 'Arial', color: { argb: '504040' } };
+    cell.font = { size: 10, name: FONT, color: { argb: C.TEXTO } };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
     cell.border = thinBorder();
   });
 }
 
 function styleTotalRow(row) {
-  row.height = 22;
+  row.height = 24;
   row.eachCell(cell => {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.AZUL } };
-    cell.font = { bold: true, color: { argb: C.BLANCO }, size: 9, name: 'Arial' };
+    cell.font = { bold: true, color: { argb: C.BLANCO }, size: 10, name: FONT };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
     cell.border = {
       top:    { style: 'medium', color: { argb: C.DORADO } },
@@ -125,9 +153,28 @@ function styleTotalRow(row) {
   });
 }
 
-function sumF(col, startRow, len) {
+// Dynamic total cell: SUM of the level rows, wrapped as a HYPERLINK to the first
+// data row of the Det_ sheet so clicking the total jumps to that level's detail.
+function sumHCell(sn, col, startRow, len) {
   if (len === 0) return 0;
-  return { formula: `=SUM(${col}${startRow}:${col}${startRow + len - 1})` };
+  const range = `${col}${startRow}:${col}${startRow + len - 1}`;
+  return { formula: `=IF(SUM(${range})=0,0,HYPERLINK("#'${sn}'!A${DDS}",SUM(${range})))` };
+}
+
+// Auto-ajusta el ancho de cada columna al contenido real (texto plano; las celdas
+// con fórmula/hyperlink no se miden — conservan su ancho base fijado en columns[]).
+function autoFitColumns(ws, colCount, minW = 10, maxW = 55) {
+  for (let ci = 1; ci <= colCount; ci++) {
+    const col = ws.getColumn(ci);
+    let maxLen = 0;
+    col.eachCell({ includeEmpty: false }, cell => {
+      const v = cell.value;
+      if (v == null || typeof v === 'object') return;
+      const len = String(v).length;
+      if (len > maxLen) maxLen = len;
+    });
+    if (maxLen > 0) col.width = Math.min(Math.max(maxLen + 3, minW), maxW);
+  }
 }
 
 // ── Det_ sheet builder ────────────────────────────────────────────────────────
@@ -181,13 +228,64 @@ function buildDetSheet(wb, sheetName, title, positions) {
     const dr = ws.addRow(vals);
     styleDataRow(dr, idx);
     dr.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TYPE_BG[pos._tipo] || C.GRIS } };
-    dr.getCell(1).font = { bold: true, size: 9, name: 'Arial', color: { argb: C.AZUL } };
+    dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
     [4, 5, 6, 9].forEach(ci => {
       dr.getCell(ci).alignment = { vertical: 'middle', horizontal: 'left' };
     });
   });
 
+  autoFitColumns(ws, DET_COLS.length);
   return { sheetName, rowMap, levels, dataLen: enriched.length };
+}
+
+// ── Detalle Global builder (Ocupadas + Vacantes combinadas) ────────────────────
+// Returns { sheetName, dataLen }
+function buildGlobalDetSheet(wb, sheetName, title, vacantesPositions, ocupadasPositions) {
+  const enriched = [
+    ...ocupadasPositions.map(pos => ({
+      ...pos,
+      _estatus: 'Ocupada',
+      _tipo: classifyTipo(pos['Posición'] || ''),
+    })),
+    ...vacantesPositions.map(pos => ({
+      ...pos,
+      _estatus: 'Vacante',
+      _tipo: classifyTipo(pos['Posición'] || ''),
+    })),
+  ];
+
+  enriched.sort((a, b) => {
+    if (a._estatus !== b._estatus) return a._estatus.localeCompare(b._estatus);
+    const na = (a.Nivel || '').trim();
+    const nb = (b.Nivel || '').trim();
+    const nc = na.localeCompare(nb, 'es', { numeric: true });
+    if (nc !== 0) return nc;
+    return a._tipo.localeCompare(b._tipo);
+  });
+
+  const ws = wb.addWorksheet(sheetName);
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
+  ws.columns = GLOBAL_COLS.map(c => ({ key: c.key, width: c.width }));
+
+  styleTitle(ws, 1, title, GLOBAL_COLS.length, C.AZUL);
+  const hRow = ws.addRow(GLOBAL_COLS.map(c => c.label));
+  styleHeader(hRow);
+
+  const ESTATUS_BG = { Ocupada: 'FFE8F5E9', Vacante: 'FFFCE4EC' };
+
+  enriched.forEach((pos, idx) => {
+    const vals = GLOBAL_COLS.map(c => pos[c.key] ?? '');
+    const dr = ws.addRow(vals);
+    styleDataRow(dr, idx);
+    dr.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ESTATUS_BG[pos._estatus] || C.GRIS } };
+    dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
+    [5, 6, 7, 10, 19].forEach(ci => {
+      dr.getCell(ci).alignment = { vertical: 'middle', horizontal: 'left' };
+    });
+  });
+
+  autoFitColumns(ws, GLOBAL_COLS.length);
+  return { sheetName, dataLen: enriched.length };
 }
 
 // ── Observaciones ─────────────────────────────────────────────────────────────
@@ -212,14 +310,14 @@ function addObservacionesSheet(wb, obs) {
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 4 }];
 
   const detailCols = [
-    { key: 'Posición',                label: 'No. Posición',           width: 16 },
+    { key: 'Posición',                label: 'Número de Posición',     width: 18 },
     { key: 'Nivel',                   label: 'Nivel',                  width: 12 },
     { key: 'Nombre Puesto Funcional', label: 'Nombre Puesto Funcional',width: 38 },
     { key: 'nombre_ua',               label: 'Unidad Administrativa',  width: 30 },
     { key: 'Unidad de Negocio',       label: 'Unidad de Negocio',      width: 36 },
-    { key: 'Cd UN',                   label: 'Cd. UN',                 width: 10 },
+    { key: 'Cd UN',                   label: 'Código UN',              width: 12 },
     { key: 'TIPO DE CONTRATACIÓN',    label: 'Tipo Contratación',      width: 20 },
-    { key: 'Código Presupuestal',     label: 'Cód. Presupuestal',      width: 20 },
+    { key: 'Código Presupuestal',     label: 'Código Presupuestal',    width: 20 },
     { key: 'Escala',                  label: 'Escala',                 width: 10 },
     { key: 'Partida',                 label: 'Partida',                width: 12 },
     { key: 'Entidad Federativa',      label: 'Entidad Federativa',     width: 24 },
@@ -267,11 +365,13 @@ function addObservacionesSheet(wb, obs) {
   addSection('Contratación Base (SAT_BSE)',                     obs.baseRows);
   addSection('Órgano Interno de Control',                        obs.oicRows);
   addSection('Titulares de Aduanas (Administradores de Aduana)', obs.titularRows);
+
+  autoFitColumns(ws, numDet);
 }
 
 // ── Resumen sheet ─────────────────────────────────────────────────────────────
 // detSheets: array of { sheetName, rowMap, levels, hasNvaCr, title, dataLen }
-function fillResumenSheet(ws, cuadrosData, detSheets) {
+function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
   ws.columns = [
     { key: 'a', width: 14 },
@@ -292,46 +392,41 @@ function fillResumenSheet(ws, cuadrosData, detSheets) {
 
   ws.mergeCells(2, 1, 2, 11);
   const note = ws.getCell(2, 1);
-  note.value = '★  Fila "Actual" calcula vacantes en tiempo real desde hojas Det_*. Las celdas de la fila Actual son dinámicas. Resto de filas = datos históricos estáticos.';
-  note.font  = { italic: true, size: 8, color: { argb: 'FF78350F' }, name: 'Arial' };
+  note.value = '★  Fila "Actual" calcula en tiempo real desde la hoja Detalle Global. Todas sus celdas son dinámicas y clicables (saltan al detalle). Resto de filas = datos históricos estáticos.';
+  note.font  = { italic: true, size: 9, color: { argb: 'FF78350F' }, name: FONT };
   note.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
   note.alignment = { vertical: 'middle', horizontal: 'left' };
-  ws.getRow(2).height = 17;
+  ws.getRow(2).height = 20;
 
   const hRow = ws.addRow([
     'Año', 'Fecha',
-    'Ocp. Permanente', 'Ocp. Eventual', 'Total Ocupadas',
-    'Vac. Permanente', 'Vac. Eventual', 'Total Vacantes',
+    'Ocupadas Permanente', 'Ocupadas Eventual', 'Total Ocupadas',
+    'Vacantes Permanente', 'Vacantes Eventual', 'Total Vacantes',
     'Total Permanente', 'Total Eventual', 'Total',
   ]);
   styleHeader(hRow);
 
-  const allSN     = detSheets.map(d => d.sheetName);
-  const permExpr  = cntAllTipo(allSN, TIPO.P);
-  const evtExpr   = cntAllEvt(allSN);
   const sorted    = [...cuadrosData].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  const latest    = sorted[0] || {};
-  const ocpPerm   = fmt(latest.ocupadas_permanente);
-  const ocpEvt    = fmt(latest.ocupadas_eventual);
   const liveR     = 4;
+  const gsn       = globalSheetName;
 
   const live = ws.addRow([
     new Date().getFullYear(),
     'Actual (tiempo real)',
-    ocpPerm,
-    ocpEvt,
-    { formula: `=C${liveR}+D${liveR}` },
-    { formula: `=${permExpr}` },
-    { formula: `=${evtExpr}` },
-    { formula: `=F${liveR}+G${liveR}` },
-    { formula: `=C${liveR}+F${liveR}` },
-    { formula: `=D${liveR}+G${liveR}` },
-    { formula: `=I${liveR}+J${liveR}` },
+    hCell(cntGEstatusTipo(gsn, 'Ocupada', TIPO.P), gsn, DDS),
+    hCell(cntGEstatusEvt(gsn, 'Ocupada'),          gsn, DDS),
+    hCell(cntGEstatus(gsn, 'Ocupada'),              gsn, DDS),
+    hCell(cntGEstatusTipo(gsn, 'Vacante', TIPO.P), gsn, DDS),
+    hCell(cntGEstatusEvt(gsn, 'Vacante'),           gsn, DDS),
+    hCell(cntGEstatus(gsn, 'Vacante'),               gsn, DDS),
+    hCell(cntGTipo(gsn, TIPO.P),                     gsn, DDS),
+    hCell(cntGEvtTotal(gsn),                         gsn, DDS),
+    hCell(cntGAll(gsn),                              gsn, DDS),
   ]);
-  live.height = 22;
+  live.height = 24;
   live.eachCell((cell, ci) => {
-    cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.AMARILLO } };
-    cell.font  = { bold: true, size: 9, name: 'Arial', color: { argb: C.AZUL } };
+    cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.DORADO_BG } };
+    cell.font  = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL }, underline: ci >= 3 };
     cell.alignment = { vertical: 'middle', horizontal: ci === 2 ? 'left' : 'center' };
     cell.border = {
       top:    { style: 'medium', color: { argb: C.DORADO } },
@@ -361,7 +456,7 @@ function fillResumenSheet(ws, cuadrosData, detSheets) {
     styleDataRow(dr, idx);
     dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
     [6, 7, 8, 11].forEach(c => {
-      dr.getCell(c).font = { bold: true, size: 9, name: 'Arial', color: { argb: '504040' } };
+      dr.getCell(c).font = { bold: true, size: 10, name: FONT, color: { argb: C.TEXTO } };
     });
   });
 
@@ -378,8 +473,8 @@ function fillResumenSheet(ws, cuadrosData, detSheets) {
     styleTitle(ws, subTRow.number, title, numCols, C.GUINDA);
 
     const headers = hasNvaCr
-      ? ['Nivel', 'Eventuales', 'Evt. Nueva Creación', 'Permanentes', 'Total']
-      : ['Nivel', 'Eventuales (incl. Nva.Cr.)', 'Permanentes', 'Total'];
+      ? ['Nivel', 'Eventuales', 'Eventuales Nueva Creación', 'Permanentes', 'Total']
+      : ['Nivel', 'Eventuales (incluye Nueva Creación)', 'Permanentes', 'Total'];
     const hRowN = ws.addRow(headers);
     styleHeader(hRowN);
 
@@ -406,27 +501,33 @@ function fillResumenSheet(ws, cuadrosData, detSheets) {
 
       const dr = ws.addRow(vals);
       styleDataRow(dr, idx);
-      dr.getCell(1).font = { bold: true, size: 9, name: 'Arial', color: { argb: C.AZUL } };
+      dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
       dr.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
       for (let ci = 2; ci <= numCols; ci++) {
-        dr.getCell(ci).font = { size: 9, name: 'Arial', color: { argb: C.BLUE_LNK }, underline: true };
+        dr.getCell(ci).font = { size: 10, name: FONT, color: { argb: C.BLUE_LNK }, underline: true };
       }
     });
 
     const colLetters = hasNvaCr ? ['B', 'C', 'D', 'E'] : ['B', 'C', 'D'];
-    const totVals = ['Total', ...colLetters.map(col => sumF(col, dataStart, levels.length))];
+    const totVals = ['Total', ...colLetters.map(col => sumHCell(sn, col, dataStart, levels.length))];
     const totRow = ws.addRow(totVals);
     styleTotalRow(totRow);
     totRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+    for (let ci = 2; ci <= numCols; ci++) {
+      totRow.getCell(ci).font = { ...totRow.getCell(ci).font, underline: true };
+    }
   });
+
+  autoFitColumns(ws, 11, 12, 45);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
-export async function generateCuadroVacanciaExcel(cuadrosData, desgloseData) {
+export async function generateCuadroVacanciaExcel(cuadrosData, desgloseData, ocupadosData = []) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'EjeCentral — ANAM';
   wb.created = new Date();
+  wb.calcProperties.fullCalcOnLoad = true;
 
   // Resumen must be tab #1 — add empty, fill after Det_ sheets are built
   const wsResumen = wb.addWorksheet('Resumen');
@@ -446,10 +547,14 @@ export async function generateCuadroVacanciaExcel(cuadrosData, desgloseData) {
     return { ...result, hasNvaCr, title };
   });
 
+  const globalSheet = buildGlobalDetSheet(
+    wb, 'Detalle Global', 'Detalle Global — Ocupadas y Vacantes', desgloseData, ocupadosData
+  );
+
   const obs = buildObservaciones(desgloseData);
   addObservacionesSheet(wb, obs);
 
-  fillResumenSheet(wsResumen, cuadrosData, detSheets);
+  fillResumenSheet(wsResumen, cuadrosData, detSheets, globalSheet.sheetName);
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

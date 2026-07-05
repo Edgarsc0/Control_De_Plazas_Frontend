@@ -62,7 +62,8 @@ export default async function PlantillaEmpleadosPage() {
         parseJsonResponse(VacantesService.getBajasMotivos(), "bajas motivos"),
         parseJsonResponse(VacantesService.getBajasHistorico(), "bajas historico"),
         parseJsonResponse(VacantesService.getCuadroVacancia(), "cuadro vacancia"),
-        parseJsonResponse(VacantesService.getDesgloseJerarquico(), "desglose jerarquico")
+        parseJsonResponse(VacantesService.getDesgloseJerarquico(), "desglose jerarquico"),
+        parseJsonResponse(VacantesService.getDesgloseJerarquicoOcupados(), "desglose jerarquico ocupados")
     ]);
 
     return (

@@ -60,13 +60,15 @@ function BajasTabSection({ secondaryDataPromise, isPending, startTransition, car
 }
 
 function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal }) {
-  const [, , , cuadrosResult, desgloseResult] = use(secondaryDataPromise);
+  const [, , , cuadrosResult, desgloseResult, ocupadosResult] = use(secondaryDataPromise);
   const cuadrosData = cuadrosResult.status === 'fulfilled' ? (cuadrosResult.value || []) : [];
   const desgloseJerarquicoData = desgloseResult.status === 'fulfilled' ? (desgloseResult.value || []) : [];
+  const ocupadosJerarquicoData = ocupadosResult.status === 'fulfilled' ? (ocupadosResult.value || []) : [];
   return (
     <CuadrosVacanciaTab
       cuadrosData={cuadrosData}
       desgloseJerarquicoData={desgloseJerarquicoData}
+      ocupadosJerarquicoData={ocupadosJerarquicoData}
       onSwitchToTablaPrincipal={onSwitchToTablaPrincipal}
     />
   );

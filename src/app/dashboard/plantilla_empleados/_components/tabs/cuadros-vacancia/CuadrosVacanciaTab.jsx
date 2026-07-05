@@ -8,7 +8,7 @@ import { PlantillaService } from '@/services/plantilla.service';
 import DesgloseJerarquicoCharts from "./DesgloseJerarquicoCharts";
 import DetalleVacantesTablas from "./DetalleVacantesTablas";
 
-export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], onSwitchToTablaPrincipal }) {
+export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], onSwitchToTablaPrincipal }) {
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedQnas, setSelectedQnas] = useState([]);
   const [yearFilterOpen, setYearFilterOpen] = useState(false);
@@ -262,7 +262,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     setIsExportingExcel(true);
     try {
       const { generateCuadroVacanciaExcel } = await import('@/utils/cuadroVacanciaExcel');
-      await generateCuadroVacanciaExcel(cuadrosData, desgloseJerarquicoData);
+      await generateCuadroVacanciaExcel(cuadrosData, desgloseJerarquicoData, ocupadosJerarquicoData);
     } catch (err) {
       console.error('Error generando Excel de Cuadro de Vacancia:', err);
       alert('Error al generar Excel: ' + err.message);
