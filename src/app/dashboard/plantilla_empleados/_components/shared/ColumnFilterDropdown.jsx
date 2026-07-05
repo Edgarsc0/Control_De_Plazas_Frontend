@@ -148,6 +148,13 @@ export default function ColumnFilterDropdown({
     return [...new Set(data.filter((row) => { const p = parseDateParts(row[columnKey]); return p && partsPredicate(p); }).map((row) => getCellValue(row, columnKey).trim()))];
   };
 
+  // Fallback calculado localmente: no depende de que el tab padre pase
+  // `allDateLeafValues` (varios tabs no lo hacían y el botón global quedaba oculto).
+  const resolvedAllDateLeafValues = isDate ? (allDateLeafValues || dateLeaves(() => true)) : [];
+
+  const markValues = (values) => setTempSelectedValues((prev) => [...new Set([...prev, ...values])]);
+  const unmarkValues = (values) => setTempSelectedValues((prev) => prev.filter((v) => !values.includes(v)));
+
   return (
     <AnimatePresence>
       {open && (
@@ -236,9 +243,9 @@ export default function ColumnFilterDropdown({
               ) : isDate ? (
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                   <div className="flex flex-col gap-1">
-                    {allDateLeafValues && (
+                    {resolvedAllDateLeafValues.length > 0 && (
                       <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
-                        <button onClick={() => setTempSelectedValues(allDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
+                        <button onClick={() => setTempSelectedValues(resolvedAllDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
                         <button onClick={() => setTempSelectedValues([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
                       </div>
                     )}
@@ -262,6 +269,10 @@ export default function ColumnFilterDropdown({
                               </div>
                               <span className="text-xs font-black text-slate-700 dark:text-slate-200">{year}</span>
                               <span className="text-[10px] font-black text-slate-400">({yearData.count})</span>
+                            </div>
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button onClick={(e) => { e.stopPropagation(); markValues(yearLeafValues); }} title="Marcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
+                              <button onClick={(e) => { e.stopPropagation(); unmarkValues(yearLeafValues); }} title="Desmarcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
                             </div>
                           </div>
 
@@ -288,6 +299,10 @@ export default function ColumnFilterDropdown({
                                         </div>
                                         <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{monthData.name}</span>
                                         <span className="text-[9px] font-black text-slate-400">({monthData.count})</span>
+                                      </div>
+                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <button onClick={(e) => { e.stopPropagation(); markValues(monthLeafValues); }} title="Marcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
+                                        <button onClick={(e) => { e.stopPropagation(); unmarkValues(monthLeafValues); }} title="Desmarcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
                                       </div>
                                     </div>
 

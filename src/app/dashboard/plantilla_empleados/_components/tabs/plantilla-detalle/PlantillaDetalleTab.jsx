@@ -361,7 +361,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const applyColumnFilter = (colKey) => {
     const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
     startTransition(() => {
-      if (tempSelectedValues.length === totalUnique.length) {
+      if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
         const newFilters = { ...columnFilters };
         delete newFilters[colKey];
         setColumnFilters(newFilters);

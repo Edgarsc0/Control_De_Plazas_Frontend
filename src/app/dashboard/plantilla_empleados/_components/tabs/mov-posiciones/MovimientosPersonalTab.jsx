@@ -177,82 +177,126 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
 
-  const modalContent = isOpen ? (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/50">
-          <h3 className="font-black text-[#621f32] dark:text-[#bc955c] uppercase tracking-wider text-sm">Seleccionar Fechas</h3>
-          <button onClick={() => setIsOpen(false)} className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
-            <X className="size-5 text-slate-500" />
-          </button>
-        </div>
-
-        <div className="p-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-2">
-           <button onClick={() => onChange(distinctDates.map(d=>d.value))} className="text-[10px] font-bold text-[#621f32] dark:text-[#bc955c] px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Seleccionar Todo</button>
-           <button onClick={() => onChange([])} className="text-[10px] font-bold text-slate-500 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Desmarcar Todo</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
-          {Object.keys(hierarchy).sort((a,b)=>b.localeCompare(a)).map(year => (
-            <div key={year} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/50 cursor-pointer" onClick={() => setExpandedYears(p => ({...p, [year]: !p[year]}))}>
-                <div className="flex items-center gap-2">
-                  {expandedYears[year] ? <ChevronDown className="size-4 text-slate-500"/> : <ChevronRight className="size-4 text-slate-500"/>}
-                  <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{year} <span className="text-xs text-slate-400">({hierarchy[year].count})</span></span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={(e) => { e.stopPropagation(); selectYear(year, true); }} className="text-[9px] font-bold text-emerald-600 px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">Todo</button>
-                  <button onClick={(e) => { e.stopPropagation(); selectYear(year, false); }} className="text-[9px] font-bold text-rose-600 px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">Nada</button>
-                </div>
+  const modalContent = (
+    <AnimatePresence>
+      {isOpen && (
+        <div key="bitacora-date-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70]"
+          >
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-black uppercase tracking-tight text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <Filter className="size-3 text-[#621f32] dark:text-[#bc955c]" />
+                  Seleccionar Fechas
+                </h4>
+                <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
               </div>
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-slate-900">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                <div className="flex flex-col gap-1">
+                  {distinctDates.length > 0 && (
+                    <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+                      <button onClick={() => onChange(distinctDates.map(d => d.value))} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
+                      <button onClick={() => onChange([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
+                    </div>
+                  )}
+                  {Object.keys(hierarchy).sort((a, b) => b.localeCompare(a)).map(year => {
+                    const yearData = hierarchy[year];
+                    const isYearExpanded = expandedYears[year];
+                    const yearDates = distinctDates.filter(d => d.value.startsWith(year)).map(d => d.value);
+                    const isYearSelected = yearDates.length > 0 && yearDates.every(v => selectedDates.includes(v));
+                    const isYearPartial = !isYearSelected && yearDates.some(v => selectedDates.includes(v));
 
-              {expandedYears[year] && (
-                <div className="p-2 flex flex-col gap-2 bg-white dark:bg-slate-900">
-                  {Object.keys(hierarchy[year].months).sort((a,b)=>b.localeCompare(a)).map(month => {
-                    const mKey = `${year}-${month}`;
                     return (
-                      <div key={mKey} className="ml-4 border-l-2 border-slate-100 dark:border-slate-800 pl-2">
-                        <div className="flex items-center justify-between cursor-pointer py-1" onClick={() => setExpandedMonths(p => ({...p, [mKey]: !p[mKey]}))}>
-                          <div className="flex items-center gap-2">
-                            {expandedMonths[mKey] ? <ChevronDown className="size-3 text-slate-400"/> : <ChevronRight className="size-3 text-slate-400"/>}
-                            <span className="font-semibold text-xs text-slate-700 dark:text-slate-300">{MONTH_NAMES[parseInt(month, 10) - 1] || month} <span className="text-[10px] text-slate-400">({hierarchy[year].months[month].count})</span></span>
+                      <div key={year} className="flex flex-col">
+                        <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg group">
+                          <button onClick={() => setExpandedYears(p => ({ ...p, [year]: !p[year] }))} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors text-slate-400">
+                            {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+                          </button>
+                          <div onClick={() => selectYear(year, !isYearSelected)} className="flex items-center gap-2 cursor-pointer flex-1">
+                            <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isYearSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                              {isYearSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                              {isYearPartial && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
+                            </div>
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-200">{year}</span>
+                            <span className="text-[10px] font-black text-slate-400">({yearData.count})</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, true); }} className="text-[8px] font-bold text-emerald-600 px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Todo</button>
-                            <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, false); }} className="text-[8px] font-bold text-rose-600 px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">Nada</button>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); selectYear(year, true); }} title="Marcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
+                            <button onClick={(e) => { e.stopPropagation(); selectYear(year, false); }} title="Desmarcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
                           </div>
                         </div>
 
-                        {expandedMonths[mKey] && (
-                          <div className="ml-5 mt-1 flex flex-wrap gap-2">
-                            {hierarchy[year].months[month].days.map(d => (
-                              <button
-                                key={d.fullDate}
-                                onClick={() => toggleDate(d.fullDate)}
-                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors ${isSelected(d.fullDate) ? "bg-[#621f32] text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
-                              >
-                                {d.day} <span className="opacity-75">({d.count})</span>
-                              </button>
-                            ))}
+                        {isYearExpanded && (
+                          <div className="ml-6 flex flex-col border-l border-slate-100 dark:border-slate-800 pl-2 mt-1 mb-2 gap-1">
+                            {Object.keys(yearData.months).sort().map(month => {
+                              const monthData = yearData.months[month];
+                              const mKey = `${year}-${month}`;
+                              const isMonthExpanded = expandedMonths[mKey];
+                              const monthDates = distinctDates.filter(d => d.value.startsWith(mKey)).map(d => d.value);
+                              const isMonthSelected = monthDates.length > 0 && monthDates.every(v => selectedDates.includes(v));
+                              const isMonthPartial = !isMonthSelected && monthDates.some(v => selectedDates.includes(v));
+
+                              return (
+                                <div key={mKey} className="flex flex-col">
+                                  <div className="flex items-center gap-2 px-2 py-1 group">
+                                    <button onClick={() => setExpandedMonths(p => ({ ...p, [mKey]: !p[mKey] }))} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-slate-400">
+                                      {isMonthExpanded ? <ChevronDown className="size-2.5" /> : <ChevronRight className="size-2.5" />}
+                                    </button>
+                                    <div onClick={() => selectMonth(year, month, !isMonthSelected)} className="flex items-center gap-2 cursor-pointer flex-1">
+                                      <div className={`size-3.5 rounded border flex items-center justify-center transition-all ${isMonthSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                                        {isMonthSelected && <Check className="size-2 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                                        {isMonthPartial && <div className="size-1 bg-[#621f32] dark:bg-[#bc955c] rounded-xs" />}
+                                      </div>
+                                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{MONTH_NAMES[parseInt(month, 10) - 1] || month}</span>
+                                      <span className="text-[9px] font-black text-slate-400">({monthData.count})</span>
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                      <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, true); }} title="Marcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
+                                      <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, false); }} title="Desmarcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
+                                    </div>
+                                  </div>
+
+                                  {isMonthExpanded && (
+                                    <div className="ml-6 grid grid-cols-2 gap-x-2 border-l border-slate-50 dark:border-slate-800/50 pl-2 py-1 mt-1">
+                                      {monthData.days.map(d => {
+                                        const isDaySelected = isSelected(d.fullDate);
+                                        return (
+                                          <div key={d.fullDate} onClick={() => toggleDate(d.fullDate)} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded cursor-pointer group">
+                                            <div className={`size-3 rounded border flex items-center justify-center transition-all ${isDaySelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                                              {isDaySelected && <Check className="size-2 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">{d.day}</span>
+                                            <span className="text-[8px] font-black text-slate-300">({d.count})</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
-              )}
+              </div>
             </div>
-          ))}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2">
+              <button onClick={() => onChange([])} className="flex-1 px-3 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">Limpiar</button>
+              <button onClick={() => setIsOpen(false)} className="flex-[2] px-3 py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl shadow-lg shadow-[#621f32]/20 dark:shadow-none hover:opacity-90 active:scale-95 transition-all">Aceptar</button>
+            </div>
+          </motion.div>
         </div>
-
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex justify-end">
-          <button onClick={() => setIsOpen(false)} className="px-6 py-2 bg-[#621f32] hover:bg-[#802842] dark:bg-[#bc955c] dark:hover:bg-[#d0ab75] text-white dark:text-[#3e131f] font-black text-xs uppercase tracking-wider rounded-xl transition-colors shadow-md">
-            Aceptar
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <>
