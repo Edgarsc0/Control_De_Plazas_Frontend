@@ -93,6 +93,8 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     const [loadingEventuales, setLoadingEventuales] = useState(false);
     const [permanentesData, setPermanentesData] = useState(null);
     const [loadingPermanentes, setLoadingPermanentes] = useState(false);
+    const [eventualesSinMatch, setEventualesSinMatch] = useState([]);
+    const [permanentesSinMatch, setPermanentesSinMatch] = useState([]);
 
     // Document loading states for split pane layout
     const [expedienteData, setExpedienteData] = useState(null);
@@ -175,13 +177,14 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 const data = await res.json();
                 const map = {};
                 const newInput = {};
-                data.forEach(({ nivel, cantidad }) => {
-                    map[nivel] = cantidad;
-                    newInput[nivel] = cantidad;
+                (data.plazas || []).forEach(({ catalogo_id, cantidad }) => {
+                    map[catalogo_id] = (map[catalogo_id] || 0) + cantidad;
+                    newInput[catalogo_id] = (newInput[catalogo_id] || 0) + cantidad;
                 });
                 setEventualesData(map);
                 setPermanentesData(null);
                 setPlazasInput(newInput);
+                setEventualesSinMatch(data.sin_match || []);
             }
         } catch (e) { console.error(e); }
         finally { setLoadingEventuales(false); }
@@ -195,13 +198,14 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 const data = await res.json();
                 const map = {};
                 const newInput = {};
-                data.forEach(({ nivel, cantidad }) => {
-                    map[nivel] = cantidad;
-                    newInput[nivel] = cantidad;
+                (data.plazas || []).forEach(({ catalogo_id, cantidad }) => {
+                    map[catalogo_id] = (map[catalogo_id] || 0) + cantidad;
+                    newInput[catalogo_id] = (newInput[catalogo_id] || 0) + cantidad;
                 });
                 setPermanentesData(map);
                 setEventualesData(null);
                 setPlazasInput(newInput);
+                setPermanentesSinMatch(data.sin_match || []);
             }
         } catch (e) { console.error(e); }
         finally { setLoadingPermanentes(false); }
@@ -214,23 +218,23 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     }, [catalogo, searchTerm]);
 
     const selectedPlazas = useMemo(() => {
-        return Object.entries(plazasInput).filter(([, q]) => q > 0).map(([nivel, qty]) => {
-            const plaza = catalogo.find(p => p.nivel === nivel);
-            return { nivel, qty, denominacion: plaza?.denominacion || '', codigo: plaza?.codigo || '' };
+        return Object.entries(plazasInput).filter(([, q]) => q > 0).map(([id, qty]) => {
+            const plaza = catalogo.find(p => String(p.id) === id);
+            return { id: plaza?.id ?? id, qty, nivel: plaza?.nivel || '', denominacion: plaza?.denominacion || '', codigo: plaza?.codigo || '' };
         });
     }, [plazasInput, catalogo]);
 
-    const handlePlazaChange = (nivel, value) => {
+    const handlePlazaChange = (id, value) => {
         const qty = parseInt(value) || 0;
-        setPlazasInput(prev => { const n = { ...prev }; if (qty <= 0) delete n[nivel]; else n[nivel] = qty; return n; });
+        setPlazasInput(prev => { const n = { ...prev }; if (qty <= 0) delete n[id]; else n[id] = qty; return n; });
     };
 
-    const adjustPlaza = (nivel, delta) => {
-        handlePlazaChange(nivel, Math.max(0, (plazasInput[nivel] || 0) + delta));
+    const adjustPlaza = (id, delta) => {
+        handlePlazaChange(id, Math.max(0, (plazasInput[id] || 0) + delta));
     };
 
     const handleCalcular = async () => {
-        const plazas = selectedPlazas.map(p => ({ nivel: p.nivel, plazas: p.qty }));
+        const plazas = selectedPlazas.map(p => ({ catalogo_id: p.id, plazas: p.qty }));
         if (!plazas.length) return;
         setCalculating(true);
         try {
@@ -325,10 +329,12 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
 
         autoTable(doc, {
             startY: finalY + 20,
-            head: [['NIVEL', 'PLAZAS', 'SUELDO BASE', 'SUELDO PER.', 'COMP. GAR.', 'COMP. GAR. PER.', 'TOTAL']],
+            head: [['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO PER.', 'COMP. GAR.', 'COMP. GAR. PER.', 'TOTAL']],
             body: [
                 ...resultado.tabla_2022.map(r => [
                     r.nivel,
+                    r.codigo,
+                    r.zona,
                     r.plazas,
                     fmt(r.sueldo),
                     fmt(r.sueldo_colectivo_periodo),
@@ -337,7 +343,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                     fmt(r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion)
                 ]),
                 [
-                    { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+                    { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold' } },
                     { content: totPlazas, styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldo), styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldoPer), styles: { fontStyle: 'bold' } },
@@ -346,7 +352,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                     { content: fmt(totTotal), styles: { fontStyle: 'bold' } },
                 ],
                 [
-                    { content: 'QUINCENA', styles: { fontStyle: 'bold' } },
+                    { content: 'QUINCENA', colSpan: 3, styles: { fontStyle: 'bold' } },
                     { content: totPlazas, styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldo / meses / 2), styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldoPer / meses / 2), styles: { fontStyle: 'bold' } },
@@ -378,38 +384,154 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     const exportToExcel = async () => {
         const ExcelJS = (await import('exceljs')).default;
         const wb = new ExcelJS.Workbook();
+        wb.creator = 'FUMP 2025 · Sistema de Control de Plazas';
+        wb.created = new Date();
 
-        const ws1 = wb.addWorksheet('Resumen por Concepto');
-        ws1.addRows([
-            ['REPORTE DE VALUACIÓN PRESUPUESTARIA'],
-            [`Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'}`],
-            [''],
-            ['PARTIDA', 'CONCEPTO', `PERÍODO (${meses}m)`, 'ANUAL (12m)', 'COMPLEMENTO'],
-            ...resultado.tabla_q322_t348.map(r => [
-                r.concepto,
-                r.descripcion,
-                r.periodo,
-                r.anual,
-                r.complemento
-            ]),
-            ['TOTAL', '', resultado.total.periodo, resultado.total.anual, resultado.total.complemento]
-        ]);
+        const MAROON = 'FF621F32';
+        const MAROON_DARK = 'FF3A1120';
+        const AMBER = 'FFFBBF24';
+        const GRAY_HEADER = 'FFF3F4F6';
+        const GRAY_TEXT = 'FF6B7280';
+        const WHITE = 'FFFFFFFF';
+        const now = new Date().toLocaleDateString('es-MX');
+        const moneyFmt = '"$"#,##0.00';
 
-        const ws2 = wb.addWorksheet('Desglose Analítico');
-        ws2.addRows([
-            ['DESGLOSE ANALÍTICO POR NIVEL'],
-            [''],
-            ['NIVEL', 'PLAZAS', 'SUELDO BASE', 'SUELDO PERÍODO', 'COMP. GAR.', 'COMP. GAR. PERÍODO', 'TOTAL NIVEL'],
-            ...resultado.tabla_2022.map(r => [
-                r.nivel,
-                r.plazas,
-                r.sueldo,
-                r.sueldo_colectivo_periodo,
-                r.compensacion,
-                r.compensacion_colectiva_periodo,
-                r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion
-            ])
-        ]);
+        const thinBorder = { style: 'thin', color: { argb: 'FFE5E7EB' } };
+        const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
+
+        const styleTitleBand = (ws, colSpan, title, subtitle) => {
+            ws.mergeCells(1, 1, 1, colSpan);
+            ws.mergeCells(2, 1, 2, colSpan);
+            const titleCell = ws.getCell(1, 1);
+            titleCell.value = title;
+            titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: WHITE } };
+            titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            ws.getRow(1).height = 30;
+
+            const subtitleCell = ws.getCell(2, 1);
+            subtitleCell.value = subtitle;
+            subtitleCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: AMBER } };
+            subtitleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            ws.getRow(2).height = 20;
+
+            for (let r = 1; r <= 2; r++) {
+                for (let c = 1; c <= colSpan; c++) {
+                    ws.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r === 1 ? MAROON_DARK : MAROON } };
+                }
+            }
+        };
+
+        const styleHeaderRow = (row) => {
+            row.eachCell((cell) => {
+                cell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: WHITE } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MAROON } };
+                cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                cell.border = allBorders;
+            });
+            row.height = 26;
+        };
+
+        const styleTotalRow = (row, colSpanLabel) => {
+            row.eachCell((cell, colNumber) => {
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: colNumber <= colSpanLabel ? WHITE : AMBER } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MAROON_DARK } };
+                cell.border = allBorders;
+                cell.alignment = { vertical: 'middle', horizontal: colNumber <= colSpanLabel ? 'right' : 'right' };
+            });
+            row.height = 24;
+        };
+
+        // ── HOJA 1: Resumen por Concepto ──────────────────────────────
+        const ws1 = wb.addWorksheet('Resumen por Concepto', { views: [{ showGridLines: false }] });
+        ws1.columns = [
+            { width: 14 }, { width: 46 }, { width: 20 }, { width: 20 }, { width: 20 },
+        ];
+
+        styleTitleBand(ws1, 5, 'REPORTE DE VALUACIÓN PRESUPUESTARIA', `FUMP 2025 · Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'} · Generado el ${now}`);
+        ws1.addRow([]);
+
+        const headerRow1 = ws1.addRow(['PARTIDA', 'CONCEPTO', `PERÍODO (${meses}m)`, 'ANUAL (12m)', 'COMPLEMENTO']);
+        styleHeaderRow(headerRow1);
+
+        resultado.tabla_q322_t348.forEach((r, idx) => {
+            const row = ws1.addRow([r.concepto, r.descripcion, r.periodo, r.anual, r.complemento]);
+            row.eachCell((cell, colNumber) => {
+                cell.border = allBorders;
+                cell.font = { name: 'Calibri', size: 10, color: { argb: colNumber === 1 ? MAROON : GRAY_TEXT }, bold: colNumber === 1 };
+                if (colNumber >= 3) { cell.numFmt = moneyFmt; cell.alignment = { horizontal: 'right' }; }
+                if (colNumber === 3) { cell.font = { ...cell.font, bold: true, color: { argb: MAROON } }; }
+                if (idx % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRAY_HEADER } };
+            });
+            row.height = 20;
+        });
+
+        const totalRow1 = ws1.addRow(['TOTAL VALUACIÓN', '', resultado.total.periodo, resultado.total.anual, resultado.total.complemento]);
+        ws1.mergeCells(totalRow1.number, 1, totalRow1.number, 2);
+        totalRow1.getCell(3).numFmt = moneyFmt;
+        totalRow1.getCell(4).numFmt = moneyFmt;
+        totalRow1.getCell(5).numFmt = moneyFmt;
+        styleTotalRow(totalRow1, 2);
+
+        ws1.getRow(4).alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // ── HOJA 2: Desglose Analítico ────────────────────────────────
+        const ws2 = wb.addWorksheet('Desglose Analítico', { views: [{ showGridLines: false }] });
+        ws2.columns = [
+            { width: 22 }, { width: 12 }, { width: 12 }, { width: 10 },
+            { width: 18 }, { width: 20 }, { width: 18 }, { width: 22 }, { width: 20 },
+        ];
+
+        styleTitleBand(ws2, 9, 'DESGLOSE ANALÍTICO POR NIVEL', `Detalle individualizado por plaza seleccionada · Base PECEN · ${now}`);
+        ws2.addRow([]);
+
+        const headerRow2 = ws2.addRow(['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO PERÍODO', 'COMP. GAR.', 'COMP. GAR. PERÍODO', 'TOTAL NIVEL']);
+        styleHeaderRow(headerRow2);
+
+        resultado.tabla_2022.forEach((r, idx) => {
+            const totalNivel = r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion;
+            const row = ws2.addRow([
+                r.nivel, r.codigo, r.zona, r.plazas,
+                r.sueldo, r.sueldo_colectivo_periodo, r.compensacion, r.compensacion_colectiva_periodo, totalNivel
+            ]);
+            row.eachCell((cell, colNumber) => {
+                cell.border = allBorders;
+                cell.font = { name: 'Calibri', size: 9, color: { argb: GRAY_TEXT } };
+                if (colNumber === 1) cell.font = { ...cell.font, bold: true, color: { argb: MAROON } };
+                if (colNumber === 4) cell.alignment = { horizontal: 'center' };
+                if (colNumber >= 5) { cell.numFmt = moneyFmt; cell.alignment = { horizontal: 'right' }; }
+                if (colNumber >= 5 && colNumber <= 8) cell.font = { ...cell.font, bold: true, color: { argb: MAROON } };
+                if (colNumber === 9) cell.font = { name: 'Calibri', size: 9.5, bold: true, color: { argb: 'FFB45309' } };
+                if (idx % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRAY_HEADER } };
+            });
+            row.height = 20;
+        });
+
+        const totPlazas = selectedPlazas.reduce((t, p) => t + p.qty, 0);
+        const totSueldo = resultado.tabla_2022.reduce((t, r) => t + r.sueldo, 0);
+        const totSueldoPer = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo, 0);
+        const totComp = resultado.tabla_2022.reduce((t, r) => t + r.compensacion, 0);
+        const totCompPer = resultado.tabla_2022.reduce((t, r) => t + r.compensacion_colectiva_periodo, 0);
+        const totTotal = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion, 0);
+
+        const totalRow2 = ws2.addRow(['TOTAL', '', '', totPlazas, totSueldo, totSueldoPer, totComp, totCompPer, totTotal]);
+        ws2.mergeCells(totalRow2.number, 1, totalRow2.number, 3);
+        [5, 6, 7, 8, 9].forEach(c => totalRow2.getCell(c).numFmt = moneyFmt);
+        styleTotalRow(totalRow2, 3);
+        totalRow2.getCell(4).alignment = { horizontal: 'center' };
+
+        const quincenaRow2 = ws2.addRow(['QUINCENA', '', '', totPlazas, totSueldo / meses / 2, totSueldoPer / meses / 2, totComp / meses / 2, totCompPer / meses / 2, totTotal / meses / 2]);
+        ws2.mergeCells(quincenaRow2.number, 1, quincenaRow2.number, 3);
+        [5, 6, 7, 8, 9].forEach(c => quincenaRow2.getCell(c).numFmt = moneyFmt);
+        quincenaRow2.eachCell((cell, colNumber) => {
+            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: colNumber <= 3 ? WHITE : AMBER } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A4A7A' } };
+            cell.border = allBorders;
+            cell.alignment = { vertical: 'middle', horizontal: colNumber === 4 ? 'center' : 'right' };
+        });
+        quincenaRow2.height = 24;
+
+        ws1.getRow(4).alignment = { vertical: 'middle', horizontal: 'left' };
+        [ws1, ws2].forEach(ws => { ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }; });
 
         const buffer = await wb.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -515,6 +637,12 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                 </button>
                             </div>
                         </div>
+                        {(eventualesSinMatch.length > 0 || permanentesSinMatch.length > 0) && (
+                            <div className="mt-3 flex items-center gap-1.5 text-[9px] font-bold text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5">
+                                <Info className="w-3 h-3 shrink-0" />
+                                {(eventualesData ? eventualesSinMatch.length : permanentesSinMatch.length)} nivel(es) de nómina sin correspondencia en catálogo — no incluidos en la carga.
+                            </div>
+                        )}
                         <div className="mt-4 relative">
                             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 w-3.5 h-3.5" />
                             <input
@@ -544,14 +672,14 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                             <div className="flex items-center gap-2">
                                                 <span className="font-black text-[#621f32] text-xs">{item.nivel}</span>
                                                 <span className="text-amber-500 font-bold text-[10px]">({item.codigo})</span>
-                                                {eventualesData?.[item.nivel] != null && (
+                                                {eventualesData?.[item.id] != null && (
                                                     <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15">
-                                                        {eventualesData[item.nivel]} ocp.
+                                                        {eventualesData[item.id]} ocp.
                                                     </span>
                                                 )}
-                                                {permanentesData?.[item.nivel] != null && (
+                                                {permanentesData?.[item.id] != null && (
                                                     <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#1a4a7a]/8 text-[#1a4a7a] border border-[#1a4a7a]/15">
-                                                        {permanentesData[item.nivel]} ocp.
+                                                        {permanentesData[item.id]} ocp.
                                                     </span>
                                                 )}
                                             </div>
@@ -559,18 +687,18 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                         </td>
                                         <td className="px-5 py-3.5 text-right">
                                             <div className="flex items-center justify-end gap-1">
-                                                <button onClick={() => adjustPlaza(item.nivel, -1)}
+                                                <button onClick={() => adjustPlaza(item.id, -1)}
                                                     className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-[#621f32] hover:bg-[#621f32]/5 transition-all">
                                                     <ChevronDown className="w-4 h-4" />
                                                 </button>
                                                 <input
                                                     type="number"
-                                                    value={plazasInput[item.nivel] || ''}
-                                                    onChange={(e) => handlePlazaChange(item.nivel, e.target.value)}
+                                                    value={plazasInput[item.id] || ''}
+                                                    onChange={(e) => handlePlazaChange(item.id, e.target.value)}
                                                     placeholder="0"
                                                     className="w-12 h-8 bg-gray-50 border border-gray-200 rounded-lg text-center font-black text-[#621f32] text-sm focus:outline-none focus:border-[#621f32]/50 focus:bg-white transition-all"
                                                 />
-                                                <button onClick={() => adjustPlaza(item.nivel, 1)}
+                                                <button onClick={() => adjustPlaza(item.id, 1)}
                                                     className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-[#621f32] hover:bg-[#621f32]/5 transition-all">
                                                     <ChevronUp className="w-4 h-4" />
                                                 </button>
@@ -607,7 +735,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                         ) : (
                             <div className="space-y-2">
                                 {selectedPlazas.map((p) => (
-                                    <div key={p.nivel}
+                                    <div key={p.id}
                                         className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-100
                                                     hover:border-[#621f32]/20 hover:bg-[#621f32]/[0.02] transition-all group">
                                         <div className="flex-1 min-w-0">
@@ -624,7 +752,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                                     {p.qty === 1 ? 'plaza' : 'plazas'}
                                                 </span>
                                             </div>
-                                            <button onClick={() => handlePlazaChange(p.nivel, 0)}
+                                            <button onClick={() => handlePlazaChange(p.id, 0)}
                                                 className="text-gray-200 hover:text-red-400 transition-colors">
                                                 <XCircle className="w-4 h-4" />
                                             </button>

@@ -89,7 +89,7 @@ export const PresupuestoService = {
     /**
      * Realiza el cálculo de valuación presupuestaria.
      * @param {number} meses - Número de meses (1-12).
-     * @param {Array<{nivel: string, plazas: number}>} plazas - Plazas por nivel a valuar.
+     * @param {Array<{catalogo_id: number, plazas: number}>} plazas - Plazas por id de catálogo a valuar.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el resultado.
      */
