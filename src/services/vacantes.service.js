@@ -335,6 +335,14 @@ export const VacantesService = {
         return apiFetch(`/plantilla/organigrama-deptos/`, { method: 'GET', ...options });
     },
 
+    getCatAcciones: (options = {}) => {
+        return apiFetch(`/plantilla/cat-acciones/`, { method: 'GET', ...options });
+    },
+
+    getCatAccionesMotivos: (options = {}) => {
+        return apiFetch(`/plantilla/cat-acciones-motivos/`, { method: 'GET', ...options });
+    },
+
     getMovimientosPersonalHistorial: (numEmpleadoList = [], options = {}) => {
         return apiFetch(`/plantilla/movimientos-personal/historial/`, {
             method: 'POST',

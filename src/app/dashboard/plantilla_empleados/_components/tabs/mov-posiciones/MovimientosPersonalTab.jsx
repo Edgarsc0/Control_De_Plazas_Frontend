@@ -23,11 +23,13 @@ import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/Advanc
 import { normalizeForSearch, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
+import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
+import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
@@ -323,6 +325,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const bitacoraDateInputRef = useRef(null);
 
   const deptoCatalog = useOrganigramaCatalog();
+  const { accionesCatalog, motivosCatalog } = useAccionesMotivosCatalog();
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -792,12 +795,15 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       val = `$${formatNumber(val)}`;
     }
     const deptoInfo = col.key === "id_depto" ? getDeptoInfo(deptoCatalog, val) : null;
+    const accionInfo = col.key === "accion_nombre" ? getAccionInfo(accionesCatalog, val) : null;
+    const motivoInfo = col.key === "motivo_nombre" ? getMotivoInfo(motivosCatalog, val) : null;
+    const catalogInfo = deptoInfo || accionInfo || motivoInfo;
     let cellClass = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "ring-2 ring-inset ring-[#621f32] dark:ring-[#bc955c] bg-white dark:bg-slate-950 font-black text-[#621f32] dark:text-[#bc955c] shadow-lg relative z-[25]" : "font-semibold text-slate-700 dark:text-slate-300"}`;
     if (isSticky) cellClass += isSelectedRow ? " bg-[#f0e4e6] dark:bg-[#621f32]/20" : " bg-white/95 dark:bg-slate-900/95";
     if (col.key === "posicion" || col.key === "num_empleado") cellClass += " font-mono font-bold hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer";
     else if (col.key === "accion_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
     else if (col.key === "motivo_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
-    if (deptoInfo) cellClass += " cursor-help";
+    if (catalogInfo) cellClass += " cursor-help";
     const handleCellClick = (e) => {
       if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionTimelineModalOpen(true); }
       else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setTimelineModalOpen(true); }
@@ -813,7 +819,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       ) : String(val)
     ) : "-";
     const tdElement = (
-      <td key={deptoInfo ? undefined : col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: isSelected ? 25 : 20 } : {}} className={cellClass}
+      <td key={catalogInfo ? undefined : col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: isSelected ? 25 : 20 } : {}} className={cellClass}
         onClick={handleCellClick}
         onContextMenu={handleCellContext}
       >
@@ -833,8 +839,34 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         </Tooltip>
       );
     }
+    if (accionInfo) {
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>{tdElement}</TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{accionInfo.action}</span>
+              <span className="text-[10px] opacity-80">{accionInfo.descripcion || "Sin descripción"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    if (motivoInfo) {
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>{tdElement}</TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{motivoInfo.cd_motivo}</span>
+              <span className="text-[10px] opacity-80">{motivoInfo.descripcion_larga || "Sin descripción"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
     return tdElement;
-  }, [page, pageSize, selectedCell, deptoCatalog]);
+  }, [page, pageSize, selectedCell, deptoCatalog, accionesCatalog, motivosCatalog]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });

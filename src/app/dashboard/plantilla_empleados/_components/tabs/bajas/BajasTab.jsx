@@ -27,6 +27,8 @@ import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValu
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
+import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
+import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import DatePicker from "react-datepicker";
 
@@ -59,6 +61,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   useEffect(() => setMounted(true), []);
   const deptoCatalog = useOrganigramaCatalog();
+  const { motivosCatalog } = useAccionesMotivosCatalog();
 
   const chartContainerRef = useRef(null);
   const [chartWidth, setChartWidth] = useState(450);
@@ -658,6 +661,27 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             <div className="flex flex-col gap-0.5">
               <span className="font-bold">{deptoInfo.nombre}</span>
               <span className="text-[10px] opacity-80">Nivel: {deptoInfo.nivel || "N/D"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    if (col.key === "motivo_descr") {
+      const motivoInfo = getMotivoInfo(motivosCatalog, value);
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""}`;
+      const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300">-</span> : String(value);
+      if (!motivoInfo) {
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>);
+      }
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{motivoInfo.cd_motivo}</span>
+              <span className="text-[10px] opacity-80">{motivoInfo.descripcion_larga || "Sin descripción"}</span>
             </div>
           </TooltipContent>
         </Tooltip>

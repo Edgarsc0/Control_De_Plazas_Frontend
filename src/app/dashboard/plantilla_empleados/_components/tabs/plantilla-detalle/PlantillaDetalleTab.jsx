@@ -27,6 +27,8 @@ import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValu
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
+import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
+import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
@@ -79,6 +81,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
   const deptoCatalog = useOrganigramaCatalog();
+  const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
@@ -642,8 +645,29 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         </Tooltip>
       );
     }
+    if (col.key === "motivo") {
+      const motivoInfo = getMotivoInfo(motivosCatalog, value);
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
+      if (!motivoInfo) {
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>);
+      }
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{motivoInfo.cd_motivo}</span>
+              <span className="text-[10px] opacity-80">{motivoInfo.descripcion_larga || "Sin descripción"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
     return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}</td>);
-  }, [isMonoColumn, deptoCatalog]);
+  }, [isMonoColumn, deptoCatalog, motivosCatalog]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
