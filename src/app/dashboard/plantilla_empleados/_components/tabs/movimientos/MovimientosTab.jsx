@@ -27,6 +27,8 @@ import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
+import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
+import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const CATEGORIA_VACANCIA_TOOLTIP = {
@@ -156,6 +158,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
   const deptoCatalog = useOrganigramaCatalog();
+  const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
@@ -1178,6 +1181,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         </td>
       );
     }
+    if (col.key === "motivo") {
+      const motivoInfo = getMotivoInfo(motivosCatalog, value);
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300">-</span> : String(value);
+      if (!motivoInfo) {
+        return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>);
+      }
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{motivoInfo.cd_motivo}</span>
+              <span className="text-[10px] opacity-80">{motivoInfo.descripcion_larga || "Sin descripción"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
     if (col.key === "cd_departamento") {
       const deptoInfo = getDeptoInfo(deptoCatalog, value);
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
@@ -1200,7 +1224,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       );
     }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (String(value))}</td>);
-  }, [isMonoColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog]);
+  }, [isMonoColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
