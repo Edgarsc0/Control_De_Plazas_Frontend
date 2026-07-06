@@ -73,6 +73,8 @@ export default function ColumnFilterDropdown({
   loadingValues = false,
   dateValues = null,
   allDateLeafValues = null,
+  dimBackdrop = true,
+  renderValueLabel = null,
 }) {
   const {
     filterDropdownTab, setFilterDropdownTab,
@@ -159,7 +161,7 @@ export default function ColumnFilterDropdown({
     <AnimatePresence>
       {open && (
         <div key="filter-dropdown" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className={`fixed inset-0 ${dimBackdrop ? "bg-slate-950/40 backdrop-blur-[2px]" : ""}`} />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
             onKeyDown={handlePanelKeyDown}
@@ -384,7 +386,7 @@ export default function ColumnFilterDropdown({
                                   </div>
                                   <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
                                     <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
-                                      {value ? highlightMatch(value, filterSearchText) : "(Vacío)"}
+                                      {value ? (renderValueLabel ? renderValueLabel(value, filterSearchText) : highlightMatch(value, filterSearchText)) : "(Vacío)"}
                                     </span>
                                     <span className="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-lg shrink-0">{count}</span>
                                   </div>
