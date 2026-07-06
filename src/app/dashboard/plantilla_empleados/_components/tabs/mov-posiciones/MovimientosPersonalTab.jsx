@@ -22,10 +22,13 @@ import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { normalizeForSearch, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
+import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
+import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -319,6 +322,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const tbodyRef = useRef(null);
   const bitacoraDateInputRef = useRef(null);
 
+  const deptoCatalog = useOrganigramaCatalog();
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -787,31 +791,50 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     } else if (["sal_base", "smb", "smn", "sueldo_bruto", "sueldo_neto"].includes(col.key) && val) {
       val = `$${formatNumber(val)}`;
     }
+    const deptoInfo = col.key === "id_depto" ? getDeptoInfo(deptoCatalog, val) : null;
     let cellClass = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "ring-2 ring-inset ring-[#621f32] dark:ring-[#bc955c] bg-white dark:bg-slate-950 font-black text-[#621f32] dark:text-[#bc955c] shadow-lg relative z-[25]" : "font-semibold text-slate-700 dark:text-slate-300"}`;
     if (isSticky) cellClass += isSelectedRow ? " bg-[#f0e4e6] dark:bg-[#621f32]/20" : " bg-white/95 dark:bg-slate-900/95";
     if (col.key === "posicion" || col.key === "num_empleado") cellClass += " font-mono font-bold hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer";
     else if (col.key === "accion_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
     else if (col.key === "motivo_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
-    return (
-      <td key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: isSelected ? 25 : 20 } : {}} className={cellClass}
-        onClick={(e) => {
-          if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionTimelineModalOpen(true); }
-          else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setTimelineModalOpen(true); }
-          else { setSelectedCell({ rowIdx: globalRowIdx, colIdx, colName: col.label, value: val }); }
-        }}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleCellContextMenu(e, val, e.currentTarget.getBoundingClientRect()); }}
+    if (deptoInfo) cellClass += " cursor-help";
+    const handleCellClick = (e) => {
+      if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionTimelineModalOpen(true); }
+      else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setTimelineModalOpen(true); }
+      else { setSelectedCell({ rowIdx: globalRowIdx, colIdx, colName: col.label, value: val }); }
+    };
+    const handleCellContext = (e) => { e.preventDefault(); e.stopPropagation(); handleCellContextMenu(e, val, e.currentTarget.getBoundingClientRect()); };
+    const cellContent = val ? (
+      (col.key === "posicion" || col.key === "num_empleado") ? (
+        <div className="flex items-center justify-between gap-2">
+          <span>{String(val)}</span>
+          <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title={col.key === "posicion" ? "Clic para ver histórico de la posición" : "Clic para ver histórico del empleado"} />
+        </div>
+      ) : String(val)
+    ) : "-";
+    const tdElement = (
+      <td key={deptoInfo ? undefined : col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: isSelected ? 25 : 20 } : {}} className={cellClass}
+        onClick={handleCellClick}
+        onContextMenu={handleCellContext}
       >
-        {val ? (
-          (col.key === "posicion" || col.key === "num_empleado") ? (
-            <div className="flex items-center justify-between gap-2">
-              <span>{String(val)}</span>
-              <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title={col.key === "posicion" ? "Clic para ver histórico de la posición" : "Clic para ver histórico del empleado"} />
-            </div>
-          ) : String(val)
-        ) : "-"}
+        {cellContent}
       </td>
     );
-  }, [page, pageSize, selectedCell]);
+    if (deptoInfo) {
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>{tdElement}</TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{deptoInfo.nombre}</span>
+              <span className="text-[10px] opacity-80">Nivel: {deptoInfo.nivel || "N/D"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+    return tdElement;
+  }, [page, pageSize, selectedCell, deptoCatalog]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });

@@ -25,6 +25,9 @@ import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
+import { getDeptoInfo } from "@/utils/organigramaCatalog";
+import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import DatePicker from "react-datepicker";
 
 const MOV_STATUS_BADGE_STYLES = {
@@ -55,6 +58,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const [mounted, setMounted] = useState(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   useEffect(() => setMounted(true), []);
+  const deptoCatalog = useOrganigramaCatalog();
 
   const chartContainerRef = useRef(null);
   const [chartWidth, setChartWidth] = useState(450);
@@ -638,6 +642,27 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     }
     const isPosicionCol = col.key === "posicion";
     const handleCellClick = (e) => { onClick(e); if (isPosicionCol) { setActiveModalTab('tabla'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
+    if (col.key === "departamento") {
+      const deptoInfo = getDeptoInfo(deptoCatalog, value);
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""}`;
+      const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300">-</span> : String(value);
+      if (!deptoInfo) {
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>);
+      }
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">{deptoInfo.nombre}</span>
+              <span className="text-[10px] opacity-80">Nivel: {deptoInfo.nivel || "N/D"}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
     return (<td key={col.key} onClick={handleCellClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : (String(value))}</td>);
   };
 
