@@ -7,6 +7,23 @@ import { AnimatePresence } from 'motion/react';
 import DashboardSubmenu from '@/components/ui/DashboardSubmenu';
 import { ChevronDown } from 'lucide-react';
 import { useZafiroUpdates } from '@/context/ZafiroUpdatesContext';
+import { SystemService } from '@/services/system.service';
+
+function formatFecha(isoString) {
+  const date = new Date(isoString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedHours = String(hours).padStart(2, '0');
+
+  return `${day}/${month}/${year} ${formattedHours}:${minutes} ${ampm}`;
+}
 
 export default function Navbar() {
   const { isAuthenticated, logout } = useAuth();
@@ -14,15 +31,41 @@ export default function Navbar() {
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
+  const [systemUpdate, setSystemUpdate] = useState(null);
+  const [showCommitMessage, setShowCommitMessage] = useState(false);
+  const systemUpdateRef = useRef(null);
+
   // Cerrar el menú al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsDashboardMenuOpen(false);
       }
+      if (systemUpdateRef.current && !systemUpdateRef.current.contains(event.target)) {
+        setShowCommitMessage(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Última actualización de código (commit más reciente entre back y front)
+  useEffect(() => {
+    let active = true;
+
+    SystemService.getLastUpdate()
+      .then(async (response) => {
+        if (!response.ok || !active) return;
+        const data = await response.json();
+        if (data?.fecha) {
+          setSystemUpdate({ fecha: formatFecha(data.fecha), mensaje: data.mensaje });
+        }
+      })
+      .catch((err) => console.error('Error fetching system last update:', err));
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -45,6 +88,40 @@ export default function Navbar() {
                 <span className="text-[9px] md:text-[10px] text-gray-500 font-light mt-0.5 leading-none md:leading-normal">
                   Última actualización de información: <span className="font-semibold text-[#621f32]/85">{lastUpdate}</span>
                 </span>
+              )}
+              {systemUpdate && (
+                <div className="relative" ref={systemUpdateRef}>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowCommitMessage((prev) => !prev);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowCommitMessage((prev) => !prev);
+                      }
+                    }}
+                    className="block text-[9px] md:text-[10px] text-gray-500 font-light mt-0.5 leading-none md:leading-normal hover:text-[#621f32] transition-colors cursor-pointer outline-none"
+                  >
+                    Última actualización del sistema: <span className="font-semibold text-[#621f32]/85">{systemUpdate.fecha}</span>
+                  </span>
+
+                  <AnimatePresence>
+                    {showCommitMessage && (
+                      <div
+                        onClick={(e) => e.preventDefault()}
+                        className="absolute top-full left-0 mt-1 w-64 max-w-[80vw] rounded-md border border-gray-200 bg-white shadow-lg p-2.5 text-xs text-gray-700 z-50"
+                      >
+                        {systemUpdate.mensaje}
+                      </div>
+                    )}
+                  </AnimatePresence>
+                </div>
               )}
             </div>
           </Link>
