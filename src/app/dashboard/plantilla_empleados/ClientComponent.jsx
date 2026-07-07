@@ -10,7 +10,9 @@ import {
   BarChart3,
   ArrowLeftRight,
   UserCog,
-  UserMinus
+  UserMinus,
+  Database,
+  Layers
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
@@ -23,6 +25,8 @@ import MapaTab from "./_components/tabs/mapa/MapaTab";
 import BajasTab from "./_components/tabs/bajas/BajasTab";
 import TorreCaballito3DTab from "./_components/tabs/torre-3d/TorreCaballito3DTab";
 import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
+import CatalogosEstructuraTab from "./_components/tabs/catalogos-estructura/CatalogosEstructuraTab";
+import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-estructura/catalogosConfig";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList },
@@ -30,7 +34,8 @@ const TABS = [
   { id: "movimientos", label: "Mov. Posiciones", icon: ArrowLeftRight },
   { id: "movimientos_personal", label: "Movimientos", icon: UserCog },
   { id: "bajas", label: "Empleados Bajas", icon: UserMinus },
-  { id: "mapa", label: "Distribución Geográfica", icon: Globe }
+  { id: "mapa", label: "Distribución Geográfica", icon: Globe },
+  { id: "catalogos_estructura", label: "Catálogos", icon: Database }
 ];
 
 const SECONDARY_TAB_SKELETON = (
@@ -86,6 +91,7 @@ export default function PlantillaEmpleadosDetalle({
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
+  const [activeCatalogoSubTab, setActiveCatalogoSubTab] = useState(CATALOGOS_ORDER[0]);
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
   // Refs independientes por tab: los 4 tabs con tabla densa se mantienen
@@ -106,7 +112,7 @@ export default function PlantillaEmpleadosDetalle({
     activeTab === "bajas" ? cardRefBajas :
     null;
   useRefreshOnZafiroUpdate();
-  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab === "tabla") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa";
+  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab === "tabla") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
 
   // Tabs con datos propios (filtros, orden, fetch en cliente) que ya se visitaron:
   // se mantienen montados y se ocultan con CSS al cambiar de tab, en vez de
@@ -206,6 +212,18 @@ export default function PlantillaEmpleadosDetalle({
       active: activeMapaSubTab,
       setActive: setActiveMapaSubTab,
     },
+    catalogos_estructura: {
+      options: [
+        ...CATALOGOS_ORDER.map((key) => ({
+          id: key,
+          label: CATALOGOS_CONFIG[key].label,
+          icon: CATALOGOS_CONFIG[key].icon,
+        })),
+        { id: "niveles_jerarquicos", label: "Niveles Jerárquicos por Plaza", icon: Layers },
+      ],
+      active: activeCatalogoSubTab,
+      setActive: setActiveCatalogoSubTab,
+    },
   };
 
   return (
@@ -238,6 +256,10 @@ export default function PlantillaEmpleadosDetalle({
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Movimientos de personal
                         </span>
+                      ) : activeTab === "catalogos_estructura" ? (
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                          Catálogos Estructura Organizacional
+                        </span>
                       ) : activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" ? (
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Cuadros de Vacancia
@@ -254,11 +276,13 @@ export default function PlantillaEmpleadosDetalle({
                         </>
                       )}
                     </h2>
-                    {activeTab !== "movimientos_personal" && (
-                      <p className="mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
-                        Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM.
-                      </p>
-                    )}
+                    <p className="mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
+                      {activeTab === "catalogos_estructura"
+                        ? "Administración y consulta de catálogos base que definen la estructura organizacional, puestos, acciones y tabuladores presupuestales de la ANAM."
+                        : activeTab === "movimientos_personal"
+                          ? "Gestión, consulta e histórico de los movimientos de personal, incluyendo altas, bajas y cambios de adscripción en la ANAM."
+                          : "Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM."}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -331,6 +355,11 @@ export default function PlantillaEmpleadosDetalle({
                   cardRef={cardRefBajas}
                 />
               </Suspense>
+            </div>
+          )}
+          {visitedTabs.has("catalogos_estructura") && (
+            <div className={activeTab === "catalogos_estructura" ? "block" : "hidden"}>
+              <CatalogosEstructuraTab activeCatalog={activeCatalogoSubTab} />
             </div>
           )}
           {activeTab === "mapa" && activeMapaSubTab === "nacional" && (

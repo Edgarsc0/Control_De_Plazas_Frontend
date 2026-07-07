@@ -39,11 +39,16 @@ const TableRow = memo(function TableRow({
   onSelectCell,
   onCellContextMenu,
   onShowRecord,
+  renderRowAction,
 }) {
   return (
     <tr className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)}>
       <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
-      <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}><button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button></td>
+      <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}>
+        {renderRowAction
+          ? renderRowAction({ row, actualRowIdx, isSelected: isRowSelected })
+          : <button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button>}
+      </td>
       {visible.map((col, colIdx, arr) => {
         const isSticky = colIdx < 2;
         let leftOffset = 95;
@@ -95,6 +100,8 @@ const TableRow = memo(function TableRow({
  * @param {number} props.rowHeight - Altura de fila en px.
  * @param {(row: Object, index: number) => (string|number)} [props.getRowId] - Clave de fila.
  * @param {(args: {row: Object, col: Object, colIdx: number, value: *, isSticky: boolean, leftOffset: number, isSelected: boolean, onClick: Function, onContextMenu: Function}) => JSX.Element} props.renderCell - Render del `<td>` de cada celda.
+ * @param {(args: {row: Object, actualRowIdx: number, isSelected: boolean}) => JSX.Element} [props.renderRowAction] - Override del botón de la columna sticky "VER" (default: ícono de ojo + `onShowRecord`); úsalo para reemplazarlo por un checkbox de selección múltiple, por ejemplo.
+ * @param {string} [props.rowActionHeaderLabel="VER"] - Texto del header de esa columna.
  * @returns {JSX.Element}
  */
 function DataTable({
@@ -133,9 +140,15 @@ function DataTable({
   rowHeight,
   getRowId = (row, i) => row.id ?? i,
   renderCell,
+  renderRowAction,
+  rowActionHeaderLabel = "VER",
+  centerTable = false,
+  fillWidth = false,
+  fillHeight = false,
 }) {
   const visible = useMemo(() => columns.filter(c => c.visible), [columns]);
   const colSpan = visible.length + 2;
+  const columnsWidth = 95 + visible.reduce((sum, col) => sum + col.width, 0);
 
   // Identidad estable: si el consumidor no pasa `onRowClick`, el default no debe
   // recrearse en cada render (invalidaría el memo de TableRow).
@@ -146,14 +159,14 @@ function DataTable({
   const onRowClick = onRowClickProp ?? fallbackOnRowClick;
 
   return (
-    <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={{ height: 'calc(100vh - 280px)' }}>
+    <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
       <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
-      <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 95 + visible.reduce((sum, col) => sum + col.width, 0) }}>
+      <table className={`text-left text-gray-500 border-collapse ${centerTable && !fillWidth ? "mx-auto" : ""}`} style={{ tableLayout: "fixed", width: fillWidth ? "100%" : columnsWidth, minWidth: columnsWidth }}>
         <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{visible.map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
         <thead className="bg-[#501929] dark:bg-[#3e131f] text-white sticky top-0 z-30 shadow-md">
           <tr>
             <th className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
-            <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">VER</span></th>
+            <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">{rowActionHeaderLabel}</span></th>
             {visible.map((col, index, arr) => {
               const isSticky = index < 2;
               let leftOffset = 95;
@@ -327,6 +340,7 @@ function DataTable({
                     onSelectCell={onSelectCell}
                     onCellContextMenu={onCellContextMenu}
                     onShowRecord={onShowRecord}
+                    renderRowAction={renderRowAction}
                   />
                 );
               })}

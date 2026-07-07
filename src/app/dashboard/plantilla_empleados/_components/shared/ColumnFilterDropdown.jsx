@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Filter, X, Search, Check, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import {
@@ -157,11 +158,11 @@ export default function ColumnFilterDropdown({
   const markValues = (values) => setTempSelectedValues((prev) => [...new Set([...prev, ...values])]);
   const unmarkValues = (values) => setTempSelectedValues((prev) => prev.filter((v) => !values.includes(v)));
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div key="filter-dropdown" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className={`fixed inset-0 ${dimBackdrop ? "bg-slate-950/40 backdrop-blur-[2px]" : ""}`} />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className={`fixed inset-0 ${dimBackdrop ? "bg-black/40 backdrop-blur-sm" : ""}`} />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
             onKeyDown={handlePanelKeyDown}
@@ -408,6 +409,7 @@ export default function ColumnFilterDropdown({
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

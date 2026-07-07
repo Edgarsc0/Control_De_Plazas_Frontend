@@ -1,0 +1,439 @@
+"use client";
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { AnimatePresence } from "motion/react";
+import { Search, RotateCcw, Plus, RefreshCw } from "lucide-react";
+import DataTable from "../../shared/DataTable";
+import CopyCellMenu from "../../shared/CopyCellMenu";
+import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
+import CatalogRecordModal from "./CatalogRecordModal";
+import NivelesJerarquicosPlazaSubtab from "./NivelesJerarquicosPlazaSubtab";
+import { useColumnState } from "../../../_hooks/useColumnState";
+import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
+import {
+  applyColumnFilters,
+  getUniqueColumnValues,
+  matchesTextCondition,
+  finalizeFilterDropdownValues,
+} from "@/utils/columnFilters";
+import { CATALOGOS_CONFIG, CATALOGOS_ORDER, MONO_CATALOG_COLUMN_KEYS } from "./catalogosConfig";
+
+const CATALOG_DESCRIPTIONS = {
+  acciones: "Catálogo de códigos de acciones con su descripción y caso de uso.",
+  motivos: "Catálogo de códigos de acciones motivos con su descripción y casos de uso.",
+  pto_func: "Catálogo de Puestos funcionales. Crea o edita códigos de puestos funcionales.",
+  cod_presupuestal: "Catálogo de salarios brutos y netos por código presupuestal y escala.",
+};
+
+const ROW_HEIGHT = 37;
+
+/**
+ * Router del tab "Catálogos": los 4 catálogos genéricos (cat_acciones,
+ * cat_acciones_motivos, CAT_PTO_FUNC, rc_cat_cod_presupuestal) comparten el
+ * CRUD de fila-única de `GenericCatalogSubtab`. "Niveles Jerárquicos por
+ * Plaza" no encaja en ese molde (selección múltiple + asignación en bloque),
+ * así que vive en su propio componente autocontenido.
+ */
+export default function CatalogosEstructuraTab({ activeCatalog }) {
+  if (activeCatalog === "niveles_jerarquicos") {
+    return <NivelesJerarquicosPlazaSubtab />;
+  }
+  return <GenericCatalogSubtab activeCatalog={activeCatalog} />;
+}
+
+/**
+ * CRUD genérico (modal de registro único) de los 4 catálogos de estructura
+ * organizacional. Autocontenido: hace su propio fetch, no depende de los
+ * datos "secundarios" del padre (a diferencia de Bajas/Cuadros de Vacancia).
+ */
+function GenericCatalogSubtab({ activeCatalog }) {
+  const config = CATALOGOS_CONFIG[activeCatalog];
+
+  const [dataByCatalog, setDataByCatalog] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [modalState, setModalState] = useState({ open: false, mode: "create", record: null });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
+  // Alto disponible hasta el borde de la ventana: se mide en vivo (no un calc()
+  // con números mágicos) porque el header dinámico de arriba (título, banner de
+  // error) cambia de tamaño; así la tabla siempre llega exacto al fondo del
+  // viewport sin dejar hueco ni obligar scroll de página.
+  const tableWrapRef = useRef(null);
+  const [tableHeight, setTableHeight] = useState(0);
+  useEffect(() => {
+    const recompute = () => {
+      const el = tableWrapRef.current;
+      if (!el) return;
+      setTableHeight(Math.max(200, window.innerHeight - el.getBoundingClientRect().top));
+    };
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [activeCatalog, loadError]);
+
+  const data = dataByCatalog[activeCatalog] || [];
+
+  const { columns, setColumns } = useColumnState(config.columns);
+  useEffect(() => {
+    setColumns(CATALOGOS_CONFIG[activeCatalog].columns);
+  }, [activeCatalog, setColumns]);
+
+  const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
+
+  const filters = useColumnFilters();
+  const {
+    globalSearch, setGlobalSearch,
+    columnFilters, setColumnFilters,
+    textFilters, setTextFilters,
+    activeFilterDropdown, setActiveFilterDropdown,
+    filterDropdownTab, setFilterDropdownTab,
+    activeConditionDropdown, setActiveConditionDropdown,
+    setTempSelectedValues,
+    tempSelectedValues,
+    setFilterSearchText,
+    filterSearchCondition,
+    debouncedFilterSearchText,
+  } = filters;
+
+  const isMonoColumn = useCallback((key) => MONO_CATALOG_COLUMN_KEYS.includes(key), []);
+
+  const getCellValue = useCallback((row, key) => {
+    const v = row?.[key];
+    if (v === null || v === undefined) return "";
+    if (key === "fecha_modificacion") return new Date(v).toLocaleString("es-MX");
+    return String(v);
+  }, []);
+
+  const fetchCatalog = useCallback(async (catalogKey) => {
+    const res = await CATALOGOS_CONFIG[catalogKey].list();
+    if (!res.ok) throw new Error(`Error al cargar el catálogo "${CATALOGOS_CONFIG[catalogKey].label}"`);
+    return res.json();
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const entries = await Promise.all(CATALOGOS_ORDER.map(async (k) => [k, await fetchCatalog(k)]));
+      setDataByCatalog(Object.fromEntries(entries));
+    } catch {
+      setLoadError("No se pudieron cargar los catálogos. Intenta recargar.");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCatalog]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Cambió de catálogo: los filtros/orden/selección de la tabla anterior no aplican (claves distintas).
+  useEffect(() => {
+    setColumnFilters({});
+    setTextFilters({});
+    setActiveFilterDropdown(null);
+    setActiveConditionDropdown(null);
+    setSortConfig({ key: null, direction: null });
+    setSelectedCell(null);
+    setGlobalSearch("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCatalog]);
+
+  useEffect(() => {
+    document.body.style.overflow = activeFilterDropdown ? "hidden" : "unset";
+    return () => { document.body.style.overflow = "unset"; };
+  }, [activeFilterDropdown]);
+
+  const filteredData = useMemo(() => applyColumnFilters(data, {
+    globalSearch, columnFilters, textFilters, getCellValue, isMonoColumn,
+  }), [data, globalSearch, columnFilters, textFilters, getCellValue, isMonoColumn]);
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return filteredData;
+    const { key, direction } = sortConfig;
+    return [...filteredData].sort((a, b) => {
+      const av = a[key], bv = b[key];
+      if (av === bv) return 0;
+      if (av === null || av === undefined) return 1;
+      if (bv === null || bv === undefined) return -1;
+      const cmp = typeof av === "number" && typeof bv === "number"
+        ? av - bv
+        : String(av).localeCompare(String(bv), undefined, { numeric: true });
+      return direction === "asc" ? cmp : -cmp;
+    });
+  }, [filteredData, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key !== key) return { key, direction: "asc" };
+      if (prev.direction === "asc") return { key, direction: "desc" };
+      return { key: null, direction: null };
+    });
+  };
+
+  const getColumnLetter = useCallback((index) => {
+    let temp = index, letter = "";
+    while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
+    return letter;
+  }, []);
+
+  const handleResizeStart = (e, index, direction = "right") => {
+    e.preventDefault();
+    const startX = e.clientX, startWidth = columns[index].width;
+    const onMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      setColumns((prev) => {
+        const next = [...prev];
+        const newWidth = direction === "left" ? startWidth - deltaX : startWidth + deltaX;
+        next[index] = { ...next[index], width: Math.max(60, newWidth) };
+        return next;
+      });
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  const openFilterDropdown = (colKey) => {
+    if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
+    setActiveFilterDropdown(colKey);
+    setFilterDropdownTab("todos");
+    setFilterSearchText("");
+    const allValues = [...new Set(data.map((row) => getCellValue(row, colKey)))];
+    setTempSelectedValues(columnFilters[colKey] || allValues);
+  };
+
+  const applyColumnFilter = (colKey) => {
+    const totalUnique = getUniqueColumnValues(data, colKey, getCellValue).map((v) => v.value);
+    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+      setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+    } else {
+      setColumnFilters((prev) => ({ ...prev, [colKey]: tempSelectedValues }));
+    }
+    setActiveFilterDropdown(null);
+  };
+
+  const clearColumnFilter = (colKey) => {
+    setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+    setActiveFilterDropdown(null);
+  };
+
+  const dropdownUniqueValues = useMemo(() => {
+    if (!activeFilterDropdown) return [];
+    return getUniqueColumnValues(data, activeFilterDropdown, getCellValue);
+  }, [activeFilterDropdown, data, getCellValue]);
+
+  const filterDropdownValues = useMemo(() => {
+    if (!activeFilterDropdown) {
+      return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
+    }
+    let baseUniqueValues = dropdownUniqueValues;
+    if (filterDropdownTab === "actuales") {
+      baseUniqueValues = getUniqueColumnValues(filteredData, activeFilterDropdown, getCellValue);
+    }
+    const filteredVals = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
+    return finalizeFilterDropdownValues({
+      baseUniqueValues,
+      filtered: filteredVals,
+      tempSelectedValues,
+      committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+    });
+  }, [activeFilterDropdown, dropdownUniqueValues, filterDropdownTab, filteredData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters, getCellValue]);
+
+  const hasActiveFilters = !!globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some((f) => f?.value);
+  const resetAllFilters = () => {
+    setGlobalSearch("");
+    setColumnFilters({});
+    setTextFilters({});
+    setActiveFilterDropdown(null);
+    setActiveConditionDropdown(null);
+  };
+
+  const renderCell = ({ col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+    const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
+    const display = col.type === "datetime" && value
+      ? new Date(value).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })
+      : (value === null || value === undefined || String(value).trim() === "" ? null : String(value));
+    return (
+      <td
+        key={col.key}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        style={stickyStyle}
+        className={`px-4 text-xs border-r truncate h-[37px] align-middle ${
+          isSelected
+            ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]"
+            : "bg-white/5 dark:bg-white/[0.03] text-slate-700 dark:text-slate-300"
+        } ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${col.audit ? "text-slate-400 italic font-normal" : ""}`}
+      >
+        {display ?? <span className="text-slate-300">-</span>}
+      </td>
+    );
+  };
+
+  const openCreateModal = () => setModalState({ open: true, mode: "create", record: null });
+  const openEditModal = (record) => setModalState({ open: true, mode: "edit", record });
+  const closeModal = () => setModalState((prev) => ({ ...prev, open: false }));
+
+  const refreshActiveCatalog = useCallback(async () => {
+    const fresh = await fetchCatalog(activeCatalog);
+    setDataByCatalog((prev) => ({ ...prev, [activeCatalog]: fresh }));
+  }, [activeCatalog, fetchCatalog]);
+
+  const handleSave = async (payload) => {
+    const cfg = CATALOGOS_CONFIG[activeCatalog];
+    const res = modalState.mode === "edit"
+      ? await cfg.update(modalState.record, payload)
+      : await cfg.create(payload);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const msg = body
+        ? Object.entries(body).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join(" · ")
+        : "Error al guardar el registro";
+      throw new Error(msg);
+    }
+    await refreshActiveCatalog();
+  };
+
+  const handleDelete = async () => {
+    const cfg = CATALOGOS_CONFIG[activeCatalog];
+    const res = await cfg.remove(modalState.record);
+    if (!res.ok) throw new Error("No se pudo eliminar el registro");
+    await refreshActiveCatalog();
+  };
+
+  return (
+    <div className="animate-in fade-in duration-400 flex flex-col bg-white/5 dark:bg-slate-950/10 backdrop-blur-lg border-y border-gray-200/80 dark:border-slate-800/80 shadow-2xl">
+      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b border-gray-100 dark:border-slate-800/80 bg-gray-50/20 dark:bg-slate-900/15">
+        {/* Información y descripción del catálogo (Alineado a la izquierda) */}
+        <div className="flex items-center gap-3 min-w-[280px] max-w-full md:max-w-md lg:max-w-xl">
+          {config.icon && (
+            <div className="p-2.5 bg-[#621f32]/10 dark:bg-[#621f32]/20 text-[#621f32] rounded-xl flex items-center justify-center shrink-0 shadow-inner">
+              <config.icon className="w-5 h-5 transition-transform duration-300 hover:scale-110" />
+            </div>
+          )}
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              {config.label}
+            </h2>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+              {CATALOG_DESCRIPTIONS[activeCatalog]}
+            </p>
+          </div>
+        </div>
+
+        {/* Controles de búsqueda y filtros (Alineado a la derecha) */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-3.5 h-3.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-medium text-gray-600 dark:text-slate-300 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-[#621f32]/20 focus:border-[#621f32]/40 transition-all w-48"
+            />
+          </div>
+          <button
+            onClick={resetAllFilters}
+            disabled={!hasActiveFilters}
+            className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-200 dark:border-slate-800 rounded-xl text-[9px] font-black uppercase text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-red-600 hover:border-red-200 transition-all tracking-wider disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          >
+            <RotateCcw className="w-3 h-3" /> Reiniciar filtros
+          </button>
+          <button
+            onClick={loadAll}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#621f32]/5 border border-[#621f32]/20 rounded-xl text-[9px] font-black uppercase text-[#621f32] hover:bg-[#621f32]/10 transition-all tracking-wider cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" /> Recargar
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#621f32] rounded-xl text-[9px] font-black uppercase text-white hover:bg-[#4d1827] transition-all tracking-wider shadow-sm cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Nuevo Registro
+          </button>
+        </div>
+      </div>
+
+      {loadError && (
+        <div className="px-6 py-2 bg-red-50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/40 text-xs font-semibold text-red-600 dark:text-red-400">{loadError}</div>
+      )}
+
+      {/* ── Tabla densa: sólo desktop ─────────────────────────────────────── */}
+      <div ref={tableWrapRef} className="hidden md:flex md:flex-col" style={{ height: tableHeight || undefined }}>
+        <DataTable
+          fillHeight
+          onScroll={() => {}}
+          columns={columns}
+          columnFilters={columnFilters}
+          textFilters={textFilters}
+          setTextFilters={setTextFilters}
+          activeConditionDropdown={activeConditionDropdown}
+          setActiveConditionDropdown={setActiveConditionDropdown}
+          selectedCell={selectedCell}
+          onSelectCell={setSelectedCell}
+          onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
+          onShowRecord={(row) => openEditModal(row)}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+          onOpenFilter={openFilterDropdown}
+          onResizeStart={handleResizeStart}
+          getColumnLetter={getColumnLetter}
+          isMonoColumn={isMonoColumn}
+          isPending={false}
+          isLoading={loading}
+          loadingMessage="Cargando catálogo..."
+          data={sortedData}
+          startIndex={0}
+          endIndex={sortedData.length}
+          totalCount={sortedData.length}
+          rowHeight={ROW_HEIGHT}
+          getRowId={(row) => config.getRowId(row)}
+          renderCell={renderCell}
+          fillWidth
+        />
+      </div>
+
+      {/* ── Aviso móvil: la administración de catálogos requiere escritorio ── */}
+      <div className="md:hidden flex flex-col items-center justify-center py-16 px-6 text-center gap-2">
+        <p className="text-sm font-bold text-gray-600 dark:text-slate-300">Vista de escritorio recomendada</p>
+        <p className="text-xs text-gray-400">Este catálogo se administra mejor desde una pantalla más grande.</p>
+      </div>
+
+      <AnimatePresence>
+        {activeFilterDropdown && (
+          <ColumnFilterDropdown
+            open={!!activeFilterDropdown}
+            columnKey={activeFilterDropdown}
+            columnLabel={config.columns.find((c) => c.key === activeFilterDropdown)?.label}
+            isDate={false}
+            data={data}
+            getCellValue={getCellValue}
+            filters={filters}
+            dropdownValues={filterDropdownValues}
+            onApply={() => applyColumnFilter(activeFilterDropdown)}
+            onClear={() => clearColumnFilter(activeFilterDropdown)}
+            onClose={() => setActiveFilterDropdown(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+
+      <CatalogRecordModal
+        open={modalState.open}
+        mode={modalState.mode}
+        config={config}
+        initialValues={modalState.record}
+        onClose={closeModal}
+        onSave={handleSave}
+        onDelete={handleDelete}
+      />
+    </div>
+  );
+}

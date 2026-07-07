@@ -34,6 +34,7 @@ Cambio va en el `useMemo` que arma `dropdownValues` (en el tab), no en este comp
 **Hoy:** input de búsqueda (línea 106) sin autofocus ni botón de limpiar.
 
 **Propuesta:**
+
 - `autoFocus` al montar el dropdown (Excel abre con foco directo en el buscador).
 - Icono `×` dentro del input cuando `filterSearchText` no está vacío, para limpiarlo en un click sin seleccionar texto manualmente.
 
@@ -44,6 +45,7 @@ Cambio va en el `useMemo` que arma `dropdownValues` (en el tab), no en este comp
 ## 7. Atajos de teclado
 
 **Propuesta:**
+
 - `Escape` → cierra el dropdown (equivalente a click en overlay).
 - `Enter` (con foco en buscador o lista) → aplica el filtro (`onApply`).
 - `Espacio` con checkbox enfocado → toggle.
@@ -79,18 +81,18 @@ Hoy el componente no maneja `onKeyDown` en absoluto — es la brecha más grande
 
 ## Prioridad sugerida (impacto / esfuerzo)
 
-| # | Mejora | Impacto | Esfuerzo |
-|---|--------|---------|----------|
-| 1 | Seleccionados arriba | Alto | Medio (mover a `useMemo` del tab) |
-| 4 | Cancelar descarta cambios | Alto (bug) | Bajo |
-| 3 | "Todo" opera sobre filtrado | Alto (bug potencial) | Bajo (verificar) |
-| 2 | Checkbox indeterminado | Medio | Bajo |
-| 7 | Atajos de teclado | Alto (accesibilidad) | Medio |
-| 5 | Autofocus + botón limpiar | Medio | Bajo |
-| 10 | Sticky "Seleccionar Todo" | Medio | Bajo |
-| 8 | Contador de selección | Medio | Bajo |
-| 6 | Resaltar coincidencia | Bajo-Medio | Bajo |
-| 11 | Orden numérico | Medio | Medio |
-| 9 | Virtualización | Medio | Alto |
+| #   | Mejora                      | Impacto              | Esfuerzo                          |
+| --- | --------------------------- | -------------------- | --------------------------------- |
+| 1   | Seleccionados arriba        | Alto                 | Medio (mover a `useMemo` del tab) |
+| 4   | Cancelar descarta cambios   | Alto (bug)           | Bajo                              |
+| 3   | "Todo" opera sobre filtrado | Alto (bug potencial) | Bajo (verificar)                  |
+| 2   | Checkbox indeterminado      | Medio                | Bajo                              |
+| 7   | Atajos de teclado           | Alto (accesibilidad) | Medio                             |
+| 5   | Autofocus + botón limpiar   | Medio                | Bajo                              |
+| 10  | Sticky "Seleccionar Todo"   | Medio                | Bajo                              |
+| 8   | Contador de selección       | Medio                | Bajo                              |
+| 6   | Resaltar coincidencia       | Bajo-Medio           | Bajo                              |
+| 11  | Orden numérico              | Medio                | Medio                             |
+| 9   | Virtualización              | Medio                | Alto                              |
 
 Empezar por 4 y 3 (posibles bugs de correctitud), luego 1 y 2 (lo pedido + lo más "Excel"), el resto son incrementales.
