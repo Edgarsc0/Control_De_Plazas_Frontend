@@ -14,11 +14,9 @@ import {
   Maximize2,
   Minimize2,
   ArrowRight,
-  GitFork,
   FolderTree,
   ListCollapse,
   BadgeAlert,
-  Sparkles,
   HelpCircle,
   Locate,
   Download,
@@ -32,27 +30,27 @@ import { toPng } from "html-to-image";
 import { PlantillaService } from "@/services/plantilla.service";
 
 // ─── Catálogo de unidades de negocio ─────────────────────────────────────────
-// Cada entrada: { id, label (descripcion_larga de la raíz), file }
+// Cada entrada: { id, label (descripcion_larga de la raíz) }
 const UNIDADES = [
-  { id: "00001", label: "Jefatura del Servicio de Administración Tributaria",               file: "/organigramas/organigrama_00001.json" },
-  { id: "00002", label: "Órgano Interno de Control del SAT",                                file: "/organigramas/organigrama_00002.json" },
-  { id: "00003", label: "Administración General de Recursos y Servicios",                   file: "/organigramas/organigrama_00003.json" },
-  { id: "00004", label: "Dirección General de Procesamiento Electrónico de Datos",          file: "/organigramas/organigrama_00004.json" },
-  { id: "00100", label: "Dirección General de Operación Aduanera",                          file: "/organigramas/organigrama_00100.json" },
-  { id: "00200", label: "Dirección General de Investigación Aduanera",                      file: "/organigramas/organigrama_00200.json" },
-  { id: "00300", label: "Dirección General de Atención Aduanera y Asuntos Internos",        file: "/organigramas/organigrama_00300.json" },
-  { id: "00400", label: "Dirección General de Modernización, Equipamiento e Infraestructura", file: "/organigramas/organigrama_00400.json" },
-  { id: "00500", label: "Dirección General Jurídica de Aduanas",                            file: "/organigramas/organigrama_00500.json" },
-  { id: "00600", label: "Dirección General de Recaudación",                                 file: "/organigramas/organigrama_00600.json" },
-  { id: "00700", label: "Dirección General de Tecnologías de la Información",               file: "/organigramas/organigrama_00700.json" },
-  { id: "00800", label: "Dirección General de Planeación Aduanera",                        file: "/organigramas/organigrama_00800.json" },
-  { id: "00900", label: "Unidad de Administración y Finanzas",                              file: "/organigramas/organigrama_00900.json" },
+  { id: "00001", label: "Jefatura del Servicio de Administración Tributaria" },
+  { id: "00002", label: "Órgano Interno de Control del SAT" },
+  { id: "00003", label: "Administración General de Recursos y Servicios" },
+  { id: "00004", label: "Dirección General de Procesamiento Electrónico de Datos" },
+  { id: "00100", label: "Dirección General de Operación Aduanera" },
+  { id: "00200", label: "Dirección General de Investigación Aduanera" },
+  { id: "00300", label: "Dirección General de Atención Aduanera y Asuntos Internos" },
+  { id: "00400", label: "Dirección General de Modernización, Equipamiento e Infraestructura" },
+  { id: "00500", label: "Dirección General Jurídica de Aduanas" },
+  { id: "00600", label: "Dirección General de Recaudación" },
+  { id: "00700", label: "Dirección General de Tecnologías de la Información" },
+  { id: "00800", label: "Dirección General de Planeación Aduanera" },
+  { id: "00900", label: "Unidad de Administración y Finanzas" },
 ];
 
-// ─── Dynamic import helper ────────────────────────────────────────────────────
-async function loadOrganigrama(fileUrl) {
-  const resp = await fetch(fileUrl);
-  if (!resp.ok) throw new Error(`No se pudo cargar ${fileUrl}`);
+// ─── Carga del árbol jerárquico desde el backend (ORGANIGRAMA_ANAM) ──────────
+async function loadOrganigrama(unidadNegocioId) {
+  const resp = await PlantillaService.getOrganigramaTree(unidadNegocioId);
+  if (!resp.ok) throw new Error(`No se pudo cargar el organigrama de la unidad ${unidadNegocioId}`);
   return resp.json();
 }
 
@@ -154,6 +152,9 @@ export default function PruebaPage() {
   const [zoom, setZoom] = useState(1);
   const [pendingScrollNode, setPendingScrollNode] = useState(null);
 
+  const [posInfo, setPosInfo] = useState({ titular: null, superior: null });
+  const [posLoading, setPosLoading] = useState({ titular: false, superior: false });
+
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -170,7 +171,7 @@ export default function PruebaPage() {
     setSearchQuery("");
     setSelectedNode(null);
     setExpandedNodes({});
-    loadOrganigrama(selectedUnidad.file)
+    loadOrganigrama(selectedUnidad.id)
       .then(data => {
         setOrganigramaData(data);
       })
@@ -307,6 +308,34 @@ export default function PruebaPage() {
 
   const flatListRef = useRef({ allNodes: {}, parentsMap: {}, flatList: [] });
   flatListRef.current = { allNodes, parentsMap, flatList };
+
+  // ── Consulta ocupante de plaza (titular / superior) al seleccionar nodo ────
+  useEffect(() => {
+    if (!selectedNode) {
+      setPosInfo({ titular: null, superior: null });
+      return;
+    }
+
+    const fetchPosInfo = async (key, posicion) => {
+      if (!posicion || posicion === "(en blanco)") {
+        setPosInfo(prev => ({ ...prev, [key]: null }));
+        return;
+      }
+      setPosLoading(prev => ({ ...prev, [key]: true }));
+      try {
+        const res = await PlantillaService.getOrganigramaPosicionInfo(posicion);
+        const data = res.ok ? await res.json() : { error: true };
+        setPosInfo(prev => ({ ...prev, [key]: data }));
+      } catch {
+        setPosInfo(prev => ({ ...prev, [key]: { error: true } }));
+      } finally {
+        setPosLoading(prev => ({ ...prev, [key]: false }));
+      }
+    };
+
+    fetchPosInfo("titular", selectedNode.num_posicion_gerente);
+    fetchPosInfo("superior", selectedNode.posicion_director);
+  }, [selectedNode]);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -486,6 +515,116 @@ export default function PruebaPage() {
     );
   };
 
+  // ── Skeleton (silueta de organigrama mientras carga) ──────────────────────
+  const SKELETON_SHAPE = [
+    { children: [{ children: [] }, { children: [] }] },
+    { children: [{ children: [] }, { children: [] }, { children: [] }] },
+    { children: [{ children: [] }] },
+  ];
+
+  const SkeletonCard = () => (
+    <div className="w-60 h-40 rounded-2xl bg-slate-200/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 animate-pulse" />
+  );
+
+  const SkeletonNode = ({ node }) => {
+    const hasChildren = node.children?.length > 0;
+    return (
+      <div className="flex flex-col items-center">
+        <SkeletonCard />
+        {hasChildren && (
+          <>
+            <div className="w-[3px] h-[32px] bg-slate-300 dark:bg-slate-700 -mt-2 -mb-1 relative z-0" />
+            <div className="flex gap-8 items-start relative px-4">
+              {node.children.map((child, idx) => {
+                let cellClass = "flex flex-col items-center relative pt-6 after:content-[''] after:absolute after:top-[-4px] after:left-1/2 after:-translate-x-1/2 after:w-[3px] after:h-[28px] after:bg-slate-300 dark:after:bg-slate-700";
+                let hLine = null;
+                if (node.children.length > 1) {
+                  if (idx === 0)
+                    hLine = <div className="absolute top-0 left-1/2 right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />;
+                  else if (idx === node.children.length - 1)
+                    hLine = <div className="absolute top-0 left-[-17px] right-1/2 h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />;
+                  else
+                    hLine = <div className="absolute top-0 left-[-17px] right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />;
+                }
+                return (
+                  <div key={idx} className={cellClass}>
+                    {hLine}
+                    <SkeletonNode node={child} />
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const OrganigramaSkeleton = () => (
+    <div className="flex flex-col items-center">
+      <SkeletonCard />
+      <div className="w-[3px] h-[32px] bg-slate-300 dark:bg-slate-700 -mt-2 -mb-1 relative z-0" />
+      <div className="flex gap-8 items-start relative px-4">
+        {SKELETON_SHAPE.map((child, idx) => {
+          let cellClass = "flex flex-col items-center relative pt-6 after:content-[''] after:absolute after:top-[-4px] after:left-1/2 after:-translate-x-1/2 after:w-[3px] after:h-[28px] after:bg-slate-300 dark:after:bg-slate-700";
+          let hLine =
+            idx === 0 ? (
+              <div className="absolute top-0 left-1/2 right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />
+            ) : idx === SKELETON_SHAPE.length - 1 ? (
+              <div className="absolute top-0 left-[-17px] right-1/2 h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />
+            ) : (
+              <div className="absolute top-0 left-[-17px] right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />
+            );
+          return (
+            <div key={idx} className={cellClass}>
+              {hLine}
+              <SkeletonNode node={child} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ── Tarjeta de ocupante de plaza (titular / superior) ─────────────────────
+  const PosicionOcupanteCard = ({ label, posicion, info, loading }) => (
+    <div className="bg-slate-50 dark:bg-slate-950/80 p-3.5 rounded-2xl border border-slate-150 dark:border-slate-850/80 text-xs">
+      <h4 className="font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+        <Users className="w-4 h-4 text-rose-800" />
+        {label}
+      </h4>
+      {!posicion || posicion === "(en blanco)" ? (
+        <p className="text-slate-400 dark:text-slate-500">Sin plaza asignada.</p>
+      ) : loading ? (
+        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <span>Consultando plaza {posicion}...</span>
+        </div>
+      ) : !info || info.error ? (
+        <p className="text-slate-400 dark:text-slate-500">No se pudo consultar la plaza {posicion}.</p>
+      ) : !info.activa ? (
+        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 flex items-start gap-2">
+          <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
+          <div>Plaza <strong className="font-mono">{posicion}</strong> inactiva al día de hoy.</div>
+        </div>
+      ) : info.vacante ? (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 flex items-start gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <div>Plaza <strong className="font-mono">{posicion}</strong> activa, vacante.</div>
+        </div>
+      ) : (
+        <div className="space-y-1.5 text-slate-650 dark:text-slate-400">
+          <p><strong className="text-slate-800 dark:text-slate-200">{info.nombre}</strong></p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-slate-500 dark:text-slate-450">
+            <span>Plaza: {posicion}</span>
+            <span>Nº Empleado: {info.num_empleado}</span>
+            <span>Estado Nómina: {info.estado_nomina}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="w-full h-[calc(100vh-9rem)] relative overflow-hidden bg-slate-150/40 dark:bg-slate-950/40">
@@ -505,9 +644,8 @@ export default function PruebaPage() {
           style={{ zoom }}
         >
           {loadingOrg && (
-            <div className="flex flex-col items-center justify-center gap-4 py-32 text-slate-400">
-              <Loader2 className="w-10 h-10 animate-spin text-rose-800" />
-              <p className="text-sm font-semibold">Cargando organigrama...</p>
+            <div className="py-8">
+              <OrganigramaSkeleton />
             </div>
           )}
           {loadError && (
@@ -712,41 +850,19 @@ export default function PruebaPage() {
                   </div>
                 ))}
               </div>
-              <div className="bg-slate-50 dark:bg-slate-950/80 p-4 rounded-2xl border border-slate-150 dark:border-slate-850/80 text-xs">
-                <h4 className="font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide flex items-center gap-1.5">
-                  <GitFork className="w-4 h-4 text-rose-800" />
-                  Análisis de Enlace de Reporte
-                </h4>
-                {parentsMap[selectedNode.departamento] ? (() => {
-                  const parentId = parentsMap[selectedNode.departamento];
-                  const parentNode = allNodes[parentId];
-                  const directMatch = selectedNode.posicion_director === parentNode?.num_posicion_gerente;
-                  return (
-                    <div className="space-y-3 leading-relaxed text-slate-650 dark:text-slate-400">
-                      <p>Subordinado a: <strong className="text-slate-800 dark:text-slate-200">{parentNode?.descripcion_larga} ({parentId})</strong></p>
-                      {directMatch ? (
-                        <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 p-2.5 rounded-xl text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
-                          <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
-                          <div><strong className="block">Vínculo Directo por Plaza:</strong>
-                            Plaza de reporte ({selectedNode.posicion_director}) coincide con la plaza del padre ({parentNode?.num_posicion_gerente}).
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 flex items-start gap-2">
-                          <Info className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
-                          <div><strong className="block">Vínculo por Prefijo del Determinante:</strong>
-                            Enlazado usando la estructura de prefijos del código organizacional.
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })() : (
-                  <div className="leading-relaxed text-slate-500 dark:text-slate-450">
-                    <p className="font-semibold text-rose-800 dark:text-rose-400">👑 Nodo Raíz</p>
-                    <p className="mt-1">Este departamento es la cabeza de la estructura en la unidad <strong>{selectedUnidad?.id}</strong>.</p>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <PosicionOcupanteCard
+                  label="Plaza Titular"
+                  posicion={selectedNode.num_posicion_gerente}
+                  info={posInfo.titular}
+                  loading={posLoading.titular}
+                />
+                <PosicionOcupanteCard
+                  label="Plaza Superior (Reporte)"
+                  posicion={selectedNode.posicion_director}
+                  info={posInfo.superior}
+                  loading={posLoading.superior}
+                />
               </div>
             </div>
             <div className="bg-slate-50 dark:bg-slate-900/60 px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">

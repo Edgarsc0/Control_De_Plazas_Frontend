@@ -67,5 +67,33 @@ export const PlantillaService = {
             method: 'GET',
             ...options
         });
+    },
+
+    /**
+     * Obtiene el árbol jerárquico completo (nodo raíz con `subordinados` anidados)
+     * de una unidad de negocio, construido en el backend desde ORGANIGRAMA_ANAM.
+     * @param {string} unidadNegocio - Código de la unidad de negocio (p.ej. "00900").
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el árbol.
+     */
+    getOrganigramaTree: (unidadNegocio, options = {}) => {
+        return apiFetch(`/plantilla/organigrama-tree/?unidad_negocio=${encodeURIComponent(unidadNegocio)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Dado un número de plaza, indica si está activa hoy (MOV_POS_LATEST) y,
+     * de estarlo, el ocupante actual en EMPLEADOS_COMPLETOS_SIG.
+     * @param {string} posicion - Número de plaza (posición).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para los datos.
+     */
+    getOrganigramaPosicionInfo: (posicion, options = {}) => {
+        return apiFetch(`/plantilla/organigrama-posicion-info/?posicion=${encodeURIComponent(posicion)}`, {
+            method: 'GET',
+            ...options
+        });
     }
 };
