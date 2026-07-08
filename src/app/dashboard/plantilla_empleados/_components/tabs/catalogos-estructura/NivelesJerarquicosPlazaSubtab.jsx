@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence } from "motion/react";
-import { Layers, Search, RotateCcw, RefreshCw, CheckSquare, Square, X } from "lucide-react";
+import { Layers, Search, RotateCcw, CheckSquare, Square, X } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
+import PrioridadNivelJerarquicoModal from "./PrioridadNivelJerarquicoModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
@@ -41,6 +43,7 @@ const COLUMNS = [
  * columna sticky por un checkbox de selección múltiple vía `renderRowAction`.
  */
 export default function NivelesJerarquicosPlazaSubtab() {
+  const router = useRouter();
   const [data, setData] = useState([]);
   const [opciones, setOpciones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,8 +56,15 @@ export default function NivelesJerarquicosPlazaSubtab() {
 
   const [assignValue, setAssignValue] = useState("");
   const [assigning, setAssigning] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [banner, setBanner] = useState(null); // { type: "success" | "error", text }
+
+  // Prioridad de nivel jerárquico: qué columna manda como fuente de verdad al
+  // cruzar contra MOV_POS/EMPLEADOS_COMPLETOS_SIG (checkboxes mutuamente
+  // excluyentes en el header de "nivel_jerarquico" y "nvl_direc_origen").
+  const [prioridadFuente, setPrioridadFuente] = useState(null);
+  const [prioridadLoading, setPrioridadLoading] = useState(true);
+  const [pendingFuente, setPendingFuente] = useState(null);
+  const [aplicandoPrioridad, setAplicandoPrioridad] = useState(false);
 
   const { columns, setColumns } = useColumnState(COLUMNS);
   const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
@@ -129,6 +139,17 @@ export default function NivelesJerarquicosPlazaSubtab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await CatalogoEstructuraService.getNivelJerarquicoPrioridad();
+        if (res.ok) setPrioridadFuente((await res.json()).fuente || null);
+      } finally {
+        setPrioridadLoading(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!assignValue && opciones.length > 0) setAssignValue(opciones[0].descripcion_nivel_jerarquico);
@@ -298,22 +319,6 @@ export default function NivelesJerarquicosPlazaSubtab() {
     </button>
   ), [toggleRow]);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    setBanner(null);
-    try {
-      const res = await CatalogoEstructuraService.syncNivelesJerarquicosPlazas();
-      if (!res.ok) throw new Error("No se pudo sincronizar las plazas.");
-      const body = await res.json();
-      setBanner({ type: "success", text: `Sincronizado: ${body.creadas} plaza(s) nueva(s), ${body.actualizadas} referencia(s) actualizada(s) de ${body.total_activas} activas.` });
-      await load();
-    } catch (err) {
-      setBanner({ type: "error", text: err?.message || "No se pudo sincronizar las plazas." });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const handleBulkAssign = async () => {
     if (selected.size === 0 || !assignValue) return;
     setAssigning(true);
@@ -331,6 +336,61 @@ export default function NivelesJerarquicosPlazaSubtab() {
       setAssigning(false);
     }
   };
+
+  const handleTogglePrioridad = useCallback((fuente) => {
+    if (prioridadFuente !== fuente) setPendingFuente(fuente);
+  }, [prioridadFuente]);
+
+  const closePendingPrioridad = () => { if (!aplicandoPrioridad) setPendingFuente(null); };
+
+  const confirmarPrioridad = async () => {
+    if (!pendingFuente) return;
+    setAplicandoPrioridad(true);
+    setBanner(null);
+    try {
+      const res = await CatalogoEstructuraService.aplicarNivelJerarquicoPrioridad(pendingFuente);
+      if (!res.ok) throw new Error("No se pudo aplicar la prioridad de nivel jerárquico.");
+      const body = await res.json();
+      setPrioridadFuente(body.fuente);
+      setBanner({ type: "success", text: `Prioridad aplicada: ${body.empleados_actualizados} empleado(s) en EMPLEADOS_COMPLETOS_SIG y ${body.posiciones_actualizadas} posición(es) en MOV_POS.` });
+      setPendingFuente(null);
+      await load();
+      // Reejecuta el Server Component de la página (force-dynamic) para que
+      // Plantilla Detalle/Movimientos reciban `detalle`/`movPosData` frescos
+      // al cambiar de tab, sin esperar el TTL del cache del backend.
+      router.refresh();
+    } catch (err) {
+      setBanner({ type: "error", text: err?.message || "No se pudo aplicar la prioridad de nivel jerárquico." });
+    } finally {
+      setAplicandoPrioridad(false);
+    }
+  };
+
+  const renderColumnHeaderExtra = useCallback((col) => {
+    if (col.key !== "nivel_jerarquico" && col.key !== "nvl_direc_origen") return null;
+    // Si aún no se ha fijado ninguna prioridad en BD (config.fuente null), se
+    // muestra "nvl_direc_origen" marcado por default: es el dato tal cual
+    // viene de MOV_POS (sin curar a mano), la opción segura para no asumir
+    // que el nivel_jerarquico manual ya manda cuando en realidad no hay
+    // ninguna prioridad aplicada todavía.
+    const checked = prioridadFuente === col.key
+      || (prioridadFuente === null && !prioridadLoading && col.key === "nvl_direc_origen");
+    return (
+      <label
+        title="Prioridad de nivel jerárquico: al aplicar, sobreescribe MOV_POS y EMPLEADOS_COMPLETOS_SIG donde la posición coincida"
+        className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors cursor-pointer shrink-0"
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={prioridadLoading}
+          onChange={() => handleTogglePrioridad(col.key)}
+          className="size-3 accent-[#bc955c] cursor-pointer"
+        />
+        <span className="text-[8px] font-black uppercase text-white/80 whitespace-nowrap">Prioridad NJ</span>
+      </label>
+    );
+  }, [prioridadFuente, prioridadLoading, handleTogglePrioridad]);
 
   const renderCell = ({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
     const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
@@ -423,13 +483,6 @@ export default function NivelesJerarquicosPlazaSubtab() {
           >
             {allFilteredSelected ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />} Seleccionar filtradas
           </button>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#621f32]/5 border border-[#621f32]/20 rounded-xl text-[9px] font-black uppercase text-[#621f32] hover:bg-[#621f32]/10 transition-all tracking-wider disabled:opacity-50 cursor-pointer"
-          >
-            <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} /> Sincronizar Plazas
-          </button>
         </div>
       </div>
 
@@ -489,6 +542,7 @@ export default function NivelesJerarquicosPlazaSubtab() {
           onRowClick={onRowClick}
           renderRowAction={renderRowAction}
           rowActionHeaderLabel="SEL"
+          renderColumnHeaderExtra={renderColumnHeaderExtra}
           sortConfig={sortConfig}
           onSort={handleSort}
           onOpenFilter={openFilterDropdown}
@@ -534,6 +588,14 @@ export default function NivelesJerarquicosPlazaSubtab() {
       </AnimatePresence>
 
       <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+
+      <PrioridadNivelJerarquicoModal
+        open={!!pendingFuente}
+        columnLabel={COLUMNS.find((c) => c.key === pendingFuente)?.label}
+        applying={aplicandoPrioridad}
+        onConfirm={confirmarPrioridad}
+        onClose={closePendingPrioridad}
+      />
     </div>
   );
 }

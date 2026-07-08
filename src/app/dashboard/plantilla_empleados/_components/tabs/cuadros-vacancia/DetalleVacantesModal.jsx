@@ -9,6 +9,8 @@ const ALL_COLUMNS = [
   { key: 'Unidad de Negocio', label: 'Unidad de Negocio', default: true },
   { key: 'nombre_ua', label: 'Unidad Administrativa', default: true },
   { key: 'Cd UA', label: 'Cód. Unidad Administrativa', default: false },
+  { key: 'Id Departamento', label: 'Id Departamento', default: false },
+  { key: 'Departamento', label: 'Departamento', default: false },
   { key: 'NJ', label: 'NJ', default: false },
   { key: 'nombreNJ', label: 'Nombre NJ', default: false },
   { key: 'Cd UN', label: 'Cód. Unidad de Negocio', default: false },

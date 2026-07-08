@@ -443,6 +443,23 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const hasFetched = useRef(false);
 
+  // El tab se mantiene montado al cambiar de tab (ver `visitedTabs` en
+  // ClientComponent), así que un `router.refresh()` disparado desde otra
+  // pestaña (ej. Catálogos > aplicar prioridad de nivel jerárquico) sólo
+  // llega como cambio de referencia en `initialMovPosData`. Sin esto, tanto
+  // `fullLatestDataRef` (fast-path del toggle Activas/Inactivas/Todas) como
+  // `movPosDataCacheRef` (cache por firma de filtros/orden/página) seguirían
+  // sirviendo el dataset viejo indefinidamente.
+  const initialMovPosDataRef = useRef(initialMovPosData);
+  const [refreshTick, setRefreshTick] = useState(0);
+  useEffect(() => {
+    if (initialMovPosDataRef.current === initialMovPosData) return;
+    initialMovPosDataRef.current = initialMovPosData;
+    fullLatestDataRef.current = null;
+    movPosDataCacheRef.current = {};
+    setRefreshTick((t) => t + 1);
+  }, [initialMovPosData]);
+
   useEffect(() => {
     // Solo toggle de estado (Activas/Inactivas/Todas) + is_latest=true, sin
     // búsqueda/orden/filtros/paginación reales: el backend ya manda el set
@@ -577,7 +594,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       .catch(err => { if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err); })
       .finally(() => setLoading(false));
     return () => listCtrl.abort();
-  }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters]);
+  }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters, refreshTick]);
 
   useEffect(() => {
     if (!activeFilterDropdown) return;

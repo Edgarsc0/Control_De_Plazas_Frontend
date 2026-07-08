@@ -102,6 +102,7 @@ const TableRow = memo(function TableRow({
  * @param {(args: {row: Object, col: Object, colIdx: number, value: *, isSticky: boolean, leftOffset: number, isSelected: boolean, onClick: Function, onContextMenu: Function}) => JSX.Element} props.renderCell - Render del `<td>` de cada celda.
  * @param {(args: {row: Object, actualRowIdx: number, isSelected: boolean}) => JSX.Element} [props.renderRowAction] - Override del botón de la columna sticky "VER" (default: ícono de ojo + `onShowRecord`); úsalo para reemplazarlo por un checkbox de selección múltiple, por ejemplo.
  * @param {string} [props.rowActionHeaderLabel="VER"] - Texto del header de esa columna.
+ * @param {(col: Object) => ?JSX.Element} [props.renderColumnHeaderExtra] - Contenido extra en el header de cada columna (entre el label y el botón de filtro); ej. un checkbox de prioridad. Su click no dispara `onSort`.
  * @returns {JSX.Element}
  */
 function DataTable({
@@ -142,6 +143,7 @@ function DataTable({
   renderCell,
   renderRowAction,
   rowActionHeaderLabel = "VER",
+  renderColumnHeaderExtra,
   centerTable = false,
   fillWidth = false,
   fillHeight = false,
@@ -187,6 +189,9 @@ function DataTable({
                         <span>{col.label}</span>
                         <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
                       </div>
+                      {renderColumnHeaderExtra && (
+                        <div onClick={(e) => e.stopPropagation()} className="shrink-0">{renderColumnHeaderExtra(col)}</div>
+                      )}
                       <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
                         <Filter className="size-3 fill-current" />
                       </button>

@@ -60,10 +60,15 @@ export const CatalogoEstructuraService = {
     // ── cat_nivel_jerarquico_plaza (pk: plaza) ─────────────────────────────
     getNivelesJerarquicosPlaza: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/", { method: "GET", ...options }),
     getNivelesJerarquicosOpciones: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/niveles/", { method: "GET", ...options }),
-    syncNivelesJerarquicosPlazas: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/sync-plazas/", { method: "POST", ...options }),
     bulkAssignNivelJerarquico: (plazas, descripcionNivelJerarquico, options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/bulk-assign/", {
         method: "POST",
         body: JSON.stringify({ plazas, descripcion_nivel_jerarquico: descripcionNivelJerarquico }),
+        ...options,
+    }),
+    getNivelJerarquicoPrioridad: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/prioridad/", { method: "GET", ...options }),
+    aplicarNivelJerarquicoPrioridad: (fuente, options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/aplicar-prioridad/", {
+        method: "POST",
+        body: JSON.stringify({ fuente }),
         ...options,
     }),
 };
