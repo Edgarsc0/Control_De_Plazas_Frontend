@@ -1071,7 +1071,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
         <div className="w-full px-4 lg:px-6" data-pdf-section data-pdf-charts>
           <Zoom triggerOnce>
-            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} />
+            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} forExport={isGeneratingPdf} />
           </Zoom>
         </div>
 

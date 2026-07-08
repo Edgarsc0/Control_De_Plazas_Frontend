@@ -114,7 +114,7 @@ const DrillBar = ({ x, y, width, height, fill }) => {
 };
 
 /* ── Componente principal ── */
-export default function DesgloseJerarquicoCharts({ data = [] }) {
+export default function DesgloseJerarquicoCharts({ data = [], forExport = false }) {
   const [drillFamily, setDrillFamily] = useState(null);
 
   const chart1Data = useMemo(() => {
@@ -287,6 +287,7 @@ export default function DesgloseJerarquicoCharts({ data = [] }) {
                     background={{ fill: 'transparent', cursor: 'pointer' }}
                     onClick={handleNJBarClick}
                     style={{ cursor: 'pointer' }}
+                    isAnimationActive={!forExport}
                     animationBegin={200}
                     animationDuration={1400}
                     animationEasing="ease-out"
@@ -407,6 +408,7 @@ export default function DesgloseJerarquicoCharts({ data = [] }) {
                       background={{ fill: 'transparent', cursor: 'pointer' }}
                       onClick={handleDrillBarClick}
                       style={{ cursor: 'pointer' }}
+                      isAnimationActive={!forExport}
                       animationBegin={100}
                       animationDuration={1000}
                       animationEasing="ease-out"
@@ -430,6 +432,7 @@ export default function DesgloseJerarquicoCharts({ data = [] }) {
                       background={{ fill: 'transparent', cursor: 'pointer' }}
                       onClick={handleFamilyBarClick}
                       style={{ cursor: 'pointer' }}
+                      isAnimationActive={!forExport}
                       animationBegin={200}
                       animationDuration={1400}
                       animationEasing="ease-out"
