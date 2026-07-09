@@ -5,7 +5,7 @@ import { Zoom } from "react-awesome-reveal";
 import {
   Search, Download, Columns, X, RotateCcw,
   ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, XCircle,
-  Layers, Users, GitCompareArrows,
+  Layers, Users, GitCompareArrows, ListFilter, Check,
 } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -91,8 +91,11 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const [cardWidth, setCardWidth] = useState(null);
   const [detalleRow, setDetalleRow] = useState(null);
   const [isDetalleOpen, setIsDetalleOpen] = useState(false);
+  const [diffFields, setDiffFields] = useState([]);
+  const [diffFieldsOpen, setDiffFieldsOpen] = useState(false);
   const tbodyRef = useRef(null);
   const containerRef = useRef(null);
+  const diffFieldsRef = useRef(null);
 
   const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
 
@@ -142,6 +145,21 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const isMonoColumn = useCallback((key) => key === "no_pos_actual", []);
 
   useEffect(() => {
+    if (!diffFieldsOpen) return;
+    const handler = (e) => {
+      if (diffFieldsRef.current && !diffFieldsRef.current.contains(e.target)) setDiffFieldsOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [diffFieldsOpen]);
+
+  const toggleDiffField = useCallback((key) => {
+    setLoading(true);
+    setDiffFields((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+    setPage(1);
+  }, []);
+
+  useEffect(() => {
     const handler = setTimeout(() => { setLoading(true); setDebouncedSearch(searchQuery); setPage(1); }, 400);
     return () => clearTimeout(handler);
   }, [searchQuery]);
@@ -165,12 +183,13 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
       if (values && values.length > 0) colParams[`${key}__in`] = values.join(",");
     });
     const params = { search: debouncedSearch, ...filterParams, ...colParams };
+    if (diffFields.length > 0) params.diff_fields = diffFields.join(",");
     if (sortConfig.key) {
       params.sort_by = sortConfig.key;
       params.sort_order = sortConfig.direction || "asc";
     }
     return params;
-  }, [debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, isMonoColumn]);
+  }, [debouncedSearch, debouncedTextFilters, columnFilters, diffFields, sortConfig, isMonoColumn]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -312,14 +331,15 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
     setColumnFilters({});
     setSearchQuery("");
     setDebouncedSearch("");
+    setDiffFields([]);
     setSortConfig({ key: null, direction: null });
     setPage(1);
   };
 
   const canReset = useMemo(() => {
-    return !!debouncedSearch || Object.keys(columnFilters).length > 0
+    return !!debouncedSearch || Object.keys(columnFilters).length > 0 || diffFields.length > 0
       || Object.values(textFilters).some((v) => v && v.value) || !!sortConfig.key;
-  }, [debouncedSearch, columnFilters, textFilters, sortConfig]);
+  }, [debouncedSearch, columnFilters, diffFields, textFilters, sortConfig]);
 
   // `updates`: { [field]: value|null }. Usa la forma funcional de `setColumnFilters`
   // para poder limpiar más de una columna en un solo click (p.ej. la tarjeta
@@ -612,20 +632,26 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 block shrink-0">Columnas con más discrepancias</span>
               {rankingColumnasProblema.length > 0 ? (
                 <div className="flex-1 flex items-end justify-between gap-2 min-h-[96px]">
-                  {rankingColumnasProblema.map((c) => (
-                    <Tooltip key={c.label}>
-                      <TooltipTrigger asChild>
-                        <div className="flex-1 flex flex-col items-center gap-1.5 cursor-help min-w-0">
-                          <span className="text-[9px] font-black text-red-500 dark:text-red-400 leading-none">{formatNumber(c.difieren)}</span>
-                          <div className="w-full flex items-end h-20 bg-slate-100 dark:bg-slate-800 rounded-md overflow-hidden">
-                            <div className="w-full bg-red-500/70 rounded-t-md" style={{ height: `${Math.max(c.alturaPct, 4)}%` }} />
-                          </div>
-                          <span className="text-[8px] font-bold text-slate-500 dark:text-slate-400 truncate w-full text-center leading-tight">{c.label}</span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">{c.label}: {formatNumber(c.difieren)} difieren ({c.porcentajeDelTotal}% del total de discrepancias)</TooltipContent>
-                    </Tooltip>
-                  ))}
+                  {rankingColumnasProblema.map((c) => {
+                    const active = c.key ? diffFields.includes(c.key) : false;
+                    return (
+                      <Tooltip key={c.key || c.label}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => c.key && toggleDiffField(c.key)}
+                            className="flex-1 flex flex-col items-center gap-1.5 cursor-pointer min-w-0"
+                          >
+                            <span className={`text-[9px] font-black leading-none ${active ? "text-[#621f32] dark:text-[#bc955c]" : "text-red-500 dark:text-red-400"}`}>{formatNumber(c.difieren)}</span>
+                            <div className={`w-full flex items-end h-20 rounded-md overflow-hidden ${active ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 ring-2 ring-[#621f32] dark:ring-[#bc955c]" : "bg-slate-100 dark:bg-slate-800"}`}>
+                              <div className={`w-full rounded-t-md ${active ? "bg-[#621f32] dark:bg-[#bc955c]" : "bg-red-500/70"}`} style={{ height: `${Math.max(c.alturaPct, 4)}%` }} />
+                            </div>
+                            <span className={`text-[8px] font-bold truncate w-full text-center leading-tight ${active ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-500 dark:text-slate-400"}`}>{c.label}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">{c.label}: {formatNumber(c.difieren)} difieren ({c.porcentajeDelTotal}% del total de discrepancias) · clic para {active ? "quitar" : "aplicar"} filtro</TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex-1 flex items-center justify-center text-[10px] font-bold text-slate-400 min-h-[96px]">Sin discrepancias</div>
@@ -691,6 +717,42 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                     <ChevronRightIcon className="size-3.5" />
                   </button>
                 </div>
+              </div>
+              <div className="relative shrink-0" ref={diffFieldsRef}>
+                <button
+                  onClick={() => setDiffFieldsOpen((o) => !o)}
+                  className={`flex items-center gap-2 px-5 py-3.5 border rounded-2xl text-[10px] font-black uppercase transition-all duration-300 shadow-sm active:scale-95 cursor-pointer ${diffFields.length > 0 ? "border-[#621f32]/40 dark:border-[#bc955c]/40 bg-[#621f32]/8 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]" : "border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] hover:shadow"}`}
+                >
+                  <ListFilter className="size-3.5" />
+                  <span>Diferencia en Campo{diffFields.length > 0 ? ` (${diffFields.length})` : ""}</span>
+                </button>
+                {diffFieldsOpen && (
+                  <div className="absolute z-40 top-full mt-2 right-0 w-72 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 max-h-96 overflow-y-auto">
+                    <div className="flex items-center justify-between px-2 py-1.5 mb-1">
+                      <span className="text-[9px] font-black uppercase text-slate-400">Ver plazas que difieren en...</span>
+                      {diffFields.length > 0 && (
+                        <button
+                          onClick={() => { setLoading(true); setDiffFields([]); setPage(1); }}
+                          className="text-[9px] font-bold uppercase text-red-500 hover:text-red-600 cursor-pointer"
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                    </div>
+                    {ALINEACION_CAMPOS.map((c) => {
+                      const checked = diffFields.includes(c.key);
+                      return (
+                        <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer">
+                          <input type="checkbox" className="hidden" checked={checked} onChange={() => toggleDiffField(c.key)} />
+                          <div className={`size-3.5 rounded-md border flex items-center justify-center shrink-0 ${checked ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-700"}`}>
+                            {checked && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex-1">{c.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <button onClick={resetAllFilters} disabled={!canReset} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0">
                 <RotateCcw className="size-3.5" /><span>Restablecer Filtros</span>
