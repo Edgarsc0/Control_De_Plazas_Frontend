@@ -24,7 +24,7 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
 
   if (typeof document === "undefined") return null;
 
-  const filtered = columns.filter((col) => col.label.toLowerCase().includes(search.toLowerCase()));
+  const filtered = columns.filter((col) => `${col.group || ""} ${col.label}`.toLowerCase().includes(search.toLowerCase()));
 
   return createPortal(
     <AnimatePresence>
@@ -106,6 +106,7 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
                       {col.visible && <Check className="size-3 text-white dark:text-[#3e131f]" strokeWidth={4} />}
                     </div>
                     <div className="flex-1 min-w-0">
+                      {col.group && <p className="text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 truncate">{col.group}</p>}
                       <p className={`text-xs font-black truncate ${col.visible ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-400"}`}>{col.label}</p>
                       <span className="text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 mt-0.5 block">{col.isBasic ? "Campo Principal" : "Campo Extra"}</span>
                     </div>

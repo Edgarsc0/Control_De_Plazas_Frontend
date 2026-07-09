@@ -152,6 +152,32 @@ function DataTable({
   const colSpan = visible.length + 2;
   const columnsWidth = 95 + visible.reduce((sum, col) => sum + col.width, 0);
 
+  // Header agrupado (opt-in, no afecta tabs que no usan `col.group`): dos o más
+  // columnas consecutivas que comparten `col.group` (p.ej. "MOV_POS"/"PLANTILLA"
+  // bajo un mismo campo comparado) se fusionan en una celda superior con el
+  // nombre del grupo, y cada una conserva su propio sub-header (label, orden,
+  // filtro) en la fila de abajo — formando una "T" por grupo. Columnas sin
+  // `group` siguen exactamente igual que antes (rowSpan de 2 en vez de 1 fila).
+  const hasGroups = useMemo(() => visible.some(c => c.group), [visible]);
+  const headerGroupRuns = useMemo(() => {
+    if (!hasGroups) return null;
+    const runs = [];
+    let i = 0;
+    while (i < visible.length) {
+      const col = visible[i];
+      if (col.group) {
+        let j = i + 1;
+        while (j < visible.length && visible[j].group === col.group) j++;
+        runs.push({ type: 'group', label: col.group, startIndex: i, span: j - i });
+        i = j;
+      } else {
+        runs.push({ type: 'single', startIndex: i, span: 1 });
+        i += 1;
+      }
+    }
+    return runs;
+  }, [visible, hasGroups]);
+
   // Identidad estable: si el consumidor no pasa `onRowClick`, el default no debe
   // recrearse en cada render (invalidaría el memo de TableRow).
   const fallbackOnRowClick = useCallback(
@@ -166,6 +192,85 @@ function DataTable({
       <table className={`text-left text-gray-500 border-collapse ${centerTable && !fillWidth ? "mx-auto" : ""}`} style={{ tableLayout: "fixed", width: fillWidth ? "100%" : columnsWidth, minWidth: columnsWidth }}>
         <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{visible.map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
         <thead className="bg-[#501929] dark:bg-[#3e131f] text-white sticky top-0 z-30 shadow-md">
+          {hasGroups ? (
+            <>
+              <tr>
+                <th rowSpan={2} className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
+                <th rowSpan={2} className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">{rowActionHeaderLabel}</span></th>
+                {headerGroupRuns.map((run) => {
+                  if (run.type === 'group') {
+                    return (
+                      <th key={`group-${run.startIndex}`} colSpan={run.span} className="py-1.5 px-3 text-center font-black text-[10px] uppercase border-r border-b-2 border-[#621f32]/30 border-b-[#bc955c]/70 bg-[#3e131f] dark:bg-[#2b0d15] text-[#bc955c]">
+                        {run.label}
+                      </th>
+                    );
+                  }
+                  const index = run.startIndex;
+                  const col = visible[index];
+                  const isSticky = index < 2;
+                  let leftOffset = 95;
+                  if (index === 1) leftOffset = 95 + visible[0].width;
+                  const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
+                  const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
+                  const filterTitle = columnFilters[col.key]?.length > 0
+                    ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
+                    : "Filtrar columna";
+                  return (
+                    <th key={col.key} rowSpan={2} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
+                      {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
+                      <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'left')} />
+                      <div className="flex flex-col items-center gap-1 w-full">
+                        <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
+                        <div className="flex items-center justify-between w-full">
+                          <div onClick={() => onSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                            <span>{col.label}</span>
+                            <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                          </div>
+                          {renderColumnHeaderExtra && (
+                            <div onClick={(e) => e.stopPropagation()} className="shrink-0">{renderColumnHeaderExtra(col)}</div>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
+                            <Filter className="size-3 fill-current" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')} />
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr>
+                {headerGroupRuns.filter(r => r.type === 'group').flatMap((run) =>
+                  Array.from({ length: run.span }).map((_, offset) => {
+                    const index = run.startIndex + offset;
+                    const col = visible[index];
+                    const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
+                    const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
+                    const filterTitle = columnFilters[col.key]?.length > 0
+                      ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
+                      : "Filtrar columna";
+                    const isInternalSplit = offset < run.span - 1;
+                    return (
+                      <th key={col.key} className={`relative py-2 px-3 font-black text-[10px] uppercase transition-colors ${isInternalSplit ? "border-r-2 border-[#bc955c]/60" : "border-r border-[#621f32]/30"} ${bgClass}`}>
+                        {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
+                        <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'left')} />
+                        <div className="flex items-center justify-between w-full">
+                          <div onClick={() => onSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                            <span>{col.label}</span>
+                            <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
+                            <Filter className="size-3 fill-current" />
+                          </button>
+                        </div>
+                        <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')} />
+                      </th>
+                    );
+                  })
+                )}
+              </tr>
+            </>
+          ) : (
           <tr>
             <th className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
             <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">{rowActionHeaderLabel}</span></th>
@@ -202,6 +307,7 @@ function DataTable({
               );
             })}
           </tr>
+          )}
           <tr className="bg-[#40121e] dark:bg-[#2b0d15]">
             <th className="sticky left-0 z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35">
               <button

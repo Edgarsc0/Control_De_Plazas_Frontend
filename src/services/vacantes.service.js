@@ -211,6 +211,21 @@ export const VacantesService = {
     },
 
     /**
+     * Comprobar Alineación Organizacional: cruza cada plaza activa de MOV_POS
+     * con su fila en EMPLEADOS_COMPLETOS_SIG y compara los 14 campos que
+     * deberían coincidir entre ambas tablas.
+     * @param {Object<string, (string|number)>} [query={}] - Filtros a aplicar (se omiten vacíos).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getMovPosAlineacion: (query = {}, options = {}) => {
+        return apiFetch(`/plantilla/mov_pos_alineacion/${buildQuery(query)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene la cadena de mando para una búsqueda dada.
      * @param {string} query - Texto de búsqueda.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.

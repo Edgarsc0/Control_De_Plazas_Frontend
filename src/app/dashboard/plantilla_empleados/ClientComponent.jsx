@@ -12,7 +12,8 @@ import {
   UserCog,
   UserMinus,
   Database,
-  Layers
+  Layers,
+  GitCompareArrows
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
@@ -20,6 +21,7 @@ import PageTabBar from "@/components/ui/PageTabBar";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
+import AlineacionOrganizacionalTab from "./_components/tabs/movimientos/AlineacionOrganizacionalTab";
 import MovimientosPersonalTab from "./_components/tabs/mov-posiciones/MovimientosPersonalTab";
 import MapaTab from "./_components/tabs/mapa/MapaTab";
 import BajasTab from "./_components/tabs/bajas/BajasTab";
@@ -91,6 +93,10 @@ export default function PlantillaEmpleadosDetalle({
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
+  const [alineacionVisited, setAlineacionVisited] = useState(false);
+  useEffect(() => {
+    if (activeMovimientosSubTab === "alineacion") setAlineacionVisited(true);
+  }, [activeMovimientosSubTab]);
   const [activeCatalogoSubTab, setActiveCatalogoSubTab] = useState(CATALOGOS_ORDER[0]);
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
@@ -103,16 +109,17 @@ export default function PlantillaEmpleadosDetalle({
   const cardRefDetalle = useRef(null);
   const cardRefMovimientos = useRef(null);
   const cardRefCuadros = useRef(null);
+  const cardRefAlineacion = useRef(null);
   const cardRefMovPersonal = useRef(null);
   const cardRefBajas = useRef(null);
   const activeCardRef =
     activeTab === "detalle" ? cardRefDetalle :
-    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : cardRefMovimientos) :
+    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : cardRefMovimientos) :
     activeTab === "movimientos_personal" ? cardRefMovPersonal :
     activeTab === "bajas" ? cardRefBajas :
     null;
   useRefreshOnZafiroUpdate();
-  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab === "tabla") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
+  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab !== "cuadros") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
 
   // Tabs con datos propios (filtros, orden, fetch en cliente) que ya se visitaron:
   // se mantienen montados y se ocultan con CSS al cambiar de tab, en vez de
@@ -203,7 +210,11 @@ export default function PlantillaEmpleadosDetalle({
       setActive: setActiveEstatusSubTab,
     },
     movimientos: {
-      options: [{ id: "tabla", label: "Tabla Principal" }, { id: "cuadros", label: "Cuadros Vacancia" }],
+      options: [
+        { id: "tabla", label: "Tabla Principal" },
+        { id: "cuadros", label: "Cuadros Vacancia" },
+        { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
+      ],
       active: activeMovimientosSubTab,
       setActive: setActiveMovimientosSubTab,
     },
@@ -264,6 +275,10 @@ export default function PlantillaEmpleadosDetalle({
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Cuadros de Vacancia
                         </span>
+                      ) : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion" ? (
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                          Comprobar Alineación Organizacional
+                        </span>
                       ) : (
                         <>
                           Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
@@ -281,7 +296,9 @@ export default function PlantillaEmpleadosDetalle({
                         ? "Administración y consulta de catálogos base que definen la estructura organizacional, puestos, acciones y tabuladores presupuestales de la ANAM."
                         : activeTab === "movimientos_personal"
                           ? "Gestión, consulta e histórico de los movimientos de personal, incluyendo altas, bajas y cambios de adscripción en la ANAM."
-                          : "Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM."}
+                          : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion"
+                            ? "Comparación campo a campo entre MOV_POS y EMPLEADOS_COMPLETOS_SIG para las plazas activas: detecta discrepancias entre la estructura de la plaza y los datos de la persona que la ocupa."
+                            : "Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM."}
                     </p>
                   </div>
                 </div>
@@ -334,6 +351,15 @@ export default function PlantillaEmpleadosDetalle({
                   onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
                 />
               </Suspense>
+            </div>
+          )}
+          {alineacionVisited && (
+            <div className={activeTab === "movimientos" && activeMovimientosSubTab === "alineacion" ? "block" : "hidden"}>
+              <AlineacionOrganizacionalTab
+                isPending={isPending}
+                startTransition={startTransition}
+                cardRef={cardRefAlineacion}
+              />
             </div>
           )}
           {visitedTabs.has("movimientos_personal") && (
