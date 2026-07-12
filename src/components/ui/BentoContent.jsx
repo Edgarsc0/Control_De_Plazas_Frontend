@@ -1172,6 +1172,59 @@ export function ConnectivityContent({
   );
 }
 
+export function RolesPermissionsContent({
+  roleCount = '—',
+  tags = ['Roles', 'Permisos', 'Usuarios'],
+  color = '#0f766e',
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span
+          style={{
+            fontSize: 28,
+            fontWeight: 900,
+            color: '#111827',
+            lineHeight: 1,
+            letterSpacing: '-0.03em',
+          }}
+        >
+          {roleCount}
+        </span>
+      </div>
+      <p
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          color: '#9ca3af',
+          margin: 0,
+        }}
+      >
+        Administración de accesos
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+        {tags.map((t) => (
+          <span
+            key={t}
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              padding: '4px 9px',
+              borderRadius: 99,
+              background: `${color}1a`,
+              color,
+            }}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PresupuestarVolumenContent() {
   return (
     <div

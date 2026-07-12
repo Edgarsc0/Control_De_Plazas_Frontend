@@ -2,11 +2,9 @@
 
 import {
   LayoutDashboard,
-  LayoutGrid,
   BarChart3,
   Users,
   ShieldCheck,
-  Network,
   Database,
   GitFork,
 } from 'lucide-react';
@@ -16,8 +14,7 @@ import {
   OcupacionVacantes,
   OficiosTurnadosDO,
   PlantillaEmpleados,
-  SecurityContent,
-  ConnectivityContent,
+  RolesPermissionsContent,
   PresupuestarVolumenContent,
   OrganigramaPreviewContent,
 } from '@/components/ui/BentoContent';
@@ -95,13 +92,14 @@ export default function Dashboard({
     },
     {
       span: 'col-span-1',
-      icon: Network,
-      iconColor: '#7c3aed',
-      iconBg: '#ede9fe',
-      label: 'Red',
-      title: 'Conectividad',
-      description: 'Integración y sincronización de sistemas',
-      renderContent: () => <ConnectivityContent />,
+      icon: ShieldCheck,
+      iconColor: '#0f766e',
+      iconBg: 'rgba(15,118,110,0.10)',
+      label: 'Roles',
+      title: 'Roles y Permisos',
+      description: 'Administración de accesos',
+      renderContent: () => <RolesPermissionsContent />,
+      onClickRedirectTo: '/dashboard/roles',
     },
     {
       span: 'col-span-1',

@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   BarChart3,
   Users,
-  Network,
+  ShieldCheck,
   Database,
   GitFork,
 } from 'lucide-react';
@@ -133,12 +133,13 @@ export default function DashboardSkeleton({ permissions = [], isSuperuser = fals
     },
     {
       span: 'col-span-1',
-      icon: Network,
-      iconColor: '#7c3aed',
-      iconBg: '#ede9fe',
-      label: 'Red',
-      title: 'Conectividad',
-      description: 'Integración y sincronización de sistemas',
+      icon: ShieldCheck,
+      iconColor: '#0f766e',
+      iconBg: 'rgba(15,118,110,0.10)',
+      label: 'Roles',
+      title: 'Roles y Permisos',
+      description: 'Administración de accesos',
+      onClickRedirectTo: '/dashboard/roles',
       renderContent: () => (
         <div className="mt-6 animate-pulse flex flex-col gap-6 h-full min-h-[120px]">
           <div className="grid grid-cols-3 gap-3 mt-auto">
