@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { PlantillaService } from "@/services/plantilla.service";
+import RequirePermission from "@/components/auth/RequirePermission";
+import { PERMISSIONS } from "@/config/permissions";
 
 // ─── Catálogo de unidades de negocio ─────────────────────────────────────────
 // Cada entrada: { id, label (descripcion_larga de la raíz) }
@@ -133,7 +135,7 @@ function UnidadSelector({ selected, onSelect }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function PruebaPage() {
+function OrganigramaContent() {
   const [selectedUnidad, setSelectedUnidad] = useState(UNIDADES[12]); // 00900 por defecto
   const [organigramaData, setOrganigramaData] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
@@ -925,5 +927,13 @@ export default function PruebaPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrganigramaPage() {
+  return (
+    <RequirePermission permission={PERMISSIONS.VIEW_ORGANIGRAMA}>
+      <OrganigramaContent />
+    </RequirePermission>
   );
 }

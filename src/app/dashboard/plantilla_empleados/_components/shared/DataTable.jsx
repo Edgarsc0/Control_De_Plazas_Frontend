@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowUpDown, Filter, X, Check, Search, Eye } from "lucide-react";
 import { getConditionLabel } from "@/utils/columnFilters";
@@ -56,7 +56,7 @@ const TableRow = memo(function TableRow({
         const value = row[col.key];
         const isSelected = isRowSelected && colIdx === selectedColIdx;
         const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
-        const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect()); };
+        const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect(), row, col.key); };
         return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
       })}
     </tr>
@@ -82,7 +82,7 @@ const TableRow = memo(function TableRow({
  * @param {Function} props.setActiveConditionDropdown - Setter del anterior.
  * @param {?{row: number, col: number}} props.selectedCell - Celda seleccionada.
  * @param {(cell: {row: number, col: number}) => void} props.onSelectCell - Selecciona celda.
- * @param {(event: MouseEvent, value: *, rect: DOMRect) => void} props.onCellContextMenu - Click derecho sobre celda (menú "copiar valor"); rect posiciona el resaltado punteado.
+ * @param {(event: MouseEvent, value: *, rect: DOMRect, row: Object, colKey: string) => void} props.onCellContextMenu - Click derecho sobre celda (menú "copiar/pegar valor"); rect posiciona el resaltado punteado. `row`/`colKey` identifican la celda para soportar "pegar".
  * @param {(row: Object) => void} props.onShowRecord - Abre el expediente de la fila (botón VER).
  * @param {{key: ?string, direction: ?string}} props.sortConfig - Estado de orden.
  * @param {(key: string) => void} props.onSort - Alterna orden por columna.
@@ -103,6 +103,8 @@ const TableRow = memo(function TableRow({
  * @param {(args: {row: Object, actualRowIdx: number, isSelected: boolean}) => JSX.Element} [props.renderRowAction] - Override del botón de la columna sticky "VER" (default: ícono de ojo + `onShowRecord`); úsalo para reemplazarlo por un checkbox de selección múltiple, por ejemplo.
  * @param {string} [props.rowActionHeaderLabel="VER"] - Texto del header de esa columna.
  * @param {(col: Object) => ?JSX.Element} [props.renderColumnHeaderExtra] - Contenido extra en el header de cada columna (entre el label y el botón de filtro); ej. un checkbox de prioridad. Su click no dispara `onSort`.
+ * @param {boolean} [props.enableKeyboardNav=false] - Activa mover `selectedCell` con las flechas del teclado (con aceleración de paso al mantener presionado). Opt-in: no se activa por defecto para no duplicar listeners en tabs que ya implementan su propia navegación.
+ * @param {() => void} [props.onEscape] - Callback al presionar Escape con `enableKeyboardNav` activo (ej. cerrar el menú contextual de copiar/pegar).
  * @returns {JSX.Element}
  */
 function DataTable({
@@ -147,10 +149,61 @@ function DataTable({
   centerTable = false,
   fillWidth = false,
   fillHeight = false,
+  enableKeyboardNav = false,
+  onEscape,
 }) {
   const visible = useMemo(() => columns.filter(c => c.visible), [columns]);
   const colSpan = visible.length + 2;
   const columnsWidth = 95 + visible.reduce((sum, col) => sum + col.width, 0);
+
+  // Navegación con flechas (opt-in vía `enableKeyboardNav`): mueve `selectedCell`
+  // dentro de los límites de filas/columnas visibles, con aceleración de paso en
+  // mantenido presionado. Refs (no deps de effect) para no remover/re-agregar el
+  // listener global en cada cambio de selección/datos.
+  const selectedCellRef = useRef(selectedCell);
+  selectedCellRef.current = selectedCell;
+  const totalCountRef = useRef(totalCount);
+  totalCountRef.current = totalCount;
+  const visibleColCountRef = useRef(visible.length);
+  visibleColCountRef.current = visible.length;
+  const onSelectCellRef = useRef(onSelectCell);
+  onSelectCellRef.current = onSelectCell;
+  const onEscapeRef = useRef(onEscape);
+  onEscapeRef.current = onEscape;
+  const arrowRepeatRef = useRef(0);
+
+  useEffect(() => {
+    if (!enableKeyboardNav) return;
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (!e.key.startsWith('Arrow')) {
+        if (e.key === 'Escape') onEscapeRef.current?.();
+        return;
+      }
+      const prev = selectedCellRef.current;
+      if (!prev) return;
+      e.preventDefault();
+      if (e.repeat) arrowRepeatRef.current += 1; else arrowRepeatRef.current = 1;
+      let step = 1;
+      if (arrowRepeatRef.current > 5) step = 2;
+      if (arrowRepeatRef.current > 12) step = 5;
+      if (arrowRepeatRef.current > 20) step = 10;
+      if (arrowRepeatRef.current > 35) step = 20;
+      let newRow = prev.row, newCol = prev.col;
+      if (e.key === 'ArrowUp') newRow = Math.max(0, prev.row - step);
+      if (e.key === 'ArrowDown') newRow = Math.min(totalCountRef.current - 1, prev.row + step);
+      if (e.key === 'ArrowLeft') newCol = Math.max(0, prev.col - step);
+      if (e.key === 'ArrowRight') newCol = Math.min(visibleColCountRef.current - 1, prev.col + step);
+      onSelectCellRef.current({ row: newRow, col: newCol });
+    };
+    const handleKeyUp = (e) => { if (e.key.startsWith('Arrow')) arrowRepeatRef.current = 0; };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [enableKeyboardNav]);
 
   // Header agrupado (opt-in, no afecta tabs que no usan `col.group`): dos o más
   // columnas consecutivas que comparten `col.group` (p.ej. "MOV_POS"/"PLANTILLA"

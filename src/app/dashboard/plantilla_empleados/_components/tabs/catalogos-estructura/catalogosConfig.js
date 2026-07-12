@@ -1,4 +1,4 @@
-import { Tags, MessageSquareText, Briefcase, Coins } from "lucide-react";
+import { Tags, MessageSquareText, Briefcase, Coins, Network } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 
 /**
@@ -119,8 +119,51 @@ export const CATALOGOS_CONFIG = {
     update: (record, data) => CatalogoEstructuraService.updateCatCodPresupuestal(record.codigo_presupuestal, record.escala, data),
     remove: (record) => CatalogoEstructuraService.deleteCatCodPresupuestal(record.codigo_presupuestal, record.escala),
   },
+
+  organigrama_anam: {
+    key: "organigrama_anam",
+    label: "Organigrama ANAM",
+    icon: Network,
+    tableName: "ORGANIGRAMA_ANAM",
+    getRowId: (row) => row.departamento,
+    columns: [
+      { key: "unidad_negocio", label: "Unidad de Negocio", width: 140, visible: true },
+      { key: "departamento", label: "Departamento", width: 140, visible: true },
+      { key: "estado_fecha_efectiva", label: "Estatus", width: 110, visible: true },
+      { key: "descripcion_larga", label: "Descripción Larga", width: 300, visible: true },
+      { key: "nivel_direccion", label: "Nivel de Dirección", width: 150, visible: true },
+      { key: "unidad_administrativa", label: "Unidad Administrativa", width: 170, visible: true },
+      { key: "doaf", label: "DOAF", width: 90, visible: true },
+      { key: "num_posicion_gerente", label: "Núm. Posición Gerente", width: 170, visible: true },
+      { key: "posicion_director", label: "Posición Director", width: 150, visible: true },
+      { key: "modificado_por", label: "Modificado Por", width: 160, audit: true, visible: true },
+      { key: "fecha_modificacion", label: "Última Modificación", width: 170, audit: true, type: "datetime", visible: true },
+    ],
+    formFields: [
+      { key: "departamento", label: "Departamento (código)", type: "text", required: true, disabledOnEdit: true, maxLength: 255 },
+      { key: "unidad_negocio", label: "Unidad de Negocio", type: "text", required: true, maxLength: 255 },
+      { key: "estado_fecha_efectiva", label: "Estatus", type: "text", required: true, maxLength: 255 },
+      { key: "descripcion_larga", label: "Descripción Larga", type: "textarea", required: true, maxLength: 500 },
+      { key: "nivel_direccion", label: "Nivel de Dirección", type: "text", maxLength: 255 },
+      { key: "unidad_administrativa", label: "Unidad Administrativa", type: "text", required: true, maxLength: 255 },
+      { key: "doaf", label: "DOAF", type: "text", required: true, maxLength: 255 },
+      { key: "num_posicion_gerente", label: "Núm. Posición Gerente", type: "text", required: true, maxLength: 255 },
+      { key: "posicion_director", label: "Posición Director", type: "text", required: true, maxLength: 255 },
+    ],
+    emptyRecord: {
+      departamento: "", unidad_negocio: "", estado_fecha_efectiva: "", descripcion_larga: "",
+      nivel_direccion: "", unidad_administrativa: "", doaf: "", num_posicion_gerente: "", posicion_director: "",
+    },
+    list: (options) => CatalogoEstructuraService.getOrganigramaAnam(options),
+    create: (data) => CatalogoEstructuraService.createOrganigramaAnam(data),
+    update: (record, data) => CatalogoEstructuraService.updateOrganigramaAnam(record.departamento, data),
+    remove: (record) => CatalogoEstructuraService.deleteOrganigramaAnam(record.departamento),
+  },
 };
 
-export const CATALOGOS_ORDER = ["acciones", "motivos", "pto_func", "cod_presupuestal"];
+export const CATALOGOS_ORDER = ["acciones", "motivos", "pto_func", "cod_presupuestal", "organigrama_anam"];
 
-export const MONO_CATALOG_COLUMN_KEYS = ["action", "accion", "cd_motivo", "cd_pto_funcional", "cd_norm", "codigo_presupuestal", "escala"];
+export const MONO_CATALOG_COLUMN_KEYS = [
+  "action", "accion", "cd_motivo", "cd_pto_funcional", "cd_norm", "codigo_presupuestal", "escala",
+  "departamento", "unidad_negocio", "doaf", "num_posicion_gerente", "posicion_director",
+];

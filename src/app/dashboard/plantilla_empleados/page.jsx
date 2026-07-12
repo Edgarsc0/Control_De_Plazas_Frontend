@@ -2,6 +2,18 @@ import PlantillaEmpleadosDetalle from "./ClientComponent"
 import { VacantesService } from "@/services/vacantes.service";
 import { Suspense } from 'react';
 import PlantillaEmpleadosSkeleton from '@/components/ui/PlantillaEmpleadosSkeleton';
+import RequirePermission from '@/components/auth/RequirePermission';
+import { PERMISSIONS } from '@/config/permissions';
+
+const PLANTILLA_TAB_PERMISSIONS = [
+    PERMISSIONS.VIEW_PLANTILLA_DETALLE,
+    PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA,
+    PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES,
+    PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS,
+    PERMISSIONS.VIEW_PLANTILLA_BAJAS,
+    PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA,
+    PERMISSIONS.VIEW_PLANTILLA_CATALOGOS,
+];
 
 export const dynamic = 'force-dynamic';
 
@@ -67,8 +79,10 @@ export default async function PlantillaEmpleadosPage() {
     ]);
 
     return (
-        <Suspense fallback={<PlantillaEmpleadosSkeleton />}>
-            <PlantillaEmpleadosData criticalDataPromise={criticalDataPromise} secondaryDataPromise={secondaryDataPromise} />
-        </Suspense>
+        <RequirePermission permission={PLANTILLA_TAB_PERMISSIONS}>
+            <Suspense fallback={<PlantillaEmpleadosSkeleton />}>
+                <PlantillaEmpleadosData criticalDataPromise={criticalDataPromise} secondaryDataPromise={secondaryDataPromise} />
+            </Suspense>
+        </RequirePermission>
     );
 }

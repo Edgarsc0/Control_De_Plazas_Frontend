@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useCallback, use, Suspense } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback, useMemo, use, Suspense } from "react";
 import { Zoom } from "react-awesome-reveal";
 import {
   Users,
@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 import PageTabBar from "@/components/ui/PageTabBar";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
@@ -31,13 +33,13 @@ import CatalogosEstructuraTab from "./_components/tabs/catalogos-estructura/Cata
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-estructura/catalogosConfig";
 
 const TABS = [
-  { id: "detalle", label: "Plantilla Detalle", icon: LayoutList },
-  { id: "estatus", label: "Estatus Nómina", icon: BarChart3 },
-  { id: "movimientos", label: "Mov. Posiciones", icon: ArrowLeftRight },
-  { id: "movimientos_personal", label: "Movimientos", icon: UserCog },
-  { id: "bajas", label: "Empleados Bajas", icon: UserMinus },
-  { id: "mapa", label: "Distribución Geográfica", icon: Globe },
-  { id: "catalogos_estructura", label: "Catálogos", icon: Database }
+  { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
+  { id: "estatus", label: "Estatus Nómina", icon: BarChart3, permission: PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA },
+  { id: "movimientos", label: "Mov. Posiciones", icon: ArrowLeftRight, permission: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES },
+  { id: "movimientos_personal", label: "Movimientos", icon: UserCog, permission: PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS },
+  { id: "bajas", label: "Empleados Bajas", icon: UserMinus, permission: PERMISSIONS.VIEW_PLANTILLA_BAJAS },
+  { id: "mapa", label: "Distribución Geográfica", icon: Globe, permission: PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA },
+  { id: "catalogos_estructura", label: "Catálogos", icon: Database, permission: PERMISSIONS.VIEW_PLANTILLA_CATALOGOS }
 ];
 
 const SECONDARY_TAB_SKELETON = (
@@ -89,7 +91,19 @@ export default function PlantillaEmpleadosDetalle({
   movPosData = [],
   secondaryDataPromise
 }) {
+  const { isLoading: authLoading, hasPermission } = useAuth();
+  // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
+  // parpadeo) — el backend igual exige el permiso real en cada endpoint.
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => authLoading || hasPermission(t.permission)),
+    [authLoading, hasPermission]
+  );
   const [activeTab, setActiveTab] = useState("detalle");
+  useEffect(() => {
+    if (!authLoading && visibleTabs.length && !visibleTabs.some((t) => t.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [authLoading, visibleTabs, activeTab]);
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
@@ -139,7 +153,7 @@ export default function PlantillaEmpleadosDetalle({
   // Publica los tabs de esta página al BottomNav para abrirlos en un Drawer
   // (móvil). El check sigue a activeTab; al desmontar se limpia el registro.
   useRegisterPageTabs({
-    tabs: TABS,
+    tabs: visibleTabs,
     activeTab,
     onSelect: handleSelectTab,
     title: "Plantilla de Empleados",
@@ -244,7 +258,7 @@ export default function PlantillaEmpleadosDetalle({
 
       {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-16 = top-36 = 144px) */}
       <PageTabBar
-        tabs={TABS}
+        tabs={visibleTabs}
         activeTab={activeTab}
         onSelect={handleSelectTab}
         subtabConfigs={subtabConfigs}
@@ -311,7 +325,7 @@ export default function PlantillaEmpleadosDetalle({
           {/* Tabs con estado propio (filtros, orden, scroll, datos por fetch de cliente):
               se mantienen montados una vez visitados y se ocultan con CSS al salir,
               en vez de desmontarse, para no perder su estado ni re-fetchear. */}
-          {visitedTabs.has("detalle") && (
+          {visitedTabs.has("detalle") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE) && (
             <div className={activeTab === "detalle" ? "block" : "hidden"}>
               <PlantillaDetalleTab
                 detalle={detalle}
@@ -322,7 +336,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {visitedTabs.has("estatus") && (
+          {visitedTabs.has("estatus") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA) && (
             <div className={activeTab === "estatus" ? "block" : "hidden"}>
               <EstatusTab
                 estatusPorNivelUa={estatusPorNivelUa}
@@ -331,7 +345,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {visitedTabs.has("movimientos") && (
+          {visitedTabs.has("movimientos") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "tabla" ? "block" : "hidden"}>
               <MovimientosTab
                 movPosData={movPosData}
@@ -343,7 +357,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && (
+          {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div ref={cardRefCuadros}>
               <Suspense fallback={SECONDARY_TAB_SKELETON}>
                 <CuadrosVacanciaSection
@@ -353,7 +367,7 @@ export default function PlantillaEmpleadosDetalle({
               </Suspense>
             </div>
           )}
-          {alineacionVisited && (
+          {alineacionVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "alineacion" ? "block" : "hidden"}>
               <AlineacionOrganizacionalTab
                 isPending={isPending}
@@ -362,7 +376,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {visitedTabs.has("movimientos_personal") && (
+          {visitedTabs.has("movimientos_personal") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS) && (
             <div className={activeTab === "movimientos_personal" ? "block" : "hidden"}>
               <MovimientosPersonalTab
                 isPending={isPending}
@@ -371,7 +385,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {visitedTabs.has("bajas") && (
+          {visitedTabs.has("bajas") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_BAJAS) && (
             <div className={activeTab === "bajas" ? "block" : "hidden"}>
               <Suspense fallback={SECONDARY_TAB_SKELETON}>
                 <BajasTabSection
@@ -383,17 +397,17 @@ export default function PlantillaEmpleadosDetalle({
               </Suspense>
             </div>
           )}
-          {visitedTabs.has("catalogos_estructura") && (
+          {visitedTabs.has("catalogos_estructura") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_CATALOGOS) && (
             <div className={activeTab === "catalogos_estructura" ? "block" : "hidden"}>
               <CatalogosEstructuraTab activeCatalog={activeCatalogoSubTab} />
             </div>
           )}
-          {activeTab === "mapa" && activeMapaSubTab === "nacional" && (
+          {activeTab === "mapa" && activeMapaSubTab === "nacional" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) && (
             <MapaTab
               distribucionGeografica={distribucionGeografica}
             />
           )}
-          {activeTab === "mapa" && activeMapaSubTab === "caballito" && (
+          {activeTab === "mapa" && activeMapaSubTab === "caballito" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) && (
             <div className="w-full h-[calc(100vh-144px)] min-h-[500px] overflow-hidden relative">
               <TorreCaballito3DTab />
             </div>

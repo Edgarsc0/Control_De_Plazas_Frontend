@@ -64,5 +64,13 @@ export const AuthService = {
      */
     isAuthenticated: () => {
         return !!Cookies.get('auth_token');
-    }
+    },
+
+    /**
+     * Obtiene el rol y los permisos efectivos del usuario autenticado.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el resultado.
+     */
+    getMe: () => {
+        return apiFetch('/auth/me/permissions/');
+    },
 };

@@ -10,8 +10,22 @@ import {
   GitFork,
 } from 'lucide-react';
 import MagicBento from '@/components/ui/MagicBento';
+import { MODULES, isModuleVisible } from '@/config/modules';
 
-export default function DashboardSkeleton() {
+/**
+ * Permisos resueltos en servidor (ver src/lib/getServerSession.js) y pasados
+ * como props — no usa useAuth()/Context aquí a propósito: este componente se
+ * pinta durante el primer render SSR (loading.jsx y el fallback de Suspense
+ * en page.jsx), momento en el que el useEffect de AuthProvider todavía no
+ * corrió, así que `isLoading` de useAuth() siempre sería `true` justo cuando
+ * el skeleton es visible y nunca filtraría a tiempo.
+ */
+export default function DashboardSkeleton({ permissions = [], isSuperuser = false }) {
+  const auth = {
+    hasPermission: (codename) => !codename || isSuperuser || permissions.includes(codename),
+    hasAnyPermission: (codenames) =>
+      !codenames?.length || isSuperuser || codenames.some((c) => permissions.includes(c)),
+  };
   const SKELETON_BG = "bg-slate-200/70 dark:bg-slate-700/50";
   const SKELETON_BG_LIGHT = "bg-slate-200/40 dark:bg-slate-700/30";
 
@@ -19,6 +33,7 @@ export default function DashboardSkeleton() {
     {
       span: 'col-span-2',
       fullContent: true,
+      onClickRedirectTo: '/dashboard/plantilla_empleados',
       renderContent: () => (
         <div className="flex items-center justify-between gap-8 h-full min-h-[240px] p-6 animate-pulse">
           <div className="flex-1 space-y-8 w-full">
@@ -44,6 +59,7 @@ export default function DashboardSkeleton() {
       label: 'Plazas de Nueva creación',
       title: 'Ocupación por Oficios',
       description: 'Análisis detallado de la ocupación por oficios en las 1800 plazas de la ANAM',
+      onClickRedirectTo: '/dashboard/ocupacion_plazas_por_oficio',
       renderContent: () => (
         <div className="mt-6 animate-pulse">
           <div className={`h-8 ${SKELETON_BG} rounded-lg w-1/2 mb-6`}></div>
@@ -64,6 +80,7 @@ export default function DashboardSkeleton() {
       label: 'Presupuesto',
       title: 'Presupuestar Volumen de plazas solicitadas',
       description: 'Análisis de presupuesto y costos por nivel y periodo',
+      onClickRedirectTo: '/dashboard/valuacion_presupuestaria',
       renderContent: () => (
         <div className="mt-6 animate-pulse grid grid-cols-2 gap-6">
           <div className="space-y-4">
@@ -86,6 +103,7 @@ export default function DashboardSkeleton() {
       label: 'Gestión de movimientos',
       title: 'Oficios Turnados a Dirección de Organización por Control de Gestión',
       description: 'Gestión de movimiento de personal por oficios',
+      onClickRedirectTo: '/dashboard/oficios_turnados_do',
       renderContent: () => (
         <div className="mt-6 animate-pulse space-y-5">
           <div className={`h-7 ${SKELETON_BG} rounded-lg w-1/3`}></div>
@@ -105,6 +123,7 @@ export default function DashboardSkeleton() {
       label: 'Estructura Organizacional',
       title: 'Organigrama ANAM',
       description: '13 unidades de negocio · 1,365 áreas · Jerarquía interactiva',
+      onClickRedirectTo: '/dashboard/organigrama',
       renderContent: () => (
         <div className="mt-6 animate-pulse space-y-4">
           <div className={`h-14 ${SKELETON_BG_LIGHT} rounded-xl w-full`}></div>
@@ -138,6 +157,7 @@ export default function DashboardSkeleton() {
       label: 'Sincronización',
       title: 'Monitoreo ZAFIRO',
       description: 'Bitácora de actualizaciones automáticas de Plantilla y Estructura',
+      onClickRedirectTo: '/dashboard/monitoreo_zafiro',
       renderContent: () => (
         <div className="flex flex-col items-center justify-center h-full p-4 text-center mt-4">
           <Database className={`size-14 text-slate-300 dark:text-slate-600 mb-4 animate-pulse`} />
@@ -146,6 +166,13 @@ export default function DashboardSkeleton() {
       ),
     },
   ];
+
+  const visibleCardConfigs = cardConfigs.filter((card) => {
+    if (!card.onClickRedirectTo) return true;
+    const module = MODULES.find((m) => m.href === card.onClickRedirectTo);
+    if (!module) return true;
+    return isModuleVisible(module, auth);
+  });
 
   return (
     <section className="bg-transparent pb-20">
@@ -180,7 +207,7 @@ export default function DashboardSkeleton() {
         </div>
 
         <div className="flex justify-center items-center w-full">
-          <MagicBento cards={cardConfigs} disableAnimations={true} />
+          <MagicBento cards={visibleCardConfigs} disableAnimations={true} />
         </div>
       </div>
     </section>

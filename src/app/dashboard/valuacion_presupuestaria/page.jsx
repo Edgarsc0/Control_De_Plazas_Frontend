@@ -2,6 +2,13 @@ import ClientComponent from './ClientComponent';
 import { Suspense } from 'react';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import Skeleton from './Skeleton';
+import RequirePermission from '@/components/auth/RequirePermission';
+import { PERMISSIONS } from '@/config/permissions';
+
+const VALUACION_TAB_PERMISSIONS = [
+  PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA,
+  PERMISSIONS.EDIT_VALUACION_PARAMETROS,
+];
 
 export const dynamic = 'force-dynamic';
 
@@ -43,10 +50,12 @@ async function PageContent() {
 
 export default function Page() {
   return (
-    <section className="bg-transparent w-full">
-      <Suspense fallback={<Skeleton />}>
-        <PageContent />
-      </Suspense>
-    </section>
+    <RequirePermission permission={VALUACION_TAB_PERMISSIONS}>
+      <section className="bg-transparent w-full">
+        <Suspense fallback={<Skeleton />}>
+          <PageContent />
+        </Suspense>
+      </section>
+    </RequirePermission>
   );
 }

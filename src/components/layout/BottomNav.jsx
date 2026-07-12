@@ -5,15 +5,9 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTabs } from '@/context/PageTabsContext';
+import { getVisibleModules } from '@/config/modules';
 import {
-  LayoutDashboard,
-  BarChart3,
-  Users,
-  FileText,
   LayoutGrid,
-  Calculator,
-  GitFork,
-  Database,
   LogOut,
   X,
   Check,
@@ -27,40 +21,9 @@ import {
   DrawerDescription,
 } from '@/components/ui/drawer';
 
-// 4 accesos principales + "Más". El resto de módulos vive en el Drawer.
-const PRIMARY = [
-  { href: '/dashboard', label: 'Inicio', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/ocupacion_plazas_por_oficio', label: 'Ocupación', icon: BarChart3 },
-  { href: '/dashboard/plantilla_empleados', label: 'Plantilla', icon: Users },
-  { href: '/dashboard/oficios_turnados_do', label: 'Oficios', icon: FileText },
-];
-
-const MORE = [
-  {
-    href: '/dashboard/valuacion_presupuestaria',
-    label: 'Valuación Presupuestaria',
-    desc: 'Simulador de costos',
-    icon: Calculator,
-    color: '#9333ea',
-  },
-  {
-    href: '/dashboard/organigrama',
-    label: 'Organigrama ANAM',
-    desc: '13 unidades · 1,365 áreas',
-    icon: GitFork,
-    color: '#7c3aed',
-  },
-  {
-    href: '/dashboard/monitoreo_zafiro',
-    label: 'Monitoreo ZAFIRO',
-    desc: 'Bitácora de actualizaciones',
-    icon: Database,
-    color: '#0ea5e9',
-  },
-];
-
 export default function BottomNav() {
-  const { isAuthenticated, logout } = useAuth();
+  const auth = useAuth();
+  const { isAuthenticated, logout } = auth;
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageTabsOpen, setPageTabsOpen] = useState(false);
@@ -68,6 +31,12 @@ export default function BottomNav() {
 
   // Sólo navegación de dashboard: si no hay sesión, no se muestra.
   if (!isAuthenticated) return null;
+
+  // 4 accesos principales (los que caben en la barra) + "Más" con el resto,
+  // filtrados por permiso — ver src/config/modules.js.
+  const visibleModules = getVisibleModules(auth);
+  const PRIMARY = visibleModules.filter((m) => m.primary);
+  const MORE = visibleModules.filter((m) => !m.primary);
 
   const isActive = (item) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href);
@@ -85,7 +54,11 @@ export default function BottomNav() {
       className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200/80 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]"
       aria-label="Navegación principal"
     >
-      <div className="grid grid-cols-5 h-16">
+      {/* Cols dinámicas: PRIMARY puede tener menos de 4 ítems según permisos */}
+      <div
+        className="grid h-16"
+        style={{ gridTemplateColumns: `repeat(${PRIMARY.length + 1}, minmax(0, 1fr))` }}
+      >
         {PRIMARY.map((item) => {
           const active = isActive(item);
           const asTabs = active && activeConfig?.tabs?.length > 0;
@@ -164,8 +137,8 @@ export default function BottomNav() {
                         <item.icon className="size-5" style={{ color: item.color }} />
                       </span>
                       <span className="flex flex-col">
-                        <span className="text-sm font-black text-slate-800">{item.label}</span>
-                        <span className="text-[11px] text-slate-400">{item.desc}</span>
+                        <span className="text-sm font-black text-slate-800">{item.title}</span>
+                        <span className="text-[11px] text-slate-400">{item.description}</span>
                       </span>
                     </Link>
                   );

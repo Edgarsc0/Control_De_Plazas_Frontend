@@ -26,7 +26,7 @@ function formatFecha(isoString) {
 }
 
 export default function Navbar() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, email, role, logout } = useAuth();
   const { lastUpdate } = useZafiroUpdates();
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -151,6 +151,13 @@ export default function Navbar() {
                   <DashboardSubmenu onClose={() => setIsDashboardMenuOpen(false)} />
                 )}
               </AnimatePresence>
+            </div>
+          )}
+
+          {isAuthenticated && email && (
+            <div className="hidden lg:flex flex-col items-end leading-tight">
+              <span className="text-xs font-semibold text-[#621f32]">{email}</span>
+              {role && <span className="text-[11px] text-[#621f32]/70">{role}</span>}
             </div>
           )}
 

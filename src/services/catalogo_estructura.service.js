@@ -57,6 +57,18 @@ export const CatalogoEstructuraService = {
         { method: "DELETE", ...options }
     ),
 
+    // ── ORGANIGRAMA_ANAM (pk: departamento) ────────────────────────────────
+    getOrganigramaAnam: (options = {}) => apiFetch("/plantilla/cat-organigrama-anam/", { method: "GET", ...options }),
+    createOrganigramaAnam: (data, options = {}) => apiFetch("/plantilla/cat-organigrama-anam/", {
+        method: "POST", body: JSON.stringify(data), ...options,
+    }),
+    updateOrganigramaAnam: (departamento, data, options = {}) => apiFetch(`/plantilla/cat-organigrama-anam/${encodeURIComponent(departamento)}/`, {
+        method: "PUT", body: JSON.stringify(data), ...options,
+    }),
+    deleteOrganigramaAnam: (departamento, options = {}) => apiFetch(`/plantilla/cat-organigrama-anam/${encodeURIComponent(departamento)}/`, {
+        method: "DELETE", ...options,
+    }),
+
     // ── cat_nivel_jerarquico_plaza (pk: plaza) ─────────────────────────────
     getNivelesJerarquicosPlaza: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/", { method: "GET", ...options }),
     getNivelesJerarquicosOpciones: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/niveles/", { method: "GET", ...options }),

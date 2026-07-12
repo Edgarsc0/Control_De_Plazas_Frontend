@@ -1,6 +1,15 @@
 import OcupacionPlazasPorOficio from "./ClientComponent";
 import { OcupacionService } from "@/services/ocupacion.service";
 import { cookies } from 'next/headers';
+import RequirePermission from '@/components/auth/RequirePermission';
+import { PERMISSIONS } from '@/config/permissions';
+
+const OCUPACION_TAB_PERMISSIONS = [
+    PERMISSIONS.VIEW_OCUPACION_SANKEY,
+    PERMISSIONS.VIEW_OCUPACION_TABLA,
+    PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS,
+    PERMISSIONS.EDIT_OCUPACION_PLAZAS,
+];
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +36,8 @@ export default async function ServerComponent() {
     }
 
     return (
-        <OcupacionPlazasPorOficio resumenOcupacion={resumenOcupacion} />
+        <RequirePermission permission={OCUPACION_TAB_PERMISSIONS}>
+            <OcupacionPlazasPorOficio resumenOcupacion={resumenOcupacion} />
+        </RequirePermission>
     );
 }

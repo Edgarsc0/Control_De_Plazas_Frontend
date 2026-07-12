@@ -3,107 +3,9 @@
 import React, { useRef } from 'react';
 import Link from 'next/link';
 import { motion, useMotionValue, useMotionTemplate } from 'motion/react';
-import {
-  Layers, BarChart3, Calculator, Users,
-  Network, LayoutDashboard, ArrowRight,
-  Sparkles, GitFork, Database, FileText,
-  ChevronRight,
-} from 'lucide-react';
-
-// ── Secciones del menú ────────────────────────────────────────────────────────
-const SECTIONS = [
-  {
-    group: 'Principal',
-    items: [
-      {
-        title: 'Dashboard',
-        label: 'Inicio',
-        href: '/dashboard',
-        icon: LayoutDashboard,
-        color: '#621f32',
-        bg: 'rgba(98,31,50,0.10)',
-        description: 'Panel integral de control',
-        active: true,
-        featured: true,
-      },
-    ],
-  },
-  {
-    group: 'Plazas',
-    items: [
-      {
-        title: 'Ocupación por Oficios',
-        label: 'Oficios',
-        href: '/dashboard/ocupacion_plazas_por_oficio',
-        icon: BarChart3,
-        color: '#d97706',
-        bg: 'rgba(217,119,6,0.10)',
-        description: '1,800 plazas ANAM',
-        active: true,
-      },
-      {
-        title: 'Valuación Presupuestaria',
-        label: 'Presupuesto',
-        href: '/dashboard/valuacion_presupuestaria',
-        icon: Calculator,
-        color: '#9333ea',
-        bg: 'rgba(147,51,234,0.10)',
-        description: 'Simulador de costos',
-        active: true,
-      },
-    ],
-  },
-  {
-    group: 'Gestión',
-    items: [
-      {
-        title: 'Plantilla de Empleados',
-        label: 'RRHH',
-        href: '/dashboard/plantilla_empleados',
-        icon: Users,
-        color: '#2563eb',
-        bg: 'rgba(37,99,235,0.10)',
-        description: 'Directorio de personal',
-        active: true,
-      },
-      {
-        title: 'Oficios Turnados DO',
-        label: 'Movimientos',
-        href: '/dashboard/oficios_turnados_do',
-        icon: FileText,
-        color: '#621f32',
-        bg: 'rgba(98,31,50,0.10)',
-        description: 'Gestión de solicitudes',
-        active: true,
-      },
-    ],
-  },
-  {
-    group: 'Estructura',
-    items: [
-      {
-        title: 'Organigrama ANAM',
-        label: 'Org.',
-        href: '/dashboard/organigrama',
-        icon: GitFork,
-        color: '#7c3aed',
-        bg: 'rgba(124,58,237,0.10)',
-        description: '13 unidades · 1,365 áreas',
-        active: true,
-      },
-      {
-        title: 'Monitoreo ZAFIRO',
-        label: 'Sync',
-        href: '/dashboard/monitoreo_zafiro',
-        icon: Database,
-        color: '#0ea5e9',
-        bg: 'rgba(14,165,233,0.10)',
-        description: 'Bitácora de actualizaciones',
-        active: true,
-      },
-    ],
-  },
-];
+import { Sparkles, ChevronRight } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { getVisibleSections } from '@/config/modules';
 
 // ── Card de ítem ──────────────────────────────────────────────────────────────
 function MenuCard({ item, onClose, featured = false }) {
@@ -154,6 +56,8 @@ function MenuCard({ item, onClose, featured = false }) {
 export default function DashboardSubmenu({ onClose }) {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
+  const auth = useAuth();
+  const sections = getVisibleSections(auth);
 
   const handleMouseMove = ({ currentTarget, clientX, clientY }) => {
     const { left, top } = currentTarget.getBoundingClientRect();
@@ -161,8 +65,8 @@ export default function DashboardSubmenu({ onClose }) {
     mouseY.set(clientY - top);
   };
 
-  const featuredItem = SECTIONS[0].items[0];
-  const restSections = SECTIONS.slice(1);
+  const featuredItem = sections[0]?.items[0];
+  const restSections = sections.slice(1);
 
   return (
     <motion.div
@@ -193,14 +97,16 @@ export default function DashboardSubmenu({ onClose }) {
         </div>
         <div className="h-px flex-1 bg-gradient-to-r from-[#621f32]/15 to-transparent" />
         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-          {SECTIONS.reduce((acc, s) => acc + s.items.length, 0)} módulos activos
+          {sections.reduce((acc, s) => acc + s.items.length, 0)} módulos activos
         </span>
       </div>
 
       {/* Featured card */}
-      <div className="mb-3">
-        <MenuCard item={featuredItem} onClose={onClose} featured />
-      </div>
+      {featuredItem && (
+        <div className="mb-3">
+          <MenuCard item={featuredItem} onClose={onClose} featured />
+        </div>
+      )}
 
       {/* Divider */}
       <div className="h-px bg-gradient-to-r from-transparent via-slate-200/80 to-transparent mb-3" />

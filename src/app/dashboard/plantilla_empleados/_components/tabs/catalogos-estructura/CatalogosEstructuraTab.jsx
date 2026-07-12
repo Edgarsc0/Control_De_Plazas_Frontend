@@ -24,6 +24,7 @@ const CATALOG_DESCRIPTIONS = {
   motivos: "Catálogo de códigos de acciones motivos con su descripción y casos de uso.",
   pto_func: "Catálogo de Puestos funcionales. Crea o edita códigos de puestos funcionales.",
   cod_presupuestal: "Catálogo de salarios brutos y netos por código presupuestal y escala.",
+  organigrama_anam: "Catálogo de estructura organizacional ANAM: unidad de negocio, departamento, nivel de dirección y posiciones de gerente/director.",
 };
 
 const ROW_HEIGHT = 37;
@@ -305,6 +306,25 @@ function GenericCatalogSubtab({ activeCatalog }) {
     await refreshActiveCatalog();
   };
 
+  // Columnas de auditoría (fecha_modificacion, modificado_por) o con
+  // `disabledOnEdit` (llaves primarias) no admiten pegar: son de solo lectura
+  // o forman parte de la URL del registro, no del payload editable.
+  const isPasteableColumn = useCallback((colKey) => {
+    const col = config.columns.find((c) => c.key === colKey);
+    if (!col || col.audit) return false;
+    const field = config.formFields.find((f) => f.key === colKey);
+    return !field?.disabledOnEdit;
+  }, [config]);
+
+  const handlePasteCell = useCallback(async (text) => {
+    const { row, colKey } = contextMenu || {};
+    if (!row || !colKey || !isPasteableColumn(colKey)) return;
+    const cfg = CATALOGOS_CONFIG[activeCatalog];
+    const res = await cfg.update(row, { ...row, [colKey]: text });
+    if (!res.ok) throw new Error("No se pudo pegar el valor");
+    await refreshActiveCatalog();
+  }, [contextMenu, activeCatalog, isPasteableColumn, refreshActiveCatalog]);
+
   return (
     <div className="animate-in fade-in duration-400 flex flex-col bg-white/5 dark:bg-slate-950/10 backdrop-blur-lg border-y border-gray-200/80 dark:border-slate-800/80 shadow-2xl">
       {/* ── Toolbar ───────────────────────────────────────────────────────── */}
@@ -377,8 +397,10 @@ function GenericCatalogSubtab({ activeCatalog }) {
           setActiveConditionDropdown={setActiveConditionDropdown}
           selectedCell={selectedCell}
           onSelectCell={setSelectedCell}
-          onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
+          onCellContextMenu={(e, value, rect, row, colKey) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey })}
           onShowRecord={(row) => openEditModal(row)}
+          enableKeyboardNav
+          onEscape={() => setContextMenu(null)}
           sortConfig={sortConfig}
           onSort={handleSort}
           onOpenFilter={openFilterDropdown}
@@ -423,7 +445,12 @@ function GenericCatalogSubtab({ activeCatalog }) {
         )}
       </AnimatePresence>
 
-      <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+      <CopyCellMenu
+        contextMenu={contextMenu}
+        onClose={() => setContextMenu(null)}
+        onPaste={handlePasteCell}
+        canPaste={!!contextMenu?.colKey && isPasteableColumn(contextMenu.colKey)}
+      />
 
       <CatalogRecordModal
         open={modalState.open}

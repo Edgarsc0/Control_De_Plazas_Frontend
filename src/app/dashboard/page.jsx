@@ -5,6 +5,7 @@ import DashboardSkeleton from '@/components/ui/DashboardSkeleton';
 import { OcupacionService } from '@/services/ocupacion.service';
 import { cookies } from 'next/headers';
 import { ControlGestionService } from '@/services/control_gestion.service';
+import { getServerSession } from '@/lib/getServerSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ async function DashboardData({ dataPromise }) {
 export default async function DashboardServerCompoment() {
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
+  const { permissions, isSuperuser } = await getServerSession();
 
   // Initiate the fetch concurrently
   const dataPromise = Promise.allSettled([
@@ -62,7 +64,7 @@ export default async function DashboardServerCompoment() {
   ]);
 
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
+    <Suspense fallback={<DashboardSkeleton permissions={permissions} isSuperuser={isSuperuser} />}>
       <DashboardData dataPromise={dataPromise} />
     </Suspense>
   );

@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { ZafiroUpdatesProvider } from "@/context/ZafiroUpdatesContext"
 import { PageTabsProvider } from "@/context/PageTabsContext"
 import { ToastProvider } from "@/hooks/useToast"
+import { AuthProvider } from "@/hooks/useAuth"
 import Toaster from "@/components/ui/Toaster"
 
 
@@ -37,22 +38,24 @@ export default function RootLayout({ children }) {
 
         {/* Banner fuera de cualquier animación */}
         <Banner />
-        <ToastProvider>
-          <PageTabsProvider>
-            <Fade>
-              <main className="flex-grow relative z-10 flex flex-col pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
-                <ZafiroUpdatesProvider>
-                  <Navbar />
-                  <TooltipProvider>
-                    {children}
-                  </TooltipProvider>
-                </ZafiroUpdatesProvider>
-              </main>
-            </Fade>
-            <BottomNav />
-            <Toaster position="top-right" />
-          </PageTabsProvider>
-        </ToastProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <PageTabsProvider>
+              <Fade>
+                <main className="flex-grow relative z-10 flex flex-col pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
+                  <ZafiroUpdatesProvider>
+                    <Navbar />
+                    <TooltipProvider>
+                      {children}
+                    </TooltipProvider>
+                  </ZafiroUpdatesProvider>
+                </main>
+              </Fade>
+              <BottomNav />
+              <Toaster position="top-right" />
+            </PageTabsProvider>
+          </ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

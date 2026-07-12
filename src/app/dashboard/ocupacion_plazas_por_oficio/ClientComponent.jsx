@@ -20,19 +20,30 @@ import OcupacionFilterDrawer from './_components/OcupacionFilterDrawer';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import DetailModal from '@/components/shared/OficioDetailModal';
 import { useRegisterPageTabs } from '@/context/PageTabsContext';
+import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 
 
 // Tabs de vista (sin "Plantilla": esa sólo se accede desde la barra de PC).
 const OCUPACION_TABS = [
-    { id: 'sankey', label: 'Sankey' },
-    { id: 'table', label: 'Tabla' },
-    { id: 'charts', label: 'Estadísticas' },
+    { id: 'sankey', label: 'Sankey', permission: PERMISSIONS.VIEW_OCUPACION_SANKEY },
+    { id: 'table', label: 'Tabla', permission: PERMISSIONS.VIEW_OCUPACION_TABLA },
+    { id: 'charts', label: 'Estadísticas', permission: PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS },
 ];
 
 export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
+
+    const { isLoading: authLoading, hasPermission } = useAuth();
+    // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
+    // parpadeo) — el backend igual exige el permiso real en cada endpoint.
+    const visibleOcupacionTabs = useMemo(
+        () => OCUPACION_TABS.filter((t) => authLoading || hasPermission(t.permission)),
+        [authLoading, hasPermission]
+    );
+    const canEditOcupacion = authLoading || hasPermission(PERMISSIONS.EDIT_OCUPACION_PLAZAS);
 
     const tabParam = searchParams.get('tab') || 'sankey';
     const [activeView, setActiveView] = useState(tabParam);
@@ -144,6 +155,14 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
         }
     }, [tabParam]);
 
+    // Si el tab activo no está permitido (o ya no lo está), cae al primero visible.
+    useEffect(() => {
+        if (!authLoading && visibleOcupacionTabs.length && !visibleOcupacionTabs.some((t) => t.id === activeView)) {
+            handleTabChange(visibleOcupacionTabs[0].id);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authLoading, visibleOcupacionTabs, activeView]);
+
     // Ref para leer los params actuales sin volver inestable el callback
     // (así el registro al BottomNav no se re-ejecuta en cada render).
     const searchParamsRef = useRef(searchParams);
@@ -157,7 +176,7 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
     // Publica los tabs al BottomNav (móvil) para abrirlos en un Drawer.
     // "Plantilla" queda fuera: sólo accesible desde la barra de PC.
     useRegisterPageTabs({
-        tabs: OCUPACION_TABS,
+        tabs: visibleOcupacionTabs,
         activeTab: activeView,
         onSelect: handleTabChange,
         title: "Ocupación de Plazas",
@@ -348,32 +367,42 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
 
                     <Fade direction="right" triggerOnce className="hidden md:block">
                         <div className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-full border border-slate-200/70 shadow-sm">
-                            <TabButton
-                                active={activeView === 'sankey'} 
-                                onClick={() => handleTabChange('sankey')}
-                                icon={<GitBranch className="size-4" />}
-                                label="Sankey"
-                            />
-                            <TabButton 
-                                active={activeView === 'table'} 
-                                onClick={() => handleTabChange('table')}
-                                icon={<TableIcon className="size-4" />}
-                                label="Tabla"
-                            />
-                            <TabButton 
-                                active={activeView === 'charts'} 
-                                onClick={() => handleTabChange('charts')}
-                                icon={<BarChart3 className="size-4" />}
-                                label="Estadísticas"
-                            />
-                            <div className="w-px h-5 bg-slate-300/70 self-center mx-1" />
-                            <Link
-                                href="/dashboard/ocupacion_plazas_por_oficio/plantilla"
-                                className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-slate-500 hover:text-[#621f32] hover:bg-white transition-colors"
-                            >
-                                <SquarePen className="size-4" />
-                                Plantilla
-                            </Link>
+                            {hasPermission(PERMISSIONS.VIEW_OCUPACION_SANKEY) && (
+                                <TabButton
+                                    active={activeView === 'sankey'}
+                                    onClick={() => handleTabChange('sankey')}
+                                    icon={<GitBranch className="size-4" />}
+                                    label="Sankey"
+                                />
+                            )}
+                            {hasPermission(PERMISSIONS.VIEW_OCUPACION_TABLA) && (
+                                <TabButton
+                                    active={activeView === 'table'}
+                                    onClick={() => handleTabChange('table')}
+                                    icon={<TableIcon className="size-4" />}
+                                    label="Tabla"
+                                />
+                            )}
+                            {hasPermission(PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS) && (
+                                <TabButton
+                                    active={activeView === 'charts'}
+                                    onClick={() => handleTabChange('charts')}
+                                    icon={<BarChart3 className="size-4" />}
+                                    label="Estadísticas"
+                                />
+                            )}
+                            {canEditOcupacion && (
+                                <>
+                                    <div className="w-px h-5 bg-slate-300/70 self-center mx-1" />
+                                    <Link
+                                        href="/dashboard/ocupacion_plazas_por_oficio/plantilla"
+                                        className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-slate-500 hover:text-[#621f32] hover:bg-white transition-colors"
+                                    >
+                                        <SquarePen className="size-4" />
+                                        Plantilla
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </Fade>
                 </div>
@@ -510,8 +539,8 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
                                         Restablecer todo
                                     </button>
                                 </motion.div>
-                            ) : activeView === 'sankey' ? (
-                                <motion.div 
+                            ) : activeView === 'sankey' && !authLoading && hasPermission(PERMISSIONS.VIEW_OCUPACION_SANKEY) ? (
+                                <motion.div
                                     key="sankey"
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
@@ -524,8 +553,8 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
                                         handleDrillDown={handleDrillDown}
                                     />
                                 </motion.div>
-                            ) : activeView === 'table' ? (
-                                <motion.div 
+                            ) : activeView === 'table' && !authLoading && hasPermission(PERMISSIONS.VIEW_OCUPACION_TABLA) ? (
+                                <motion.div
                                     key="table"
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
@@ -540,8 +569,8 @@ export default function OcupacionPlazasPorOficio({ resumenOcupacion }) {
                                         onViewOficioDetails={handleViewOficioDetails}
                                     />
                                 </motion.div>
-                            ) : activeView === 'charts' ? (
-                                <motion.div 
+                            ) : activeView === 'charts' && !authLoading && hasPermission(PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS) ? (
+                                <motion.div
                                     key="charts"
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}

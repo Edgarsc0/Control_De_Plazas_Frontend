@@ -22,6 +22,8 @@ import {
   OrganigramaPreviewContent,
 } from '@/components/ui/BentoContent';
 import { Zoom } from 'react-awesome-reveal';
+import { useAuth } from '@/hooks/useAuth';
+import { MODULES, isModuleVisible } from '@/config/modules';
 
 export default function Dashboard({
   resumenVacantes,
@@ -29,6 +31,7 @@ export default function Dashboard({
   oficiosTurnados,
   resumenEmpleados,
 }) {
+  const auth = useAuth();
   const cardConfigs = [
     {
       span: 'col-span-2',
@@ -118,6 +121,16 @@ export default function Dashboard({
 
   ];
 
+  // Tarjetas sin `onClickRedirectTo` (p. ej. "Conectividad") no enlazan a
+  // ningún módulo gateado, así que se muestran siempre. Las demás se filtran
+  // con la misma fuente de permisos que el sidebar (config/modules.js).
+  const visibleCardConfigs = cardConfigs.filter((card) => {
+    if (!card.onClickRedirectTo) return true;
+    const module = MODULES.find((m) => m.href === card.onClickRedirectTo);
+    if (!module) return true;
+    return isModuleVisible(module, auth);
+  });
+
   return (
     <>
       <section className="bg-transparent pb-20">
@@ -163,7 +176,7 @@ export default function Dashboard({
           {/* Contenedor Centrado del Magic Bento */}
           <Zoom triggerOnce>
             <div className="flex justify-center items-center w-full">
-              <MagicBento cards={cardConfigs} />
+              <MagicBento cards={visibleCardConfigs} />
             </div>
           </Zoom>
         </div>

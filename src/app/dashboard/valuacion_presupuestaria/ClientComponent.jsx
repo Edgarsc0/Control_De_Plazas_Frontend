@@ -1,21 +1,23 @@
 'use client';
 
-import React, { useState, useEffect, useTransition, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useTransition, useCallback } from 'react';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PageTabBar from '@/components/ui/PageTabBar';
 import { Calculator, Settings2, Book, Layers, FileText, Variable } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRegisterPageTabs } from '@/context/PageTabsContext';
+import { useAuth } from '@/hooks/useAuth';
+import { PERMISSIONS } from '@/config/permissions';
 
 import SimuladorValuacion from './_components/SimuladorValuacion';
 import ParametrosValuacion from './_components/ParametrosValuacion';
 import AsuntosValuacion from './_components/AsuntosValuacion';
 
 const TABS = [
-    { id: 'simulador', label: 'Simulador', icon: Calculator },
-    { id: 'parametros', label: 'Parámetros', icon: Settings2 },
-    { id: 'asuntos', label: 'Asuntos de Plazas', icon: Book },
+    { id: 'simulador', label: 'Simulador', icon: Calculator, permission: PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA },
+    { id: 'parametros', label: 'Parámetros', icon: Settings2, permission: PERMISSIONS.EDIT_VALUACION_PARAMETROS },
+    { id: 'asuntos', label: 'Asuntos de Plazas', icon: Book, permission: PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA },
 ];
 
 export default function ValuacionPresupuestaria({
@@ -23,8 +25,29 @@ export default function ValuacionPresupuestaria({
     initialConstantes = [],
     initialConceptos = []
 }) {
+    const { isLoading: authLoading, hasPermission: rawHasPermission } = useAuth();
+    // Durante la carga inicial de permisos se muestran los botones de tab de
+    // forma optimista (arriba), pero el CONTENIDO real solo se muestra cuando
+    // el permiso ya se confirmó — evita el flash de datos reales sin permiso.
+    const hasPermission = useCallback(
+        (codename) => !authLoading && rawHasPermission(codename),
+        [authLoading, rawHasPermission]
+    );
+    // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
+    // parpadeo) — el backend igual exige el permiso real en cada endpoint.
+    const visibleTabs = useMemo(
+        () => TABS.filter((t) => authLoading || hasPermission(t.permission)),
+        [authLoading, hasPermission]
+    );
+
     const [activeTab, setActiveTab] = useState('simulador');
     const [activeParamTab, setActiveParamTab] = useState('catalogo');
+
+    useEffect(() => {
+        if (!authLoading && visibleTabs.length && !visibleTabs.some((t) => t.id === activeTab)) {
+            setActiveTab(visibleTabs[0].id);
+        }
+    }, [authLoading, visibleTabs, activeTab]);
 
     const [catalogo, setCatalogo] = useState(initialCatalogo);
     const [constantes, setConstantes] = useState(initialConstantes);
@@ -41,7 +64,7 @@ export default function ValuacionPresupuestaria({
     }, [startTransition]);
 
     useRegisterPageTabs({
-        tabs: TABS,
+        tabs: visibleTabs,
         activeTab,
         onSelect: handleSelectTab,
         title: 'Valuación Presupuestaria',
@@ -88,7 +111,7 @@ export default function ValuacionPresupuestaria({
         >
             {/* ── Fixed tab bar ─────────────────────────────────────────────── */}
             <PageTabBar
-                tabs={TABS}
+                tabs={visibleTabs}
                 activeTab={activeTab}
                 onSelect={handleSelectTab}
                 subtabConfigs={subtabConfigs}
@@ -104,7 +127,7 @@ export default function ValuacionPresupuestaria({
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
                     >
-                        {activeTab === 'simulador' && (
+                        {activeTab === 'simulador' && hasPermission(PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA) && (
                             <SimuladorValuacion
                                 catalogo={catalogo}
                                 searchTerm={searchTerm}
@@ -113,7 +136,7 @@ export default function ValuacionPresupuestaria({
                                 onCloseAsunto={() => setSelectedAsuntoForSimulation(null)}
                             />
                         )}
-                        {activeTab === 'parametros' && (
+                        {activeTab === 'parametros' && hasPermission(PERMISSIONS.EDIT_VALUACION_PARAMETROS) && (
                             <ParametrosValuacion
                                 activeParamTab={activeParamTab}
                                 catalogo={catalogo}
@@ -127,7 +150,7 @@ export default function ValuacionPresupuestaria({
                                 fetchInitialData={fetchInitialData}
                             />
                         )}
-                        {activeTab === 'asuntos' && (
+                        {activeTab === 'asuntos' && hasPermission(PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA) && (
                             <AsuntosValuacion onNavigateToSimulador={handleNavigateToSimulador} />
                         )}
                     </motion.div>
