@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react";
 
@@ -19,8 +19,35 @@ import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react
  */
 export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true }) {
   const [copied, setCopied] = useState(false);
-  const [pasteState, setPasteState] = useState("idle"); // idle | pasting | done | error
+  const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
   const [deleteState, setDeleteState] = useState("idle"); // idle | deleting | done | error
+
+  // Fallback para HTTP plano (sin secure context, navigator.clipboard no existe):
+  // en vez de leer el portapapeles por API, se espera el evento nativo `paste`
+  // (Ctrl+V), que trae `clipboardData` sin pasar por el permiso/secure-context
+  // de la Clipboard API async. `execCommand("paste")` no sirve de fallback
+  // porque Chrome lo bloquea fuera de extensiones.
+  useEffect(() => {
+    if (!contextMenu || pasteState !== "waiting") return;
+    const handleWindowPaste = async (e) => {
+      e.preventDefault();
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      setPasteState("pasting");
+      try {
+        await onPaste(text);
+        setPasteState("done");
+        setTimeout(() => {
+          setPasteState("idle");
+          onClose();
+        }, 550);
+      } catch {
+        setPasteState("error");
+        setTimeout(() => setPasteState("idle"), 1500);
+      }
+    };
+    window.addEventListener("paste", handleWindowPaste);
+    return () => window.removeEventListener("paste", handleWindowPaste);
+  }, [contextMenu, pasteState, onPaste, onClose]);
 
   if (!contextMenu) return null;
 
@@ -65,14 +92,16 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
   };
 
   const handlePaste = async () => {
-    if (!onPaste || !canPaste || pasteState === "pasting") return;
+    if (!onPaste || !canPaste || pasteState === "pasting" || pasteState === "waiting") return;
+    // navigator.clipboard.readText requiere secure context (HTTPS o localhost);
+    // en el servidor por IP/HTTP plano no existe, así que se pasa a modo
+    // "esperando Ctrl+V" (ver el listener de `paste` de arriba).
+    if (!navigator.clipboard?.readText) {
+      setPasteState("waiting");
+      return;
+    }
     setPasteState("pasting");
     try {
-      // navigator.clipboard.readText requiere secure context y permiso de
-      // lectura; sin soporte (HTTP plano, permiso denegado) no hay fallback
-      // confiable (execCommand("paste") está bloqueado por la mayoría de
-      // navegadores por seguridad), así que se reporta error.
-      if (!navigator.clipboard?.readText) throw new Error("clipboard-read no soportado");
       const text = await navigator.clipboard.readText();
       await onPaste(text);
       setPasteState("done");
@@ -142,13 +171,13 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
             <button
               onClick={handlePaste}
               disabled={!canPaste || pasteState === "pasting"}
-              title={!canPaste ? "Columna de solo lectura" : undefined}
-              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-transparent"
+              title={!canPaste ? "Columna de solo lectura" : pasteState === "waiting" ? "Presiona Ctrl+V" : undefined}
+              className={`w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-transparent ${pasteState === "waiting" ? "animate-pulse" : ""}`}
             >
               {pasteState === "done" ? <Check className="size-4 text-emerald-500" />
                 : pasteState === "error" ? <AlertTriangle className="size-4 text-red-500" />
                 : <ClipboardPaste className="size-4" />}
-              {pasteState === "done" ? "¡Pegado!" : pasteState === "error" ? "No se pudo pegar" : "Pegar valor en celda"}
+              {pasteState === "done" ? "¡Pegado!" : pasteState === "error" ? "No se pudo pegar" : pasteState === "waiting" ? "Presiona Ctrl+V..." : "Pegar valor en celda"}
             </button>
           )}
           {onDelete && (
