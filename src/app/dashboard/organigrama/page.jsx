@@ -190,6 +190,22 @@ function OrganigramaContent() {
   const [childForm, setChildForm] = useState(emptyChildForm);
   const [creatingChild, setCreatingChild] = useState(false);
   const [createChildError, setCreateChildError] = useState(null);
+  // Búsqueda de empleado/plaza para la plaza titular del nuevo subordinado
+  const [childPosQuery, setChildPosQuery] = useState("");
+  const [childPosResults, setChildPosResults] = useState([]);
+  const [childPosSearching, setChildPosSearching] = useState(false);
+  const [childPosSelectedEmp, setChildPosSelectedEmp] = useState(null);
+  // Ancla + rect para dibujar la lista de sugerencias como `fixed`, así el
+  // overflow-y-auto del modal (que la recortaba en su borde inferior cuando
+  // la lista era larga) deja de afectarla.
+  const childPosAnchorRef = useRef(null);
+  const [childPosMenuRect, setChildPosMenuRect] = useState(null);
+  const resetChildForm = () => {
+    setChildForm(emptyChildForm);
+    setChildPosQuery("");
+    setChildPosResults([]);
+    setChildPosSelectedEmp(null);
+  };
 
   // ── Edición / borrado del nodo seleccionado ────────────────────────────────
   // Nota: departamento (PK), nivel_direccion y unidad_negocio no son editables
@@ -445,6 +461,59 @@ function OrganigramaContent() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [empSearchQuery, editingField]);
 
+  // ── Búsqueda de empleados (EMPLEADOS_COMPLETOS_SIG) para la plaza titular
+  // del formulario de "Agregar subordinado" ─────────────────────────────────
+  useEffect(() => {
+    if (!showCreateChild || childPosQuery.trim().length < 3) {
+      setChildPosResults([]);
+      setChildPosSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setChildPosSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await PlantillaService.searchEmpleados(childPosQuery.trim());
+        const data = res.ok ? await res.json() : { results: [] };
+        if (!cancelled) setChildPosResults(data.results || []);
+      } catch {
+        if (!cancelled) setChildPosResults([]);
+      } finally {
+        if (!cancelled) setChildPosSearching(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [childPosQuery, showCreateChild]);
+
+  // ── Posiciona la lista de sugerencias de plaza titular como `fixed`,
+  // recalculando en scroll/resize mientras esté abierta, para que no la
+  // recorte el overflow-y-auto del modal de "Agregar subordinado".
+  useEffect(() => {
+    if (childPosResults.length === 0) {
+      setChildPosMenuRect(null);
+      return;
+    }
+    const update = () => {
+      const el = childPosAnchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom - 12;
+      setChildPosMenuRect({
+        top: r.bottom + 4,
+        left: r.left,
+        width: r.width,
+        maxHeight: Math.max(120, Math.min(280, spaceBelow)),
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [childPosResults]);
+
   // ── Aplica un cambio de plaza (titular/superior) y ofrece revertir ───────
   // newOcupanteInfo === null ⇒ se está quitando la asignación (deja la plaza en blanco).
   const applyPlazaChange = async (fieldKey, field, node, newPosicion, newOcupanteInfo) => {
@@ -589,6 +658,14 @@ function OrganigramaContent() {
 
       // ── Inserta el nodo en sitio, sin refetch ni tocar la referencia de
       // organigramaData (eso reiniciaría expandedNodes/selectedNode/scroll).
+      // El backend de creación no calcula `ocupante` (eso lo hace el árbol
+      // completo en organigrama-tree/), así que si se asignó plaza titular
+      // se arma aquí a partir del empleado elegido en la búsqueda — si no,
+      // la tarjeta muestra "Plaza inactiva" hasta recargar la página.
+      const ocupanteSeleccionado =
+        childPosSelectedEmp && childPosSelectedEmp.posicion === body.num_posicion_gerente
+          ? { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb }
+          : null;
       const newNode = {
         departamento: body.departamento,
         descripcion_larga: body.descripcion_larga,
@@ -598,7 +675,7 @@ function OrganigramaContent() {
         unidad_administrativa: body.unidad_administrativa,
         doaf: body.doaf,
         subordinados: [],
-        ocupante: null,
+        ocupante: ocupanteSeleccionado,
       };
       const parent = allNodes[selectedNode.departamento];
       if (parent) {
@@ -612,7 +689,7 @@ function OrganigramaContent() {
       }]);
 
       setShowCreateChild(false);
-      setChildForm(emptyChildForm);
+      resetChildForm();
       setCreateChildError(null);
       setExpandedNodes(prev => ({ ...prev, [selectedNode.departamento]: true }));
       setHighlightedNodeId(newNode.departamento);
@@ -1488,7 +1565,7 @@ function OrganigramaContent() {
                     </button>
                     {Object.keys(TIPO_LABELS).some(t => LEVEL_SEGPOS[t] > (LEVEL_SEGPOS[selectedNode.nivel_direccion] ?? -1)) && (
                       <button
-                        onClick={() => { setCreateChildError(null); setChildForm(emptyChildForm); setShowCreateChild(true); }}
+                        onClick={() => { setCreateChildError(null); resetChildForm(); setShowCreateChild(true); }}
                         className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all cursor-pointer shadow-sm shadow-rose-800/10">
                         <Plus className="w-4 h-4" />
                         <span>Agregar subordinado</span>
@@ -1703,12 +1780,76 @@ function OrganigramaContent() {
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
                 </div>
               </div>
-              <div>
+              <div className="relative">
                 <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Plaza titular (opcional)</label>
-                <input type="text" value={childForm.num_posicion_gerente}
-                  onChange={e => setChildForm(f => ({ ...f, num_posicion_gerente: e.target.value }))}
-                  placeholder="Se puede asignar después"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+                {childForm.num_posicion_gerente ? (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs">
+                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-100 truncate">
+                      Plaza {childForm.num_posicion_gerente}
+                      {childPosSelectedEmp?.nombre && <span className="text-slate-400 font-normal"> · {childPosSelectedEmp.nombre}</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setChildForm(f => ({ ...f, num_posicion_gerente: "" })); setChildPosQuery(""); setChildPosResults([]); setChildPosSelectedEmp(null); }}
+                      title="Quitar plaza"
+                      className="text-slate-400 hover:text-rose-800 transition-colors cursor-pointer shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div ref={childPosAnchorRef} className="relative">
+                      <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={childPosQuery}
+                        onChange={e => setChildPosQuery(e.target.value)}
+                        placeholder="Buscar nombre, plaza o Nº empleado..."
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+                    </div>
+                    {childPosSearching && (
+                      <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 py-1 mt-1 text-[11px]">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Buscando...</span>
+                      </div>
+                    )}
+                    {!childPosSearching && childPosQuery.trim().length > 0 && childPosQuery.trim().length < 3 && (
+                      <p className="text-slate-400 dark:text-slate-500 text-[11px] mt-1">Escribe al menos 3 caracteres.</p>
+                    )}
+                    {!childPosSearching && childPosQuery.trim().length >= 3 && childPosResults.length === 0 && (
+                      <p className="text-slate-400 dark:text-slate-500 text-[11px] mt-1">Sin resultados.</p>
+                    )}
+                    {childPosResults.length > 0 && childPosMenuRect && (
+                      <div
+                        style={{
+                          position: "fixed",
+                          top: childPosMenuRect.top,
+                          left: childPosMenuRect.left,
+                          width: childPosMenuRect.width,
+                          maxHeight: childPosMenuRect.maxHeight,
+                        }}
+                        className="overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg z-[70]">
+                        {childPosResults.map(emp => (
+                          <button
+                            key={emp.posicion}
+                            type="button"
+                            onClick={() => {
+                              setChildForm(f => ({ ...f, num_posicion_gerente: emp.posicion }));
+                              setChildPosSelectedEmp(emp);
+                              setChildPosQuery("");
+                              setChildPosResults([]);
+                            }}
+                            className="w-full text-left p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                          >
+                            <div className="font-semibold text-[11px] text-slate-800 dark:text-slate-200 truncate">{emp.nombre}</div>
+                            <div className="text-[9px] font-mono text-slate-400 mt-0.5">Plaza {emp.posicion} · Nivel {emp.nivel || "N/A"}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
               {createChildError && (
                 <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 text-xs flex items-start gap-2">
@@ -1719,7 +1860,7 @@ function OrganigramaContent() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => { setShowCreateChild(false); setChildForm(emptyChildForm); setCreateChildError(null); }}
+                onClick={() => { setShowCreateChild(false); resetChildForm(); setCreateChildError(null); }}
                 disabled={creatingChild}
                 className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40">
                 Cancelar
