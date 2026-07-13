@@ -756,6 +756,20 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
     onCellEdited?.(row.posicion, colKey, text);
   }, [contextMenu, isPasteableColumn, onCellEdited]);
+
+  // Borra el contenido de la celda: NULL en EMPLEADOS_COMPLETOS_SIG +
+  // elimina (no solo desactiva) el historial de CeldaOverride de esa celda
+  // (backend, ver plantilla.celda_override.borrar_contenido_celda).
+  const handleClearCell = useCallback(async () => {
+    const { row, colKey } = contextMenu || {};
+    if (!row || !colKey || !isPasteableColumn(colKey)) return;
+    const res = await VacantesService.deleteEmpleadoCompletoOverride(row.posicion, colKey);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail || "No se pudo borrar el contenido.");
+    }
+    onCellEdited?.(row.posicion, colKey, null);
+  }, [contextMenu, isPasteableColumn, onCellEdited]);
   // Refs actualizadas sin re-suscribir el listener global de teclado (ver más abajo):
   // antes el efecto dependía de [columns, filteredSortedData], así que se removía y
   // re-agregaba en cada tecla de búsqueda (cualquier cambio en los datos filtrados).
@@ -1445,6 +1459,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         onClose={() => setContextMenu(null)}
         onPaste={canEditCeldas ? handlePasteCell : undefined}
         canPaste={isPasteableColumn(contextMenu?.colKey)}
+        onDelete={canEditCeldas ? handleClearCell : undefined}
+        canDelete={isPasteableColumn(contextMenu?.colKey)}
       />
 
       {selectedRowData && (

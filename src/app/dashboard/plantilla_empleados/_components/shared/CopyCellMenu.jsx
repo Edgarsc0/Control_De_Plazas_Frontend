@@ -2,21 +2,25 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Copy, Check, ClipboardPaste, AlertTriangle } from "lucide-react";
+import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react";
 
 /**
  * Menú flotante de click derecho sobre una celda de DataTable.
  * Copia el valor de la celda al portapapeles y, opcionalmente (si se pasa
- * `onPaste`), pega el contenido del portapapeles sobre la celda.
+ * `onPaste`), pega el contenido del portapapeles sobre la celda. También
+ * opcionalmente (si se pasa `onDelete`) permite borrar el contenido de la celda.
  *
  * @param {{x: number, y: number, value: *, rect: ?DOMRect}|null} contextMenu
  * @param {() => void} onClose
  * @param {(text: string) => Promise<void>} [onPaste] - Si se provee, muestra la opción "Pegar valor". Recibe el texto del portapapeles.
  * @param {boolean} [canPaste=true] - Si `false` con `onPaste` provisto, la opción se muestra deshabilitada (ej. columna de solo lectura).
+ * @param {() => Promise<void>} [onDelete] - Si se provee, muestra la opción "Borrar contenido de celda".
+ * @param {boolean} [canDelete=true] - Si `false` con `onDelete` provisto, la opción se muestra deshabilitada.
  */
-export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true }) {
+export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true }) {
   const [copied, setCopied] = useState(false);
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | done | error
+  const [deleteState, setDeleteState] = useState("idle"); // idle | deleting | done | error
 
   if (!contextMenu) return null;
 
@@ -82,7 +86,23 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     }
   };
 
-  const menuHeight = onPaste ? 96 : 56;
+  const handleDelete = async () => {
+    if (!onDelete || !canDelete || deleteState === "deleting") return;
+    setDeleteState("deleting");
+    try {
+      await onDelete();
+      setDeleteState("done");
+      setTimeout(() => {
+        setDeleteState("idle");
+        onClose();
+      }, 550);
+    } catch {
+      setDeleteState("error");
+      setTimeout(() => setDeleteState("idle"), 1500);
+    }
+  };
+
+  const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0);
 
   return (
     <>
@@ -129,6 +149,19 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
                 : pasteState === "error" ? <AlertTriangle className="size-4 text-red-500" />
                 : <ClipboardPaste className="size-4" />}
               {pasteState === "done" ? "¡Pegado!" : pasteState === "error" ? "No se pudo pegar" : "Pegar valor en celda"}
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={!canDelete || deleteState === "deleting"}
+              title={!canDelete ? "Columna de solo lectura" : undefined}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-transparent"
+            >
+              {deleteState === "done" ? <Check className="size-4 text-emerald-500" />
+                : deleteState === "error" ? <AlertTriangle className="size-4 text-red-500" />
+                : <Eraser className="size-4" />}
+              {deleteState === "done" ? "¡Borrado!" : deleteState === "error" ? "No se pudo borrar" : "Borrar contenido de celda"}
             </button>
           )}
         </motion.div>

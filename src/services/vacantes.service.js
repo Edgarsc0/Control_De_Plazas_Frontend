@@ -122,6 +122,23 @@ export const VacantesService = {
     },
 
     /**
+     * Borra el contenido de una celda de EMPLEADOS_COMPLETOS_SIG (tab Plantilla
+     * Detalle): pone la columna en NULL sobre la fila viva y elimina el
+     * historial de CeldaOverride de esa celda (no solo lo desactiva).
+     * @param {string} posicion - Clave de negocio (columna `Posición`).
+     * @param {string} columna - Nombre del campo del modelo a borrar.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    deleteEmpleadoCompletoOverride: (posicion, columna, options = {}) => {
+        return apiFetch('/plantilla/empleados_completos_sig/override/', {
+            method: 'DELETE',
+            body: JSON.stringify({ posicion, columna }),
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el resumen de estatus de nómina por nivel y unidad administrativa.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.

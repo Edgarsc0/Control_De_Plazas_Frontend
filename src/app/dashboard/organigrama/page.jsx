@@ -29,6 +29,7 @@ import {
   X,
   Check,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { PlantillaService } from "@/services/plantilla.service";
@@ -164,7 +165,7 @@ function OrganigramaContent() {
   const [pendingScrollNode, setPendingScrollNode] = useState(null);
   // Fuerza el re-render del árbol tras mutar un nodo en sitio, sin tocar la
   // referencia de organigramaData (eso reinicia expandedNodes/selectedNode).
-  const [, bumpRender] = useState(0);
+  const [renderTick, bumpRender] = useState(0);
 
   const [posInfo, setPosInfo] = useState({ titular: null, superior: null });
   const [posLoading, setPosLoading] = useState({ titular: false, superior: false });
@@ -189,6 +190,19 @@ function OrganigramaContent() {
   const [childForm, setChildForm] = useState(emptyChildForm);
   const [creatingChild, setCreatingChild] = useState(false);
   const [createChildError, setCreateChildError] = useState(null);
+
+  // ── Edición / borrado del nodo seleccionado ────────────────────────────────
+  // Nota: departamento (PK), nivel_direccion y unidad_negocio no son editables
+  // aquí — el backend los bloquea porque codifican el determinante del árbol
+  // (ver OrganigramaAnamViewSet.LOCKED_UPDATE_FIELDS en plantilla/views.py).
+  const emptyEditForm = { descripcion_larga: "", unidad_administrativa: "", doaf: "" };
+  const [isEditingNode, setIsEditingNode] = useState(false);
+  const [editForm, setEditForm] = useState(emptyEditForm);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingNode, setDeletingNode] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -330,7 +344,9 @@ function OrganigramaContent() {
     };
     traverse(organigramaData);
     return { allNodes: nodes, parentsMap: parents, flatList: flat };
-  }, [organigramaData]);
+    // renderTick fuerza recalcular tras insertar un nodo en sitio (handleCreateChild),
+    // ya que organigramaData mantiene su referencia para no reiniciar la vista.
+  }, [organigramaData, renderTick]);
 
   // ── Preload Global Catalog ──────────────────────────────────────────────────
   useEffect(() => {
@@ -402,6 +418,8 @@ function OrganigramaContent() {
     setEditingField(null);
     setEmpSearchQuery("");
     setEmpSearchResults([]);
+    setIsEditingNode(false);
+    setEditError(null);
   }, [selectedNode?.departamento]);
 
   // ── Búsqueda de empleados (EMPLEADOS_COMPLETOS_SIG) al editar una plaza ───
@@ -569,16 +587,140 @@ function OrganigramaContent() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.detail || "No se pudo crear el subordinado.");
 
+      // ── Inserta el nodo en sitio, sin refetch ni tocar la referencia de
+      // organigramaData (eso reiniciaría expandedNodes/selectedNode/scroll).
+      const newNode = {
+        departamento: body.departamento,
+        descripcion_larga: body.descripcion_larga,
+        nivel_direccion: body.nivel_direccion,
+        num_posicion_gerente: body.num_posicion_gerente,
+        posicion_director: body.posicion_director,
+        unidad_administrativa: body.unidad_administrativa,
+        doaf: body.doaf,
+        subordinados: [],
+        ocupante: null,
+      };
+      const parent = allNodes[selectedNode.departamento];
+      if (parent) {
+        parent.subordinados = [...(parent.subordinados || []), newNode];
+      }
+      setGlobalCatalog(prev => [...prev, {
+        departamento: newNode.departamento,
+        descripcion_larga: newNode.descripcion_larga,
+        unidad_negocio: selectedUnidad.id,
+        nivel_direccion: newNode.nivel_direccion,
+      }]);
+
       setShowCreateChild(false);
       setChildForm(emptyChildForm);
-      setPendingScrollNode(body.departamento);
-      setSelectedNode(null);
-      const data = await loadOrganigrama(selectedUnidad.id);
-      setOrganigramaData(data);
+      setCreateChildError(null);
+      setExpandedNodes(prev => ({ ...prev, [selectedNode.departamento]: true }));
+      setHighlightedNodeId(newNode.departamento);
+      setSelectedNode(newNode);
+      bumpRender(t => t + 1);
+      setTimeout(() => {
+        document.getElementById(`node-${newNode.departamento}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
     } catch (err) {
       setCreateChildError(err.message || "Error al crear el subordinado.");
     } finally {
       setCreatingChild(false);
+    }
+  };
+
+  // ── Abre el editor con los valores actuales del nodo seleccionado ─────────
+  const handleOpenEdit = () => {
+    if (!selectedNode) return;
+    setEditForm({
+      descripcion_larga: selectedNode.descripcion_larga || "",
+      unidad_administrativa: selectedNode.unidad_administrativa || "",
+      doaf: selectedNode.doaf || "",
+    });
+    setEditError(null);
+    setIsEditingNode(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingNode(false);
+    setEditError(null);
+  };
+
+  // ── Edita nombre/unidad administrativa/DOAF del nodo seleccionado (en sitio) ─
+  const handleSaveEdit = async () => {
+    if (!selectedNode) return;
+    const descripcion_larga = editForm.descripcion_larga.trim();
+    if (!descripcion_larga) {
+      setEditError("La descripción es obligatoria.");
+      return;
+    }
+    const departamento = selectedNode.departamento;
+    const payload = {
+      descripcion_larga,
+      unidad_administrativa: editForm.unidad_administrativa.trim(),
+      doaf: editForm.doaf.trim(),
+    };
+    setEditError(null);
+    setSavingEdit(true);
+    try {
+      const res = await CatalogoEstructuraService.patchOrganigramaAnam(departamento, payload);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || "No se pudo actualizar el departamento.");
+
+      const node = allNodes[departamento];
+      if (node) {
+        node.descripcion_larga = payload.descripcion_larga;
+        node.unidad_administrativa = payload.unidad_administrativa;
+        node.doaf = payload.doaf;
+      }
+      setGlobalCatalog(prev => prev.map(n => n.departamento === departamento ? { ...n, descripcion_larga } : n));
+      setSelectedNode(prev => (prev && node ? { ...node } : prev));
+      bumpRender(t => t + 1);
+      setIsEditingNode(false);
+    } catch (err) {
+      setEditError(err.message || "Error al actualizar el departamento.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ── Elimina el nodo seleccionado (bloqueado en backend si tiene subordinados) ─
+  const handleDeleteNode = async () => {
+    if (!selectedNode) return;
+    const departamento = selectedNode.departamento;
+    setDeleteError(null);
+    setDeletingNode(true);
+    try {
+      const res = await CatalogoEstructuraService.deleteOrganigramaAnam(departamento);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || "No se pudo eliminar el departamento.");
+      }
+
+      setGlobalCatalog(prev => prev.filter(n => n.departamento !== departamento));
+      const parentId = parentsMap[departamento];
+
+      if (!parentId) {
+        // Nodo raíz del lienzo: no queda árbol que actualizar en sitio, se
+        // recarga el catálogo de unidades y se cambia a otro lienzo.
+        setShowDeleteConfirm(false);
+        setSelectedNode(null);
+        setOrganigramaData(null);
+        const data = await reloadUnidades();
+        setSelectedUnidad(data.find(u => u.id !== selectedUnidad.id) || null);
+      } else {
+        const parent = allNodes[parentId];
+        if (parent) {
+          parent.subordinados = (parent.subordinados || []).filter(c => c.departamento !== departamento);
+        }
+        setShowDeleteConfirm(false);
+        setSelectedNode(null);
+        setHighlightedNodeId(null);
+        bumpRender(t => t + 1);
+      }
+    } catch (err) {
+      setDeleteError(err.message || "Error al eliminar el departamento.");
+    } finally {
+      setDeletingNode(false);
     }
   };
 
@@ -1191,9 +1333,10 @@ function OrganigramaContent() {
       {/* ── MODAL: Detalle de nodo ───────────────────────────────────────── */}
       {selectedNode && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden flex flex-col max-h-[88vh]">
             <div className="h-2 bg-gradient-to-r from-rose-800 via-rose-700 to-amber-500" />
-            <button onClick={() => setSelectedNode(null)}
+            <button
+              onClick={() => (isEditingNode ? handleCancelEdit() : setSelectedNode(null))}
               className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1205,28 +1348,75 @@ function OrganigramaContent() {
                   <Info className="w-3.5 h-3.5" />
                   <span>Detalle de Estructura</span>
                 </span>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-50 leading-tight">
-                  {selectedNode.descripcion_larga}
-                </h2>
+                {isEditingNode ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={editForm.descripcion_larga}
+                    onChange={e => setEditForm(f => ({ ...f, descripcion_larga: e.target.value }))}
+                    disabled={savingEdit}
+                    className="w-full text-xl font-black text-slate-900 dark:text-slate-50 leading-tight bg-transparent border-b-2 border-rose-800 focus:outline-none pb-1 disabled:opacity-50"
+                  />
+                ) : (
+                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-50 leading-tight">
+                    {selectedNode.descripcion_larga}
+                  </h2>
+                )}
                 <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700">
                   ID: {selectedNode.departamento}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 border-t border-slate-100 dark:border-slate-800/80 pt-4 text-sm">
-                {[
-                  ["Nivel Jerárquico", selectedNode.nivel_direccion || "Depto."],
-                  ["Unidad de Negocio", selectedNode.unidad_negocio],
-                  ["Unidad Administrativa", selectedNode.unidad_administrativa],
-                  ["DOAF", selectedNode.doaf],
-                  ["Plaza Titular (Gerente)", selectedNode.num_posicion_gerente || "N/A"],
-                  ["Plaza Superior (Reporte)", selectedNode.posicion_director || "N/A"],
-                ].map(([label, value]) => (
-                  <div key={label} className="flex flex-col">
-                    <span className="text-xs text-slate-400 dark:text-slate-500">{label}</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{value}</span>
-                  </div>
-                ))}
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">Nivel Jerárquico</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{selectedNode.nivel_direccion || "Depto."}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">Unidad de Negocio</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{selectedNode.unidad_negocio}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">Unidad Administrativa</span>
+                  {isEditingNode ? (
+                    <input type="text" value={editForm.unidad_administrativa}
+                      onChange={e => setEditForm(f => ({ ...f, unidad_administrativa: e.target.value }))}
+                      disabled={savingEdit}
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800 disabled:opacity-50" />
+                  ) : (
+                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{selectedNode.unidad_administrativa}</span>
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">DOAF</span>
+                  {isEditingNode ? (
+                    <input type="text" value={editForm.doaf}
+                      onChange={e => setEditForm(f => ({ ...f, doaf: e.target.value }))}
+                      disabled={savingEdit}
+                      className="mt-0.5 w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800 disabled:opacity-50" />
+                  ) : (
+                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{selectedNode.doaf}</span>
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">Plaza Titular (Gerente)</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{selectedNode.num_posicion_gerente || "N/A"}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">Plaza Superior (Reporte)</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">{selectedNode.posicion_director || "N/A"}</span>
+                </div>
               </div>
+              {isEditingNode && (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug -mt-2">
+                  Nivel jerárquico y unidad de negocio no son editables aquí: van codificados en el ID del departamento y en la jerarquía del árbol. Para eso, crea el nodo correcto bajo el padre indicado y elimina este.
+                </p>
+              )}
+              {isEditingNode && editError && (
+                <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
+                  <span>{editError}</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <PosicionOcupanteCard
                   label="Plaza Titular"
@@ -1247,29 +1437,106 @@ function OrganigramaContent() {
               </div>
             </div>
             <div className="bg-slate-50 dark:bg-slate-900/60 px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
-              <button onClick={() => {
-                setSelectedNode(null);
-                setTimeout(() => {
-                  document.getElementById(`node-${selectedNode.departamento}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-                }, 100);
-              }} className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-900 dark:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all cursor-pointer">
+              <button
+                onClick={() => {
+                  setSelectedNode(null);
+                  setTimeout(() => {
+                    document.getElementById(`node-${selectedNode.departamento}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }, 100);
+                }}
+                disabled={isEditingNode}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-900 dark:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
                 <Locate className="w-4 h-4" />
                 <span>Centrar en Organigrama</span>
               </button>
               <div className="flex items-center gap-2">
-                {Object.keys(TIPO_LABELS).some(t => LEVEL_SEGPOS[t] > (LEVEL_SEGPOS[selectedNode.nivel_direccion] ?? -1)) && (
-                  <button
-                    onClick={() => { setCreateChildError(null); setChildForm(emptyChildForm); setShowCreateChild(true); }}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all cursor-pointer shadow-sm shadow-rose-800/10">
-                    <Plus className="w-4 h-4" />
-                    <span>Agregar subordinado</span>
-                  </button>
+                {isEditingNode ? (
+                  <>
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={savingEdit}
+                      className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40 cursor-pointer">
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={savingEdit}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all disabled:opacity-50 cursor-pointer">
+                      {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-4 h-4" />}
+                      <span>Guardar cambios</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        if ((selectedNode.subordinados?.length || 0) > 0) return;
+                        setDeleteError(null);
+                        setShowDeleteConfirm(true);
+                      }}
+                      disabled={(selectedNode.subordinados?.length || 0) > 0}
+                      title={(selectedNode.subordinados?.length || 0) > 0 ? "Elimina primero sus subordinados." : "Eliminar departamento"}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-800 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                      <Trash2 className="w-4 h-4" />
+                      <span>Eliminar</span>
+                    </button>
+                    <button
+                      onClick={handleOpenEdit}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-200 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer">
+                      <Pencil className="w-4 h-4" />
+                      <span>Editar</span>
+                    </button>
+                    {Object.keys(TIPO_LABELS).some(t => LEVEL_SEGPOS[t] > (LEVEL_SEGPOS[selectedNode.nivel_direccion] ?? -1)) && (
+                      <button
+                        onClick={() => { setCreateChildError(null); setChildForm(emptyChildForm); setShowCreateChild(true); }}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all cursor-pointer shadow-sm shadow-rose-800/10">
+                        <Plus className="w-4 h-4" />
+                        <span>Agregar subordinado</span>
+                      </button>
+                    )}
+                    <button onClick={() => setSelectedNode(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-250 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer">
+                      Cerrar
+                    </button>
+                  </>
                 )}
-                <button onClick={() => setSelectedNode(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-250 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer">
-                  Cerrar
-                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Confirmar borrado ────────────────────────────────────── */}
+      {showDeleteConfirm && selectedNode && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full shadow-2xl p-6 relative">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-2">
+              <Trash2 className="w-5 h-5 text-rose-800" />
+              Eliminar departamento
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              ¿Eliminar <strong className="font-mono">{selectedNode.departamento}</strong> — {selectedNode.descripcion_larga}? Esta acción no se puede deshacer.
+            </p>
+            {deleteError && (
+              <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 text-xs flex items-start gap-2 mb-4">
+                <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteError(null); }}
+                disabled={deletingNode}
+                className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40">
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteNode}
+                disabled={deletingNode}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all disabled:opacity-50 cursor-pointer">
+                {deletingNode && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Sí, eliminar
+              </button>
             </div>
           </div>
         </div>
@@ -1309,7 +1576,7 @@ function OrganigramaContent() {
       {/* ── MODAL: Crear nueva Dirección General (abre lienzo nuevo) ─────── */}
       {showCreateGeneral && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-1">
               <Building2 className="w-5 h-5 text-rose-800" />
               Nueva Dirección General
@@ -1390,7 +1657,7 @@ function OrganigramaContent() {
       {/* ── MODAL: Crear subordinado bajo selectedNode ───────────────────── */}
       {showCreateChild && selectedNode && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-1">
               <Plus className="w-5 h-5 text-rose-800" />
               Agregar subordinado
