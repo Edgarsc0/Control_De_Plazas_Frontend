@@ -25,29 +25,27 @@ import {
   Minus,
   ChevronDown as ChevronDownIcon,
   Building,
+  Pencil,
+  X,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import { toPng } from "html-to-image";
 import { PlantillaService } from "@/services/plantilla.service";
+import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import RequirePermission from "@/components/auth/RequirePermission";
 import { PERMISSIONS } from "@/config/permissions";
 
-// ─── Catálogo de unidades de negocio ─────────────────────────────────────────
-// Cada entrada: { id, label (descripcion_larga de la raíz) }
-const UNIDADES = [
-  { id: "00001", label: "Jefatura del Servicio de Administración Tributaria" },
-  { id: "00002", label: "Órgano Interno de Control del SAT" },
-  { id: "00003", label: "Administración General de Recursos y Servicios" },
-  { id: "00004", label: "Dirección General de Procesamiento Electrónico de Datos" },
-  { id: "00100", label: "Dirección General de Operación Aduanera" },
-  { id: "00200", label: "Dirección General de Investigación Aduanera" },
-  { id: "00300", label: "Dirección General de Atención Aduanera y Asuntos Internos" },
-  { id: "00400", label: "Dirección General de Modernización, Equipamiento e Infraestructura" },
-  { id: "00500", label: "Dirección General Jurídica de Aduanas" },
-  { id: "00600", label: "Dirección General de Recaudación" },
-  { id: "00700", label: "Dirección General de Tecnologías de la Información" },
-  { id: "00800", label: "Dirección General de Planeación Aduanera" },
-  { id: "00900", label: "Unidad de Administración y Finanzas" },
-];
+// ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
+// Nivel → posición de segmento (G,C,A,S,D). "Titular" se trata como raíz (mismo rango que General).
+const LEVEL_SEGPOS = { Titular: 0, General: 0, Central: 1, Director: 2, "Subdir.": 3, "Jefe Depto": 4 };
+// Tipos que se pueden crear como hijo (General se crea aparte, como unidad de negocio nueva).
+const TIPO_LABELS = {
+  Central: "Dirección Central",
+  Director: "Dirección de Área",
+  "Subdir.": "Subdirección",
+  "Jefe Depto": "Jefatura de Departamento",
+};
 
 // ─── Carga del árbol jerárquico desde el backend (ORGANIGRAMA_ANAM) ──────────
 async function loadOrganigrama(unidadNegocioId) {
@@ -57,7 +55,7 @@ async function loadOrganigrama(unidadNegocioId) {
 }
 
 // ─── Selector dropdown component ─────────────────────────────────────────────
-function UnidadSelector({ selected, onSelect }) {
+function UnidadSelector({ unidades, selected, onSelect, loading }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const ref = useRef(null);
@@ -70,11 +68,11 @@ function UnidadSelector({ selected, onSelect }) {
   }, []);
 
   const filtered = useMemo(
-    () => UNIDADES.filter(u =>
+    () => unidades.filter(u =>
       u.label.toLowerCase().includes(filter.toLowerCase()) ||
       u.id.includes(filter)
     ),
-    [filter]
+    [filter, unidades]
   );
 
   return (
@@ -82,11 +80,12 @@ function UnidadSelector({ selected, onSelect }) {
       {/* Trigger */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-left text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-rose-700 dark:hover:border-rose-900 transition-all focus:outline-none focus:ring-2 focus:ring-rose-800"
+        disabled={loading}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-left text-xs font-semibold text-slate-800 dark:text-slate-100 hover:border-rose-700 dark:hover:border-rose-900 transition-all focus:outline-none focus:ring-2 focus:ring-rose-800 disabled:opacity-50"
       >
         <span className="flex items-center gap-2 truncate">
           <Building className="w-3.5 h-3.5 shrink-0 text-rose-800" />
-          <span className="truncate">{selected ? selected.label : "Selecciona unidad..."}</span>
+          <span className="truncate">{loading ? "Cargando unidades..." : selected ? selected.label : "Selecciona unidad..."}</span>
         </span>
         <ChevronDownIcon className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
@@ -134,9 +133,19 @@ function UnidadSelector({ selected, onSelect }) {
   );
 }
 
+// ─── Formato moneda para SMB ──────────────────────────────────────────────────
+function formatSMB(smb) {
+  if (smb === null || smb === undefined || smb === "") return "N/A";
+  const num = Number(smb);
+  if (Number.isNaN(num)) return smb;
+  return num.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 function OrganigramaContent() {
-  const [selectedUnidad, setSelectedUnidad] = useState(UNIDADES[12]); // 00900 por defecto
+  const [unidades, setUnidades] = useState([]);
+  const [unidadesLoading, setUnidadesLoading] = useState(true);
+  const [selectedUnidad, setSelectedUnidad] = useState(null);
   const [organigramaData, setOrganigramaData] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -153,9 +162,33 @@ function OrganigramaContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pendingScrollNode, setPendingScrollNode] = useState(null);
+  // Fuerza el re-render del árbol tras mutar un nodo en sitio, sin tocar la
+  // referencia de organigramaData (eso reinicia expandedNodes/selectedNode).
+  const [, bumpRender] = useState(0);
 
   const [posInfo, setPosInfo] = useState({ titular: null, superior: null });
   const [posLoading, setPosLoading] = useState({ titular: false, superior: false });
+
+  // ── Edición de plaza titular/superior desde el modal de detalle ───────────
+  const [editingField, setEditingField] = useState(null); // null | "titular" | "superior"
+  const [empSearchQuery, setEmpSearchQuery] = useState("");
+  const [empSearchResults, setEmpSearchResults] = useState([]);
+  const [empSearching, setEmpSearching] = useState(false);
+  const [savingField, setSavingField] = useState(null); // null | "titular" | "superior"
+  const [changeToast, setChangeToast] = useState(null); // { message, onUndo }
+  const toastTimerRef = useRef(null);
+
+  // ── Creación de nodos (Dirección General nueva / subordinado bajo un nodo) ─
+  const emptyGeneralForm = { unidad_negocio: "", departamento: "", descripcion_larga: "", unidad_administrativa: "", doaf: "", num_posicion_gerente: "" };
+  const emptyChildForm = { tipo: "", descripcion_larga: "", unidad_administrativa: "", doaf: "", num_posicion_gerente: "" };
+  const [showCreateGeneral, setShowCreateGeneral] = useState(false);
+  const [generalForm, setGeneralForm] = useState(emptyGeneralForm);
+  const [creatingGeneral, setCreatingGeneral] = useState(false);
+  const [createGeneralError, setCreateGeneralError] = useState(null);
+  const [showCreateChild, setShowCreateChild] = useState(false);
+  const [childForm, setChildForm] = useState(emptyChildForm);
+  const [creatingChild, setCreatingChild] = useState(false);
+  const [createChildError, setCreateChildError] = useState(null);
 
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -163,6 +196,31 @@ function OrganigramaContent() {
   const [startY, setStartY] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+
+  // ── Load unidades de negocio (lienzos) desde el backend ────────────────────
+  const reloadUnidades = async () => {
+    const resp = await PlantillaService.getOrganigramaUnidades();
+    if (!resp.ok) throw new Error("No se pudo actualizar la lista de unidades de negocio.");
+    const data = await resp.json();
+    setUnidades(data);
+    return data;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setUnidadesLoading(true);
+    PlantillaService.getOrganigramaUnidades()
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error("No se pudieron cargar las unidades de negocio");
+        const data = await resp.json();
+        if (cancelled) return;
+        setUnidades(data);
+        setSelectedUnidad(prev => prev || data.find(u => u.id === "00900") || data[0] || null);
+      })
+      .catch(err => console.error(err))
+      .finally(() => { if (!cancelled) setUnidadesLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Load organigrama when unidad changes ───────────────────────────────────
   useEffect(() => {
@@ -337,7 +395,192 @@ function OrganigramaContent() {
 
     fetchPosInfo("titular", selectedNode.num_posicion_gerente);
     fetchPosInfo("superior", selectedNode.posicion_director);
-  }, [selectedNode]);
+  }, [selectedNode?.departamento]);
+
+  // ── Reset del editor de plaza al cambiar/cerrar el nodo seleccionado ──────
+  useEffect(() => {
+    setEditingField(null);
+    setEmpSearchQuery("");
+    setEmpSearchResults([]);
+  }, [selectedNode?.departamento]);
+
+  // ── Búsqueda de empleados (EMPLEADOS_COMPLETOS_SIG) al editar una plaza ───
+  useEffect(() => {
+    if (!editingField || empSearchQuery.trim().length < 3) {
+      setEmpSearchResults([]);
+      setEmpSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setEmpSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await PlantillaService.searchEmpleados(empSearchQuery.trim());
+        const data = res.ok ? await res.json() : { results: [] };
+        if (!cancelled) setEmpSearchResults(data.results || []);
+      } catch {
+        if (!cancelled) setEmpSearchResults([]);
+      } finally {
+        if (!cancelled) setEmpSearching(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [empSearchQuery, editingField]);
+
+  // ── Aplica un cambio de plaza (titular/superior) y ofrece revertir ───────
+  // newOcupanteInfo === null ⇒ se está quitando la asignación (deja la plaza en blanco).
+  const applyPlazaChange = async (fieldKey, field, node, newPosicion, newOcupanteInfo) => {
+    const departamento = node.departamento;
+    const previousPosicion = node[fieldKey];
+    const previousOcupante = node.ocupante;
+    const previousPosInfoEntry = posInfo[field];
+    const isRemoval = newOcupanteInfo === null;
+
+    setSavingField(field);
+    try {
+      const res = await CatalogoEstructuraService.patchOrganigramaAnam(departamento, {
+        [fieldKey]: newPosicion,
+      });
+      if (!res.ok) throw new Error(isRemoval ? "No se pudo quitar la plaza." : "No se pudo actualizar la plaza.");
+
+      // ── Actualiza la UI directamente, sin refetch ──────────────────────
+      node[fieldKey] = newPosicion;
+      if (field === "titular") {
+        node.ocupante = isRemoval ? null : {
+          activa: true,
+          vacante: false,
+          nombre: newOcupanteInfo.nombre,
+          nivel: newOcupanteInfo.nivel,
+          smb: newOcupanteInfo.smb,
+        };
+      }
+      setPosInfo(prev => ({
+        ...prev,
+        [field]: isRemoval ? null : {
+          posicion: newPosicion,
+          activa: true,
+          vacante: false,
+          nombre: newOcupanteInfo.nombre,
+          num_empleado: newOcupanteInfo.num_empleado,
+          estado_nomina: "A",
+        },
+      }));
+      setSelectedNode(prev => (prev && prev.departamento === departamento ? { ...node } : prev));
+      bumpRender(t => t + 1);
+      setEditingField(null);
+      setEmpSearchQuery("");
+      setEmpSearchResults([]);
+
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      setChangeToast({
+        message: isRemoval
+          ? `Se ha quitado la plaza (${field === "titular" ? "gerente" : "superior"})`
+          : `Se ha actualizado la plaza (${field === "titular" ? "gerente" : "superior"})`,
+        onUndo: () => revertPlazaChange(fieldKey, field, node, previousPosicion, previousOcupante, previousPosInfoEntry, departamento),
+      });
+      toastTimerRef.current = setTimeout(() => setChangeToast(null), 10000);
+    } catch (err) {
+      alert(err.message || "Error al actualizar la plaza.");
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  // ── Revierte un cambio de plaza previamente confirmado ───────────────────
+  const revertPlazaChange = async (fieldKey, field, node, previousPosicion, previousOcupante, previousPosInfoEntry, departamento) => {
+    setSavingField(field);
+    try {
+      const res = await CatalogoEstructuraService.patchOrganigramaAnam(departamento, {
+        [fieldKey]: previousPosicion ?? "",
+      });
+      if (!res.ok) throw new Error("No se pudo revertir la plaza.");
+
+      node[fieldKey] = previousPosicion;
+      if (field === "titular") node.ocupante = previousOcupante;
+      setPosInfo(prev => ({ ...prev, [field]: previousPosInfoEntry }));
+      setSelectedNode(prev => (prev && prev.departamento === departamento ? { ...node } : prev));
+      bumpRender(t => t + 1);
+      setChangeToast(null);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    } catch (err) {
+      alert(err.message || "Error al revertir la plaza.");
+    } finally {
+      setSavingField(null);
+    }
+  };
+
+  // ── Crea una nueva Dirección General (raíz, abre lienzo nuevo) ────────────
+  const handleCreateGeneral = async () => {
+    const unidad_negocio = generalForm.unidad_negocio.trim();
+    const departamento = generalForm.departamento.trim();
+    const descripcion_larga = generalForm.descripcion_larga.trim();
+    if (!unidad_negocio || !departamento || !descripcion_larga) {
+      setCreateGeneralError("unidad_negocio, departamento y descripción son obligatorios.");
+      return;
+    }
+    setCreateGeneralError(null);
+    setCreatingGeneral(true);
+    try {
+      const res = await PlantillaService.crearOrganigramaNodo({
+        tipo: "General",
+        unidad_negocio,
+        departamento,
+        descripcion_larga,
+        unidad_administrativa: generalForm.unidad_administrativa.trim(),
+        doaf: generalForm.doaf.trim(),
+        num_posicion_gerente: generalForm.num_posicion_gerente.trim() || undefined,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || "No se pudo crear la Dirección General.");
+
+      const data = await reloadUnidades();
+      const nueva = data.find(u => u.id === unidad_negocio) || { id: unidad_negocio, label: descripcion_larga };
+      setSelectedUnidad(nueva);
+      setZoom(1);
+      setShowCreateGeneral(false);
+      setGeneralForm(emptyGeneralForm);
+    } catch (err) {
+      setCreateGeneralError(err.message || "Error al crear la Dirección General.");
+    } finally {
+      setCreatingGeneral(false);
+    }
+  };
+
+  // ── Crea un subordinado bajo selectedNode, aplicando la regla del determinante en el backend ─
+  const handleCreateChild = async () => {
+    if (!selectedNode) return;
+    const tipo = childForm.tipo;
+    const descripcion_larga = childForm.descripcion_larga.trim();
+    if (!tipo || !descripcion_larga) {
+      setCreateChildError("Tipo y descripción son obligatorios.");
+      return;
+    }
+    setCreateChildError(null);
+    setCreatingChild(true);
+    try {
+      const res = await PlantillaService.crearOrganigramaNodo({
+        tipo,
+        parent_departamento: selectedNode.departamento,
+        descripcion_larga,
+        unidad_administrativa: childForm.unidad_administrativa.trim(),
+        doaf: childForm.doaf.trim(),
+        num_posicion_gerente: childForm.num_posicion_gerente.trim() || undefined,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail || "No se pudo crear el subordinado.");
+
+      setShowCreateChild(false);
+      setChildForm(emptyChildForm);
+      setPendingScrollNode(body.departamento);
+      setSelectedNode(null);
+      const data = await loadOrganigrama(selectedUnidad.id);
+      setOrganigramaData(data);
+    } catch (err) {
+      setCreateChildError(err.message || "Error al crear el subordinado.");
+    } finally {
+      setCreatingChild(false);
+    }
+  };
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -356,7 +599,7 @@ function OrganigramaContent() {
   const expandToNode = (result) => {
     const deptId = result.departamento;
     if (result.unidad_negocio && selectedUnidad?.id !== result.unidad_negocio) {
-      const newUnidad = UNIDADES.find(u => u.id === result.unidad_negocio);
+      const newUnidad = unidades.find(u => u.id === result.unidad_negocio);
       if (newUnidad) {
         setPendingScrollNode(deptId);
         setSelectedUnidad(newUnidad);
@@ -452,7 +695,7 @@ function OrganigramaContent() {
           id={`node-${node.departamento}`}
           onClick={() => { setSelectedNode(node); setHighlightedNodeId(node.departamento); }}
           onDoubleClick={(e) => { if (hasChildren) { e.stopPropagation(); toggleNode(node.departamento); } }}
-          className={`w-60 p-4 bg-white dark:bg-slate-900 rounded-2xl border text-center transition-all duration-200 cursor-pointer select-none flex flex-col justify-between h-40 relative ${cardBorder}`}
+          className={`w-60 p-4 bg-white dark:bg-slate-900 rounded-2xl border text-center transition-all duration-200 cursor-pointer select-none flex flex-col justify-between h-48 relative ${cardBorder}`}
         >
           <div className="flex items-center justify-between gap-1.5 mb-2">
             <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase ${badgeColor}`}>
@@ -462,10 +705,28 @@ function OrganigramaContent() {
               <Icon className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="flex-1 flex items-center justify-center mb-2 px-1">
-            <p className="font-bold text-xs text-slate-800 dark:text-slate-100 leading-tight line-clamp-3">
+          <div className="flex-1 flex flex-col items-center justify-center mb-2 px-1 gap-1.5">
+            <p className="font-bold text-xs text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">
               {node.descripcion_larga}
             </p>
+            <div className="w-8 h-px bg-slate-150 dark:bg-slate-800" />
+            {!node.num_posicion_gerente || node.num_posicion_gerente === "(en blanco)" ? (
+              <p className="text-[9.5px] text-slate-350 dark:text-slate-600 italic">Sin plaza titular</p>
+            ) : !node.ocupante || !node.ocupante.activa ? (
+              <p className="text-[9.5px] text-rose-700 dark:text-rose-400 font-semibold">Plaza inactiva</p>
+            ) : node.ocupante.vacante ? (
+              <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">Vacante</p>
+            ) : (
+              <>
+                <p className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 leading-tight line-clamp-2">
+                  {node.ocupante.nombre}
+                </p>
+                <div className="flex flex-col items-center gap-0.5 text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
+                  <span>Nivel: {node.ocupante.nivel || "N/A"}</span>
+                  <span>SMB: {formatSMB(node.ocupante.smb)}</span>
+                </div>
+              </>
+            )}
           </div>
           <div className="border-t border-slate-100 dark:border-slate-850 pt-2 flex items-center justify-between text-[9px] font-mono text-slate-400 dark:text-slate-500">
             <span>#{node.departamento}</span>
@@ -525,7 +786,7 @@ function OrganigramaContent() {
   ];
 
   const SkeletonCard = () => (
-    <div className="w-60 h-40 rounded-2xl bg-slate-200/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 animate-pulse" />
+    <div className="w-60 h-48 rounded-2xl bg-slate-200/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 animate-pulse" />
   );
 
   const SkeletonNode = ({ node }) => {
@@ -589,43 +850,145 @@ function OrganigramaContent() {
   );
 
   // ── Tarjeta de ocupante de plaza (titular / superior) ─────────────────────
-  const PosicionOcupanteCard = ({ label, posicion, info, loading }) => (
-    <div className="bg-slate-50 dark:bg-slate-950/80 p-3.5 rounded-2xl border border-slate-150 dark:border-slate-850/80 text-xs">
-      <h4 className="font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide flex items-center gap-1.5">
-        <Users className="w-4 h-4 text-rose-800" />
-        {label}
-      </h4>
-      {!posicion || posicion === "(en blanco)" ? (
-        <p className="text-slate-400 dark:text-slate-500">Sin plaza asignada.</p>
-      ) : loading ? (
-        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          <span>Consultando plaza {posicion}...</span>
-        </div>
-      ) : !info || info.error ? (
-        <p className="text-slate-400 dark:text-slate-500">No se pudo consultar la plaza {posicion}.</p>
-      ) : !info.activa ? (
-        <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 flex items-start gap-2">
-          <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
-          <div>Plaza <strong className="font-mono">{posicion}</strong> inactiva al día de hoy.</div>
-        </div>
-      ) : info.vacante ? (
-        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 flex items-start gap-2">
-          <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-          <div>Plaza <strong className="font-mono">{posicion}</strong> activa, vacante.</div>
-        </div>
-      ) : (
-        <div className="space-y-1.5 text-slate-650 dark:text-slate-400">
-          <p><strong className="text-slate-800 dark:text-slate-200">{info.nombre}</strong></p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-slate-500 dark:text-slate-450">
-            <span>Plaza: {posicion}</span>
-            <span>Nº Empleado: {info.num_empleado}</span>
-            <span>Estado Nómina: {info.estado_nomina}</span>
+  const PosicionOcupanteCard = ({ label, posicion, info, loading, fieldKey, node }) => {
+    const isEditing = editingField === fieldKey;
+    const isSaving = savingField === fieldKey;
+
+    return (
+      <div className="bg-slate-50 dark:bg-slate-950/80 p-3.5 rounded-2xl border border-slate-150 dark:border-slate-850/80 text-xs">
+        <h4 className="font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wide flex items-center justify-between gap-1.5">
+          <span className="flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-rose-800" />
+            {label}
+          </span>
+          {!isEditing && (
+            <span className="flex items-center gap-1.5 shrink-0">
+              {posicion && posicion !== "(en blanco)" && (
+                <button
+                  onClick={() => applyPlazaChange(
+                    fieldKey === "titular" ? "num_posicion_gerente" : "posicion_director",
+                    fieldKey,
+                    node,
+                    "(en blanco)",
+                    null
+                  )}
+                  disabled={savingField !== null}
+                  title="Quitar asignación"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  <X className="w-3 h-3" />
+                  Quitar
+                </button>
+              )}
+              <button
+                onClick={() => { setEditingField(fieldKey); setEmpSearchQuery(""); setEmpSearchResults([]); }}
+                disabled={savingField !== null}
+                title="Cambiar plaza"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold normal-case tracking-normal text-rose-900 dark:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60 transition-colors cursor-pointer disabled:opacity-40"
+              >
+                <Pencil className="w-3 h-3" />
+                Cambiar
+              </button>
+            </span>
+          )}
+        </h4>
+
+        {isEditing ? (
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar nombre, plaza o Nº empleado..."
+                value={empSearchQuery}
+                onChange={e => setEmpSearchQuery(e.target.value)}
+                disabled={isSaving}
+                className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-rose-800 text-slate-800 dark:text-slate-100 disabled:opacity-50"
+              />
+            </div>
+
+            {isSaving ? (
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Actualizando plaza...</span>
+              </div>
+            ) : (
+              <>
+                {empSearching && (
+                  <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500 py-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Buscando...</span>
+                  </div>
+                )}
+                {!empSearching && empSearchQuery.trim().length >= 3 && empSearchResults.length === 0 && (
+                  <p className="text-slate-400 dark:text-slate-500 py-1">Sin resultados.</p>
+                )}
+                {!empSearching && empSearchQuery.trim().length > 0 && empSearchQuery.trim().length < 3 && (
+                  <p className="text-slate-400 dark:text-slate-500 py-1">Escribe al menos 3 caracteres.</p>
+                )}
+                {empSearchResults.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-150 dark:border-slate-800">
+                    {empSearchResults.map(emp => (
+                      <button
+                        key={emp.posicion}
+                        onClick={() => applyPlazaChange(
+                          fieldKey === "titular" ? "num_posicion_gerente" : "posicion_director",
+                          fieldKey,
+                          node,
+                          emp.posicion,
+                          emp
+                        )}
+                        className="w-full text-left p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                      >
+                        <div className="font-semibold text-[11px] text-slate-800 dark:text-slate-200 truncate">{emp.nombre}</div>
+                        <div className="text-[9px] font-mono text-slate-400 mt-0.5">Plaza {emp.posicion} · Nivel {emp.nivel || "N/A"}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => { setEditingField(null); setEmpSearchQuery(""); setEmpSearchResults([]); }}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                  Cancelar
+                </button>
+              </>
+            )}
           </div>
-        </div>
-      )}
-    </div>
-  );
+        ) : !posicion || posicion === "(en blanco)" ? (
+          <p className="text-slate-400 dark:text-slate-500">Sin plaza asignada.</p>
+        ) : loading ? (
+          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Consultando plaza {posicion}...</span>
+          </div>
+        ) : !info || info.error ? (
+          <p className="text-slate-400 dark:text-slate-500">No se pudo consultar la plaza {posicion}.</p>
+        ) : !info.activa ? (
+          <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 flex items-start gap-2">
+            <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
+            <div>Plaza <strong className="font-mono">{posicion}</strong> inactiva al día de hoy.</div>
+          </div>
+        ) : info.vacante ? (
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 flex items-start gap-2">
+            <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+            <div>Plaza <strong className="font-mono">{posicion}</strong> activa, vacante.</div>
+          </div>
+        ) : (
+          <div className="space-y-1.5 text-slate-650 dark:text-slate-400">
+            <p><strong className="text-slate-800 dark:text-slate-200">{info.nombre}</strong></p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-slate-500 dark:text-slate-450">
+              <span>Plaza: {posicion}</span>
+              <span>Nº Empleado: {info.num_empleado}</span>
+              <span>Estado Nómina: {info.estado_nomina}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
@@ -683,10 +1046,22 @@ function OrganigramaContent() {
 
         {/* Unidad selector */}
         <div>
-          <label className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider mb-1 block">
-            Unidad de Negocio
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider block">
+              Unidad de Negocio
+            </label>
+            <button
+              onClick={() => { setCreateGeneralError(null); setShowCreateGeneral(true); }}
+              title="Crear nueva Dirección General"
+              className="flex items-center gap-1 text-[9px] font-bold text-rose-900 dark:text-rose-700 hover:underline cursor-pointer"
+            >
+              <Plus className="w-3 h-3" />
+              Nueva Dirección General
+            </button>
+          </div>
           <UnidadSelector
+            unidades={unidades}
+            loading={unidadesLoading}
             selected={selectedUnidad}
             onSelect={(u) => {
               setSelectedUnidad(u);
@@ -858,16 +1233,20 @@ function OrganigramaContent() {
                   posicion={selectedNode.num_posicion_gerente}
                   info={posInfo.titular}
                   loading={posLoading.titular}
+                  fieldKey="titular"
+                  node={selectedNode}
                 />
                 <PosicionOcupanteCard
                   label="Plaza Superior (Reporte)"
                   posicion={selectedNode.posicion_director}
                   info={posInfo.superior}
                   loading={posLoading.superior}
+                  fieldKey="superior"
+                  node={selectedNode}
                 />
               </div>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900/60 px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+            <div className="bg-slate-50 dark:bg-slate-900/60 px-6 py-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
               <button onClick={() => {
                 setSelectedNode(null);
                 setTimeout(() => {
@@ -877,10 +1256,20 @@ function OrganigramaContent() {
                 <Locate className="w-4 h-4" />
                 <span>Centrar en Organigrama</span>
               </button>
-              <button onClick={() => setSelectedNode(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-250 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer">
-                Cerrar
-              </button>
+              <div className="flex items-center gap-2">
+                {Object.keys(TIPO_LABELS).some(t => LEVEL_SEGPOS[t] > (LEVEL_SEGPOS[selectedNode.nivel_direccion] ?? -1)) && (
+                  <button
+                    onClick={() => { setCreateChildError(null); setChildForm(emptyChildForm); setShowCreateChild(true); }}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all cursor-pointer shadow-sm shadow-rose-800/10">
+                    <Plus className="w-4 h-4" />
+                    <span>Agregar subordinado</span>
+                  </button>
+                )}
+                <button onClick={() => setSelectedNode(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-250 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer">
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -914,6 +1303,192 @@ function OrganigramaContent() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Crear nueva Dirección General (abre lienzo nuevo) ─────── */}
+      {showCreateGeneral && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-1">
+              <Building2 className="w-5 h-5 text-rose-800" />
+              Nueva Dirección General
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Crea una raíz nueva (nivel General) y abre su propio lienzo. unidad_negocio y
+              departamento son códigos oficiales asignados externamente: captúralos tal cual.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">unidad_negocio *</label>
+                <input type="text" value={generalForm.unidad_negocio}
+                  onChange={e => setGeneralForm(f => ({ ...f, unidad_negocio: e.target.value }))}
+                  placeholder="Ej. 01000"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">departamento (determinante) *</label>
+                <input type="text" value={generalForm.departamento}
+                  onChange={e => setGeneralForm(f => ({ ...f, departamento: e.target.value }))}
+                  placeholder="Ej. 01000000000"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Descripción *</label>
+                <input type="text" value={generalForm.descripcion_larga}
+                  onChange={e => setGeneralForm(f => ({ ...f, descripcion_larga: e.target.value }))}
+                  placeholder="Ej. Dirección General de..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Unidad Administrativa</label>
+                  <input type="text" value={generalForm.unidad_administrativa}
+                    onChange={e => setGeneralForm(f => ({ ...f, unidad_administrativa: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">DOAF</label>
+                  <input type="text" value={generalForm.doaf}
+                    onChange={e => setGeneralForm(f => ({ ...f, doaf: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Plaza titular (opcional)</label>
+                <input type="text" value={generalForm.num_posicion_gerente}
+                  onChange={e => setGeneralForm(f => ({ ...f, num_posicion_gerente: e.target.value }))}
+                  placeholder="Se puede asignar después"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+              </div>
+              {createGeneralError && (
+                <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
+                  <span>{createGeneralError}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => { setShowCreateGeneral(false); setGeneralForm(emptyGeneralForm); setCreateGeneralError(null); }}
+                disabled={creatingGeneral}
+                className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40">
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateGeneral}
+                disabled={creatingGeneral}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all disabled:opacity-50 cursor-pointer">
+                {creatingGeneral && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Crear y abrir lienzo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Crear subordinado bajo selectedNode ───────────────────── */}
+      {showCreateChild && selectedNode && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-1">
+              <Plus className="w-5 h-5 text-rose-800" />
+              Agregar subordinado
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Bajo <strong className="font-mono">{selectedNode.departamento}</strong> — {selectedNode.descripcion_larga}.
+              El determinante se genera automáticamente.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Tipo *</label>
+                <select value={childForm.tipo}
+                  onChange={e => setChildForm(f => ({ ...f, tipo: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800">
+                  <option value="">Selecciona...</option>
+                  {Object.entries(TIPO_LABELS)
+                    .filter(([tipo]) => LEVEL_SEGPOS[tipo] > (LEVEL_SEGPOS[selectedNode.nivel_direccion] ?? -1))
+                    .map(([tipo, label]) => (
+                      <option key={tipo} value={tipo}>{label}</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Descripción *</label>
+                <input type="text" value={childForm.descripcion_larga}
+                  onChange={e => setChildForm(f => ({ ...f, descripcion_larga: e.target.value }))}
+                  placeholder="Ej. Subdirección de..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Unidad Administrativa</label>
+                  <input type="text" value={childForm.unidad_administrativa}
+                    onChange={e => setChildForm(f => ({ ...f, unidad_administrativa: e.target.value }))}
+                    placeholder={selectedNode.unidad_administrativa || ""}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">DOAF</label>
+                  <input type="text" value={childForm.doaf}
+                    onChange={e => setChildForm(f => ({ ...f, doaf: e.target.value }))}
+                    placeholder={selectedNode.doaf || ""}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wide mb-1 block">Plaza titular (opcional)</label>
+                <input type="text" value={childForm.num_posicion_gerente}
+                  onChange={e => setChildForm(f => ({ ...f, num_posicion_gerente: e.target.value }))}
+                  placeholder="Se puede asignar después"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-800" />
+              </div>
+              {createChildError && (
+                <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 p-2.5 rounded-xl text-rose-950 dark:text-rose-300 text-xs flex items-start gap-2">
+                  <BadgeAlert className="w-4 h-4 shrink-0 mt-0.5 text-rose-800" />
+                  <span>{createChildError}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => { setShowCreateChild(false); setChildForm(emptyChildForm); setCreateChildError(null); }}
+                disabled={creatingChild}
+                className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40">
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateChild}
+                disabled={creatingChild}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all disabled:opacity-50 cursor-pointer">
+                {creatingChild && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Crear subordinado
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast: cambio de plaza confirmado, con opción de revertir ────── */}
+      {changeToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 dark:bg-slate-800 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-700">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{changeToast.message}</span>
+          </div>
+          <button
+            onClick={changeToast.onUndo}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold bg-white/10 hover:bg-white/20 rounded-xl transition-colors cursor-pointer shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Revertir...
+          </button>
+          <button
+            onClick={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setChangeToast(null); }}
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 

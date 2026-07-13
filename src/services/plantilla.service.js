@@ -95,5 +95,48 @@ export const PlantillaService = {
             method: 'GET',
             ...options
         });
+    },
+
+    /**
+     * Catálogo dinámico de unidades de negocio (una por lienzo del organigrama),
+     * resuelto en el backend a partir de las raíces reales de ORGANIGRAMA_ANAM.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para [{id, label}, ...].
+     */
+    getOrganigramaUnidades: (options = {}) => {
+        return apiFetch("/plantilla/organigrama-unidades/", {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Crea un nuevo nodo en ORGANIGRAMA_ANAM aplicando la regla de negocio del
+     * determinante (ver plantilla/views.py OrganigramaCrearNodoView).
+     * @param {object} data - { tipo, parent_departamento?, unidad_negocio?, departamento?, descripcion_larga, unidad_administrativa?, doaf?, num_posicion_gerente? }
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el nodo creado.
+     */
+    crearOrganigramaNodo: (data, options = {}) => {
+        return apiFetch("/plantilla/organigrama-crear-nodo/", {
+            method: 'POST',
+            body: JSON.stringify(data),
+            ...options
+        });
+    },
+
+    /**
+     * Busca empleados activos en EMPLEADOS_COMPLETOS_SIG por nombre, posición
+     * o número de empleado (mínimo 3 caracteres), para reasignar plazas del
+     * organigrama.
+     * @param {string} query - Texto de búsqueda.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para `{ results }`.
+     */
+    searchEmpleados: (query, options = {}) => {
+        return apiFetch(`/plantilla/empleados-search/?q=${encodeURIComponent(query)}`, {
+            method: 'GET',
+            ...options
+        });
     }
 };

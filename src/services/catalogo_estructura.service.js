@@ -65,6 +65,9 @@ export const CatalogoEstructuraService = {
     updateOrganigramaAnam: (departamento, data, options = {}) => apiFetch(`/plantilla/cat-organigrama-anam/${encodeURIComponent(departamento)}/`, {
         method: "PUT", body: JSON.stringify(data), ...options,
     }),
+    patchOrganigramaAnam: (departamento, data, options = {}) => apiFetch(`/plantilla/cat-organigrama-anam/${encodeURIComponent(departamento)}/`, {
+        method: "PATCH", body: JSON.stringify(data), ...options,
+    }),
     deleteOrganigramaAnam: (departamento, options = {}) => apiFetch(`/plantilla/cat-organigrama-anam/${encodeURIComponent(departamento)}/`, {
         method: "DELETE", ...options,
     }),
