@@ -32,6 +32,7 @@ import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCat
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
+import { useToast } from "@/hooks/useToast";
 
 // Clave de negocio (identifica la fila): no admite "Pegar valor en celda".
 const NON_EDITABLE_KEYS = new Set(["posicion"]);
@@ -89,6 +90,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { hasPermission } = useAuth();
   const canEditCeldas = hasPermission(PERMISSIONS.EDIT_PLANTILLA_DETALLE);
+  const { toast } = useToast();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
@@ -806,6 +808,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       const raw = row[col.key];
       e.preventDefault();
       e.clipboardData.setData('text/plain', raw === undefined || raw === null ? "" : String(raw));
+      toast.success("Se ha copiado al portapapeles!");
     };
 
     const handleWindowPaste = (e) => {
@@ -819,9 +822,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       if (!col || !row || !isPasteableColumn(col.key)) return;
       e.preventDefault();
       const text = e.clipboardData?.getData('text/plain') ?? "";
-      pasteValueToCell(row, col.key, text).catch((err) => {
-        console.error("No se pudo pegar el valor con Ctrl+V:", err);
-      });
+      pasteValueToCell(row, col.key, text)
+        .then(() => toast.success("Se ha pegado en la celda seleccionada!"))
+        .catch((err) => {
+          console.error("No se pudo pegar el valor con Ctrl+V:", err);
+          toast.error(err.message || "No se pudo pegar el valor.");
+        });
     };
 
     window.addEventListener('copy', handleWindowCopy);
@@ -830,7 +836,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       window.removeEventListener('copy', handleWindowCopy);
       window.removeEventListener('paste', handleWindowPaste);
     };
-  }, [canEditCeldas, isPasteableColumn, pasteValueToCell]);
+  }, [canEditCeldas, isPasteableColumn, pasteValueToCell, toast]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

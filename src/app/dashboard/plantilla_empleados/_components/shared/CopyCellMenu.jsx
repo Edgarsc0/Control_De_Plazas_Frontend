@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react";
+import { useToast } from "@/hooks/useToast";
 
 /**
  * Menú flotante de click derecho sobre una celda de DataTable.
@@ -18,6 +19,7 @@ import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react
  * @param {boolean} [canDelete=true] - Si `false` con `onDelete` provisto, la opción se muestra deshabilitada.
  */
 export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true }) {
+  const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
   const [deleteState, setDeleteState] = useState("idle"); // idle | deleting | done | error
@@ -36,6 +38,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
       try {
         await onPaste(text);
         setPasteState("done");
+        toast.success("Se ha pegado en la celda seleccionada!");
         setTimeout(() => {
           setPasteState("idle");
           onClose();
@@ -47,7 +50,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     };
     window.addEventListener("paste", handleWindowPaste);
     return () => window.removeEventListener("paste", handleWindowPaste);
-  }, [contextMenu, pasteState, onPaste, onClose]);
+  }, [contextMenu, pasteState, onPaste, onClose, toast]);
 
   if (!contextMenu) return null;
 
@@ -73,6 +76,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
         copyWithFallback(text);
       }
       setCopied(true);
+      toast.success("Se ha copiado al portapapeles!");
       setTimeout(() => {
         setCopied(false);
         onClose();
@@ -81,6 +85,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
       try {
         copyWithFallback(text);
         setCopied(true);
+        toast.success("Se ha copiado al portapapeles!");
         setTimeout(() => {
           setCopied(false);
           onClose();
@@ -105,6 +110,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
       const text = await navigator.clipboard.readText();
       await onPaste(text);
       setPasteState("done");
+      toast.success("Se ha pegado en la celda seleccionada!");
       setTimeout(() => {
         setPasteState("idle");
         onClose();
@@ -121,6 +127,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     try {
       await onDelete();
       setDeleteState("done");
+      toast.success("Se ha borrado el contenido de la celda");
       setTimeout(() => {
         setDeleteState("idle");
         onClose();
