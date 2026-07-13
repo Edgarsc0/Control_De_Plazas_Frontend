@@ -745,9 +745,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   // Guarda primero en CeldaOverride + aplica el UPDATE en EMPLEADOS_COMPLETOS_SIG
   // (backend, todo en una transacción); solo tras esa confirmación se refleja
-  // en el estado local — sin volver a pedir los datos al servidor.
-  const handlePasteCell = useCallback(async (text) => {
-    const { row, colKey } = contextMenu || {};
+  // en el estado local — sin volver a pedir los datos al servidor. Núcleo
+  // compartido por el menú contextual ("Pegar valor") y el atajo Ctrl+V.
+  const pasteValueToCell = useCallback(async (row, colKey, text) => {
     if (!row || !colKey || !isPasteableColumn(colKey)) return;
     const res = await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
     if (!res.ok) {
@@ -755,7 +755,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       throw new Error(body?.detail || "No se pudo guardar el cambio.");
     }
     onCellEdited?.(row.posicion, colKey, text);
-  }, [contextMenu, isPasteableColumn, onCellEdited]);
+  }, [isPasteableColumn, onCellEdited]);
+
+  const handlePasteCell = useCallback(async (text) => {
+    const { row, colKey } = contextMenu || {};
+    await pasteValueToCell(row, colKey, text);
+  }, [contextMenu, pasteValueToCell]);
 
   // Borra el contenido de la celda: NULL en EMPLEADOS_COMPLETOS_SIG +
   // elimina (no solo desactiva) el historial de CeldaOverride de esa celda
@@ -777,6 +782,55 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   useEffect(() => { columnsRef.current = columns; }, [columns]);
   const filteredSortedDataRef = useRef(filteredSortedData);
   useEffect(() => { filteredSortedDataRef.current = filteredSortedData; }, [filteredSortedData]);
+  const selectedCellRef = useRef(selectedCell);
+  useEffect(() => { selectedCellRef.current = selectedCell; }, [selectedCell]);
+  const contextMenuRef = useRef(contextMenu);
+  useEffect(() => { contextMenuRef.current = contextMenu; }, [contextMenu]);
+
+  // Ctrl+C / Ctrl+V nativos sobre la celda seleccionada: mismas acciones que
+  // "Copiar/Pegar valor de celda" del menú contextual (CopyCellMenu), pero
+  // sin pasar por él. Usa los eventos nativos `copy`/`paste` (no la Clipboard
+  // API async) porque no requieren secure context — funcionan igual en HTTPS,
+  // localhost o el servidor por IP/HTTP plano. Si el menú contextual está
+  // abierto se cede el paso a su propio flujo (ver CopyCellMenu) para no
+  // disparar el pegado dos veces.
+  useEffect(() => {
+    const handleWindowCopy = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (contextMenuRef.current) return;
+      const cell = selectedCellRef.current;
+      if (!cell || !e.clipboardData) return;
+      const col = columnsRef.current.filter(c => c.visible)[cell.col];
+      const row = filteredSortedDataRef.current[cell.row];
+      if (!col || !row) return;
+      const raw = row[col.key];
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', raw === undefined || raw === null ? "" : String(raw));
+    };
+
+    const handleWindowPaste = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (contextMenuRef.current) return;
+      if (!canEditCeldas) return;
+      const cell = selectedCellRef.current;
+      if (!cell) return;
+      const col = columnsRef.current.filter(c => c.visible)[cell.col];
+      const row = filteredSortedDataRef.current[cell.row];
+      if (!col || !row || !isPasteableColumn(col.key)) return;
+      e.preventDefault();
+      const text = e.clipboardData?.getData('text/plain') ?? "";
+      pasteValueToCell(row, col.key, text).catch((err) => {
+        console.error("No se pudo pegar el valor con Ctrl+V:", err);
+      });
+    };
+
+    window.addEventListener('copy', handleWindowCopy);
+    window.addEventListener('paste', handleWindowPaste);
+    return () => {
+      window.removeEventListener('copy', handleWindowCopy);
+      window.removeEventListener('paste', handleWindowPaste);
+    };
+  }, [canEditCeldas, isPasteableColumn, pasteValueToCell]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
