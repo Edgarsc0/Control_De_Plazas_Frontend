@@ -3,6 +3,9 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Zoom } from "react-awesome-reveal";
 import {
+  AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RechartsTooltip,
+} from "recharts";
+import {
   Search, Download, Columns, X, RotateCcw,
   ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, XCircle,
   Layers, Users, GitCompareArrows, ListFilter, Check,
@@ -57,6 +60,25 @@ const getColumnLetter = (index) => {
 
 const noop = () => {};
 
+const formatFechaCorta = (iso) => {
+  if (!iso) return "";
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+};
+
+// Tooltip del mini-histórico dentro de la tarjeta "Alineación General"
+// (fondo oscuro, distinto del CustomTooltip claro de las demás gráficas).
+const HistoricoAlineacionTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-xl">
+      <p className="text-[9px] font-black uppercase text-slate-400">{formatFechaCorta(p.fecha)}</p>
+      <p className="text-sm font-black text-[#621f32] dark:text-[#bc955c]">{p.porcentaje_alineacion_general}%</p>
+    </div>
+  );
+};
+
 // Campos con catálogo de descripción legible detrás del código (ver
 // TOOLTIP_ALINEACION_CAMPOS en plantilla/views.py): tooltip muestra el nombre
 // de la Unidad de Negocio / Unidad Administrativa / Nivel Jerárquico / Departamento.
@@ -82,6 +104,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const [data, setData] = useState([]);
   const [count, setCount] = useState(0);
   const [stats, setStats] = useState(null);
+  const [historicoAlineacion, setHistoricoAlineacion] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -206,6 +229,18 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
   }, [page, pageSize, buildBaseParams]);
+
+  // Histórico diario del % de Alineación General (independiente de filtros/página;
+  // lo actualiza la tarea Celery `importar_zafiro` cada vez que corre, ver
+  // `_actualizar_historico_alineacion_general` en plantilla/tasks.py).
+  useEffect(() => {
+    const ctrl = new AbortController();
+    VacantesService.getMovPosAlineacionHistorico({ dias: 90 }, { signal: ctrl.signal })
+      .then((res) => res.json())
+      .then((resData) => setHistoricoAlineacion(resData.results || []))
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error cargando histórico de alineación:", err); });
+    return () => ctrl.abort();
+  }, []);
 
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
@@ -595,6 +630,30 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                 <p className="text-[11px] font-bold text-white/70 mt-2">
                   {stats ? `${formatNumber(stats.total_alineadas)} de ${formatNumber(stats.total_activas)} plazas 100% alineadas` : "Cargando..."}
                 </p>
+                {historicoAlineacion.length > 1 && (
+                  <div className="mt-3 -mx-1 h-12">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={historicoAlineacion} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+                        <defs>
+                          <linearGradient id="alineacionHistoricoFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#ffffff" stopOpacity={0.55} />
+                            <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <YAxis hide domain={[(dataMin) => Math.max(0, Math.floor(dataMin) - 5), 100]} />
+                        <RechartsTooltip content={<HistoricoAlineacionTooltip />} cursor={{ stroke: "#ffffff", strokeOpacity: 0.35 }} />
+                        <Area
+                          type="monotone"
+                          dataKey="porcentaje_alineacion_general"
+                          stroke="#ffffff"
+                          strokeWidth={2}
+                          fill="url(#alineacionHistoricoFill)"
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </div>
 

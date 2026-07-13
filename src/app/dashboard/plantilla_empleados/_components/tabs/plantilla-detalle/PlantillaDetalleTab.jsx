@@ -30,6 +30,11 @@ import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
+
+// Clave de negocio (identifica la fila): no admite "Pegar valor en celda".
+const NON_EDITABLE_KEYS = new Set(["posicion"]);
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -76,12 +81,14 @@ const ALL_DETAIL_KEYS = [
 
 const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso"];
 
-export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPending, startTransition, cardRef, isLoading }) {
+export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
+  const { hasPermission } = useAuth();
+  const canEditCeldas = hasPermission(PERMISSIONS.EDIT_PLANTILLA_DETALLE);
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
@@ -618,23 +625,86 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
   const endIndex = Math.min(filteredSortedData.length, Math.floor((scrollTop + containerHeight) / rowHeight) + 15);
   const paginatedData = filteredSortedData.slice(startIndex, endIndex);
 
-  const renderCell = useCallback(({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+  // Edición inline (doble click en celda). `editingCell` identifica la celda en
+  // edición por clave de negocio (posicion) + columna, no por índice de fila,
+  // así sobrevive a re-ordenamientos/filtros mientras se edita.
+  const [editingCell, setEditingCell] = useState(null); // { posicion, colKey, value, saving, error }
+  const editCancelledRef = useRef(false);
+
+  const isPasteableColumn = useCallback((colKey) => !!colKey && !NON_EDITABLE_KEYS.has(colKey), []);
+
+  const handleCellDoubleClick = useCallback((e, value, row, colKey) => {
+    if (!canEditCeldas || !isPasteableColumn(colKey)) return;
+    setEditingCell({ posicion: row.posicion, colKey, value: value === undefined || value === null ? "" : String(value) });
+  }, [canEditCeldas, isPasteableColumn]);
+
+  // Mismo flujo que "Pegar valor": guarda en CeldaOverride + UPDATE en
+  // EMPLEADOS_COMPLETOS_SIG (backend, 1 transacción); solo tras la
+  // confirmación se refleja en el estado local, sin fetch.
+  const commitCellEdit = useCallback(async () => {
+    if (!editingCell || editingCell.saving) return;
+    const { posicion, colKey, value } = editingCell;
+    setEditingCell((c) => (c ? { ...c, saving: true, error: null } : c));
+    try {
+      const res = await VacantesService.patchEmpleadoCompletoOverride(posicion, colKey, value);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "No se pudo guardar el cambio.");
+      }
+      onCellEdited?.(posicion, colKey, value);
+      setEditingCell(null);
+    } catch (err) {
+      setEditingCell((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
+    }
+  }, [editingCell, onCellEdited]);
+
+  const handleEditKeyDown = useCallback((e) => {
+    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+    else if (e.key === "Escape") { e.preventDefault(); editCancelledRef.current = true; setEditingCell(null); }
+  }, []);
+
+  const handleEditBlur = useCallback(() => {
+    if (editCancelledRef.current) { editCancelledRef.current = false; return; }
+    commitCellEdit();
+  }, [commitCellEdit]);
+
+  const renderCell = useCallback(({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu, onDoubleClick }) => {
     const stickyStyle = isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {};
+    if (editingCell && editingCell.posicion === row.posicion && editingCell.colKey === col.key) {
+      return (
+        <td key={col.key} style={stickyStyle} className={`relative px-1.5 text-xs border-r h-[37px] align-middle ring-2 ring-[#621f32] z-10 ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white dark:bg-slate-900"}`}>
+          <input
+            autoFocus
+            type="text"
+            value={editingCell.value}
+            disabled={editingCell.saving}
+            onChange={(e) => setEditingCell((c) => (c ? { ...c, value: e.target.value, error: null } : c))}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={handleEditKeyDown}
+            onBlur={handleEditBlur}
+            className="w-full h-full bg-transparent outline-none text-xs font-bold text-[#621f32] dark:text-[#bc955c] disabled:opacity-50"
+          />
+          {editingCell.error && (
+            <span className="absolute left-1 top-full mt-0.5 z-20 text-[9px] font-bold text-red-600 bg-white dark:bg-slate-950 px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">{editingCell.error}</span>
+          )}
+        </td>
+      );
+    }
     if (col.key === "estado_nomina") {
       const est = mapEstadoNomina(value), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
-      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span></td>);
+      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span></td>);
     }
     if (col.key === "depto" || col.key === "id_departamento") {
       const deptoInfo = getDeptoInfo(deptoCatalog, value);
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
       if (!deptoInfo) {
-        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>);
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>);
       }
       return (
         <Tooltip key={col.key}>
           <TooltipTrigger asChild>
-            <td onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>
+            <td onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>
           </TooltipTrigger>
           <TooltipContent side="top">
             <div className="flex flex-col gap-0.5">
@@ -650,12 +720,12 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
       if (!motivoInfo) {
-        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>);
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>);
       }
       return (
         <Tooltip key={col.key}>
           <TooltipTrigger asChild>
-            <td onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName}>{content}</td>
+            <td onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>
           </TooltipTrigger>
           <TooltipContent side="top">
             <div className="flex flex-col gap-0.5">
@@ -666,12 +736,26 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         </Tooltip>
       );
     }
-    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}</td>);
-  }, [isMonoColumn, deptoCatalog, motivosCatalog]);
+    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}</td>);
+  }, [isMonoColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur]);
 
-  const handleCellContextMenu = useCallback((e, value, rect) => {
-    setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
+  const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
   }, []);
+
+  // Guarda primero en CeldaOverride + aplica el UPDATE en EMPLEADOS_COMPLETOS_SIG
+  // (backend, todo en una transacción); solo tras esa confirmación se refleja
+  // en el estado local — sin volver a pedir los datos al servidor.
+  const handlePasteCell = useCallback(async (text) => {
+    const { row, colKey } = contextMenu || {};
+    if (!row || !colKey || !isPasteableColumn(colKey)) return;
+    const res = await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail || "No se pudo guardar el cambio.");
+    }
+    onCellEdited?.(row.posicion, colKey, text);
+  }, [contextMenu, isPasteableColumn, onCellEdited]);
   // Refs actualizadas sin re-suscribir el listener global de teclado (ver más abajo):
   // antes el efecto dependía de [columns, filteredSortedData], así que se removía y
   // re-agregaba en cada tecla de búsqueda (cualquier cambio en los datos filtrados).
@@ -1045,6 +1129,7 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
             selectedCell={selectedCell}
             onSelectCell={setSelectedCell}
             onCellContextMenu={handleCellContextMenu}
+            onCellDoubleClick={handleCellDoubleClick}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
             onSort={handleSort}
@@ -1355,7 +1440,12 @@ export default function PlantillaDetalleTab({ detalle = [], resumen = {}, isPend
         )}
       </AnimatePresence>
       
-      <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+      <CopyCellMenu
+        contextMenu={contextMenu}
+        onClose={() => setContextMenu(null)}
+        onPaste={canEditCeldas ? handlePasteCell : undefined}
+        canPaste={isPasteableColumn(contextMenu?.colKey)}
+      />
 
       {selectedRowData && (
         <EmployeeRecordModal

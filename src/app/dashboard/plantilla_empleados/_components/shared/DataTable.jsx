@@ -38,6 +38,7 @@ const TableRow = memo(function TableRow({
   onRowClick,
   onSelectCell,
   onCellContextMenu,
+  onCellDoubleClick,
   onShowRecord,
   renderRowAction,
 }) {
@@ -57,7 +58,10 @@ const TableRow = memo(function TableRow({
         const isSelected = isRowSelected && colIdx === selectedColIdx;
         const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
         const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect(), row, col.key); };
-        return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu });
+        const onDoubleClick = onCellDoubleClick
+          ? (e) => { e.stopPropagation(); onCellDoubleClick(e, value, row, col.key); }
+          : undefined;
+        return renderCell({ row, col, colIdx, actualRowIdx, value, isSticky, leftOffset, isSelected, onClick, onContextMenu, onDoubleClick });
       })}
     </tr>
   );
@@ -83,6 +87,7 @@ const TableRow = memo(function TableRow({
  * @param {?{row: number, col: number}} props.selectedCell - Celda seleccionada.
  * @param {(cell: {row: number, col: number}) => void} props.onSelectCell - Selecciona celda.
  * @param {(event: MouseEvent, value: *, rect: DOMRect, row: Object, colKey: string) => void} props.onCellContextMenu - Click derecho sobre celda (menú "copiar/pegar valor"); rect posiciona el resaltado punteado. `row`/`colKey` identifican la celda para soportar "pegar".
+ * @param {(event: MouseEvent, value: *, row: Object, colKey: string) => void} [props.onCellDoubleClick] - Doble click sobre celda (ej. entrar a edición inline). Opcional: sin este prop no se agrega el listener.
  * @param {(row: Object) => void} props.onShowRecord - Abre el expediente de la fila (botón VER).
  * @param {{key: ?string, direction: ?string}} props.sortConfig - Estado de orden.
  * @param {(key: string) => void} props.onSort - Alterna orden por columna.
@@ -120,6 +125,7 @@ function DataTable({
   selectedCell,
   onSelectCell,
   onCellContextMenu,
+  onCellDoubleClick,
   onShowRecord,
   sortConfig,
   onSort,
@@ -503,6 +509,7 @@ function DataTable({
                     onRowClick={onRowClick}
                     onSelectCell={onSelectCell}
                     onCellContextMenu={onCellContextMenu}
+                    onCellDoubleClick={onCellDoubleClick}
                     onShowRecord={onShowRecord}
                     renderRowAction={renderRowAction}
                   />

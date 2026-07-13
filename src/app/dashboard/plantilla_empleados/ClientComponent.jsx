@@ -92,6 +92,15 @@ export default function PlantillaEmpleadosDetalle({
   secondaryDataPromise
 }) {
   const { isLoading: authLoading, hasPermission } = useAuth();
+  // Estado local (no la prop cruda): permite reflejar ediciones de celda
+  // (CeldaOverride, tab Detalle) al instante y sin refetch, compartido con
+  // los demás tabs que leen `detalle` (Estatus, Mov. Posiciones).
+  const [detalleData, setDetalleData] = useState(detalle);
+  const updateDetalleCell = useCallback((posicion, columna, valorNuevo) => {
+    setDetalleData((prev) => prev.map((row) =>
+      row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
+    ));
+  }, []);
   // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
   // parpadeo) — el backend igual exige el permiso real en cada endpoint.
   const visibleTabs = useMemo(
@@ -328,7 +337,8 @@ export default function PlantillaEmpleadosDetalle({
           {visitedTabs.has("detalle") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE) && (
             <div className={activeTab === "detalle" ? "block" : "hidden"}>
               <PlantillaDetalleTab
-                detalle={detalle}
+                detalle={detalleData}
+                onCellEdited={updateDetalleCell}
                 resumen={resumen}
                 isPending={isPending}
                 startTransition={startTransition}
@@ -341,7 +351,7 @@ export default function PlantillaEmpleadosDetalle({
               <EstatusTab
                 estatusPorNivelUa={estatusPorNivelUa}
                 activeSubTab={activeEstatusSubTab}
-                detalle={detalle}
+                detalle={detalleData}
               />
             </div>
           )}
@@ -349,7 +359,7 @@ export default function PlantillaEmpleadosDetalle({
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "tabla" ? "block" : "hidden"}>
               <MovimientosTab
                 movPosData={movPosData}
-                detalle={detalle}
+                detalle={detalleData}
                 isPending={isPending}
                 startTransition={startTransition}
                 cardRef={cardRefMovimientos}

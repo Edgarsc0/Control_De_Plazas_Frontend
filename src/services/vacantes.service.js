@@ -104,6 +104,24 @@ export const VacantesService = {
     },
 
     /**
+     * Edita una celda de EMPLEADOS_COMPLETOS_SIG (tab Plantilla Detalle).
+     * Registra el cambio en CeldaOverride y lo aplica de inmediato sobre la
+     * fila viva; sobrevive a la siguiente importación de ZAFIRO.
+     * @param {string} posicion - Clave de negocio (columna `Posición`).
+     * @param {string} columna - Nombre del campo del modelo a editar.
+     * @param {*} valorNuevo - Nuevo valor de la celda.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    patchEmpleadoCompletoOverride: (posicion, columna, valorNuevo, options = {}) => {
+        return apiFetch('/plantilla/empleados_completos_sig/override/', {
+            method: 'POST',
+            body: JSON.stringify({ posicion, columna, valor_nuevo: valorNuevo }),
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el resumen de estatus de nómina por nivel y unidad administrativa.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
@@ -220,6 +238,20 @@ export const VacantesService = {
      */
     getMovPosAlineacion: (query = {}, options = {}) => {
         return apiFetch(`/plantilla/mov_pos_alineacion/${buildQuery(query)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Histórico diario del % de Alineación General (1 fila por día, poblado
+     * por la tarea Celery `importar_zafiro` cada vez que corre).
+     * @param {Object<string, (string|number)>} [query={}] - p.ej. { dias: 90 }.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getMovPosAlineacionHistorico: (query = {}, options = {}) => {
+        return apiFetch(`/plantilla/mov_pos_alineacion_historico/${buildQuery(query)}`, {
             method: 'GET',
             ...options
         });
