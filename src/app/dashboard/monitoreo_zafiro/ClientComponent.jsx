@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { apiFetch } from '@/lib/fetch-interceptor';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 import {
   Activity, Clock, Database, CheckCircle2, XCircle,
   RefreshCw, Terminal, Cpu, Zap,
   ShieldCheck, BarChart3, GitBranch, Layers,
   Filter, ChevronLeft, ChevronRight, Check,
-  LayoutDashboard
+  LayoutDashboard, Timer, TrendingDown
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -31,6 +32,33 @@ function StatusBadge({ status, errorMessage }) {
     <span title={errorMessage} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase border border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400 font-mono cursor-help">
       <XCircle className="size-3" /> ERR
     </span>
+  );
+}
+
+function formatDuracion(segundos) {
+  if (segundos === null || segundos === undefined) return '—';
+  const mins = Math.floor(segundos / 60);
+  const secs = Math.round(segundos % 60);
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
+function DuracionTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  const { duracion_promedio_segundos, total_casos } = payload[0].payload;
+  return (
+    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[170px]">
+      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
+        {label}
+      </p>
+      <div className="flex justify-between items-center gap-4 mb-1.5">
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Duración promedio</span>
+        <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatDuracion(duracion_promedio_segundos)}</span>
+      </div>
+      <div className="flex justify-between items-center gap-4">
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Casos exitosos</span>
+        <span className="text-xs font-black text-slate-800 dark:text-slate-100">{total_casos}</span>
+      </div>
+    </div>
   );
 }
 
@@ -59,6 +87,10 @@ export default function ClientComponent() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const terminalEndRef = useRef(null);
+
+  // Duración promedio por hora (solo casos exitosos)
+  const [duracionPorHora, setDuracionPorHora] = useState([]);
+  const [loadingDuracion, setLoadingDuracion] = useState(true);
   
   // Pagination & Filtering state
   const [columnFilters, setColumnFilters] = useState({});
@@ -133,7 +165,35 @@ export default function ClientComponent() {
     }
   };
 
-  useEffect(() => { fetchLogs(); }, []);
+  const fetchDuracionPorHora = async () => {
+    setLoadingDuracion(true);
+    try {
+      const response = await apiFetch('/plantilla/bitacora/duracion-promedio-por-hora/');
+      if (response.ok) {
+        const data = await response.json();
+        setDuracionPorHora(data.map(d => ({
+          ...d,
+          horaLabel: `${String(d.hora).padStart(2, '0')}:00`,
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching duración por hora:', error);
+    } finally {
+      setLoadingDuracion(false);
+    }
+  };
+
+  useEffect(() => { fetchLogs(); fetchDuracionPorHora(); }, []);
+
+  // Refetch la gráfica de duración en cuanto una sincronización termina (RUNNING -> EXITO/ERROR)
+  const prevStatusRef = useRef(null);
+  useEffect(() => {
+    const currentStatus = logs[0]?.status ?? null;
+    if (prevStatusRef.current === 'RUNNING' && currentStatus !== 'RUNNING') {
+      fetchDuracionPorHora();
+    }
+    prevStatusRef.current = currentStatus;
+  }, [logs]);
 
   useEffect(() => {
     let interval;
@@ -156,6 +216,22 @@ export default function ClientComponent() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const horaMasLenta = useMemo(() => {
+    return duracionPorHora.reduce((peak, d) => {
+      if (d.duracion_promedio_segundos == null) return peak;
+      if (!peak || d.duracion_promedio_segundos > peak.duracion_promedio_segundos) return d;
+      return peak;
+    }, null);
+  }, [duracionPorHora]);
+
+  const horaMasRapida = useMemo(() => {
+    return duracionPorHora.reduce((valle, d) => {
+      if (d.duracion_promedio_segundos == null) return valle;
+      if (!valle || d.duracion_promedio_segundos < valle.duracion_promedio_segundos) return d;
+      return valle;
+    }, null);
+  }, [duracionPorHora]);
 
   const activeLog = logs.length > 0 && logs[0].status === 'RUNNING' ? logs[0] : null;
   const lastSuccess = logs.find(l => l.status === 'EXITO');
@@ -340,7 +416,7 @@ export default function ClientComponent() {
               </button>
               
               <button
-                onClick={() => fetchLogs(true)}
+                onClick={() => { fetchLogs(true); fetchDuracionPorHora(); }}
                 disabled={loading}
                 className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black font-mono tracking-wider border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-650 dark:text-slate-300 hover:text-[#621f32] dark:hover:text-[#bc955c] shadow-sm hover:shadow active:scale-95 transition-all duration-300 disabled:opacity-40"
               >
@@ -380,6 +456,122 @@ export default function ClientComponent() {
             />
           </div>
         )}
+
+        {/* ── Duración promedio por hora (solo casos exitosos) ── */}
+        <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/80 shadow-lg bg-white dark:bg-slate-950 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-150 dark:border-slate-800 shadow-sm">
+                <Timer className="size-4 text-[#bc955c]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-200">Duración Promedio por Hora</h3>
+                <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">Solo casos exitosos (EXITO), agrupados por hora de ejecución</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {horaMasRapida && (
+                <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10">
+                  <span className="flex items-center justify-center size-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
+                    <TrendingDown className="size-3.5" />
+                  </span>
+                  <div className="leading-tight">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 font-mono">Hora más rápida</p>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 font-mono">
+                      {horaMasRapida.horaLabel} &mdash; {formatDuracion(horaMasRapida.duracion_promedio_segundos)} promedio
+                    </p>
+                  </div>
+                </div>
+              )}
+              {horaMasLenta && (
+                <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-amber-500/25 bg-amber-500/10">
+                  <span className="flex items-center justify-center size-6 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                    <Zap className="size-3.5" />
+                  </span>
+                  <div className="leading-tight">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 font-mono">Hora más lenta</p>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200 font-mono">
+                      {horaMasLenta.horaLabel} &mdash; {formatDuracion(horaMasLenta.duracion_promedio_segundos)} promedio
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {loadingDuracion ? (
+            <div className="h-72 flex items-center justify-center">
+              <RefreshCw className="size-8 animate-spin text-[#bc955c]/60" />
+            </div>
+          ) : duracionPorHora.length === 0 ? (
+            <div className="h-72 flex items-center justify-center">
+              <p className="text-slate-400 dark:text-slate-500 text-sm">Sin datos suficientes para graficar.</p>
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={duracionPorHora} margin={{ top: 24, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-100 dark:stroke-slate-800" />
+                  <XAxis
+                    dataKey="horaLabel"
+                    tick={{ fontSize: 11, fontFamily: 'monospace' }}
+                    stroke="currentColor"
+                    className="text-slate-400 dark:text-slate-500"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fontFamily: 'monospace' }}
+                    stroke="currentColor"
+                    className="text-slate-400 dark:text-slate-500"
+                    tickFormatter={(v) => formatDuracion(v)}
+                    width={70}
+                  />
+                  <Tooltip content={<DuracionTooltip />} cursor={{ stroke: '#621f32', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="duracion_promedio_segundos"
+                    stroke="#621f32"
+                    strokeWidth={2.5}
+                    connectNulls
+                    dot={({ cx, cy, payload, index }) => {
+                      const isPeak = payload.hora === horaMasLenta?.hora;
+                      const isValle = payload.hora === horaMasRapida?.hora;
+                      const color = isPeak ? '#d97706' : isValle ? '#059669' : '#bc955c';
+                      const r = isPeak || isValle ? 6 : 4;
+                      return (
+                        <circle key={`dot-${index}`} cx={cx} cy={cy} r={r} fill={color} stroke="#fff" strokeWidth={1.5} />
+                      );
+                    }}
+                    activeDot={{ r: 7, fill: '#621f32', stroke: '#fff', strokeWidth: 2 }}
+                  >
+                    <LabelList
+                      dataKey="duracion_promedio_segundos"
+                      position="top"
+                      content={({ x, y, value, index }) => {
+                        const hora = duracionPorHora[index]?.hora;
+                        const isPeak = hora === horaMasLenta?.hora;
+                        const isValle = hora === horaMasRapida?.hora;
+                        if (!isPeak && !isValle) return null;
+                        if (value == null) return null;
+                        return (
+                          <text
+                            x={x}
+                            y={y - 12}
+                            textAnchor="middle"
+                            fontSize={11}
+                            className={`font-mono font-black ${isPeak ? 'fill-amber-600 dark:fill-amber-400' : 'fill-emerald-600 dark:fill-emerald-400'}`}
+                          >
+                            {formatDuracion(value)}
+                          </text>
+                        );
+                      }}
+                    />
+                  </Line>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
 
         {/* ── Live Terminal ── */}
         <AnimatePresence>
