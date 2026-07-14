@@ -1289,17 +1289,25 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           activeDot={(dotProps) => {
                             const { cx, cy, key } = dotProps;
                             return (
-                              <circle
-                                key={key}
-                                cx={cx}
-                                cy={cy}
-                                r={6}
-                                fill={s.color}
-                                stroke="#fff"
-                                strokeWidth={2}
-                                onMouseEnter={() => setHoveredPointKey(s.key)}
-                                onMouseLeave={() => setHoveredPointKey(null)}
-                              />
+                              <g key={key}>
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={18}
+                                  fill="transparent"
+                                  onMouseEnter={() => setHoveredPointKey(s.key)}
+                                  onMouseLeave={() => setHoveredPointKey(null)}
+                                />
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={6}
+                                  fill={s.color}
+                                  stroke="#fff"
+                                  strokeWidth={2}
+                                  pointerEvents="none"
+                                />
+                              </g>
                             );
                           }}
                         />
