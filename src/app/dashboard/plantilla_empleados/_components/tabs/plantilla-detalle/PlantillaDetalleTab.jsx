@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
-  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, Eye
+  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, Eye, History
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
@@ -16,6 +16,7 @@ import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
+import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -177,6 +178,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     expandedDateNodes, setExpandedDateNodes,
     debouncedFilterSearchText,
   } = filters;
+  const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
+  const formatHistorialValue = useCallback((colKey, val) => (
+    colKey === "estado_nomina" ? mapEstadoNomina(val) : val
+  ), []);
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
@@ -1131,6 +1136,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
+              { icon: History, label: "Historial de Cambios", onClick: () => setIsHistorialModalOpen(true) },
             ]}
             chips={activeStatusFilter.map(status => (
               <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
@@ -1172,6 +1178,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
               <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
+              <button onClick={() => setIsHistorialModalOpen(true)} title="Ver historial de cambios de la tabla" className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><History className="size-3.5" /><span>Historial de Cambios</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex-shrink-0"><Columns className="size-3.5" /><span>Columnas</span></button>
               <button 
                 onClick={handleExportExcel} 
@@ -1514,6 +1521,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         )}
       </AnimatePresence>
       
+      <CeldaHistorialModal
+        open={isHistorialModalOpen}
+        onClose={() => setIsHistorialModalOpen(false)}
+        columns={columns}
+        formatValue={formatHistorialValue}
+      />
+
       <CopyCellMenu
         contextMenu={contextMenu}
         onClose={() => setContextMenu(null)}

@@ -139,6 +139,22 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene el historial completo de ediciones manuales (CeldaOverride) sobre
+     * EMPLEADOS_COMPLETOS_SIG, para el modal "Historial de Cambios" del tab
+     * Detalle. Incluye estadísticas agregadas (total de cambios, posiciones
+     * afectadas, usuarios, columnas más editadas).
+     * @param {Object} [params={}] - Filtros: search, columna, posicion, activo ('true'|'false'), limit, offset.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getEmpleadoCompletoOverrideHistorial: (params = {}, options = {}) => {
+        return apiFetch(`/plantilla/empleados_completos_sig/override/historial/${buildQuery(params)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el resumen de estatus de nómina por nivel y unidad administrativa.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
