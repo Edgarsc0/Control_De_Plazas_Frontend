@@ -21,6 +21,7 @@ import {
 import { Zoom } from 'react-awesome-reveal';
 import { useAuth } from '@/hooks/useAuth';
 import { MODULES, isModuleVisible } from '@/config/modules';
+import { useRefreshOnZafiroUpdate } from '@/context/ZafiroUpdatesContext';
 
 export default function Dashboard({
   resumenVacantes,
@@ -29,6 +30,7 @@ export default function Dashboard({
   resumenEmpleados,
 }) {
   const auth = useAuth();
+  useRefreshOnZafiroUpdate();
   const cardConfigs = [
     {
       span: 'col-span-2',

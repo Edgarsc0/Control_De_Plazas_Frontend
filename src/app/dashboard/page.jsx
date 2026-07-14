@@ -42,8 +42,8 @@ export default async function DashboardServerCompoment() {
 
   // Initiate the fetch concurrently
   const dataPromise = Promise.allSettled([
-    VacantesService.getVacantesPorNivelResumen({ next: { revalidate: 15 } }).then(res => res.json()),
-    VacantesService.getEmpleadosCompletosEstatusResumen({ next: { revalidate: 15 } }).then(res => res.json()),
+    VacantesService.getVacantesPorNivelResumen().then(res => res.json()),
+    VacantesService.getEmpleadosCompletosEstatusResumen().then(res => res.json()),
     OcupacionService.getOcupacionPorOficios({
       headers: { Authorization: `Token ${token}` },
     }).then(res => res.ok ? res.json() : { filas: [], columnas: [] }),
