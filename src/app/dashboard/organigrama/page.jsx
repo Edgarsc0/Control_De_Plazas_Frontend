@@ -178,6 +178,16 @@ function OrganigramaContent() {
   const [savingField, setSavingField] = useState(null); // null | "titular" | "superior"
   const [changeToast, setChangeToast] = useState(null); // { message, onUndo }
   const toastTimerRef = useRef(null);
+  // Asignación manual de plaza por número (permite dejarla vacante, sin persona)
+  const [manualPlazaMode, setManualPlazaMode] = useState(false);
+  const [manualPlazaInput, setManualPlazaInput] = useState("");
+  const [manualPlazaChecking, setManualPlazaChecking] = useState(false);
+  const [manualPlazaError, setManualPlazaError] = useState(null);
+  const resetManualPlaza = () => {
+    setManualPlazaMode(false);
+    setManualPlazaInput("");
+    setManualPlazaError(null);
+  };
 
   // ── Creación de nodos (Dirección General nueva / subordinado bajo un nodo) ─
   const emptyGeneralForm = { unidad_negocio: "", departamento: "", descripcion_larga: "", unidad_administrativa: "", doaf: "", num_posicion_gerente: "" };
@@ -200,11 +210,19 @@ function OrganigramaContent() {
   // la lista era larga) deja de afectarla.
   const childPosAnchorRef = useRef(null);
   const [childPosMenuRect, setChildPosMenuRect] = useState(null);
+  // Asignación manual de plaza por número para el subordinado (permite vacante)
+  const [childPosManualMode, setChildPosManualMode] = useState(false);
+  const [childPosManualInput, setChildPosManualInput] = useState("");
+  const [childPosManualChecking, setChildPosManualChecking] = useState(false);
+  const [childPosManualError, setChildPosManualError] = useState(null);
   const resetChildForm = () => {
     setChildForm(emptyChildForm);
     setChildPosQuery("");
     setChildPosResults([]);
     setChildPosSelectedEmp(null);
+    setChildPosManualMode(false);
+    setChildPosManualInput("");
+    setChildPosManualError(null);
   };
 
   // ── Edición / borrado del nodo seleccionado ────────────────────────────────
@@ -434,6 +452,7 @@ function OrganigramaContent() {
     setEditingField(null);
     setEmpSearchQuery("");
     setEmpSearchResults([]);
+    resetManualPlaza();
     setIsEditingNode(false);
     setEditError(null);
   }, [selectedNode?.departamento]);
@@ -531,11 +550,12 @@ function OrganigramaContent() {
       if (!res.ok) throw new Error(isRemoval ? "No se pudo quitar la plaza." : "No se pudo actualizar la plaza.");
 
       // ── Actualiza la UI directamente, sin refetch ──────────────────────
+      const isVacante = !isRemoval && !!newOcupanteInfo.vacante;
       node[fieldKey] = newPosicion;
       if (field === "titular") {
         node.ocupante = isRemoval ? null : {
           activa: true,
-          vacante: false,
+          vacante: isVacante,
           nombre: newOcupanteInfo.nombre,
           nivel: newOcupanteInfo.nivel,
           smb: newOcupanteInfo.smb,
@@ -546,10 +566,10 @@ function OrganigramaContent() {
         [field]: isRemoval ? null : {
           posicion: newPosicion,
           activa: true,
-          vacante: false,
+          vacante: isVacante,
           nombre: newOcupanteInfo.nombre,
           num_empleado: newOcupanteInfo.num_empleado,
-          estado_nomina: "A",
+          estado_nomina: isVacante ? undefined : "A",
         },
       }));
       setSelectedNode(prev => (prev && prev.departamento === departamento ? { ...node } : prev));
@@ -557,11 +577,14 @@ function OrganigramaContent() {
       setEditingField(null);
       setEmpSearchQuery("");
       setEmpSearchResults([]);
+      resetManualPlaza();
 
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       setChangeToast({
         message: isRemoval
           ? `Se ha quitado la plaza (${field === "titular" ? "gerente" : "superior"})`
+          : isVacante
+          ? `Se ha asignado la plaza ${newPosicion} (vacante)`
           : `Se ha actualizado la plaza (${field === "titular" ? "gerente" : "superior"})`,
         onUndo: () => revertPlazaChange(fieldKey, field, node, previousPosicion, previousOcupante, previousPosInfoEntry, departamento),
       });
@@ -570,6 +593,33 @@ function OrganigramaContent() {
       alert(err.message || "Error al actualizar la plaza.");
     } finally {
       setSavingField(null);
+    }
+  };
+
+  // ── Asigna una plaza por número sin exigir un ocupante (permite vacante) ──
+  // Valida contra organigrama-posicion-info/ que la plaza exista y esté activa
+  // (esté o no ocupada) antes de guardarla como titular.
+  const applyManualPlaza = async (fieldKey, field, node, posicionRaw) => {
+    const posicion = posicionRaw.trim();
+    if (!posicion) return;
+    setManualPlazaChecking(true);
+    setManualPlazaError(null);
+    try {
+      const res = await PlantillaService.getOrganigramaPosicionInfo(posicion);
+      const data = res.ok ? await res.json() : null;
+      if (!data || data.error || !data.activa) {
+        setManualPlazaError(`La plaza ${posicion} no existe o no está activa.`);
+        return;
+      }
+      await applyPlazaChange(fieldKey, field, node, posicion, {
+        vacante: !!data.vacante,
+        nombre: data.nombre,
+        num_empleado: data.num_empleado,
+      });
+    } catch {
+      setManualPlazaError("Error al validar la plaza.");
+    } finally {
+      setManualPlazaChecking(false);
     }
   };
 
@@ -660,11 +710,14 @@ function OrganigramaContent() {
       // organigramaData (eso reiniciaría expandedNodes/selectedNode/scroll).
       // El backend de creación no calcula `ocupante` (eso lo hace el árbol
       // completo en organigrama-tree/), así que si se asignó plaza titular
-      // se arma aquí a partir del empleado elegido en la búsqueda — si no,
-      // la tarjeta muestra "Plaza inactiva" hasta recargar la página.
+      // se arma aquí a partir del empleado (o de la validación de la plaza
+      // vacante) elegido en el formulario — si no, la tarjeta muestra
+      // "Plaza inactiva" hasta recargar la página.
       const ocupanteSeleccionado =
         childPosSelectedEmp && childPosSelectedEmp.posicion === body.num_posicion_gerente
-          ? { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb }
+          ? childPosSelectedEmp.vacante
+            ? { activa: true, vacante: true }
+            : { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb }
           : null;
       const newNode = {
         departamento: body.departamento,
@@ -702,6 +755,37 @@ function OrganigramaContent() {
       setCreateChildError(err.message || "Error al crear el subordinado.");
     } finally {
       setCreatingChild(false);
+    }
+  };
+
+  // ── Asigna la plaza titular del subordinado por número, sin exigir un
+  // ocupante (permite dejarla vacante). Valida contra organigrama-posicion-info/.
+  const checkChildManualPlaza = async (posicionRaw) => {
+    const posicion = posicionRaw.trim();
+    if (!posicion) return;
+    setChildPosManualChecking(true);
+    setChildPosManualError(null);
+    try {
+      const res = await PlantillaService.getOrganigramaPosicionInfo(posicion);
+      const data = res.ok ? await res.json() : null;
+      if (!data || data.error || !data.activa) {
+        setChildPosManualError(`La plaza ${posicion} no existe o no está activa.`);
+        return;
+      }
+      setChildForm(f => ({ ...f, num_posicion_gerente: posicion }));
+      setChildPosSelectedEmp(
+        data.vacante
+          ? { posicion, vacante: true }
+          : { posicion, vacante: false, nombre: data.nombre, num_empleado: data.num_empleado }
+      );
+      setChildPosQuery("");
+      setChildPosResults([]);
+      setChildPosManualMode(false);
+      setChildPosManualInput("");
+    } catch {
+      setChildPosManualError("Error al validar la plaza.");
+    } finally {
+      setChildPosManualChecking(false);
     }
   };
 
@@ -934,7 +1018,7 @@ function OrganigramaContent() {
             ) : !node.ocupante || !node.ocupante.activa ? (
               <p className="text-[9.5px] text-rose-700 dark:text-rose-400 font-semibold">Plaza inactiva</p>
             ) : node.ocupante.vacante ? (
-              <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">Vacante</p>
+              <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">Departamento vacante</p>
             ) : (
               <>
                 <p className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 leading-tight line-clamp-2">
@@ -1166,13 +1250,67 @@ function OrganigramaContent() {
                     ))}
                   </div>
                 )}
-                <button
-                  onClick={() => { setEditingField(null); setEmpSearchQuery(""); setEmpSearchResults([]); }}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                  Cancelar
-                </button>
+
+                {/* Asignar la plaza sin persona (departamento vacante) ────── */}
+                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  {!manualPlazaMode ? (
+                    <button
+                      onClick={() => { setManualPlazaMode(true); setManualPlazaInput(""); setManualPlazaError(null); }}
+                      className="text-[10px] font-semibold text-rose-900 dark:text-rose-700 hover:underline cursor-pointer"
+                    >
+                      ¿La plaza está vacante? Asignarla por número
+                    </button>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Nº de plaza"
+                          value={manualPlazaInput}
+                          onChange={e => setManualPlazaInput(e.target.value)}
+                          disabled={manualPlazaChecking}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-800 text-slate-800 dark:text-slate-100 disabled:opacity-50"
+                        />
+                        <button
+                          onClick={() => applyManualPlaza(
+                            fieldKey === "titular" ? "num_posicion_gerente" : "posicion_director",
+                            fieldKey,
+                            node,
+                            manualPlazaInput
+                          )}
+                          disabled={manualPlazaChecking || !manualPlazaInput.trim()}
+                          className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white bg-rose-900 hover:bg-rose-950 transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                        >
+                          {manualPlazaChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Guardar"}
+                        </button>
+                      </div>
+                      <p className="text-[9.5px] text-slate-400 dark:text-slate-500">
+                        Se guarda como {label.toLowerCase()} aunque la plaza esté vacante (sin persona asignada).
+                      </p>
+                      {manualPlazaError && (
+                        <p className="text-[10px] text-rose-600 dark:text-rose-400">{manualPlazaError}</p>
+                      )}
+                      <button
+                        onClick={resetManualPlaza}
+                        className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {!manualPlazaMode && (
+                  <button
+                    onClick={() => { setEditingField(null); setEmpSearchQuery(""); setEmpSearchResults([]); resetManualPlaza(); }}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                    Cancelar
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1193,7 +1331,7 @@ function OrganigramaContent() {
         ) : info.vacante ? (
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 flex items-start gap-2">
             <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-            <div>Plaza <strong className="font-mono">{posicion}</strong> activa, vacante.</div>
+            <div>Plaza <strong className="font-mono">{posicion}</strong> activa. Departamento vacante (sin persona asignada).</div>
           </div>
         ) : (
           <div className="space-y-1.5 text-slate-650 dark:text-slate-400">
@@ -1786,7 +1924,11 @@ function OrganigramaContent() {
                   <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs">
                     <span className="font-mono font-semibold text-slate-800 dark:text-slate-100 truncate">
                       Plaza {childForm.num_posicion_gerente}
-                      {childPosSelectedEmp?.nombre && <span className="text-slate-400 font-normal"> · {childPosSelectedEmp.nombre}</span>}
+                      {childPosSelectedEmp?.vacante ? (
+                        <span className="text-amber-600 dark:text-amber-400 font-normal"> · Vacante (departamento sin persona)</span>
+                      ) : childPosSelectedEmp?.nombre ? (
+                        <span className="text-slate-400 font-normal"> · {childPosSelectedEmp.nombre}</span>
+                      ) : null}
                     </span>
                     <button
                       type="button"
@@ -1848,6 +1990,55 @@ function OrganigramaContent() {
                         ))}
                       </div>
                     )}
+
+                    {/* Asignar la plaza sin persona (departamento vacante) ── */}
+                    <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                      {!childPosManualMode ? (
+                        <button
+                          type="button"
+                          onClick={() => { setChildPosManualMode(true); setChildPosManualInput(""); setChildPosManualError(null); }}
+                          className="text-[10px] font-semibold text-rose-900 dark:text-rose-700 hover:underline cursor-pointer"
+                        >
+                          ¿La plaza está vacante? Asignarla por número
+                        </button>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="Nº de plaza"
+                              value={childPosManualInput}
+                              onChange={e => setChildPosManualInput(e.target.value)}
+                              disabled={childPosManualChecking}
+                              className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-800 text-slate-800 dark:text-slate-100 disabled:opacity-50"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => checkChildManualPlaza(childPosManualInput)}
+                              disabled={childPosManualChecking || !childPosManualInput.trim()}
+                              className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white bg-rose-900 hover:bg-rose-950 transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                            >
+                              {childPosManualChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Validar"}
+                            </button>
+                          </div>
+                          <p className="text-[9.5px] text-slate-400 dark:text-slate-500">
+                            Se asigna como plaza titular aunque esté vacante (sin persona asignada).
+                          </p>
+                          {childPosManualError && (
+                            <p className="text-[10px] text-rose-600 dark:text-rose-400">{childPosManualError}</p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setChildPosManualMode(false); setChildPosManualInput(""); setChildPosManualError(null); }}
+                            className="flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                            Cancelar
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
