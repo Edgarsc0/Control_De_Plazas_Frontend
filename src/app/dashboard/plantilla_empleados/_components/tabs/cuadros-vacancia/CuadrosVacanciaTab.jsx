@@ -1,7 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Zoom } from "react-awesome-reveal";
-import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp, TrendingUp } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import { PlantillaService } from '@/services/plantilla.service';
@@ -27,6 +28,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const pdfRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingWord, setIsGeneratingWord] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isTableExpanded, setIsTableExpanded] = useState(false);
 
@@ -93,6 +95,97 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       fechaActual: formatDate(actualRow.fecha)
     };
   }, [actualRow]);
+
+  const historicoChartData = useMemo(() => {
+    return [...cuadrosData]
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+      .map(row => ({
+        fecha: row.fecha,
+        label: formatDate(row.fecha),
+        ocupadas_permanente: row.ocupadas_permanente || 0,
+        ocupadas_eventual: row.ocupadas_eventual || 0,
+        vacantes_permanente: row.vacantes_permanente || 0,
+        vacantes_eventual: row.vacantes_eventual || 0,
+      }));
+  }, [cuadrosData]);
+
+  const HISTORICO_SERIES = [
+    { key: 'ocupadas_permanente', name: 'Permanentes Ocupadas', color: '#10243e' },
+    { key: 'ocupadas_eventual', name: 'Eventuales Ocupadas', color: '#bc955c' },
+    { key: 'vacantes_permanente', name: 'Vacantes Permanentes', color: '#621f32' },
+    { key: 'vacantes_eventual', name: 'Vacantes Eventuales', color: '#2e5890' },
+  ];
+
+  const historicoMinMax = useMemo(() => {
+    const result = {};
+    HISTORICO_SERIES.forEach(s => {
+      let maxPoint = null, minPoint = null;
+      historicoChartData.forEach((d, i) => {
+        const v = d[s.key];
+        if (maxPoint === null || v > maxPoint.value) maxPoint = { index: i, value: v };
+        if (minPoint === null || v < minPoint.value) minPoint = { index: i, value: v };
+      });
+      result[s.key] = { max: maxPoint, min: minPoint };
+    });
+    return result;
+  }, [historicoChartData]);
+
+  const renderHistoricoDot = (key, color) => (dotProps) => {
+    const { cx, cy, index, value } = dotProps;
+    const minMax = historicoMinMax[key];
+    const isMax = minMax?.max && index === minMax.max.index;
+    const isMin = minMax?.min && index === minMax.min.index && minMax.min.index !== minMax.max.index;
+
+    if (!isMax && !isMin) {
+      return <circle key={`dot-${key}-${index}`} cx={cx} cy={cy} r={3.5} fill={color} strokeWidth={0} />;
+    }
+
+    return (
+      <g key={`dot-${key}-${index}`}>
+        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
+        <text
+          x={cx}
+          y={isMax ? cy - 11 : cy + 18}
+          textAnchor="middle"
+          fontSize={10}
+          fontWeight={800}
+          fill={color}
+          className="select-none"
+        >
+          {formatNumber(value)}
+        </text>
+      </g>
+    );
+  };
+
+  const [hoveredPointKey, setHoveredPointKey] = useState(null);
+
+  const HistoricoTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+        <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
+          {label}
+        </p>
+        <div className="space-y-1.5">
+          {payload.map((p, i) => {
+            const isHovered = p.dataKey === hoveredPointKey;
+            return (
+              <div key={i} className="flex justify-between items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                  <span className={`text-[11px] ${isHovered ? 'font-black text-slate-800 dark:text-white' : 'font-bold text-slate-500 dark:text-slate-400'}`}>
+                    {p.name}
+                  </span>
+                </div>
+                <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(p.value)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   // Unique lists for the filters (based on all available data)
   const uniqueYears = useMemo(() => {
@@ -414,7 +507,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       // PÁGINAS 2+: Gráficas (una por página, grandes)
       // ════════════════════════════════════════════════
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular'];
+      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular'];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
           pdf.addPage();
@@ -695,6 +788,61 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     }
   };
 
+  const handleGenerateWord = async () => {
+    try {
+      setIsGeneratingWord(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      let lastUpdateText = '';
+      try {
+        const resp = await PlantillaService.getUltimaActualizacion();
+        if (resp.ok) {
+          const res = await resp.json();
+          if (res && res.fecha) {
+            const d = new Date(res.fecha);
+            const day = String(d.getDate()).padStart(2, '0');
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const yr = d.getFullYear();
+            let hrs = d.getHours();
+            const mins = String(d.getMinutes()).padStart(2, '0');
+            const ampm = hrs >= 12 ? 'PM' : 'AM';
+            hrs = hrs % 12 || 12;
+            lastUpdateText = `Última actualización: ${day}/${mo}/${yr} ${String(hrs).padStart(2, '0')}:${mins} ${ampm}`;
+          }
+        }
+      } catch (e) { /* silenciar */ }
+
+      // Esperar a que las gráficas se rendericen en tamaño de exportación
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
+      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular'];
+      const chartImages = [];
+      if (chartEls && chartEls.length > 0) {
+        for (let i = 0; i < chartEls.length; i++) {
+          const dataUrl = await toPng(chartEls[i], { backgroundColor: '#ffffff', pixelRatio: 3 });
+          const img = new Image();
+          img.src = dataUrl;
+          await new Promise(resolve => { img.onload = resolve; });
+          chartImages.push({ title: chartTitles[i] || 'Gráfica', dataUrl, width: img.width, height: img.height });
+        }
+      }
+
+      const { generateCuadroVacanciaWord } = await import('@/utils/cuadroVacanciaWord');
+      await generateCuadroVacanciaWord({
+        filteredData,
+        desgloseJerarquicoData,
+        chartImages,
+        lastUpdateText,
+      });
+    } catch (err) {
+      console.error('Error generating Word:', err);
+      alert('Hubo un error al generar el Word.');
+    } finally {
+      setIsGeneratingWord(false);
+    }
+  };
+
   return (
     <div className="w-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
@@ -867,6 +1015,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   >
                     <FileText className={`size-3.5 ${isGeneratingPdf ? 'animate-pulse' : ''}`} />
                     <span>{isGeneratingPdf ? 'Generando PDF...' : 'Reporte PDF'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleGenerateWord}
+                    disabled={isGeneratingWord}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#2e5890] to-[#3b6ba8] hover:from-[#254a79] hover:to-[#2e5890] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md shadow-[#2e5890]/25 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <FileEdit className={`size-3.5 ${isGeneratingWord ? 'animate-pulse' : ''}`} />
+                    <span>{isGeneratingWord ? 'Generando Word...' : 'Reporte Word'}</span>
                   </button>
                 </div>
               </div>
@@ -1069,9 +1226,95 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           </Zoom>
         </div>
 
+        <div className="w-full px-4 lg:px-6" data-pdf-section>
+          <Zoom triggerOnce>
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
+                <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
+                  <TrendingUp className="size-6" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
+                    Histórico de Ocupación y Vacancia
+                  </h3>
+                  <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
+                    Permanentes / Eventuales Ocupadas vs. Vacantes por quincena
+                  </p>
+                </div>
+              </div>
+
+              {historicoChartData.length === 0 ? (
+                <div className="py-16 text-center text-slate-450 dark:text-slate-500 font-bold">
+                  No hay datos históricos disponibles
+                </div>
+              ) : (
+                <div data-pdf-chart className={`w-full relative pl-5 ${(isGeneratingPdf || isGeneratingWord) ? 'h-[650px]' : 'h-[380px]'}`}>
+                  <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
+                    OCUPADAS
+                  </span>
+                  <span className="absolute left-0 top-[78%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
+                    VACANTES
+                  </span>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={historicoChartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.6} className="text-slate-350 dark:text-slate-600" />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 10, fontWeight: 700 }}
+                        stroke="currentColor"
+                        className="text-slate-400 dark:text-slate-500"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fontWeight: 700 }}
+                        stroke="currentColor"
+                        className="text-slate-400 dark:text-slate-500"
+                        tickFormatter={formatNumber}
+                        width={55}
+                      />
+                      <Tooltip content={<HistoricoTooltip />} cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11, fontWeight: 700 }}
+                        formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
+                      />
+                      {HISTORICO_SERIES.map(s => (
+                        <Line
+                          key={s.key}
+                          type="linear"
+                          dataKey={s.key}
+                          name={s.name}
+                          stroke={s.color}
+                          strokeWidth={2.5}
+                          dot={renderHistoricoDot(s.key, s.color)}
+                          activeDot={(dotProps) => {
+                            const { cx, cy, key } = dotProps;
+                            return (
+                              <circle
+                                key={key}
+                                cx={cx}
+                                cy={cy}
+                                r={6}
+                                fill={s.color}
+                                stroke="#fff"
+                                strokeWidth={2}
+                                onMouseEnter={() => setHoveredPointKey(s.key)}
+                                onMouseLeave={() => setHoveredPointKey(null)}
+                              />
+                            );
+                          }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </Zoom>
+        </div>
+
         <div className="w-full px-4 lg:px-6" data-pdf-section data-pdf-charts>
           <Zoom triggerOnce>
-            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} forExport={isGeneratingPdf} />
+            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
           </Zoom>
         </div>
 
