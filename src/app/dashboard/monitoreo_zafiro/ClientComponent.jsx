@@ -204,10 +204,6 @@ export default function ClientComponent() {
   }, [logs]);
 
   useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs?.[0]?.logs_en_vivo]);
-
-  useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setActiveFilterDropdown(null);
