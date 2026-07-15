@@ -1,0 +1,673 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-noindentfirst,es-noshorthands]{babel}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{amssymb}
+\usepackage{hyperref}
+
+\definecolor{vino}{HTML}{621F32}
+\definecolor{oro}{HTML}{BC955C}
+\definecolor{grisclaro}{HTML}{F1F5F9}
+\definecolor{grisborde}{HTML}{CBD5E1}
+
+\hypersetup{
+  pdftitle={Caso de Prueba M6 - Valuacion Presupuestaria},
+  pdfauthor={Eje Central - QA},
+  colorlinks=true,
+  linkcolor=vino,
+  pdfborder={0 0 0}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.6pt}
+\renewcommand{\footrulewidth}{0.3pt}
+\fancyhead[L]{\small\color{vino}\textbf{CP-M06} --- Valuación Presupuestaria}
+\fancyhead[R]{\small\color{grisborde} eje\_central\_front}
+\fancyfoot[C]{\small\thepage}
+
+\newcommand{\seccion}[1]{%
+  \vspace{6pt}
+  {\large\color{vino}\textbf{#1}}\\[2pt]
+  {\color{oro}\rule{\linewidth}{1.2pt}}\\[6pt]
+}
+
+\newcommand{\subcaso}[2]{%
+  \vspace{10pt}
+  \noindent{\color{vino}\rule{\linewidth}{2.2pt}}\\[4pt]
+  {\Large\color{vino}\textbf{#1}} \quad {\large\color{oro}\textbf{#2}}\\[4pt]
+}
+
+% Checkbox de PDF interactivo (AcroForm)
+\newcommand{\chk}[1]{\CheckBox[name=#1,width=11pt,height=11pt,bordercolor=grisborde,backgroundcolor=1 1 1]{}}
+
+% Campo de texto de una línea
+\newcommand{\txtline}[3]{\TextField[name=#1,width=#2,height=13pt,bordercolor=grisborde,backgroundcolor=0.97 0.98 1]{#3}}
+
+\begin{document}
+\begin{Form}
+
+% ---------- Portada / encabezado ----------
+\begin{center}
+  {\Huge\color{vino}\textbf{Caso de Prueba}}\\[4pt]
+  {\Large\color{oro}\textbf{CP-M06}}\\[2pt]
+  {\large Valuación Presupuestaria --- Simulador, Parámetros y Asuntos de Plazas}\\[2pt]
+  {\small Módulo M6 --- 3 sub-casos: T1, T2, T3}
+\end{center}
+
+\vspace{6pt}
+\noindent\small\textit{Instrucciones de uso: este documento no requiere conocimientos de
+programación ni de sistemas. Ábrelo con un programa que permita rellenar formularios en PDF (Adobe
+Acrobat Reader, Foxit, o el visor de Chrome/Edge) y marca cada casilla ($\Box$) conforme vayas
+realizando cada paso con el mouse y el teclado, igual que lo haría cualquier persona que usa la
+página. Todos los campos de texto y casillas son editables y se guardan al guardar el PDF. Si algún
+paso no se puede completar, no te detengas: marca "Rechazado" o "Bloqueado" en el veredicto del
+sub-caso y describe lo que pasó en "Observaciones".}\normalsize
+
+\vspace{10pt}
+
+\noindent
+\begin{tabular}{|>{\columncolor{grisclaro}}p{3.2cm}|p{12.8cm}|}
+\hline
+\textbf{ID} & CP-M06 \\ \hline
+\textbf{Módulo} & M6 --- Valuación Presupuestaria \\ \hline
+\textbf{¿Dónde se hace la prueba?} & Iniciar sesión y, en el menú del lado izquierdo, entrar a
+\emph{Valuación Presupuestaria}. Ahí aparecen 3 pestañas arriba: \emph{Simulador} (T1),
+\emph{Parámetros} (T2) y \emph{Asuntos de Plazas} (T3). También se puede entrar escribiendo
+directamente en la barra de direcciones del navegador: \path{/dashboard/valuacion_presupuestaria} \\ \hline
+\textbf{Permisos necesarios} & Para usar \emph{Simulador} y \emph{Asuntos de Plazas} (T1 y T3) hace
+falta el permiso \textbf{"Ver Valuación Presupuestaria"}. Para usar \emph{Parámetros} (T2) hace
+falta el permiso \textbf{"Editar Parámetros de Valuación"}. Estos permisos los asigna un
+administrador del sistema; si no se sabe si se cuenta con ellos, hay que preguntarle antes de
+empezar. \\ \hline
+\textbf{Importancia de esta prueba} & Alta --- este módulo calcula presupuesto oficial y permite
+editar valores que afectan todos los cálculos del sistema \\ \hline
+\textbf{Qué se va a probar} & Que los cálculos salgan correctos, que se pueda editar información
+guardándose sola, que se puedan descargar reportes en PDF y Excel, y que cada pestaña solo la vea
+quien tiene permiso para usarla \\ \hline
+\textbf{Ejecutor} & \txtline{tester_nombre}{9cm}{} \\ \hline
+\textbf{Fecha de ejecución} & \txtline{fecha_ejecucion}{5cm}{} \\ \hline
+\textbf{Entorno} & \chk{env_local} Pruebas en mi equipo \quad \chk{env_staging} Pruebas (Staging) \quad \chk{env_prod} Producción (sistema real) \\ \hline
+\end{tabular}
+
+\seccion{Objetivo general}
+Verificar que el módulo de Valuación Presupuestaria permite: (T1) calcular el impacto presupuestal
+de un conjunto de plazas seleccionadas --- de forma manual o cargándolas automáticamente desde
+plazas eventuales o permanentes ocupadas --- para un período de 1 a 12 meses, y descargar el
+resultado en PDF y en Excel; (T2) editar directamente sobre la pantalla, guardándose de forma
+automática, el catálogo de plazas (PECEN), los conceptos presupuestales y las constantes del
+sistema que alimentan ese cálculo; y (T3) dar seguimiento a las solicitudes (asuntos) de ocupación
+de plazas clasificadas como "Valuación Presupuestaria" y enviarlas al Simulador con su expediente
+ya cargado. También se verifica que cada pestaña se muestre solo a quien tiene el permiso
+correspondiente.
+
+\seccion{Precondiciones generales}
+\begingroup\small
+\begin{itemize}[leftmargin=1.6em]
+  \item[\chk{preg1}] Ya se inició sesión en el sistema.
+  \item[\chk{preg2}] El usuario de prueba tiene AL MENOS UNO de los dos permisos:
+    \textbf{"Ver Valuación Presupuestaria"} o \textbf{"Editar Parámetros de Valuación"}. Si no tiene
+    ninguno de los dos, al entrar el sistema regresa automáticamente a la pantalla principal
+    (Dashboard) sin mostrar ningún mensaje de "acceso denegado" --- esto es lo esperado, no es un
+    error.
+  \item[\chk{preg3}] Para ejecutar T1 y T3: el usuario tiene el permiso
+    \textbf{"Ver Valuación Presupuestaria"}.
+  \item[\chk{preg4}] Para ejecutar T2: el usuario tiene el permiso
+    \textbf{"Editar Parámetros de Valuación"}.
+  \item[\chk{preg5}] Existe en Control de Gestión al menos un oficio turnado con su asunto clasificado
+    como "Valuación Presupuestaria", con expediente y al menos un documento adjunto (para T3 y para
+    el flujo de integración T3 $\to$ T1).
+  \item[\chk{preg6}] El catálogo de plazas (PECEN) tiene al menos un nivel activo con sueldo y
+    compensación garantizada mayores a 0.
+\end{itemize}
+\endgroup
+
+\noindent\textbf{Datos de prueba (llenar antes de ejecutar):}\\[4pt]
+\begin{tabular}{|p{6.5cm}|p{9.5cm}|}
+\hline
+Usuario con permiso "Ver Valuación Presupuestaria" & \txtline{dato_user_view}{8.8cm}{} \\ \hline
+Usuario con permiso "Editar Parámetros de Valuación" & \txtline{dato_user_edit}{8.8cm}{} \\ \hline
+Usuario SIN ninguno de los dos permisos (para la prueba de acceso negado) & \txtline{dato_user_sin_permiso}{8.8cm}{} \\ \hline
+Folio de asunto de prueba clasificado "Valuación Presupuestaria" & \txtline{dato_folio}{8.8cm}{} \\ \hline
+Nivel de catálogo de prueba (para selección manual en el Simulador) & \txtline{dato_nivel}{8.8cm}{} \\ \hline
+\end{tabular}
+
+\seccion{Prueba de control de acceso (previa a los 3 sub-casos)}
+\begingroup\small
+\begin{longtable}{|c|p{6.7cm}|p{6.7cm}|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{\#} & \textbf{Acción} & \textbf{Resultado esperado} & \textbf{OK} \\ \hline
+\endhead
+
+0.1 &
+Iniciar sesión con el usuario que \textbf{no tiene ningún} permiso del módulo y escribir
+directamente en la barra de direcciones del navegador: \path{/dashboard/valuacion_presupuestaria}. &
+No se muestra ningún contenido del módulo ni mensaje de error; la página regresa automáticamente
+a la pantalla principal (Dashboard). &
+\chk{r01} \\ \hline
+
+0.2 &
+Iniciar sesión con el usuario que SOLO tiene el permiso "Ver Valuación Presupuestaria" (sin
+"Editar Parámetros de Valuación") y entrar al módulo. &
+La barra de pestañas muestra únicamente \emph{Simulador} y \emph{Asuntos de Plazas}; la pestaña
+\emph{Parámetros} no aparece en absoluto (no es que esté apagada o bloqueada: simplemente no se
+muestra). &
+\chk{r02} \\ \hline
+
+0.3 &
+Iniciar sesión con el usuario que SOLO tiene el permiso "Editar Parámetros de Valuación" (sin
+"Ver Valuación Presupuestaria") y entrar al módulo. &
+La barra de pestañas muestra únicamente \emph{Parámetros}, y esta queda seleccionada
+automáticamente (no existe \emph{Simulador} ni \emph{Asuntos de Plazas} para este usuario). &
+\chk{r03} \\ \hline
+
+\end{longtable}
+\endgroup
+
+% ======================================================================
+\subcaso{CP-M06-T1}{Simulador de Valuación}
+% ======================================================================
+
+\textbf{Objetivo específico:} Verificar que el Simulador permite seleccionar plazas por nivel (de
+forma manual o precargada desde "Eventuales Ocupadas"/"Permanentes Ocupadas"), calcular la
+valuación presupuestaria para un período de 1 a 12 meses, mostrar el desglose correcto con sus
+cuadros de ayuda con la fórmula usada, descargar el resultado en PDF y en Excel, y manejar el flujo
+de "asunto vinculado" que llega
+desde Asuntos de Plazas.
+
+\vspace{4pt}\noindent\textbf{Precondición específica:} usar el usuario con el permiso "Ver
+Valuación Presupuestaria". La pestaña que se muestra automáticamente al entrar al módulo es
+\emph{Simulador}.
+
+\begingroup\small
+\begin{longtable}{|c|p{6.7cm}|p{6.7cm}|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{\#} & \textbf{Acción} & \textbf{Resultado esperado} & \textbf{OK} \\ \hline
+\endhead
+
+1 &
+Entrar a la pestaña \emph{Simulador}. &
+Encabezado color vino con degradado y el texto "FUMP 2025 --- Sistema de Control de Plazas" /
+"Valuación Presupuestaria"; debajo, un selector de período (12 botones, Ene a Dic); dos columnas:
+"1 Selección de Niveles" (catálogo) y "2 Selección Activa" (vacía, con un ícono de capas y el texto
+"Sin niveles seleccionados"); el botón "Calcular Valuación Presupuestaria" se ve apagado y no se
+puede pulsar. &
+\chk{t1r1} \\ \hline
+
+2 &
+Observar qué botón del selector de período queda resaltado en ámbar por defecto, sin hacer clic
+en ninguno. &
+Queda resaltado el botón cuya \textbf{posición numérica} (1 a 12, de izquierda a derecha) es igual
+a (12 menos el número de mes actual contando enero = 0). Ese NÚMERO de posición --- no el nombre
+del mes que muestra la etiqueta del botón --- es el período en meses que se usará por defecto al
+calcular. &
+\chk{t1r2} \\ \hline
+
+3 &
+Clic en cualquier otro botón del selector de período (ej. el último, "Dic"). &
+El botón clicado queda resaltado en ámbar (fondo \#fbbf24, texto vino, ligeramente agrandado); el
+que estaba resaltado antes pierde el resaltado; el período de evaluación pasa a ser la posición del
+botón clicado (1 a 12). &
+\chk{t1r3} \\ \hline
+
+4 &
+Escribir en el buscador "Filtrar por nivel o puesto..." (columna 1) un texto que coincida con el
+nivel, código o denominación de al menos una fila. &
+La lista de la columna 1 se filtra en vivo mostrando solo las filas cuyo nivel, código o
+denominación contienen el texto (sin distinguir mayúsculas/minúsculas). Borrar el texto restaura
+el catálogo completo. &
+\chk{t1r4} \\ \hline
+
+5 &
+En una fila del catálogo, hacer clic 3 veces en la flecha hacia arriba ($\blacktriangle$) junto al
+número de plazas. &
+El número que aparece en el centro de esa fila sube de 0 a 3; al mismo tiempo aparece una tarjeta
+con esa plaza en la columna 2 "Selección Activa" mostrando "3 plazas". &
+\chk{t1r5} \\ \hline
+
+6 &
+En la misma fila, borrar el número escrito y escribir directamente "7". &
+El campo queda en 7; la tarjeta correspondiente en "Selección Activa" actualiza su contador a
+"7 plazas" (no se crea una tarjeta duplicada). &
+\chk{t1r6} \\ \hline
+
+7 &
+En "Selección Activa", hacer clic en el ícono $\times$ de la plaza agregada en el paso anterior. &
+Esa tarjeta desaparece de "Selección Activa"; el número de esa fila en el catálogo (columna 1)
+regresa a vacío/0. &
+\chk{t1r7} \\ \hline
+
+8 &
+Seleccionar 2 o más plazas distintas (repetir pasos 5--6 en otra fila) y luego hacer clic en el
+botón "Limpiar" (arriba a la derecha de "Selección Activa"). &
+Todas las plazas seleccionadas se eliminan de golpe; "Selección Activa" vuelve al estado vacío;
+todos los números de plazas en el catálogo regresan a 0. El botón "Limpiar" solo se muestra cuando
+hay al menos una plaza seleccionada. &
+\chk{t1r8} \\ \hline
+
+9 &
+Clic en el botón "Eventuales Ocupadas". &
+Mientras carga, el botón muestra un ícono girando y el texto "Cargando..."; tanto él como
+"Permanentes Ocupadas" quedan apagados/no disponibles. Al terminar: "Eventuales Ocupadas" queda con
+fondo vino sólido (activo); el catálogo y "Selección Activa" se llenan automáticamente con las
+cantidades reales de plazas eventuales ocupadas que trae el sistema, sin que el usuario tenga que
+escribir nada; cada fila con dato precargado muestra una etiqueta pequeña "N ocp." junto al nivel. &
+\chk{t1r9} \\ \hline
+
+10 &
+Si el sistema encuentra niveles de nómina que no existen en el catálogo, observar el aviso bajo
+los botones de carga. &
+Aparece una franja roja con ícono de información y el texto "N nivel(es) de nómina sin
+correspondencia en catálogo --- no incluidos en la carga.", donde N es la cantidad real que reporta
+el sistema para el modo activo (Eventuales o Permanentes). &
+\chk{t1r10} \\ \hline
+
+11 &
+Con "Eventuales Ocupadas" activo, hacer clic en "Permanentes Ocupadas". &
+"Eventuales Ocupadas" se desactiva (pierde el fondo vino); "Permanentes Ocupadas" pasa a estar
+activo con fondo azul (\#1a4a7a). Los datos de "Selección Activa" y del catálogo se
+\textbf{reemplazan por completo} por los de plazas permanentes ocupadas (no se suman a los
+anteriores). Ambos botones son mutuamente excluyentes: nunca quedan los dos activos a la vez. &
+\chk{t1r11} \\ \hline
+
+12 &
+Con al menos una plaza con cantidad mayor a 0 seleccionada, hacer clic en "Calcular Valuación
+Presupuestaria". &
+El botón muestra un ícono girando y el texto "Procesando valuación..." y queda no disponible; al
+recibir la respuesta, la página se desplaza sola y suavemente hasta la sección de resultados. &
+\chk{t1r12} \\ \hline
+
+13 &
+Revisar la tabla "Desglose por Concepto". &
+Encabezado vino degradado con etiqueta "FUMP 2025 $\cdot$ N Mes(es)" donde N coincide exactamente con el
+período elegido en el paso 2 o 3; columnas Partida, Concepto, "Período Colectivo (Nm)",
+"Regularizable (12m)", "Complemento Colectivo"; una fila por cada partida que trae el sistema;
+fila final "Total Valuación Presupuestal" con fondo vino y montos en ámbar. &
+\chk{t1r13} \\ \hline
+
+14 &
+Pasar el mouse (sin hacer clic) sobre cualquier celda de Partida, Concepto o de los 3 montos de
+una fila de esa tabla. &
+Aparece un cuadro de ayuda flotante oscuro con encabezado "Detalle de Cálculo" y, debajo, la
+fórmula usada para ese concepto (ej. para la partida 12201: "$\Sigma$(Sueldo Base
+$\times$ Plazas) $\times$ Meses"). El cuadro desaparece al quitar el mouse. &
+\chk{t1r14} \\ \hline
+
+15 &
+Revisar la tabla "Desglose Analítico por Nivel". &
+Encabezado con etiqueta "Base PECEN"; columnas Nivel, Plazas, Sueldo Base, "Sueldo Colectivo /
+Período", "Comp. Garantizada", "Comp. Gar. Colectiva / Período", "Total Nivel"; una fila por cada
+nivel seleccionado; fila "TOTAL" en fondo gris oscuro con montos en ámbar que suma todas las
+filas. &
+\chk{t1r15} \\ \hline
+
+16 &
+Clic en el botón "PDF" (arriba a la derecha de la sección de resultados). &
+Se descarga un archivo \path{Valuacion_Presupuestaria_<timestamp>.pdf} con encabezado vino
+"REPORTE DE VALUACIÓN PRESUPUESTARIA", fecha de generación, período evaluado y --- solo si se usó
+"Eventuales Ocupadas" o "Permanentes Ocupadas" --- una etiqueta con el modo usado; contiene ambas
+tablas (Desglose por Concepto y Desglose Analítico por Nivel) con sus totales, más una fila
+adicional "QUINCENA" en la segunda tabla. &
+\chk{t1r16} \\ \hline
+
+17 &
+Clic en el botón "Excel". &
+Se descarga \path{Valuacion_Presupuestaria_<timestamp>.xlsx} con 2 hojas: "Resumen por
+Concepto" y "Desglose Analítico"; ambas con banda de título vino, encabezados en vino, montos con
+formato de moneda, fila TOTAL y (solo en la hoja "Desglose Analítico") fila QUINCENA adicional. &
+\chk{t1r17} \\ \hline
+
+18 &
+Ir a la pestaña \emph{Asuntos de Plazas} (sub-caso T3) y hacer clic en el botón "Ir al simulador"
+(ícono de calculadora) de cualquier fila. &
+La vista cambia automáticamente a la pestaña \emph{Simulador}; el diseño cambia de 2 columnas a un
+panel dividido: panel izquierdo fijo (48\% del ancho) con encabezado "Oficio Vinculado" + folio
+del asunto + botón "Cerrar Asunto"; visor de PDF del primer documento del expediente (o el mensaje
+"No se pudo cargar el documento" si no existe ninguno); bloque de metadatos (Número de Oficio,
+Remitente, Descripción) y lista de "Archivos del Expediente" / "Respuestas" si existen. Panel
+derecho (52\%) con el Simulador completo, igual al de los pasos 1--17. &
+\chk{t1r18} \\ \hline
+
+19 &
+Si el expediente tiene más de un documento/respuesta listados, hacer clic en uno distinto al que
+se está mostrando. &
+Mientras carga se ve una pantalla con el aviso "Generando Vista Previa..." (o un ícono girando);
+al terminar, el visor de PDF cambia al documento seleccionado y el botón de ese documento queda
+resaltado (vino para documentos, verde para respuestas). &
+\chk{t1r19} \\ \hline
+
+20 &
+Clic en "Cerrar Asunto". &
+El diseño regresa al de 2 columnas normal (sin panel de expediente); la selección de plazas y el
+resultado de cálculo obtenidos en los pasos previos \textbf{no se pierden} (persisten en pantalla). &
+\chk{t1r20} \\ \hline
+
+\end{longtable}
+\endgroup
+
+\noindent\textbf{Criterios de aceptación T1:}
+\begin{itemize}[leftmargin=1.6em]
+  \item[\chk{t1ac1}] "Calcular Valuación Presupuestaria" permanece deshabilitado mientras no haya
+    ninguna plaza con cantidad mayor a 0.
+  \item[\chk{t1ac2}] "Eventuales Ocupadas" y "Permanentes Ocupadas" son mutuamente excluyentes;
+    activar uno reemplaza por completo los datos cargados por el otro.
+  \item[\chk{t1ac3}] El período (1--12) usado en el cálculo coincide exactamente con el botón
+    resaltado en el selector al momento de pulsar "Calcular".
+  \item[\chk{t1ac4}] Los totales mostrados en pantalla ("Total Valuación Presupuestal" y "TOTAL"
+    por nivel) coinciden exactamente con los totales exportados a PDF y a Excel.
+  \item[\chk{t1ac5}] El flujo de "Asunto vinculado" no resetea una selección de plazas hecha
+    previamente en el Simulador.
+  \item[\chk{t1ac6}] Durante todo el flujo no aparecen mensajes de error inesperados, pantallas en
+    blanco, ni el sistema se queda congelado o sin responder.
+\end{itemize}
+
+\vspace{6pt}\noindent
+\textbf{Veredicto T1:}\quad
+\chk{t1_aprobado} \textbf{Aprobado} \qquad
+\chk{t1_rechazado} \textbf{Rechazado} \qquad
+\chk{t1_bloqueado} \textbf{Bloqueado}\\[4pt]
+\noindent\textbf{Observaciones T1:}\\[4pt]
+\TextField[name=obs_t1, width=16cm, height=1.6cm, multiline=true, bordercolor=grisborde, backgroundcolor=0.97 0.98 1]{}
+
+% ======================================================================
+\subcaso{CP-M06-T2}{Parámetros de Valuación}
+% ======================================================================
+
+\textbf{Objetivo específico:} Verificar que la pestaña \emph{Parámetros} permite editar
+directamente sobre la pantalla, guardándose de forma automática y real, las 3 tablas que alimentan
+el cálculo de valuación (Catálogo de Plazas, Conceptos Presupuestales, Constantes), y que los
+filtros/búsqueda funcionan y se reinician correctamente al cambiar de sub-pestaña. Este sub-caso
+solo aplica a usuarios con el permiso "Editar Parámetros de Valuación".
+
+\vspace{4pt}\noindent\textbf{Precondición específica:} usar el usuario con el permiso "Editar
+Parámetros de Valuación". Entrar a la pestaña \emph{Parámetros}.
+
+\begingroup\small
+\begin{longtable}{|c|p{6.7cm}|p{6.7cm}|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{\#} & \textbf{Acción} & \textbf{Resultado esperado} & \textbf{OK} \\ \hline
+\endhead
+
+1 &
+Clic en la pestaña \emph{Parámetros}. &
+Se muestran 3 sub-pestañas: "Catálogo Plazas", "Conceptos Pres." y "Constantes" (seleccionada por
+defecto: "Catálogo Plazas"). El encabezado de contenido muestra el título "Catálogo PECEN" (nota: el
+título de la página NO es idéntico al texto del botón de la sub-pestaña) junto con la leyenda
+"Sistema FUMP $\cdot$
+Clic en valor para editar $\cdot$ Enter para guardar"; a la derecha: buscador "Filtrar...", etiqueta verde
+"$\checkmark$ Auto guardado", botón "Reiniciar filtros" (deshabilitado, sin filtros activos) y botón
+"Recargar". &
+\chk{t2r1} \\ \hline
+
+2 &
+Sin tocar nada más, revisar el pie fijo de la tabla. &
+Franja ámbar con ícono de alerta y el texto exacto: "Precaución: Las modificaciones afectarán
+directamente todos los cálculos de valuación en tiempo real." Esta franja está presente en las 3
+sub-pestañas. &
+\chk{t2r2} \\ \hline
+
+3 &
+En "Catálogo Plazas", clic en el valor de la columna "Sueldo" de cualquier fila. &
+La celda entra en modo edición: aparece un campo de texto con borde inferior vino y fondo ámbar
+claro, ya con el valor actual escrito. &
+\chk{t2r3} \\ \hline
+
+4 &
+Escribir un número nuevo distinto y presionar Enter. &
+La celda sale de edición mostrando el nuevo valor ya formateado (2 a 4 decimales, formato es-MX);
+aparece brevemente un pequeño ícono girando junto al valor mientras guarda; al recargar la página
+(tecla F5 o el botón de recargar del navegador) el nuevo valor sigue ahí (esto confirma que sí se
+guardó). &
+\chk{t2r4} \\ \hline
+
+5 &
+Clic en otra celda editable (ej. "Denominación"), escribir un valor distinto y presionar Escape
+antes de hacer clic fuera. &
+La edición se cancela y la celda regresa a mostrar su valor original; no se guarda nada (al
+recargar la página se confirma que el valor no cambió). &
+\chk{t2r5} \\ \hline
+
+6 &
+Clic en una celda editable, cambiar el valor y hacer clic fuera de la celda sin presionar Enter. &
+El cambio se guarda igual que con Enter --- el guardado automático también funciona al hacer clic
+fuera del campo, no solo al presionar Enter. &
+\chk{t2r6} \\ \hline
+
+7 &
+Editar una celda numérica y forzar que el guardado falle (ej. cortar la conexión a internet antes
+de salir del campo, o escribir un valor que el sistema rechace). &
+Aparece una alerta nativa del navegador con el texto "Error al guardar el cambio"; al cerrar la
+alerta, la celda regresa a mostrar su valor original (no se queda con el valor inválido). &
+\chk{t2r7} \\ \hline
+
+8 &
+Escribir en el buscador global "Filtrar..." un texto que coincida con el nivel o denominación de
+al menos una fila. &
+La tabla se reduce en vivo a las filas coincidentes; el botón "Reiniciar filtros" pasa de
+deshabilitado a habilitado. &
+\chk{t2r8} \\ \hline
+
+9 &
+Clic en el ícono de embudo del encabezado de una columna (ej. "Zona"). &
+Se abre un menú desplegable con una lista de casillas con los valores únicos de esa columna
+(igual que en Excel); al deseleccionar
+algunos valores y aplicar, la tabla se reduce a las filas cuyo valor de esa columna quedó marcado;
+el ícono de embudo de esa columna queda resaltado en vino con un punto indicador. &
+\chk{t2r9} \\ \hline
+
+10 &
+Clic en "Reiniciar filtros" (con buscador y/o filtro de columna activos). &
+Buscador global, filtros de columna y filtros de texto se limpian todos a la vez; la tabla regresa
+a mostrar el catálogo completo; el botón vuelve a quedar deshabilitado. &
+\chk{t2r10} \\ \hline
+
+11 &
+Clic en "Recargar". &
+Se descartan los cambios que aún no se reflejaban en pantalla y se vuelve a traer el catálogo, los
+conceptos y las constantes desde el sistema (mientras dura, se ve una pantalla de carga que cubre
+toda la vista). &
+\chk{t2r11} \\ \hline
+
+12 &
+Cambiar a la sub-pestaña "Conceptos Pres.". &
+El encabezado cambia a "Conceptos Presupuestales"; tabla con columnas Partida, Descripción,
+Sección, Orden; los filtros de columna y el texto del buscador que hubiera quedado activo en
+"Catálogo Plazas" se resetean (no se conservan al cambiar de sub-pestaña); la columna "Partida" no es
+editable (texto mono fijo en vino), el resto sí. &
+\chk{t2r12} \\ \hline
+
+13 &
+Cambiar a la sub-pestaña "Constantes". &
+El encabezado cambia a "Constantes del Sistema"; tabla con columnas Clave, "Descripción
+Operativa", Valor; "Clave" no es editable; "Descripción Operativa" y "Valor" sí, con el mismo
+patrón: clic para editar, Enter o clic fuera para guardar, Escape para cancelar. &
+\chk{t2r13} \\ \hline
+
+\end{longtable}
+\endgroup
+
+\noindent\textbf{Criterios de aceptación T2:}
+\begin{itemize}[leftmargin=1.6em]
+  \item[\chk{t2ac1}] Ningún cambio se guarda hasta hacer clic fuera del campo o presionar Enter;
+    Escape siempre cancela sin guardar nada.
+  \item[\chk{t2ac2}] Cambiar de sub-pestaña (Catálogo / Conceptos / Constantes) limpia el buscador y
+    los filtros de columna de la sub-pestaña anterior.
+  \item[\chk{t2ac3}] La pestaña "Parámetros" no se muestra en absoluto (no solo aparece apagada) para
+    un usuario sin el permiso "Editar Parámetros de Valuación".
+  \item[\chk{t2ac4}] El aviso de precaución sobre impacto en cálculos en tiempo real está presente
+    en las 3 sub-pestañas.
+  \item[\chk{t2ac5}] Durante todo el flujo no aparecen mensajes de error inesperados, pantallas en
+    blanco, ni el sistema se queda congelado o sin responder.
+\end{itemize}
+
+\vspace{6pt}\noindent
+\textbf{Veredicto T2:}\quad
+\chk{t2_aprobado} \textbf{Aprobado} \qquad
+\chk{t2_rechazado} \textbf{Rechazado} \qquad
+\chk{t2_bloqueado} \textbf{Bloqueado}\\[4pt]
+\noindent\textbf{Observaciones T2:}\\[4pt]
+\TextField[name=obs_t2, width=16cm, height=1.6cm, multiline=true, bordercolor=grisborde, backgroundcolor=0.97 0.98 1]{}
+
+% ======================================================================
+\subcaso{CP-M06-T3}{Asuntos de Plazas}
+% ======================================================================
+
+\textbf{Objetivo específico:} Verificar que la pestaña \emph{Asuntos de Plazas} lista únicamente las
+solicitudes de ocupación de plazas clasificadas como "Valuación Presupuestaria" que además tienen
+un oficio turnado coincidente en Control de Gestión, que el buscador y las acciones "Ver detalles"
+e "Ir al simulador" funcionan correctamente, y que reclasificar un asunto lo remueve de esta vista.
+
+\vspace{4pt}\noindent\textbf{Precondición específica:} usar el usuario con el permiso "Ver
+Valuación Presupuestaria". Entrar a la pestaña \emph{Asuntos de Plazas}.
+
+\begingroup\small
+\begin{longtable}{|c|p{6.7cm}|p{6.7cm}|c|}
+\hline
+\rowcolor{grisclaro}
+\textbf{\#} & \textbf{Acción} & \textbf{Resultado esperado} & \textbf{OK} \\ \hline
+\endhead
+
+1 &
+Clic en la pestaña \emph{Asuntos de Plazas}. &
+Encabezado color vino con el texto "Asuntos de Solicitud de Ocupación de Plazas" y subtítulo
+"Dirección de Organización - Valuación Presupuestaria"; contador "Total de Solicitudes" con
+animación de conteo ascendente. Mientras carga: el contador muestra un bloque gris parpadeante y la
+tabla muestra 4 filas grises animadas a modo de vista previa (todavía no es la tabla real). &
+\chk{t3r1} \\ \hline
+
+2 &
+Esperar a que termine de cargar. &
+La tabla muestra solo asuntos que tienen un oficio turnado coincidente en Control de Gestión (los
+que no lo tienen quedan excluidos sin generar error visible ni fila vacía); columnas: "Folio /
+Oficio", "Remitente / Dependencia", "Descripción Asunto", "Valuación", "Acciones"; pie de tabla con
+el texto "Mostrando N solicitudes". &
+\chk{t3r2} \\ \hline
+
+3 &
+Revisar la columna "Valuación" de varias filas con distinto estatus. &
+Etiqueta de color según el estatus: verde "Procedente", rojo "Improcedente", ámbar "Pendiente"
+(este último es el valor que se muestra cuando no hay estatus o no coincide con los dos
+anteriores). Si el registro tiene una liga de resolución cargada, debajo de la etiqueta aparece el
+enlace "Ver Resolución" (ícono de clip) que abre esa dirección en una pestaña nueva del navegador. &
+\chk{t3r3} \\ \hline
+
+4 &
+Escribir en el buscador "Buscar por folio, oficio o remitente..." un texto que coincida con folio,
+número de oficio, remitente o descripción de una fila conocida. &
+La tabla se filtra en vivo (no consulta al sistema, es un filtrado que ocurre en la misma pantalla); el pie actualiza
+"Mostrando N solicitudes" al nuevo total filtrado. &
+\chk{t3r4} \\ \hline
+
+5 &
+Escribir un texto que no coincida con ninguna fila existente. &
+La tabla muestra un estado vacío centrado: ícono de embudo, texto "Sin resultados de solicitudes" y
+--- solo porque hay texto en el buscador --- un botón "Limpiar filtro". &
+\chk{t3r5} \\ \hline
+
+6 &
+Clic en "Limpiar filtro" (o en el ícono $\times$ dentro del buscador). &
+El buscador se vacía y la tabla vuelve a mostrar todas las solicitudes clasificadas. &
+\chk{t3r6} \\ \hline
+
+7 &
+Clic en el botón de acción "Ver detalles" (ícono de ojo) de una fila. &
+Se abre una ventana emergente con el detalle (la misma que se usa en Oficios Turnados a DO).
+Mientras carga el expediente o documento se ve el aviso "Generando Vista Previa...". La ventana
+muestra el folio y el número de oficio en el título, una etiqueta con el estatus del oficio
+turnado, un selector "Clasificar:" con el tipo de asunto actual, botones "Anterior" / "Siguiente"
+para navegar, y un botón para cerrar (X). &
+\chk{t3r7} \\ \hline
+
+8 &
+Con la ventana abierta y más de un asunto en la lista ya filtrada, hacer clic en el botón
+"Siguiente". &
+La ventana muestra los datos del siguiente asunto de la LISTA YA FILTRADA (si había texto en el
+buscador al abrir la ventana, avanza dentro de ese subconjunto, no de la lista completa). En el
+último elemento de esa lista, "Siguiente" queda apagado; en el primero, "Anterior" queda apagado. &
+\chk{t3r8} \\ \hline
+
+9 &
+Cerrar la ventana con el botón (X). &
+La ventana se cierra; la tabla de fondo conserva el mismo texto de búsqueda que tenía antes de
+abrirla. &
+\chk{t3r9} \\ \hline
+
+10 &
+Clic en el botón de acción "Ir al simulador" (ícono de calculadora) de una fila. &
+La vista cambia automáticamente a la pestaña \emph{Simulador} con el expediente de esa fila
+precargado en el panel izquierdo dividido (ver paso 18 de T1). &
+\chk{t3r10} \\ \hline
+
+11 &
+Regresar a la pestaña \emph{Asuntos de Plazas}, abrir "Ver detalles" de un asunto de prueba y, en
+el selector "Clasificar:" de la ventana, cambiar la clasificación a un tipo DISTINTO de "Valuación
+Presupuestaria", confirmar y cerrar la ventana. &
+Mientras guarda se ve un pequeño ícono girando junto al selector. Al cerrar la ventana, la lista de
+Asuntos de Plazas se recarga automáticamente y ese asunto YA NO aparece en la tabla (dejó de estar
+clasificado como Valuación Presupuestaria). &
+\chk{t3r11} \\ \hline
+
+\end{longtable}
+\endgroup
+
+\noindent\textbf{Criterios de aceptación T3:}
+\begin{itemize}[leftmargin=1.6em]
+  \item[\chk{t3ac1}] Ningún asunto sin oficio turnado coincidente aparece en la tabla ni genera
+    error visible en pantalla.
+  \item[\chk{t3ac2}] El contador "Total de Solicitudes" (encabezado) y el pie "Mostrando N
+    solicitudes" reflejan, respectivamente, el total sin filtrar y el total ya filtrado por el
+    buscador.
+  \item[\chk{t3ac3}] Reclasificar un asunto fuera de "Valuación Presupuestaria" lo remueve de esta
+    vista tras el refresco automático.
+  \item[\chk{t3ac4}] La navegación Anterior/Siguiente de la ventana de detalle respeta la lista ya
+    filtrada por el buscador, no la lista completa sin filtrar.
+  \item[\chk{t3ac5}] Durante todo el flujo no aparecen mensajes de error inesperados, pantallas en
+    blanco, ni el sistema se queda congelado o sin responder.
+\end{itemize}
+
+\vspace{6pt}\noindent
+\textbf{Veredicto T3:}\quad
+\chk{t3_aprobado} \textbf{Aprobado} \qquad
+\chk{t3_rechazado} \textbf{Rechazado} \qquad
+\chk{t3_bloqueado} \textbf{Bloqueado}\\[4pt]
+\noindent\textbf{Observaciones T3:}\\[4pt]
+\TextField[name=obs_t3, width=16cm, height=1.6cm, multiline=true, bordercolor=grisborde, backgroundcolor=0.97 0.98 1]{}
+
+% ======================================================================
+\seccion{Resultado global del módulo M6}
+% ======================================================================
+
+\noindent
+\begin{tabular}{|p{5.5cm}|p{4.7cm}|p{4.7cm}|}
+\hline
+\rowcolor{grisclaro}
+\textbf{Sub-caso} & \textbf{Veredicto} & \textbf{Referencia} \\ \hline
+CP-M06-T1 --- Simulador & Ver casilla marcada en T1 & Sección "Veredicto T1" \\ \hline
+CP-M06-T2 --- Parámetros & Ver casilla marcada en T2 & Sección "Veredicto T2" \\ \hline
+CP-M06-T3 --- Asuntos de Plazas & Ver casilla marcada en T3 & Sección "Veredicto T3" \\ \hline
+\end{tabular}
+
+\vspace{10pt}\noindent
+\textbf{Veredicto general del módulo:}\quad
+\chk{veredicto_aprobado} \textbf{Aprobado} \qquad
+\chk{veredicto_rechazado} \textbf{Rechazado} \qquad
+\chk{veredicto_bloqueado} \textbf{Bloqueado}
+
+\vspace{8pt}
+\noindent\textbf{Observaciones generales / defectos encontrados:}\\[4pt]
+\TextField[name=observaciones, width=16cm, height=3cm, multiline=true, bordercolor=grisborde, backgroundcolor=0.97 0.98 1]{}
+
+\vspace{10pt}
+\noindent\textbf{Evidencia adjunta (rutas de captura/video):}\\[4pt]
+\txtline{evidencia}{16cm}{}
+
+\end{Form}
+\end{document}

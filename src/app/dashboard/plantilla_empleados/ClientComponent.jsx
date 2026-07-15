@@ -92,7 +92,7 @@ export default function PlantillaEmpleadosDetalle({
   movPosData = [],
   secondaryDataPromise
 }) {
-  const { isLoading: authLoading, hasPermission } = useAuth();
+  const { isLoading: authLoading, hasPermission, email } = useAuth();
   // Estado local (no la prop cruda): permite reflejar ediciones de celda
   // (CeldaOverride, tab Detalle) al instante y sin refetch, compartido con
   // los demás tabs que leen `detalle` (Estatus, Mov. Posiciones).
@@ -102,9 +102,22 @@ export default function PlantillaEmpleadosDetalle({
       row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
     ));
   }, []);
+  // Avisa al usuario (badge en "Historial de Cambios") cuando otra persona edita
+  // una celda mientras tiene la tabla abierta — se resetea al abrir ese modal
+  // (ver PlantillaDetalleTab). `usuario` viaje en el mensaje SSE (username =
+  // email, ver authentication.views); se excluye si el cambio es del propio
+  // usuario (eco de su propia edición, username == email).
+  const [remoteUpdatesCount, setRemoteUpdatesCount] = useState(0);
+  const handleRemoteCellUpdate = useCallback((posicion, columna, valorNuevo, usuario) => {
+    updateDetalleCell(posicion, columna, valorNuevo);
+    if (usuario && usuario !== email) {
+      setRemoteUpdatesCount((c) => c + 1);
+    }
+  }, [updateDetalleCell, email]);
   // Refleja en vivo las ediciones de celda de otros usuarios (SSE dedicado,
   // ver useCeldaUpdatesRealtime) reusando el mismo reducer que la edición local.
-  useCeldaUpdatesRealtime(updateDetalleCell);
+  useCeldaUpdatesRealtime(handleRemoteCellUpdate);
+  const clearRemoteUpdatesCount = useCallback(() => setRemoteUpdatesCount(0), []);
   // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
   // parpadeo) — el backend igual exige el permiso real en cada endpoint.
   const visibleTabs = useMemo(
@@ -347,6 +360,8 @@ export default function PlantillaEmpleadosDetalle({
                 isPending={isPending}
                 startTransition={startTransition}
                 cardRef={cardRefDetalle}
+                remoteUpdatesCount={remoteUpdatesCount}
+                onClearRemoteUpdates={clearRemoteUpdatesCount}
               />
             </div>
           )}

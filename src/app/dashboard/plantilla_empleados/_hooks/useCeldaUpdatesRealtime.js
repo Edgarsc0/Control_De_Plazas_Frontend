@@ -44,7 +44,7 @@ export function useCeldaUpdatesRealtime(onCellUpdate) {
         try {
           const parsed = JSON.parse(event.data);
           if (parsed?.type === "cell_update") {
-            onCellUpdateRef.current?.(parsed.posicion, parsed.columna, parsed.valor_nuevo);
+            onCellUpdateRef.current?.(parsed.posicion, parsed.columna, parsed.valor_nuevo, parsed.usuario);
           }
         } catch {
           // mensaje no-JSON inesperado: se ignora, no es de este canal
