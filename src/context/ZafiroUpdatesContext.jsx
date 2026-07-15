@@ -45,8 +45,13 @@ export function ZafiroUpdatesProvider({ children }) {
 
     fetchLastUpdate();
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const sseUrl = `${apiBaseUrl}/api/plantilla/bitacora/sse/`;
+    // Los streams SSE viven en un puerto/origen aparte del resto de la API
+    // (NEXT_PUBLIC_SSE_URL) para no compartir el límite de 6 conexiones por
+    // origen de HTTP/1.1 con los fetches normales de la página — sin esto,
+    // abrir un par de pestañas satura el cupo y el SSE se queda "colgado"
+    // sin error visible (ver plantilla_empleados/_hooks/useCeldaUpdatesRealtime.js).
+    const sseBaseUrl = process.env.NEXT_PUBLIC_SSE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const sseUrl = `${sseBaseUrl}/api/plantilla/bitacora/sse/`;
     let eventSource;
     let reconnectTimer;
     let retryDelay = 5000;

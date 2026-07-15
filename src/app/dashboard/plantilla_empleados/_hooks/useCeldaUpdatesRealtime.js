@@ -18,11 +18,14 @@ export function useCeldaUpdatesRealtime(onCellUpdate) {
   useEffect(() => {
     if (!hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE)) return;
 
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    // Puerto/origen aparte del resto de la API (ver comentario equivalente en
+    // ZafiroUpdatesContext) — evita compartir el límite de 6 conexiones por
+    // origen de HTTP/1.1 con los fetches normales de la página.
+    const sseBaseUrl = process.env.NEXT_PUBLIC_SSE_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const token = Cookies.get("auth_token");
     if (!token) return;
 
-    const sseUrl = `${apiBaseUrl}/api/plantilla/empleados_completos_sig/celda-updates/sse/?token=${encodeURIComponent(token)}`;
+    const sseUrl = `${sseBaseUrl}/api/plantilla/empleados_completos_sig/celda-updates/sse/?token=${encodeURIComponent(token)}`;
 
     let eventSource;
     let reconnectTimer;
