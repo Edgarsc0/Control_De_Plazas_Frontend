@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
-  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, Eye, History
+  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, Eye, History, Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
@@ -657,6 +657,53 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     if (undoStackRef.current.length > 50) undoStackRef.current.shift();
   }, []);
 
+  // Indicador visual por celda (spinner mientras se guarda, palomita al éxito),
+  // esquina derecha de la celda. Cubre los 3 caminos de edición (doble click,
+  // "Pegar valor"/Ctrl+V, "Borrar contenido") y el deshacer con Ctrl+Z.
+  // Keyed por posicion+columna (no por índice de fila) para sobrevivir a
+  // filtros/orden mientras la petición sigue en vuelo.
+  const [cellStatusMap, setCellStatusMap] = useState({});
+  const cellStatusTimersRef = useRef({});
+  const cellStatusKey = useCallback((posicion, colKey) => `${posicion}::${colKey}`, []);
+  const setCellSaving = useCallback((posicion, colKey) => {
+    const k = cellStatusKey(posicion, colKey);
+    clearTimeout(cellStatusTimersRef.current[k]);
+    setCellStatusMap((prev) => ({ ...prev, [k]: "saving" }));
+  }, [cellStatusKey]);
+  const setCellSuccess = useCallback((posicion, colKey) => {
+    const k = cellStatusKey(posicion, colKey);
+    clearTimeout(cellStatusTimersRef.current[k]);
+    setCellStatusMap((prev) => ({ ...prev, [k]: "success" }));
+    cellStatusTimersRef.current[k] = setTimeout(() => {
+      setCellStatusMap((prev) => { if (!(k in prev)) return prev; const next = { ...prev }; delete next[k]; return next; });
+    }, 1400);
+  }, [cellStatusKey]);
+  const clearCellStatus = useCallback((posicion, colKey) => {
+    const k = cellStatusKey(posicion, colKey);
+    clearTimeout(cellStatusTimersRef.current[k]);
+    setCellStatusMap((prev) => { if (!(k in prev)) return prev; const next = { ...prev }; delete next[k]; return next; });
+  }, [cellStatusKey]);
+  useEffect(() => () => {
+    Object.values(cellStatusTimersRef.current).forEach(clearTimeout);
+  }, []);
+  const renderCellStatusOverlay = useCallback((posicion, colKey) => {
+    const status = cellStatusMap[cellStatusKey(posicion, colKey)];
+    if (!status) return null;
+    return (
+      <AnimatePresence>
+        {status === "saving" ? (
+          <motion.span key="saving" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none z-20">
+            <Loader2 className="size-3.5 animate-spin text-[#621f32] dark:text-[#bc955c]" />
+          </motion.span>
+        ) : (
+          <motion.span key="success" initial={{ opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.4 }} transition={{ type: "spring", stiffness: 500, damping: 22 }} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none z-20">
+            <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={3} />
+          </motion.span>
+        )}
+      </AnimatePresence>
+    );
+  }, [cellStatusMap, cellStatusKey]);
+
   const handleCellDoubleClick = useCallback((e, value, row, colKey) => {
     if (!canEditCeldas || !isPasteableColumn(colKey)) return;
     const strValue = value === undefined || value === null ? "" : String(value);
@@ -670,6 +717,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     if (!editingCell || editingCell.saving) return;
     const { posicion, colKey, value, originalValue } = editingCell;
     setEditingCell((c) => (c ? { ...c, saving: true, error: null } : c));
+    setCellSaving(posicion, colKey);
     try {
       const res = await VacantesService.patchEmpleadoCompletoOverride(posicion, colKey, value);
       if (!res.ok) {
@@ -679,10 +727,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       onCellEdited?.(posicion, colKey, value);
       if (value !== originalValue) pushUndo(posicion, colKey, originalValue);
       setEditingCell(null);
+      setCellSuccess(posicion, colKey);
     } catch (err) {
+      clearCellStatus(posicion, colKey);
       setEditingCell((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
     }
-  }, [editingCell, onCellEdited, pushUndo]);
+  }, [editingCell, onCellEdited, pushUndo, setCellSaving, setCellSuccess, clearCellStatus]);
 
   const handleEditKeyDown = useCallback((e) => {
     if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
@@ -713,24 +763,25 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           {editingCell.error && (
             <span className="absolute left-1 top-full mt-0.5 z-20 text-[9px] font-bold text-red-600 bg-white dark:bg-slate-950 px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">{editingCell.error}</span>
           )}
+          {renderCellStatusOverlay(row.posicion, col.key)}
         </td>
       );
     }
     if (col.key === "estado_nomina") {
       const est = mapEstadoNomina(value), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
-      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span></td>);
+      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span>{renderCellStatusOverlay(row.posicion, col.key)}</td>);
     }
     if (col.key === "depto" || col.key === "id_departamento") {
       const deptoInfo = getDeptoInfo(deptoCatalog, value);
-      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
       if (!deptoInfo) {
-        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>);
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
       }
       return (
         <Tooltip key={col.key}>
           <TooltipTrigger asChild>
-            <td onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>
+            <td onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>
           </TooltipTrigger>
           <TooltipContent side="top">
             <div className="flex flex-col gap-0.5">
@@ -743,15 +794,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
     if (col.key === "motivo") {
       const motivoInfo = getMotivoInfo(motivosCatalog, value);
-      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
       if (!motivoInfo) {
-        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>);
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
       }
       return (
         <Tooltip key={col.key}>
           <TooltipTrigger asChild>
-            <td onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}</td>
+            <td onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>
           </TooltipTrigger>
           <TooltipContent side="top">
             <div className="flex flex-col gap-0.5">
@@ -762,8 +813,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         </Tooltip>
       );
     }
-    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}</td>);
-  }, [isMonoColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur]);
+    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+  }, [isMonoColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -776,14 +827,21 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const pasteValueToCell = useCallback(async (row, colKey, text) => {
     if (!row || !colKey || !isPasteableColumn(colKey)) return;
     const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
-    const res = await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.detail || "No se pudo guardar el cambio.");
+    setCellSaving(row.posicion, colKey);
+    try {
+      const res = await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "No se pudo guardar el cambio.");
+      }
+      onCellEdited?.(row.posicion, colKey, text);
+      if (text !== previousValue) pushUndo(row.posicion, colKey, previousValue);
+      setCellSuccess(row.posicion, colKey);
+    } catch (err) {
+      clearCellStatus(row.posicion, colKey);
+      throw err;
     }
-    onCellEdited?.(row.posicion, colKey, text);
-    if (text !== previousValue) pushUndo(row.posicion, colKey, previousValue);
-  }, [isPasteableColumn, onCellEdited, pushUndo]);
+  }, [isPasteableColumn, onCellEdited, pushUndo, setCellSaving, setCellSuccess, clearCellStatus]);
 
   const handlePasteCell = useCallback(async (text) => {
     const { row, colKey } = contextMenu || {};
@@ -797,14 +855,21 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const { row, colKey } = contextMenu || {};
     if (!row || !colKey || !isPasteableColumn(colKey)) return;
     const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
-    const res = await VacantesService.deleteEmpleadoCompletoOverride(row.posicion, colKey);
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.detail || "No se pudo borrar el contenido.");
+    setCellSaving(row.posicion, colKey);
+    try {
+      const res = await VacantesService.deleteEmpleadoCompletoOverride(row.posicion, colKey);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "No se pudo borrar el contenido.");
+      }
+      onCellEdited?.(row.posicion, colKey, null);
+      if (previousValue !== "") pushUndo(row.posicion, colKey, previousValue);
+      setCellSuccess(row.posicion, colKey);
+    } catch (err) {
+      clearCellStatus(row.posicion, colKey);
+      throw err;
     }
-    onCellEdited?.(row.posicion, colKey, null);
-    if (previousValue !== "") pushUndo(row.posicion, colKey, previousValue);
-  }, [contextMenu, isPasteableColumn, onCellEdited, pushUndo]);
+  }, [contextMenu, isPasteableColumn, onCellEdited, pushUndo, setCellSaving, setCellSuccess, clearCellStatus]);
   // Refs actualizadas sin re-suscribir el listener global de teclado (ver más abajo):
   // antes el efecto dependía de [columns, filteredSortedData], así que se removía y
   // re-agregaba en cada tecla de búsqueda (cualquier cambio en los datos filtrados).
@@ -879,6 +944,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       return;
     }
     isUndoingRef.current = true;
+    setCellSaving(entry.posicion, entry.colKey);
     try {
       const res = await VacantesService.patchEmpleadoCompletoOverride(entry.posicion, entry.colKey, entry.previousValue);
       if (!res.ok) {
@@ -886,14 +952,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         throw new Error(body?.detail || "No se pudo deshacer el cambio.");
       }
       onCellEdited?.(entry.posicion, entry.colKey, entry.previousValue);
+      setCellSuccess(entry.posicion, entry.colKey);
       toast.success("Cambio deshecho.");
     } catch (err) {
+      clearCellStatus(entry.posicion, entry.colKey);
       undoStackRef.current.push(entry);
       toast.error(err.message || "No se pudo deshacer el cambio.");
     } finally {
       isUndoingRef.current = false;
     }
-  }, [onCellEdited, toast]);
+  }, [onCellEdited, toast, setCellSaving, setCellSuccess, clearCellStatus]);
 
   useEffect(() => {
     const handleWindowUndo = (e) => {
