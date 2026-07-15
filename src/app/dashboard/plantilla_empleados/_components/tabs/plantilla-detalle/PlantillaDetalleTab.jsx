@@ -641,14 +641,26 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // Edición inline (doble click en celda). `editingCell` identifica la celda en
   // edición por clave de negocio (posicion) + columna, no por índice de fila,
   // así sobrevive a re-ordenamientos/filtros mientras se edita.
-  const [editingCell, setEditingCell] = useState(null); // { posicion, colKey, value, saving, error }
+  const [editingCell, setEditingCell] = useState(null); // { posicion, colKey, value, originalValue, saving, error }
   const editCancelledRef = useRef(false);
 
   const isPasteableColumn = useCallback((colKey) => !!colKey && !NON_EDITABLE_KEYS.has(colKey), []);
 
+  // Pila de deshacer (Ctrl+Z): cada edición confirmada (doble click, "Pegar
+  // valor"/Ctrl+V o "Borrar contenido") empuja aquí el valor previo. Deshacer
+  // vuelve a escribirlo con el mismo endpoint de override (backend + estado
+  // local), por lo que queda registrado como un cambio más en el historial.
+  const undoStackRef = useRef([]);
+  const isUndoingRef = useRef(false);
+  const pushUndo = useCallback((posicion, colKey, previousValue) => {
+    undoStackRef.current.push({ posicion, colKey, previousValue });
+    if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+  }, []);
+
   const handleCellDoubleClick = useCallback((e, value, row, colKey) => {
     if (!canEditCeldas || !isPasteableColumn(colKey)) return;
-    setEditingCell({ posicion: row.posicion, colKey, value: value === undefined || value === null ? "" : String(value) });
+    const strValue = value === undefined || value === null ? "" : String(value);
+    setEditingCell({ posicion: row.posicion, colKey, value: strValue, originalValue: strValue });
   }, [canEditCeldas, isPasteableColumn]);
 
   // Mismo flujo que "Pegar valor": guarda en CeldaOverride + UPDATE en
@@ -656,7 +668,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // confirmación se refleja en el estado local, sin fetch.
   const commitCellEdit = useCallback(async () => {
     if (!editingCell || editingCell.saving) return;
-    const { posicion, colKey, value } = editingCell;
+    const { posicion, colKey, value, originalValue } = editingCell;
     setEditingCell((c) => (c ? { ...c, saving: true, error: null } : c));
     try {
       const res = await VacantesService.patchEmpleadoCompletoOverride(posicion, colKey, value);
@@ -665,11 +677,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         throw new Error(body?.detail || "No se pudo guardar el cambio.");
       }
       onCellEdited?.(posicion, colKey, value);
+      if (value !== originalValue) pushUndo(posicion, colKey, originalValue);
       setEditingCell(null);
     } catch (err) {
       setEditingCell((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
     }
-  }, [editingCell, onCellEdited]);
+  }, [editingCell, onCellEdited, pushUndo]);
 
   const handleEditKeyDown = useCallback((e) => {
     if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
@@ -762,13 +775,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // compartido por el menú contextual ("Pegar valor") y el atajo Ctrl+V.
   const pasteValueToCell = useCallback(async (row, colKey, text) => {
     if (!row || !colKey || !isPasteableColumn(colKey)) return;
+    const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
     const res = await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.detail || "No se pudo guardar el cambio.");
     }
     onCellEdited?.(row.posicion, colKey, text);
-  }, [isPasteableColumn, onCellEdited]);
+    if (text !== previousValue) pushUndo(row.posicion, colKey, previousValue);
+  }, [isPasteableColumn, onCellEdited, pushUndo]);
 
   const handlePasteCell = useCallback(async (text) => {
     const { row, colKey } = contextMenu || {};
@@ -781,13 +796,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const handleClearCell = useCallback(async () => {
     const { row, colKey } = contextMenu || {};
     if (!row || !colKey || !isPasteableColumn(colKey)) return;
+    const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
     const res = await VacantesService.deleteEmpleadoCompletoOverride(row.posicion, colKey);
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.detail || "No se pudo borrar el contenido.");
     }
     onCellEdited?.(row.posicion, colKey, null);
-  }, [contextMenu, isPasteableColumn, onCellEdited]);
+    if (previousValue !== "") pushUndo(row.posicion, colKey, previousValue);
+  }, [contextMenu, isPasteableColumn, onCellEdited, pushUndo]);
   // Refs actualizadas sin re-suscribir el listener global de teclado (ver más abajo):
   // antes el efecto dependía de [columns, filteredSortedData], así que se removía y
   // re-agregaba en cada tecla de búsqueda (cualquier cambio en los datos filtrados).
@@ -848,6 +865,47 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       window.removeEventListener('paste', handleWindowPaste);
     };
   }, [canEditCeldas, isPasteableColumn, pasteValueToCell, toast]);
+
+  // Ctrl+Z: deshace la última edición de celda confirmada (doble click,
+  // "Pegar valor"/Ctrl+V o "Borrar contenido"), ya se haya guardado en la
+  // base de datos o no. Reescribe el valor previo con el mismo endpoint de
+  // override, así que el "deshacer" queda registrado como un cambio más en
+  // el historial (ver comentario en undoStackRef más arriba).
+  const undoLastEdit = useCallback(async () => {
+    if (isUndoingRef.current) return;
+    const entry = undoStackRef.current.pop();
+    if (!entry) {
+      toast.info("No hay cambios para deshacer.");
+      return;
+    }
+    isUndoingRef.current = true;
+    try {
+      const res = await VacantesService.patchEmpleadoCompletoOverride(entry.posicion, entry.colKey, entry.previousValue);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "No se pudo deshacer el cambio.");
+      }
+      onCellEdited?.(entry.posicion, entry.colKey, entry.previousValue);
+      toast.success("Cambio deshecho.");
+    } catch (err) {
+      undoStackRef.current.push(entry);
+      toast.error(err.message || "No se pudo deshacer el cambio.");
+    } finally {
+      isUndoingRef.current = false;
+    }
+  }, [onCellEdited, toast]);
+
+  useEffect(() => {
+    const handleWindowUndo = (e) => {
+      if ((e.key !== 'z' && e.key !== 'Z') || !(e.ctrlKey || e.metaKey) || e.shiftKey) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (!canEditCeldas) return;
+      e.preventDefault();
+      undoLastEdit();
+    };
+    window.addEventListener('keydown', handleWindowUndo);
+    return () => window.removeEventListener('keydown', handleWindowUndo);
+  }, [canEditCeldas, undoLastEdit]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
