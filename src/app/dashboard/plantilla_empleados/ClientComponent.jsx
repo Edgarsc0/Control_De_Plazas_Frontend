@@ -31,6 +31,7 @@ import TorreCaballito3DTab from "./_components/tabs/torre-3d/TorreCaballito3DTab
 import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
 import CatalogosEstructuraTab from "./_components/tabs/catalogos-estructura/CatalogosEstructuraTab";
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-estructura/catalogosConfig";
+import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
@@ -101,6 +102,9 @@ export default function PlantillaEmpleadosDetalle({
       row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
     ));
   }, []);
+  // Refleja en vivo las ediciones de celda de otros usuarios (SSE dedicado,
+  // ver useCeldaUpdatesRealtime) reusando el mismo reducer que la edición local.
+  useCeldaUpdatesRealtime(updateDetalleCell);
   // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
   // parpadeo) — el backend igual exige el permiso real en cada endpoint.
   const visibleTabs = useMemo(
