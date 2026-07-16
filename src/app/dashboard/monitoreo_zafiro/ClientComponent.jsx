@@ -9,7 +9,7 @@ import {
   RefreshCw, Terminal, Cpu, Zap,
   ShieldCheck, BarChart3, GitBranch, Layers,
   Filter, ChevronLeft, ChevronRight, Check,
-  LayoutDashboard, Timer, TrendingDown
+  LayoutDashboard, Timer, TrendingDown, X, ScrollText
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -103,6 +103,9 @@ export default function ClientComponent() {
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncError, setSyncError] = useState(null);
+
+  // Detalle de logs/errores de una sincronización (modal)
+  const [selectedLog, setSelectedLog] = useState(null);
 
   const getMinutesToNextSync = () => {
     const now = new Date();
@@ -719,7 +722,8 @@ export default function ClientComponent() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.2 }}
                           key={log.id}
-                          className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30 transition-colors group"
+                          onClick={() => setSelectedLog(log)}
+                          className="hover:bg-slate-50/70 dark:hover:bg-slate-900/30 transition-colors group cursor-pointer"
                         >
                           {/* Timestamp */}
                           <td className="py-3.5 px-4 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50">
@@ -865,6 +869,106 @@ export default function ClientComponent() {
                       </>
                     )}
                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de logs/errores de la sincronización seleccionada */}
+      <AnimatePresence>
+        {selectedLog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedLog(null)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              className="relative w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl z-10"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center justify-center size-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700 shrink-0">
+                    <ScrollText className="size-4 text-[#bc955c]" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 truncate">
+                      Detalle de sincronización
+                    </h3>
+                    <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">
+                      {format(parseISO(selectedLog.fecha_ejecucion), "dd MMM yyyy, HH:mm:ss", { locale: es })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <StatusBadge status={selectedLog.status} errorMessage={selectedLog.error_message} />
+                  <button
+                    onClick={() => setSelectedLog(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Resumen rápido */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 px-3 py-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Duración</p>
+                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 font-mono mt-0.5">{formatDuracion(selectedLog.duracion_segundos)}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 px-3 py-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Completos</p>
+                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 font-mono mt-0.5">{(selectedLog.registros_completos || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 px-3 py-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Bajas</p>
+                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 font-mono mt-0.5">{(selectedLog.registros_bajas || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-150 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 px-3 py-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono">Posiciones</p>
+                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 font-mono mt-0.5">{(selectedLog.registros_posiciones || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Error message */}
+                {selectedLog.error_message && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-500 dark:text-red-400 font-mono mb-1.5 flex items-center gap-1.5">
+                      <XCircle className="size-3" /> Error
+                    </p>
+                    <div className="p-3.5 bg-red-500/5 dark:bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 font-mono text-[11px] whitespace-pre-wrap break-words leading-relaxed">
+                      {selectedLog.error_message}
+                    </div>
+                  </div>
+                )}
+
+                {/* Logs en vivo / detallados */}
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 font-mono mb-1.5 flex items-center gap-1.5">
+                    <Terminal className="size-3" /> Logs
+                  </p>
+                  {selectedLog.logs_en_vivo ? (
+                    <div className="p-4 bg-slate-950 rounded-xl font-mono text-[11px] text-emerald-400 whitespace-pre-wrap break-words leading-relaxed max-h-96 overflow-y-auto">
+                      {selectedLog.logs_en_vivo}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-xl text-slate-400 dark:text-slate-500 text-xs font-mono">
+                      Sin logs registrados para esta ejecución.
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
