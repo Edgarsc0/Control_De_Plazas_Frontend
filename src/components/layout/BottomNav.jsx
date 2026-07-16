@@ -177,25 +177,63 @@ export default function BottomNav() {
             <div className="flex flex-col gap-2">
               {activeConfig?.tabs?.map((tab) => {
                 const active = tab.id === activeConfig.activeTab;
+                const subtabConfig = activeConfig.subtabConfigs?.[tab.id];
                 return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setPageTabsOpen(false);
-                      activeConfig.onSelect(tab.id);
-                    }}
-                    className={`flex items-center justify-between gap-3 p-3.5 rounded-2xl border text-left transition-colors ${
-                      active
-                        ? 'border-[#621f32]/30 bg-[#621f32]/5'
-                        : 'border-slate-100 bg-slate-50/70 active:bg-white'
-                    }`}
-                  >
-                    <span className={`text-sm font-black ${active ? 'text-[#621f32]' : 'text-slate-800'}`}>
-                      {tab.label}
-                    </span>
-                    {active && <Check className="size-4 text-[#621f32] flex-shrink-0" />}
-                  </button>
+                  <div key={tab.id} className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!active) activeConfig.onSelect(tab.id);
+                        // Si el tab tiene subtabs, se dejan ver en vez de cerrar
+                        // el drawer de inmediato (el usuario aún debe elegir uno).
+                        if (!subtabConfig) setPageTabsOpen(false);
+                      }}
+                      className={`flex items-center justify-between gap-3 p-3.5 rounded-2xl border text-left transition-colors ${
+                        active
+                          ? 'border-[#621f32]/30 bg-[#621f32]/5'
+                          : 'border-slate-100 bg-slate-50/70 active:bg-white'
+                      }`}
+                    >
+                      <span className={`text-sm font-black ${active ? 'text-[#621f32]' : 'text-slate-800'}`}>
+                        {tab.label}
+                      </span>
+                      {active && <Check className="size-4 text-[#621f32] flex-shrink-0" />}
+                    </button>
+
+                    {active && subtabConfig && (
+                      <div className="ml-3 flex flex-col gap-1 pl-3 border-l-2 border-[#621f32]/15">
+                        {subtabConfig.options.map((sub) => {
+                          const isSubActive = subtabConfig.active === sub.id;
+                          const SubIcon = sub.icon;
+                          return (
+                            <button
+                              key={sub.id}
+                              type="button"
+                              onClick={() => {
+                                subtabConfig.setActive(sub.id);
+                                setPageTabsOpen(false);
+                              }}
+                              className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                                isSubActive
+                                  ? 'border-[#621f32]/20 bg-[#621f32]/5'
+                                  : 'border-transparent bg-slate-50/50 active:bg-white'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                {SubIcon && (
+                                  <SubIcon className={`size-3.5 shrink-0 ${isSubActive ? 'text-[#621f32]' : 'text-slate-400'}`} />
+                                )}
+                                <span className={`text-[13px] font-bold ${isSubActive ? 'text-[#621f32]' : 'text-slate-600'}`}>
+                                  {sub.label}
+                                </span>
+                              </span>
+                              {isSubActive && <Check className="size-3.5 text-[#621f32] flex-shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

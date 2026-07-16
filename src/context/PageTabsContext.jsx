@@ -30,14 +30,14 @@ export function usePageTabs() {
 
 /**
  * La página llama esto para publicar sus tabs al BottomNav mientras está montada.
- * `tabs` y `onSelect` deben tener identidad estable (módulo / useCallback);
- * `activeTab` puede cambiar y re-registra para mover el check.
+ * `tabs`, `onSelect` y `subtabConfigs` deben tener identidad estable (módulo /
+ * useCallback / useMemo); `activeTab` puede cambiar y re-registra para mover el check.
  */
-export function useRegisterPageTabs({ tabs, activeTab, onSelect, title }) {
+export function useRegisterPageTabs({ tabs, activeTab, onSelect, title, subtabConfigs }) {
   const { setActiveConfig } = usePageTabs();
 
   useEffect(() => {
-    setActiveConfig({ tabs, activeTab, onSelect, title });
+    setActiveConfig({ tabs, activeTab, onSelect, title, subtabConfigs });
     return () => setActiveConfig(null);
-  }, [tabs, activeTab, onSelect, title, setActiveConfig]);
+  }, [tabs, activeTab, onSelect, title, subtabConfigs, setActiveConfig]);
 }

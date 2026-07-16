@@ -176,13 +176,55 @@ export default function PlantillaEmpleadosDetalle({
     startTransition(() => setActiveTab(id));
   }, [startTransition]);
 
+  const subtabConfigs = useMemo(() => ({
+    estatus: {
+      options: [{ id: "nivel", label: "Por Nivel" }, { id: "ua", label: "Por UA" }],
+      active: activeEstatusSubTab,
+      setActive: setActiveEstatusSubTab,
+    },
+    movimientos: {
+      options: [
+        { id: "tabla", label: "Tabla Principal" },
+        { id: "cuadros", label: "Cuadros Vacancia" },
+        { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
+      ],
+      active: activeMovimientosSubTab,
+      setActive: setActiveMovimientosSubTab,
+    },
+    mapa: {
+      options: [{ id: "nacional", label: "Mapa Nacional" }, { id: "caballito", label: "Torre Caballito" }],
+      active: activeMapaSubTab,
+      setActive: setActiveMapaSubTab,
+    },
+    catalogos_estructura: {
+      options: [
+        ...CATALOGOS_ORDER.map((key) => ({
+          id: key,
+          label: CATALOGOS_CONFIG[key].label,
+          icon: CATALOGOS_CONFIG[key].icon,
+        })),
+        { id: "niveles_jerarquicos", label: "Niveles Jerárquicos por Plaza", icon: Layers },
+      ],
+      active: activeCatalogoSubTab,
+      setActive: setActiveCatalogoSubTab,
+    },
+  }), [
+    activeEstatusSubTab,
+    activeMovimientosSubTab,
+    activeMapaSubTab,
+    activeCatalogoSubTab,
+  ]);
+
   // Publica los tabs de esta página al BottomNav para abrirlos en un Drawer
   // (móvil). El check sigue a activeTab; al desmontar se limpia el registro.
+  // subtabConfigs también se publica: el Drawer necesita listar los subtabs
+  // del tab activo (antes sólo llegaban a la PageTabBar de desktop).
   useRegisterPageTabs({
     tabs: visibleTabs,
     activeTab,
     onSelect: handleSelectTab,
     title: "Plantilla de Empleados",
+    subtabConfigs,
   });
 
   // Prevent page scroll when on the map tab
@@ -242,40 +284,6 @@ export default function PlantillaEmpleadosDetalle({
       window.removeEventListener("scroll", handleWindowScroll);
     };
   }, [activeTab, activeMovimientosSubTab]);
-
-  const subtabConfigs = {
-    estatus: {
-      options: [{ id: "nivel", label: "Por Nivel" }, { id: "ua", label: "Por UA" }],
-      active: activeEstatusSubTab,
-      setActive: setActiveEstatusSubTab,
-    },
-    movimientos: {
-      options: [
-        { id: "tabla", label: "Tabla Principal" },
-        { id: "cuadros", label: "Cuadros Vacancia" },
-        { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
-      ],
-      active: activeMovimientosSubTab,
-      setActive: setActiveMovimientosSubTab,
-    },
-    mapa: {
-      options: [{ id: "nacional", label: "Mapa Nacional" }, { id: "caballito", label: "Torre Caballito" }],
-      active: activeMapaSubTab,
-      setActive: setActiveMapaSubTab,
-    },
-    catalogos_estructura: {
-      options: [
-        ...CATALOGOS_ORDER.map((key) => ({
-          id: key,
-          label: CATALOGOS_CONFIG[key].label,
-          icon: CATALOGOS_CONFIG[key].icon,
-        })),
-        { id: "niveles_jerarquicos", label: "Niveles Jerárquicos por Plaza", icon: Layers },
-      ],
-      active: activeCatalogoSubTab,
-      setActive: setActiveCatalogoSubTab,
-    },
-  };
 
   return (
     <section className={`bg-transparent relative transition-all duration-300 overflow-hidden ${isTightLayout ? "pb-0" : "pb-20"}`}>
