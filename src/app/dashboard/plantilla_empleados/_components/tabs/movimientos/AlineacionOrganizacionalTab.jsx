@@ -22,7 +22,7 @@ import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
-import { finalizeFilterDropdownValues, normalizeForSearch } from "@/utils/columnFilters";
+import { finalizeFilterDropdownValues, normalizeForSearch, sortValueCounts } from "@/utils/columnFilters";
 
 // Mismos 14 pares de columnas que compara el backend (ver ALINEACIÓN_PLAZA_PERSONA
 // y `ALINEACION_CAMPOS` en plantilla/views.py). El key de columna en la tabla es
@@ -265,7 +265,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
     VacantesService.getMovPosAlineacion(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
-        const valuesList = Array.isArray(resData) ? resData : [];
+        const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
         setUniqueColumnValues((prev) => ({ ...prev, [activeFilterDropdown]: valuesList }));
         setHasInitializedTemp((prevInit) => {
           if (!prevInit) {

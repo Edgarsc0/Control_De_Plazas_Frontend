@@ -165,10 +165,19 @@ export const getUniqueColumnValues = (data, key, getCellValue = defaultGetCellVa
     const val = getCellValue(row, key).trim();
     counts[val] = (counts[val] || 0) + 1;
   });
-  return Object.entries(counts)
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
+  return sortValueCounts(Object.entries(counts).map(([value, count]) => ({ value, count })));
 };
+
+/**
+ * Ordena una lista `{value, count}` alfanumérica con orden numérico correcto
+ * (`"2"` antes que `"10"`). Usado tanto para universos calculados en cliente
+ * (`getUniqueColumnValues`) como para listas de valores distintos que llegan
+ * ya armadas desde el backend (sin orden garantizado).
+ * @param {Array<{value: string, count: number}>} list - Valores a ordenar.
+ * @returns {Array<{value: string, count: number}>} Copia ordenada.
+ */
+export const sortValueCounts = (list) =>
+  [...list].sort((a, b) => String(a.value).localeCompare(String(b.value), undefined, { numeric: true }));
 
 /**
  * Construye la jerarquía año → mes → día de una columna de fecha (para el árbol

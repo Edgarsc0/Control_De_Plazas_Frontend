@@ -474,17 +474,26 @@ function DataTable({
               </tr>
             )
           ) : data.length === 0 ? (
-            <tr>
-              <td colSpan={colSpan} className="py-20 text-center">
-                <div className="flex flex-col items-center justify-center">
-                  <div className="size-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-                    <Search className="size-8 text-gray-400" />
-                  </div>
-                  <h4 className="text-lg font-bold text-gray-700 dark:text-slate-300">Sin coincidencias</h4>
-                  <p className="text-sm text-gray-500 dark:text-slate-500 mt-1">Intenta ajustar tus filtros de búsqueda</p>
-                </div>
-              </td>
-            </tr>
+            (() => {
+              const activeFilterCount = Object.keys(columnFilters || {}).length + Object.values(textFilters || {}).filter((f) => f?.value).length;
+              return (
+                <tr>
+                  <td colSpan={colSpan} className="py-20 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="size-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                        <Search className="size-8 text-gray-400" />
+                      </div>
+                      <h4 className="text-lg font-bold text-gray-700 dark:text-slate-300">Sin coincidencias</h4>
+                      <p className="text-sm text-gray-500 dark:text-slate-500 mt-1">
+                        {activeFilterCount > 1
+                          ? `0 resultados por la combinación de ${activeFilterCount} filtros de columna activos. Prueba quitando alguno.`
+                          : "Intenta ajustar tus filtros de búsqueda"}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })()
           ) : (
             <>
               {startIndex > 0 && <tr style={{ height: startIndex * rowHeight }}><td colSpan={colSpan} /></tr>}

@@ -15,6 +15,11 @@ import {
 
 const ROW_HEIGHT = 36;
 const OVERSCAN = 6;
+// Columnas tipo ID (Posición, No. Posición) superan los miles de valores
+// únicos: renderizar el checkbox-list ahí no sirve como filtro categórico,
+// nadie escanea miles de opciones. Se oculta la lista hasta que el usuario
+// busque, dejando el buscador con condición como único camino práctico.
+const HIGH_CARDINALITY_THRESHOLD = 500;
 
 /** Envuelve en `<mark>` la subcadena de `text` que matchea `needle` (sin distinguir acentos/mayúsculas). */
 function highlightMatch(text, needle) {
@@ -87,11 +92,15 @@ export default function ColumnFilterDropdown({
   } = filters;
 
   const listScrollRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const panelRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(280);
   const [highlightIndex, setHighlightIndex] = useState(-1);
 
   const sliced = dropdownValues?.sliced || [];
+  const isHighCardinality = !isDate && (dropdownValues?.allVals?.length || 0) > HIGH_CARDINALITY_THRESHOLD;
+  const listHidden = isHighCardinality && !filterSearchText;
 
   // Cambió la columna, la pestaña o el resultado de la búsqueda: el índice
   // resaltado y el scroll ya no corresponden a la lista actual.
@@ -100,6 +109,15 @@ export default function ColumnFilterDropdown({
     setScrollTop(0);
     if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
   }, [columnKey, isDate, filterDropdownTab, dropdownValues?.filteredCount]);
+
+  // Cambió la columna: la búsqueda/condición de la columna anterior no debe
+  // heredarse a la nueva (filterSearchText/filterSearchCondition viven una
+  // sola vez por tabla en useColumnFilters, no por columna).
+  useEffect(() => {
+    setFilterSearchText("");
+    setFilterSearchCondition("contains");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnKey]);
 
   useEffect(() => {
     if (open && listScrollRef.current) setViewportHeight(listScrollRef.current.clientHeight || 280);
@@ -125,11 +143,22 @@ export default function ColumnFilterDropdown({
       if (e.key === "Enter") { e.preventDefault(); onApply(); }
       return;
     }
+    if (listHidden) {
+      if (e.key === "Enter") { e.preventDefault(); onApply(); }
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      // Mueve el foco del buscador al panel: si se queda en el input, la
+      // siguiente pulsación de Espacio escribe un espacio en vez de
+      // marcar/desmarcar la fila resaltada. Enfocar el panel (en vez de solo
+      // quitarle el foco al input) mantiene el foco dentro del modal para que
+      // seguir navegando con flechas/Espacio funcione.
+      panelRef.current?.focus();
       setHighlightIndex((i) => { const next = Math.min(i + 1, sliced.length - 1); ensureRowVisible(next); return next; });
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      panelRef.current?.focus();
       setHighlightIndex((i) => { const next = Math.max(i - 1, 0); ensureRowVisible(next); return next; });
     } else if (e.key === " " && highlightIndex >= 0 && document.activeElement?.tagName !== "INPUT") {
       e.preventDefault();
@@ -164,9 +193,11 @@ export default function ColumnFilterDropdown({
         <div key="filter-dropdown" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className={`fixed inset-0 ${dimBackdrop ? "bg-black/40 backdrop-blur-sm" : ""}`} />
           <motion.div
+            ref={panelRef}
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
             onKeyDown={handlePanelKeyDown}
-            className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70]"
+            className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70] outline-none"
           >
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
               <div className="flex items-center justify-between mb-3">
@@ -195,6 +226,7 @@ export default function ColumnFilterDropdown({
                 )}
                 <Search className="size-3 text-slate-400 shrink-0" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   autoFocus
                   value={filterSearchText}
@@ -228,7 +260,9 @@ export default function ColumnFilterDropdown({
               </div>
               {!isDate && dropdownValues && (
                 <div className="mt-2 text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 px-0.5">
-                  {tempSelectedValues.length} de {dropdownValues.allVals.length} seleccionados
+                  {filterSearchText
+                    ? `${dropdownValues.visibleVals.filter((v) => tempSelectedValues.includes(v)).length} de ${dropdownValues.visibleVals.length} visibles seleccionados`
+                    : `${tempSelectedValues.length} de ${dropdownValues.allVals.length} seleccionados`}
                 </div>
               )}
             </div>
@@ -358,7 +392,11 @@ export default function ColumnFilterDropdown({
                     </button>
                   </div>
                   <div ref={listScrollRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-2">
-                    {sliced.length === 0 ? (
+                    {listHidden ? (
+                      <div className="text-center py-8 px-4 text-[10px] font-black uppercase text-slate-400">
+                        Escribe para buscar entre {dropdownValues.allVals.length.toLocaleString("es-MX")} valores
+                      </div>
+                    ) : sliced.length === 0 ? (
                       <div className="text-center py-8 text-[10px] font-black uppercase text-slate-400">Sin resultados</div>
                     ) : (
                       (() => {

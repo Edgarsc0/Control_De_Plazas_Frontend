@@ -20,7 +20,7 @@ import CopyCellMenu from "../../shared/CopyCellMenu";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
-import { normalizeForSearch, finalizeFilterDropdownValues } from "@/utils/columnFilters";
+import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -1674,7 +1674,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     VacantesService.getMovimientosPersonal(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
-        const valuesList = Array.isArray(resData) ? resData : [];
+        const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
         setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
         setHasInitializedTemp(prevInit => {
           if (!prevInit) {

@@ -24,7 +24,7 @@ import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, finalizeFilterDropdownValues } from "@/utils/columnFilters";
+import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -643,7 +643,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     VacantesService.getMovPosDetalle(params, { signal: ctrl.signal })
       .then(res => res.json())
       .then(resData => {
-        const valuesList = Array.isArray(resData) ? resData : [];
+        const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
         uniqueValuesCacheRef.current[activeFilterDropdown] = { signature, values: valuesList };
         setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
         initTempSelected(valuesList);
