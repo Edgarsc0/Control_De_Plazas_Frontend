@@ -160,6 +160,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
   const [hoveredPointKey, setHoveredPointKey] = useState(null);
 
+  const [isCompactChart, setIsCompactChart] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsCompactChart(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const HistoricoTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
     return (
@@ -849,10 +858,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       {/* Cards de KPIs de la quincena actual */}
       {kpis && (
         <Zoom triggerOnce>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 px-4 lg:px-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 px-0 sm:px-4 lg:px-6">
 
             {/* KPI 1: Plazas Totales */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#10243e]/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#10243e]/30 transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Totales</p>
@@ -871,7 +880,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
 
             {/* KPI 2: Plazas Ocupadas */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#bc955c]/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#bc955c]/30 transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Ocupadas</p>
@@ -895,7 +904,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
 
             {/* KPI 3: Plazas Vacantes */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#621f32]/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#621f32]/30 transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Vacantes</p>
@@ -920,7 +929,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
 
             {/* KPI 4: Relación Ocupación */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Quincena de Reporte</p>
@@ -948,9 +957,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       )}
 
       <div ref={pdfRef} className="space-y-6">
-        <div className="w-full px-4 lg:px-6" data-pdf-section>
+        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
           <Zoom triggerOnce>
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#bc955c]/10 to-[#621f32]/10 blur-3xl -z-10 rounded-full mix-blend-multiply dark:mix-blend-screen" />
               <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-[#621f32]/10 to-[#bc955c]/10 blur-3xl -z-10 rounded-full mix-blend-multiply dark:mix-blend-screen" />
 
@@ -1028,26 +1037,26 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 </div>
               </div>
 
-              <div className="overflow-x-auto pb-4 custom-scrollbar">
-                <div className="rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg overflow-hidden relative bg-white dark:bg-slate-900" ref={tableRef}>
-                  <table className="w-full text-sm text-left border-collapse">
-                    <thead className="text-white">
+              <div className="overflow-auto max-h-[65vh] pb-4 custom-scrollbar">
+                <div className="rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg overflow-clip relative bg-white dark:bg-slate-900" ref={tableRef}>
+                  <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                    <thead className="text-white sticky top-0 z-20">
                       <tr>
-                        <th colSpan="2" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="2" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Periodo
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Ocupadas
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Vacantes
                         </th>
-                        <th colSpan="3" className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-[#10243e] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Total
                         </th>
                       </tr>
                       <tr className="bg-[#163052] border-t border-slate-200/10">
-                        <th className="border border-slate-200/10 px-3 py-2.5 text-center font-bold text-[10px] uppercase tracking-wider relative">
+                        <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                           <div className="flex items-center justify-center gap-2">
                             Año
                             <div className="relative" ref={yearFilterRef}>
@@ -1067,7 +1076,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             </div>
                           </div>
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2.5 text-center font-bold text-[10px] uppercase tracking-wider relative">
+                        <th className="sticky left-16 sm:left-20 z-30 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                           <div className="flex items-center justify-center gap-2">
                             Qna.
                             <div className="relative" ref={qnaFilterRef}>
@@ -1088,33 +1097,33 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           </div>
                         </th>
                         {/* Ocupadas */}
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Permanente
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Eventual
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-bold text-[10px] uppercase bg-slate-200/10">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-slate-200/10">
                           Total
                         </th>
                         {/* Vacantes */}
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Permanente
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Eventual
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-bold text-[10px] uppercase bg-slate-200/10">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-slate-200/10">
                           Total
                         </th>
                         {/* Total */}
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Permanente
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Eventual
                         </th>
-                        <th className="border border-slate-200/10 px-3 py-2 text-center font-bold text-[10px] uppercase bg-slate-200/10">
+                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-slate-200/10">
                           Total
                         </th>
                       </tr>
@@ -1143,13 +1152,13 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                               {isNewYear && (
                                 <td
                                   rowSpan={isTableExpanded ? rowSpan : 1}
-                                  className={`px-4 py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#bc955c]/15 dark:bg-[#bc955c]/25" : "bg-white dark:bg-slate-900"
+                                  className={`sticky left-0 z-10 w-16 sm:w-20 px-2 py-2.5 sm:px-4 sm:py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#bc955c]/15 dark:bg-[#bc955c]/25" : "bg-white dark:bg-slate-900"
                                     }`}
                                 >
                                   {getYear(row.fecha)}
                                 </td>
                               )}
-                              <td className={`px-4 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'text-[#621f32] dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-100'}`}>
+                              <td className={`sticky left-16 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#bc955c]/15 dark:bg-[#bc955c]/25 text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
                                 <div className="flex items-center justify-center gap-2">
                                   {formatDate(row.fecha)}
                                   {isMostRecent && (
@@ -1161,37 +1170,37 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                               </td>
 
                               {/* Ocupadas */}
-                              <td className="px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
                                 {formatNumber(row.ocupadas_permanente)}
                               </td>
-                              <td className="px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
                                 {formatNumber(row.ocupadas_eventual)}
                               </td>
-                              <td className={`px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-slate-50 dark:bg-slate-800/80"
+                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-slate-50 dark:bg-slate-800/80"
                                 }`}>
                                 {formatNumber(row.ocupadas_total)}
                               </td>
 
                               {/* Vacantes */}
-                              <td className="px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
                                 {formatNumber(row.vacantes_permanente)}
                               </td>
-                              <td className="px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
                                 {formatNumber(row.vacantes_eventual)}
                               </td>
-                              <td className={`px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-slate-50 dark:bg-slate-800/80"
+                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-slate-50 dark:bg-slate-800/80"
                                 }`}>
                                 {formatNumber(row.vacantes_total)}
                               </td>
 
                               {/* Total */}
-                              <td className="px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
                                 {formatNumber(row.total_permanente)}
                               </td>
-                              <td className="px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
                                 {formatNumber(row.total_eventual)}
                               </td>
-                              <td className={`px-3 py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-900 dark:text-white font-black ${isMostRecent ? "bg-[#bc955c]/30 dark:bg-[#bc955c]/45 text-md" : "bg-slate-100 dark:bg-slate-850"
+                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-900 dark:text-white font-black ${isMostRecent ? "bg-[#bc955c]/30 dark:bg-[#bc955c]/45 text-md" : "bg-slate-100 dark:bg-slate-850"
                                 }`}>
                                 {formatNumber(row.total)}
                               </td>
@@ -1226,9 +1235,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           </Zoom>
         </div>
 
-        <div className="w-full px-4 lg:px-6" data-pdf-section>
+        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
           <Zoom triggerOnce>
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-3xl p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
                 <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
                   <TrendingUp className="size-6" />
@@ -1248,33 +1257,33 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   No hay datos históricos disponibles
                 </div>
               ) : (
-                <div data-pdf-chart className={`w-full relative pl-5 ${(isGeneratingPdf || isGeneratingWord) ? 'h-[650px]' : 'h-[380px]'}`}>
-                  <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
+                <div data-pdf-chart className={`w-full relative pl-4 sm:pl-5 ${(isGeneratingPdf || isGeneratingWord) ? 'h-[650px]' : 'h-[320px] sm:h-[380px]'}`}>
+                  <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
                     OCUPADAS
                   </span>
-                  <span className="absolute left-0 top-[78%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
+                  <span className="absolute left-0 top-[78%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
                     VACANTES
                   </span>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={historicoChartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                    <LineChart data={historicoChartData} margin={{ top: 10, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.6} className="text-slate-350 dark:text-slate-600" />
                       <XAxis
                         dataKey="label"
-                        tick={{ fontSize: 10, fontWeight: 700 }}
+                        tick={{ fontSize: isCompactChart ? 8 : 10, fontWeight: 700 }}
                         stroke="currentColor"
                         className="text-slate-400 dark:text-slate-500"
                         interval="preserveStartEnd"
                       />
                       <YAxis
-                        tick={{ fontSize: 10, fontWeight: 700 }}
+                        tick={{ fontSize: isCompactChart ? 9 : 10, fontWeight: 700 }}
                         stroke="currentColor"
                         className="text-slate-400 dark:text-slate-500"
                         tickFormatter={formatNumber}
-                        width={55}
+                        width={isCompactChart ? 36 : 55}
                       />
                       <Tooltip content={<HistoricoTooltip />} cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }} />
                       <Legend
-                        wrapperStyle={{ fontSize: 11, fontWeight: 700 }}
+                        wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
                         formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
                       />
                       {HISTORICO_SERIES.map(s => (
@@ -1320,7 +1329,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           </Zoom>
         </div>
 
-        <div className="w-full px-4 lg:px-6" data-pdf-section data-pdf-charts>
+        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section data-pdf-charts>
           <Zoom triggerOnce>
             <DesgloseJerarquicoCharts data={desgloseJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
           </Zoom>
