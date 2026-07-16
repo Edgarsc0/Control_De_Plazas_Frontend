@@ -617,6 +617,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           }
           if (!pass) return;
         }
+        if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return;
         const val = activeFilterDropdown === "estado_nomina" ? mapEstadoNomina(row[activeFilterDropdown]) : String(row[activeFilterDropdown] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
       });
@@ -631,7 +632,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
     });
-  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, searchIndex]);
+  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, searchIndex, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
 
   const rowHeight = 37, containerHeight = 1200;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);

@@ -1666,6 +1666,9 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
         params.fecha_captura__in = bitacoraDates.join(",");
       }
+      if (appliedAdvancedFilters.length > 0) {
+        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+      }
     }
 
     VacantesService.getMovimientosPersonal(params, { signal: ctrl.signal })
@@ -1688,7 +1691,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       .catch((err) => { if (err.name !== "AbortError") console.error("Error al obtener valores únicos:", err); })
       .finally(() => { if (!ctrl.signal.aborted) setLoadingUniqueValues(false); });
     return () => ctrl.abort();
-  }, [activeFilterDropdown, debouncedFilterSearchText, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, filterDropdownTab, activeSubTab, bitacoraDates]);
+  }, [activeFilterDropdown, debouncedFilterSearchText, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, filterDropdownTab, activeSubTab, bitacoraDates, appliedAdvancedFilters]);
 
   const applyColumnFilter = (colKey) => {
     let newFilters = { ...columnFilters };
