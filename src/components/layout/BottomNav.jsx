@@ -23,7 +23,7 @@ import {
 
 export default function BottomNav() {
   const auth = useAuth();
-  const { isAuthenticated, logout } = auth;
+  const { isAuthenticated, email, role, logout } = auth;
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageTabsOpen, setPageTabsOpen] = useState(false);
@@ -115,6 +115,14 @@ export default function BottomNav() {
                   <X className="size-4" />
                 </DrawerClose>
               </div>
+
+              {email && (
+                <div className="flex flex-col gap-0.5 p-3 mb-3 rounded-2xl border border-[#621f32]/15 bg-[#621f32]/5">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sesión iniciada</span>
+                  <span className="text-sm font-black text-[#621f32] truncate">{email}</span>
+                  {role && <span className="text-[11px] font-bold text-[#621f32]/70">{role}</span>}
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 {MORE.map((item) => {

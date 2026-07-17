@@ -1757,7 +1757,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                 fields: [
                   { key: "total_movimientos", label: "Histórico", mono: true },
                   { key: "ocupacion", label: "Ocupación" },
-                  { key: "fecha_vacancia", label: "Vacancia" },
+                  {
+                    key: "fecha_vacancia",
+                    label: "Vacancia",
+                    onClick: (r) => {
+                      const hasValue = r.fecha_vacancia !== undefined && r.fecha_vacancia !== null && String(r.fecha_vacancia).trim() !== "";
+                      if (hasValue) openVacanciaModal(r);
+                    },
+                    valueClassName: () => "text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2",
+                  },
                   { key: "motivo", label: "Motivo" },
                   { key: "unidad_de_negocio", label: "Unidad" },
                   { key: "f_efva", label: "F. Efectiva" },
@@ -2468,6 +2476,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             onClose={() => setSelectedRowData(null)}
             record={matchingEmployee}
             columns={columns}
+            fieldClickHandlers={{ fecha_vacancia: (r) => openVacanciaModal(r) }}
           />
         );
       })()}

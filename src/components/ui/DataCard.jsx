@@ -15,7 +15,7 @@ import { ChevronRight } from "lucide-react";
  * @param {(row: Object) => (string|JSX.Element)} [props.config.getTitle] - Título de la tarjeta.
  * @param {(row: Object) => (string|JSX.Element)} [props.config.getSubtitle] - Subtítulo (mono).
  * @param {(row: Object) => JSX.Element} [props.config.renderBadge] - Badge superior derecho (estado).
- * @param {Array<{key?: string, label: string, mono?: boolean, render?: (row: Object) => *}>} [props.config.fields] - Pares clave/valor del cuerpo.
+ * @param {Array<{key?: string, label: string, mono?: boolean, render?: (row: Object) => *, onClick?: (row: Object) => void, valueClassName?: (row: Object) => string}>} [props.config.fields] - Pares clave/valor del cuerpo. `onClick` hace el valor clicable (detiene la propagación al tap de la tarjeta).
  * @param {(row: Object, index: number) => void} [props.onClick] - Tap en la tarjeta (abrir expediente).
  * @returns {JSX.Element}
  */
@@ -55,12 +55,17 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
           {fields.map((f) => {
             const raw = f.render ? f.render(row) : row?.[f.key];
             const empty = raw === undefined || raw === null || String(raw).trim() === "";
+            const clickable = !empty && typeof f.onClick === "function";
+            const extraClass = f.valueClassName ? f.valueClassName(row) : "";
             return (
               <div key={f.key || f.label} className="min-w-0">
                 <span className="block text-[8px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-600 mb-0.5">
                   {f.label}
                 </span>
-                <span className={`block text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate ${f.mono ? "font-mono" : ""}`}>
+                <span
+                  onClick={clickable ? (e) => { e.stopPropagation(); f.onClick(row); } : undefined}
+                  className={`block text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate ${f.mono ? "font-mono" : ""} ${clickable ? "cursor-pointer" : ""} ${extraClass}`}
+                >
                   {empty ? <span className="text-slate-300 dark:text-slate-700 italic">—</span> : String(raw)}
                 </span>
               </div>

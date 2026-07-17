@@ -435,7 +435,7 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
 };
 
 // --- COMPONENTE DE FICHERO DETALLADO (EXPEDIENTE) ---
-export const EmployeeRecordModal = ({ isOpen, onClose, record, columns }) => {
+export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldClickHandlers = {} }) => {
     const [fieldSearch, setFieldSearch] = useState("");
 
     useEffect(() => {
@@ -568,20 +568,28 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns }) => {
                                                     </span>
                                                 </div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
-                                                    {fields.map((field, idx) => (
-                                                        <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
-                                                            <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
-                                                                <HighlightText text={field.label} highlight={fieldSearch} />
-                                                            </span>
-                                                            <span className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'}`}>
-                                                                {field.value !== undefined && field.value !== null && String(field.value).trim() !== "" ? (
-                                                                    <HighlightText text={String(field.value)} highlight={fieldSearch} />
-                                                                ) : (
-                                                                    <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                                    {fields.map((field, idx) => {
+                                                        const hasValue = field.value !== undefined && field.value !== null && String(field.value).trim() !== "";
+                                                        const clickHandler = fieldClickHandlers[field.key];
+                                                        const isClickable = hasValue && typeof clickHandler === "function";
+                                                        return (
+                                                            <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
+                                                                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
+                                                                    <HighlightText text={field.label} highlight={fieldSearch} />
+                                                                </span>
+                                                                <span
+                                                                    onClick={isClickable ? () => clickHandler(record) : undefined}
+                                                                    className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'} ${isClickable ? 'cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid' : ''}`}
+                                                                >
+                                                                    {hasValue ? (
+                                                                        <HighlightText text={String(field.value)} highlight={fieldSearch} />
+                                                                    ) : (
+                                                                        <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         );
