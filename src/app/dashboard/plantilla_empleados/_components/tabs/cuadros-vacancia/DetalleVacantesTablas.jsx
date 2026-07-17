@@ -101,12 +101,11 @@ function VacanciaTableK({ tableData, totalRow, label, data, onCellClick }) {
         <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
         {label}
       </h4>
-      <div className="overflow-x-auto custom-scrollbar">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md overflow-hidden bg-white dark:bg-slate-900">
+      <div className="overflow-auto custom-scrollbar max-h-[420px] rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md bg-white dark:bg-slate-900">
           <table className="w-full text-sm text-left border-collapse">
-            <thead className="text-white">
+            <thead className="text-white sticky top-0 z-30">
               <tr>
-                <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Nivel</th>
+                <th className="sticky left-0 top-0 z-40 bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Nivel</th>
                 <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Eventuales</th>
                 <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Permanentes</th>
                 <th className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
@@ -115,7 +114,7 @@ function VacanciaTableK({ tableData, totalRow, label, data, onCellClick }) {
             <tbody>
               {tableData.map((row, idx) => (
                 <tr key={row.nivel} className={`transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5 ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/20 dark:bg-slate-800/10'}`}>
-                  <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">{row.nivel}</td>
+                  <td className={`sticky left-0 z-10 p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60 ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}`}>{row.nivel}</td>
                   <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800/60">
                     <ClickableNum value={row.eventuales + row.nuevaCreacion} onClick={() => onCellClick(row.nivel, 'eventual', label)} />
                   </td>
@@ -128,7 +127,7 @@ function VacanciaTableK({ tableData, totalRow, label, data, onCellClick }) {
                 </tr>
               ))}
               <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
-                <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
+                <td className="sticky left-0 z-10 bg-[#10243e] p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
                 <td className="p-3 text-center border-r border-slate-200/10">
                   <button onClick={() => onCellClick('__ALL__', 'eventual', label)} className="px-3 py-1 text-xs font-black bg-white/10 hover:bg-white hover:text-[#10243e] text-white rounded-lg border border-white/20 transition-all active:scale-95 cursor-pointer">{formatNumber(totalRow.eventuales + totalRow.nuevaCreacion)}</button>
                 </td>
@@ -141,7 +140,6 @@ function VacanciaTableK({ tableData, totalRow, label, data, onCellClick }) {
               </tr>
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );
@@ -156,12 +154,11 @@ function VacanciaTable({ tableData, totalRow, label, onCellClick }) {
         <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
         {label}
       </h4>
-      <div className="overflow-x-auto custom-scrollbar">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md overflow-hidden bg-white dark:bg-slate-900">
+      <div className="overflow-auto custom-scrollbar max-h-[420px] rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md bg-white dark:bg-slate-900">
           <table className="w-full text-sm text-left border-collapse">
-            <thead className="text-white">
+            <thead className="text-white sticky top-0 z-30">
               <tr>
-                <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Nivel</th>
+                <th className="sticky left-0 top-0 z-40 bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Nivel</th>
                 <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Eventuales</th>
                 <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Evt. Nueva Creación</th>
                 <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Permanentes</th>
@@ -171,7 +168,7 @@ function VacanciaTable({ tableData, totalRow, label, onCellClick }) {
             <tbody>
               {tableData.map((row, idx) => (
                 <tr key={row.nivel} className={`transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5 ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/20 dark:bg-slate-800/10'}`}>
-                  <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">{row.nivel}</td>
+                  <td className={`sticky left-0 z-10 p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60 ${idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}`}>{row.nivel}</td>
                   <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800/60">
                     <ClickableNum value={row.eventuales} onClick={() => onCellClick(row.nivel, 'eventual', label)} />
                   </td>
@@ -187,7 +184,7 @@ function VacanciaTable({ tableData, totalRow, label, onCellClick }) {
                 </tr>
               ))}
               <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
-                <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
+                <td className="sticky left-0 z-10 bg-[#10243e] p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
                 <td className="p-3 text-center border-r border-slate-200/10">
                   <button onClick={() => onCellClick('__ALL__', 'eventual', label)} className="px-3 py-1 text-xs font-black bg-white/10 hover:bg-white hover:text-[#10243e] text-white rounded-lg border border-white/20 transition-all active:scale-95 cursor-pointer">{formatNumber(totalRow.eventuales)}</button>
                 </td>
@@ -203,7 +200,6 @@ function VacanciaTable({ tableData, totalRow, label, onCellClick }) {
               </tr>
             </tbody>
           </table>
-        </div>
       </div>
     </div>
   );
