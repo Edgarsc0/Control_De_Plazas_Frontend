@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  UserX,
   Search,
   Building2,
   Layers,
@@ -221,6 +223,10 @@ function OrganigramaContent() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState(null);
+  // ── Filtro "Departamentos vacantes": destaca todas las plazas titulares
+  // vacantes del árbol actual y permite recorrerlas una por una con < >.
+  const [vacantesFiltroActivo, setVacantesFiltroActivo] = useState(false);
+  const [vacanteFocusIndex, setVacanteFocusIndex] = useState(0);
   // ── Reordenar hermanos por drag-and-drop (mismo padre, ver handleReorderDrop) ─
   const [draggingCode, setDraggingCode] = useState(null);
   const [dragOverCode, setDragOverCode] = useState(null);
@@ -349,6 +355,8 @@ function OrganigramaContent() {
     setSearchQuery("");
     setSelectedNode(null);
     setExpandedNodes({});
+    setVacantesFiltroActivo(false);
+    setHighlightedNodeId(null);
     loadOrganigrama(selectedUnidad.id, vistaModo)
       .then(data => {
         setOrganigramaData(data);
@@ -462,6 +470,7 @@ function OrganigramaContent() {
         nivel_direccion: node.nivel_direccion,
         num_posicion_gerente: node.num_posicion_gerente,
         posicion_director: node.posicion_director,
+        ocupante: node.ocupante,
       });
       if (parentId) parents[node.departamento] = parentId;
       (node.subordinados || []).forEach(child => traverse(child, node.departamento));
@@ -471,6 +480,14 @@ function OrganigramaContent() {
     // renderTick fuerza recalcular tras insertar un nodo en sitio (handleCreateChild),
     // ya que organigramaData mantiene su referencia para no reiniciar la vista.
   }, [organigramaData, renderTick]);
+
+  // ── Departamentos con plaza titular vacante (activa pero sin ocupante) en
+  // el árbol actualmente cargado, en orden DFS — base del filtro "Vacantes".
+  const vacantesList = useMemo(
+    () => flatList.filter(n => n.ocupante && n.ocupante.activa && n.ocupante.vacante),
+    [flatList]
+  );
+  const vacantesSet = useMemo(() => new Set(vacantesList.map(v => v.departamento)), [vacantesList]);
 
   // ── Nodos visibles según expandedNodes (colapsar oculta toda la rama) ──────
   // Separado del memo estructural de arriba porque depende de expandedNodes,
@@ -1210,6 +1227,37 @@ function OrganigramaContent() {
     }, 150);
   };
 
+  // ── Filtro "Departamentos vacantes": expande hasta el N-ésimo vacante de
+  // vacantesList, lo enfoca (mismo estilo ámbar que usa la búsqueda) y hace
+  // scroll — sin abrir el modal de detalle, para no tapar el árbol mientras
+  // se recorre con < >.
+  const goToVacanteIndex = (idx) => {
+    if (!vacantesList.length) return;
+    const wrapped = ((idx % vacantesList.length) + vacantesList.length) % vacantesList.length;
+    const target = vacantesList[wrapped];
+    setVacanteFocusIndex(wrapped);
+    if (!allNodes[target.departamento]) return;
+    let cur = target.departamento;
+    const toExpand = {};
+    while (parentsMap[cur]) { toExpand[parentsMap[cur]] = true; cur = parentsMap[cur]; }
+    setExpandedNodes(prev => ({ ...prev, ...toExpand }));
+    setHighlightedNodeId(target.departamento);
+    setTimeout(() => {
+      document.getElementById(`node-${target.departamento}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+  };
+
+  const handleToggleVacantesFiltro = () => {
+    if (vacantesFiltroActivo) {
+      setVacantesFiltroActivo(false);
+      setHighlightedNodeId(null);
+      return;
+    }
+    if (vacantesList.length === 0) return;
+    setVacantesFiltroActivo(true);
+    goToVacanteIndex(0);
+  };
+
   // ── Export a PDF (Bug #6, optimizado 2026-07-16) ─────────────────────────
   // html-to-image no puede generar un canvas de más de 16384px de ancho
   // (límite físico de Chromium) — con árboles grandes el ancho real del
@@ -1341,6 +1389,9 @@ function OrganigramaContent() {
     const hasChildren  = node.subordinados?.length > 0;
     const isSelected   = selectedNode?.departamento === node.departamento;
     const isHighlighted = highlightedNodeId === node.departamento;
+    // Todos los vacantes se destacan mientras el filtro está activo; el
+    // isHighlighted (ámbar más fuerte) marca cuál es el "actual" del recorrido.
+    const isVacanteMarked = vacantesFiltroActivo && !isHighlighted && vacantesSet.has(node.departamento);
     const { Icon, badgeColor, iconBg } = getLaneForLevel(node.nivel_direccion);
 
     const isDragOver = dragOverCode === node.departamento;
@@ -1349,6 +1400,8 @@ function OrganigramaContent() {
       ? "border-rose-500 dark:border-rose-500 ring-2 ring-rose-400/40 scale-[1.02]"
       : isHighlighted
       ? "border-amber-400 dark:border-amber-700 ring-2 ring-amber-400/20 shadow-lg shadow-amber-500/5 scale-[1.02]"
+      : isVacanteMarked
+      ? "border-amber-300 dark:border-amber-800 ring-2 ring-amber-300/30 shadow-sm shadow-amber-500/5"
       : isSelected
       ? "border-rose-800 dark:border-rose-950 shadow-md shadow-rose-800/5 ring-1 ring-rose-800/30"
       : "border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 shadow-sm hover:translate-y-[-2px]";
@@ -1891,12 +1944,70 @@ function OrganigramaContent() {
           </button>
         </div>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
+        <button
+          onClick={handleToggleVacantesFiltro}
+          disabled={!vacantesFiltroActivo && vacantesList.length === 0}
+          title={vacantesFiltroActivo ? "Cerrar filtro de vacantes" : "Destacar departamentos con plaza titular vacante"}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+            vacantesFiltroActivo
+              ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20"
+              : "text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-355 dark:bg-slate-800 dark:hover:bg-slate-750"
+          }`}
+        >
+          <UserX className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Vacantes</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono ${vacantesFiltroActivo ? "bg-white/25" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"}`}>
+            {vacantesList.length}
+          </span>
+        </button>
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
         <button onClick={() => setShowExportModal(true)} title="Exportar a PDF"
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-355 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all border border-slate-200/50 dark:border-slate-750">
           <Download className="w-3.5 h-3.5 text-rose-800" />
           <span>Exportar PDF</span>
         </button>
       </div>
+
+      {/* ── FLOATING BAR: Recorrido de vacantes (Top-Center) ────────────── */}
+      {vacantesFiltroActivo && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md pl-2 pr-1.5 py-1.5 rounded-2xl border border-amber-300/70 dark:border-amber-800/70 shadow-xl flex items-center gap-2">
+          <UserX className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="min-w-0 max-w-[220px]">
+            <div className="text-[9px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400">
+              Vacante {vacanteFocusIndex + 1} de {vacantesList.length}
+            </div>
+            <div className="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate" title={vacantesList[vacanteFocusIndex]?.descripcion_larga}>
+              {vacantesList[vacanteFocusIndex]?.descripcion_larga || "—"}
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={() => goToVacanteIndex(vacanteFocusIndex - 1)}
+              disabled={vacantesList.length < 2}
+              title="Vacante anterior"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => goToVacanteIndex(vacanteFocusIndex + 1)}
+              disabled={vacantesList.length < 2}
+              title="Vacante siguiente"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <div className="w-px h-5 bg-amber-200 dark:bg-amber-900 mx-0.5" />
+            <button
+              onClick={handleToggleVacantesFiltro}
+              title="Cerrar filtro de vacantes"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── FLOATING CARD 3: Stats (Bottom-Left) ────────────────────────── */}
       <div className="absolute bottom-4 left-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg text-[10px] text-slate-550 dark:text-slate-400 font-medium flex items-center gap-3">
