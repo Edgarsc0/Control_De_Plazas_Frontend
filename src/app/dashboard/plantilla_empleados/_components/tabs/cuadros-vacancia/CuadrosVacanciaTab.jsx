@@ -1153,13 +1153,13 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                               {!isCompactChart && isNewYear && (
                                 <td
                                   rowSpan={isTableExpanded ? rowSpan : 1}
-                                  className={`sticky left-0 z-10 w-16 sm:w-20 px-2 py-2.5 sm:px-4 sm:py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#bc955c]/15 dark:bg-[#bc955c]/25" : "bg-white dark:bg-slate-900"
+                                  className={`sticky left-0 z-10 w-16 sm:w-20 px-2 py-2.5 sm:px-4 sm:py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#f5efe7] dark:bg-[#3a3737]" : "bg-white dark:bg-slate-900"
                                     }`}
                                 >
                                   {getYear(row.fecha)}
                                 </td>
                               )}
-                              <td className={`sticky left-0 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#bc955c]/15 dark:bg-[#bc955c]/25 text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
+                              <td className={`sticky left-0 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#f5efe7] dark:bg-[#3a3737] text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
                                 <div className="flex items-center justify-center gap-2">
                                   {formatDate(row.fecha)}
                                   {isMostRecent && (
