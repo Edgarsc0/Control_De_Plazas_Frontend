@@ -1174,20 +1174,31 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   }, []);
 
   // Config de la tarjeta móvil para Plantilla Detalle (qué campos muestra cada fila).
-  const mobileCardConfig = {
+  // `fields` se deriva de `columns` (mismo estado que controla el botón "Columnas" /
+  // ColumnsModal): así, activar una columna ahí la agrega también a la tarjeta móvil,
+  // sin mantener una lista separada. posicion/nombres/estado_nomina se excluyen porque
+  // ya se muestran como título/subtítulo/badge.
+  const MOBILE_CARD_EXCLUDED_KEYS = useMemo(() => new Set(["posicion", "nombres", "estado_nomina"]), []);
+  const MOBILE_CARD_CURRENCY_KEYS = useMemo(() => new Set(["smb", "smn"]), []);
+  const mobileCardConfig = useMemo(() => ({
     getRowId: (row, i) => row.id ?? row.posicion ?? i,
     getTitle: (row) => (row.nombres && String(row.nombres).trim()) ? row.nombres : "Vacante",
     getSubtitle: (row) => (row.posicion ? `POS ${row.posicion}` : ""),
     renderBadge: renderEstadoBadge,
-    fields: [
-      { key: "id_empleado", label: "Id Empleado", mono: true },
-      { key: "nivel", label: "Nivel", mono: true },
-      { key: "nj", label: "NJ", mono: true },
-      { key: "codigo_presupuestal", label: "Cód. Presup.", mono: true },
-      { key: "fecha_efectiva_personal", label: "Fecha efectiva" },
-      { key: "qna", label: "Qna", mono: true },
-    ],
-  };
+    fields: columns
+      .filter((col) => col.visible && !MOBILE_CARD_EXCLUDED_KEYS.has(col.key))
+      .map((col) => ({
+        key: col.key,
+        label: col.label,
+        mono: isMonoColumn(col.key),
+        ...(MOBILE_CARD_CURRENCY_KEYS.has(col.key) ? {
+          render: (row) => {
+            const n = Number(row[col.key]);
+            return isNaN(n) ? row[col.key] : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+          },
+        } : {}),
+      })),
+  }), [columns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS]);
 
   // Auto-scroll when navigating with keyboard
   useEffect(() => {
