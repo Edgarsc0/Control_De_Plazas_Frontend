@@ -73,8 +73,9 @@ export const PlantillaService = {
      * Obtiene el árbol jerárquico completo (nodo raíz con `subordinados` anidados)
      * de una unidad de negocio, construido en el backend desde ORGANIGRAMA_ANAM.
      * @param {string} unidadNegocio - Código de la unidad de negocio (p.ej. "00900").
-     * @param {string} [vista="institucional"] - "institucional" (manual/curada, editable)
-     * o "alineacion" (recalculada en vivo desde el determinante real, solo lectura).
+     * @param {string} [vista="institucional"] - "institucional" (manual/curada, editable),
+     * "alineacion" (recalculada en vivo desde el determinante real, solo lectura)
+     * o "sig" (igual algoritmo que institucional, filtrado a filas isSIGInfo=1, solo lectura).
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el árbol.
      */

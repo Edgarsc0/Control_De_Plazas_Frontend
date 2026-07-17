@@ -28,6 +28,7 @@ export const PERMISSIONS = {
   VIEW_OFICIOS_TURNADOS: 'authentication.view_oficios_turnados',
   VIEW_ORGANIGRAMA_INSTITUCIONAL: 'authentication.view_organigrama_institucional',
   VIEW_ORGANIGRAMA_ALINEACION: 'authentication.view_organigrama_alineacion',
+  VIEW_ORGANIGRAMA_SIG: 'authentication.view_organigrama_sig',
   EDIT_ORGANIGRAMA: 'authentication.edit_organigrama',
   VIEW_MONITOREO_ZAFIRO: 'authentication.view_monitoreo_zafiro',
 

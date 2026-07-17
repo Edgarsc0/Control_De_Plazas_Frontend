@@ -206,15 +206,20 @@ function OrganigramaContent() {
   const [loadingOrg, setLoadingOrg] = useState(false);
   const [loadError, setLoadError] = useState(null);
   // "institucional" (manual/curada, editable) | "alineacion" (recalculada en
-  // vivo desde el determinante real, solo lectura).
+  // vivo desde el determinante real, solo lectura) | "sig" (igual algoritmo
+  // que institucional, filtrado a filas isSIGInfo=1, solo lectura).
   const [vistaModo, setVistaModo] = useState("institucional");
   const { isLoading: authLoading, hasPermission } = useAuth();
   const canEditOrganigrama = hasPermission(PERMISSIONS.EDIT_ORGANIGRAMA);
   const canViewInstitucional = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL);
   const canViewAlineacion = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION);
-  const soloLectura = vistaModo === "alineacion" || !canEditOrganigrama;
+  const canViewSig = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_SIG);
+  // Solo Institucional es editable; Alineación y SIG son siempre solo lectura.
+  const soloLectura = vistaModo !== "institucional" || !canEditOrganigrama;
   const TOOLTIP_SOLO_LECTURA = vistaModo === "alineacion"
     ? "No editable en Vista Alineación — esta vista es de solo lectura, calculada desde el código oficial."
+    : vistaModo === "sig"
+    ? "No editable en Vista SIG — esta vista es de solo lectura."
     : "No tienes permiso para editar el Organigrama.";
 
   // ── Si el usuario no tiene permiso para la vista activa (p. ej. solo tiene
@@ -222,12 +227,16 @@ function OrganigramaContent() {
   // permisos terminan de cargar — mismo patrón que activeTab en plantilla_empleados.
   useEffect(() => {
     if (authLoading) return;
-    if (vistaModo === "institucional" && !canViewInstitucional && canViewAlineacion) {
-      setVistaModo("alineacion");
-    } else if (vistaModo === "alineacion" && !canViewAlineacion && canViewInstitucional) {
-      setVistaModo("institucional");
+    const permitido = {
+      institucional: canViewInstitucional,
+      alineacion: canViewAlineacion,
+      sig: canViewSig,
+    };
+    if (!permitido[vistaModo]) {
+      const fallback = ["institucional", "alineacion", "sig"].find((v) => permitido[v]);
+      if (fallback) setVistaModo(fallback);
     }
-  }, [authLoading, vistaModo, canViewInstitucional, canViewAlineacion]);
+  }, [authLoading, vistaModo, canViewInstitucional, canViewAlineacion, canViewSig]);
 
   const [expandedNodes, setExpandedNodes] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
@@ -1932,36 +1941,53 @@ function OrganigramaContent() {
           <ListCollapse className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Colapsar Todo</span>
         </button>
-        {/* Toggle Institucional/Alineación: solo tiene sentido mostrarlo si el
-            usuario tiene permiso para ver AMBAS vistas — si solo tiene una, no
-            hay nada entre lo que elegir (ver VIEW_ORGANIGRAMA_INSTITUCIONAL /
-            VIEW_ORGANIGRAMA_ALINEACION en @/config/permissions). */}
-        {canViewInstitucional && canViewAlineacion && (
+        {/* Toggle Institucional/Alineación/SIG: solo tiene sentido mostrarlo si
+            el usuario tiene permiso para ver MÁS DE UNA vista — si solo tiene
+            una, no hay nada entre lo que elegir (ver VIEW_ORGANIGRAMA_INSTITUCIONAL /
+            VIEW_ORGANIGRAMA_ALINEACION / VIEW_ORGANIGRAMA_SIG en @/config/permissions). */}
+        {[canViewInstitucional, canViewAlineacion, canViewSig].filter(Boolean).length > 1 && (
           <>
             <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
             <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5">
-              <button
-                onClick={() => setVistaModo("institucional")}
-                title="Árbol curado manualmente (editable)"
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  vistaModo === "institucional"
-                    ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
-                }`}
-              >
-                Institucional
-              </button>
-              <button
-                onClick={() => setVistaModo("alineacion")}
-                title="Árbol recalculado desde el código oficial (solo lectura)"
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  vistaModo === "alineacion"
-                    ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
-                }`}
-              >
-                Alineación
-              </button>
+              {canViewInstitucional && (
+                <button
+                  onClick={() => setVistaModo("institucional")}
+                  title="Árbol curado manualmente (editable)"
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    vistaModo === "institucional"
+                      ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
+                  }`}
+                >
+                  Institucional
+                </button>
+              )}
+              {canViewAlineacion && (
+                <button
+                  onClick={() => setVistaModo("alineacion")}
+                  title="Árbol recalculado desde el código oficial (solo lectura)"
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    vistaModo === "alineacion"
+                      ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
+                  }`}
+                >
+                  Alineación
+                </button>
+              )}
+              {canViewSig && (
+                <button
+                  onClick={() => setVistaModo("sig")}
+                  title="Árbol filtrado a nodos con información SIG (solo lectura)"
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    vistaModo === "sig"
+                      ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
+                  }`}
+                >
+                  SIG
+                </button>
+              )}
             </div>
           </>
         )}
@@ -2634,7 +2660,7 @@ function OrganigramaContent() {
 
 export default function OrganigramaPage() {
   return (
-    <RequirePermission permission={[PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL, PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION]}>
+    <RequirePermission permission={[PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL, PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION, PERMISSIONS.VIEW_ORGANIGRAMA_SIG]}>
       <OrganigramaContent />
     </RequirePermission>
   );
