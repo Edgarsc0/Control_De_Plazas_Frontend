@@ -667,16 +667,28 @@ function OrganigramaContent() {
       return;
     }
     const q = searchQuery.toLowerCase();
-    
-    // Fast in-memory search over the global catalog
-    const results = globalCatalog.filter(n =>
-      n.departamento.toLowerCase().includes(q) ||
-      (n.descripcion_larga && n.descripcion_larga.toLowerCase().includes(q))
-    ).slice(0, 8);
-    
+
+    // Fast in-memory search over the global catalog, acotado a la vista
+    // activa — debe sugerir solo nodos que existan en el árbol que se ve,
+    // si no, al hacer clic el nodo no aparecería (espejo exacto de los
+    // filtros de organigrama_tree.build_tree):
+    //   - SIG: solo isSIGInfo=1.
+    //   - Alineación: excluye nivel "Enlace" (nunca existe en esa vista).
+    //   - Institucional: sin filtro extra (incluye todo, igual que el árbol).
+    const results = globalCatalog
+      .filter(n => {
+        if (vistaModo === "sig") return n.isSIGInfo;
+        if (vistaModo === "alineacion") return n.nivel_direccion !== "Enlace";
+        return true;
+      })
+      .filter(n =>
+        n.departamento.toLowerCase().includes(q) ||
+        (n.descripcion_larga && n.descripcion_larga.toLowerCase().includes(q))
+      ).slice(0, 8);
+
     setSearchResults(results);
     setSelectedIndex(-1); // Reset selected index on new search
-  }, [searchQuery, globalCatalog]);
+  }, [searchQuery, globalCatalog, vistaModo]);
 
   const flatListRef = useRef({ allNodes: {}, parentsMap: {}, flatList: [] });
   flatListRef.current = { allNodes, parentsMap, flatList };
