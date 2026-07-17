@@ -481,63 +481,63 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns }) => {
                 hideClose
                 className="w-full max-w-4xl max-h-[85vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] data-[state=open]:slide-in-from-bottom-[2%] data-[state=closed]:animate-out data-[state=closed]:zoom-out-[0.98] data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-[2%] duration-500 ease-out"
             >
-                <div className="w-full max-h-[85vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col rounded-[28px] shadow-2xl border border-[#621f32]/10 dark:border-slate-800/80 overflow-hidden">
+                <div className="w-full max-h-[92vh] sm:max-h-[85vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col rounded-2xl sm:rounded-[28px] shadow-2xl border border-[#621f32]/10 dark:border-slate-800/80 overflow-hidden">
                     <LetterheadBar />
-                    <div className="flex flex-col flex-1 min-h-0 p-7">
-                        <DialogHeader className="mb-4 shrink-0 flex flex-row justify-between items-center border-b-2 border-dashed border-[#621f32]/15 dark:border-slate-800/60 pb-5">
-                            <div className="flex items-center gap-4">
-                                <div className="relative shrink-0 size-16 rounded-full border-[3px] border-double border-[#bc955c] flex flex-col items-center justify-center bg-[#621f32]/5 dark:bg-slate-900 rotate-[-4deg] shadow-inner select-none">
-                                    <Stamp className="size-6 text-[#621f32] dark:text-[#bc955c]" />
+                    <div className="flex flex-col flex-1 min-h-0 p-4 sm:p-7">
+                        <DialogHeader className="mb-3 sm:mb-4 shrink-0 flex flex-row justify-between items-center border-b-2 border-dashed border-[#621f32]/15 dark:border-slate-800/60 pb-3 sm:pb-5">
+                            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+                                <div className="relative shrink-0 size-11 sm:size-16 rounded-full border-2 sm:border-[3px] border-double border-[#bc955c] flex flex-col items-center justify-center bg-[#621f32]/5 dark:bg-slate-900 rotate-[-4deg] shadow-inner select-none">
+                                    <Stamp className="size-4.5 sm:size-6 text-[#621f32] dark:text-[#bc955c]" />
                                 </div>
-                                <div className="text-left">
-                                    <DialogTitle className="text-2xl font-black text-[#621f32] dark:text-[#bc955c] tracking-tight font-serif">
+                                <div className="text-left min-w-0">
+                                    <DialogTitle className="text-lg sm:text-2xl font-black text-[#621f32] dark:text-[#bc955c] tracking-tight font-serif truncate">
                                         Expediente de plaza
                                     </DialogTitle>
-                                    <DialogDescription className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-1 uppercase tracking-wide">
-                                        {record.nombres || "SIN NOMBRE ASIGNADO"}
+                                    <DialogDescription className="text-[11px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 mt-0.5 sm:mt-1 uppercase tracking-wide truncate">
+                                        Consulta detallada de la plaza
                                     </DialogDescription>
                                 </div>
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-2.5 rounded-full bg-white dark:bg-slate-900 border border-[#621f32]/15 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                className="p-2 sm:p-2.5 rounded-full bg-white dark:bg-slate-900 border border-[#621f32]/15 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
                             >
-                                <X className="size-5" />
+                                <X className="size-4.5 sm:size-5" />
                             </button>
                         </DialogHeader>
 
                         {/* Buscador de Campos */}
-                        <div className="mb-5 shrink-0 flex items-center gap-3 bg-white dark:bg-slate-900 px-4 py-3.5 rounded-2xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
-                            <Search className="size-5 text-[#bc955c] shrink-0" />
+                        <div className="mb-3 sm:mb-5 shrink-0 flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
+                            <Search className="size-4.5 sm:size-5 text-[#bc955c] shrink-0" />
                             <input
                                 type="text"
-                                placeholder="Buscar campos en el expediente (ej. RFC, aduana, nivel, sueldo, etc.)..."
+                                placeholder="Buscar campos (RFC, aduana, nivel, sueldo...)"
                                 value={fieldSearch}
                                 onChange={(e) => setFieldSearch(e.target.value)}
-                                className="bg-transparent border-none focus:ring-0 text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                                className="bg-transparent border-none focus:ring-0 text-[13px] sm:text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
                             />
                             {fieldSearch && (
                                 <button
                                     onClick={() => setFieldSearch("")}
-                                    className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
+                                    className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer shrink-0"
                                 >
                                     <X className="size-4.5" />
                                 </button>
                             )}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-7 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-5 sm:gap-7 custom-scrollbar">
                             {/* Tarjetas principales */}
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 p-3.5 sm:p-5 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800">
                                 {[
                                     { label: "No. Empleado", value: record.id_empleado, isMono: true },
                                     { label: "Posición", value: record.posicion, isMono: true },
                                     { label: "RFC", value: record.rfc, isMono: true },
                                     { label: "Nivel Salarial", value: record.nivel, isMono: true }
                                 ].map((item, idx) => (
-                                    <div key={idx} className="flex flex-col gap-1.5 p-4 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all hover:scale-[1.02]">
-                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{item.label}</span>
-                                        <span className={`text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
+                                    <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
+                                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
+                                        <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
                                             {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
                                         </span>
                                     </div>
@@ -545,35 +545,35 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns }) => {
                             </div>
 
                             {/* Detalle Categorizado */}
-                            <div className="flex flex-col gap-7 mb-2">
+                            <div className="flex flex-col gap-5 sm:gap-7 mb-2">
                                 {!hasVisibleFields ? (
-                                    <div className="flex flex-col items-center justify-center py-16 text-center">
-                                        <div className="size-16 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
-                                            <Search className="size-7 text-[#621f32]/40 dark:text-slate-500 animate-pulse" />
+                                    <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center px-4">
+                                        <div className="size-14 sm:size-16 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
+                                            <Search className="size-6 sm:size-7 text-[#621f32]/40 dark:text-slate-500 animate-pulse" />
                                         </div>
-                                        <p className="text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest font-serif">No se encontraron campos coincidentes</p>
+                                        <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest font-serif">No se encontraron campos coincidentes</p>
                                         <p className="text-xs text-slate-400 mt-1">Prueba con otra palabra clave o limpia el buscador</p>
                                     </div>
                                 ) : (
                                     Object.entries(filteredGroupedFields).map(([category, fields]) => {
                                         if (fields.length === 0) return null;
                                         return (
-                                            <div key={category} className="flex flex-col gap-3.5">
+                                            <div key={category} className="flex flex-col gap-2.5 sm:gap-3.5">
                                                 <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-900 pb-2">
-                                                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                                    <span className="text-[11px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                                         {category}
                                                     </span>
                                                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400">
                                                         {fields.length} {fields.length === 1 ? 'campo' : 'campos'}
                                                     </span>
                                                 </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
                                                     {fields.map((field, idx) => (
-                                                        <div key={idx} className="flex flex-col gap-1.5 p-4 bg-white dark:bg-slate-900/10 rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all">
-                                                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
+                                                        <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
+                                                            <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
                                                                 <HighlightText text={field.label} highlight={fieldSearch} />
                                                             </span>
-                                                            <span className={`text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'}`}>
+                                                            <span className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'}`}>
                                                                 {field.value !== undefined && field.value !== null && String(field.value).trim() !== "" ? (
                                                                     <HighlightText text={String(field.value)} highlight={fieldSearch} />
                                                                 ) : (
