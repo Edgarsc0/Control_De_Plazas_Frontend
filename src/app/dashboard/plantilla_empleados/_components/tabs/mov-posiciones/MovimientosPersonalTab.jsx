@@ -124,7 +124,7 @@ const getTextFilterParams = (filters) => {
 };
 
 
-const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
+const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerClassName }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedYears, setExpandedYears] = useState({});
   const [expandedMonths, setExpandedMonths] = useState({});
@@ -185,19 +185,22 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
   const modalContent = (
     <AnimatePresence>
       {isOpen && (
-        <div key="bitacora-date-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div key="bitacora-date-modal" className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-[450px] max-w-[95vw] max-h-[500px] flex flex-col overflow-hidden z-[70]"
+            initial={{ opacity: 0, scale: 0.98, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: 24 }}
+            className="relative bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl w-full sm:w-[450px] max-w-full sm:max-w-[95vw] max-h-[85vh] sm:max-h-[500px] flex flex-col overflow-hidden z-[70] rounded-t-3xl sm:rounded-3xl"
           >
+            <div className="sm:hidden shrink-0 pt-2.5 pb-1 flex justify-center">
+              <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+            </div>
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-xs font-black uppercase tracking-tight text-slate-700 dark:text-slate-300 flex items-center gap-2">
                   <Filter className="size-3 text-[#621f32] dark:text-[#bc955c]" />
                   Seleccionar Fechas
                 </h4>
-                <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
+                <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 -m-1"><X className="size-5 sm:size-4" /></button>
               </div>
             </div>
             <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-slate-900">
@@ -293,9 +296,9 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
                 </div>
               </div>
             </div>
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2">
-              <button onClick={() => onChange([])} className="flex-1 px-3 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-all">Limpiar</button>
-              <button onClick={() => setIsOpen(false)} className="flex-[2] px-3 py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl shadow-lg shadow-[#621f32]/20 dark:shadow-none hover:opacity-90 active:scale-95 transition-all">Aceptar</button>
+            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2 shrink-0">
+              <button onClick={() => onChange([])} className="flex-1 px-3 py-3 sm:py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white dark:hover:bg-slate-800 active:scale-95 transition-all">Limpiar</button>
+              <button onClick={() => setIsOpen(false)} className="flex-[2] px-3 py-3 sm:py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl shadow-lg shadow-[#621f32]/20 dark:shadow-none hover:opacity-90 active:scale-95 transition-all">Aceptar</button>
             </div>
           </motion.div>
         </div>
@@ -305,7 +308,7 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange }) => {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)} className="flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm hover:border-[#621f32]/50 transition-colors">
+      <button onClick={() => setIsOpen(true)} className={triggerClassName || "flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm hover:border-[#621f32]/50 transition-colors"}>
         <span className="text-[10px] text-slate-400 font-bold uppercase">Bitácora:</span>
         <span className="font-bold text-xs text-[#621f32] dark:text-[#bc955c] truncate max-w-[200px]">
           {selectedDates.length === 0 ? "Ninguna" : selectedDates.length === 1 ? selectedDates[0] : `${selectedDates.length} fechas`}
@@ -2242,6 +2245,23 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
             ]}
           />
+
+          {activeSubTab === "bitacora" && (
+            <div className="md:hidden flex items-center gap-2 px-4 pb-3 -mt-1 bg-slate-50/40 dark:bg-slate-900/20">
+              <BitacoraDateSelector
+                distinctDates={distinctDates}
+                selectedDates={bitacoraDates}
+                onChange={setBitacoraDates}
+                triggerClassName="flex-1 min-w-0 flex items-center gap-2 px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm active:scale-[0.98] transition-transform"
+              />
+              <button
+                onClick={() => { setBitacoraDates([getTodayString()]); setTextFilters({}); setColumnFilters({}); }}
+                className="shrink-0 px-3.5 py-3 bg-[#621f32]/10 text-[#621f32] active:bg-[#621f32]/20 dark:bg-[#bc955c]/10 dark:text-[#bc955c] dark:active:bg-[#bc955c]/20 text-[9px] font-black uppercase tracking-wider rounded-2xl transition-colors"
+              >
+                Hoy
+              </button>
+            </div>
+          )}
 
           <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
