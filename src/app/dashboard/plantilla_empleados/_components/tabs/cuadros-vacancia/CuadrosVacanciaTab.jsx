@@ -1037,12 +1037,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 </div>
               </div>
 
-              <div className="overflow-auto max-h-[65vh] pb-4 custom-scrollbar">
-                <div className="rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg overflow-clip relative bg-white dark:bg-slate-900" ref={tableRef}>
+              <div className="overflow-auto max-h-[65vh] pb-4 custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg relative bg-white dark:bg-slate-900" ref={tableRef}>
                   <table className="w-full text-xs sm:text-sm text-left border-collapse">
                     <thead className="text-white sticky top-0 z-20">
                       <tr>
-                        <th colSpan="2" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan={isCompactChart ? 1 : 2} className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Periodo
                         </th>
                         <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
@@ -1056,27 +1055,29 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                         </th>
                       </tr>
                       <tr className="bg-[#163052] border-t border-slate-200/10">
-                        <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
-                          <div className="flex items-center justify-center gap-2">
-                            Año
-                            <div className="relative" ref={yearFilterRef}>
-                              <button
-                                ref={yearBtnRef}
-                                onClick={() => {
-                                  if (!yearFilterOpen && yearBtnRef.current) {
-                                    const rect = yearBtnRef.current.getBoundingClientRect();
-                                    setYearDropdownPos({ top: rect.bottom + 8, left: rect.left });
-                                  }
-                                  setYearFilterOpen(!yearFilterOpen);
-                                }}
-                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedYears.length > 0 ? 'bg-[#bc955c] text-[#10243e] font-bold' : 'hover:bg-white/20'}`}
-                              >
-                                <Filter className="size-3" />
-                              </button>
+                        {!isCompactChart && (
+                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                            <div className="flex items-center justify-center gap-2">
+                              Año
+                              <div className="relative" ref={yearFilterRef}>
+                                <button
+                                  ref={yearBtnRef}
+                                  onClick={() => {
+                                    if (!yearFilterOpen && yearBtnRef.current) {
+                                      const rect = yearBtnRef.current.getBoundingClientRect();
+                                      setYearDropdownPos({ top: rect.bottom + 8, left: rect.left });
+                                    }
+                                    setYearFilterOpen(!yearFilterOpen);
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedYears.length > 0 ? 'bg-[#bc955c] text-[#10243e] font-bold' : 'hover:bg-white/20'}`}
+                                >
+                                  <Filter className="size-3" />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        </th>
-                        <th className="sticky left-16 sm:left-20 z-30 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                          </th>
+                        )}
+                        <th className="sticky left-0 sm:left-20 z-30 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                           <div className="flex items-center justify-center gap-2">
                             Qna.
                             <div className="relative" ref={qnaFilterRef}>
@@ -1131,7 +1132,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <tbody className="bg-white dark:bg-slate-900 animate-fade-in">
                       {filteredData.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="px-6 py-12 text-center text-slate-450 dark:text-slate-500 font-bold border border-slate-200 dark:border-slate-800">
+                          <td colSpan={isCompactChart ? 10 : 11} className="px-6 py-12 text-center text-slate-450 dark:text-slate-500 font-bold border border-slate-200 dark:border-slate-800">
                             No hay datos que coincidan con los filtros
                           </td>
                         </tr>
@@ -1149,7 +1150,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                                 : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
                                 }`}
                             >
-                              {isNewYear && (
+                              {!isCompactChart && isNewYear && (
                                 <td
                                   rowSpan={isTableExpanded ? rowSpan : 1}
                                   className={`sticky left-0 z-10 w-16 sm:w-20 px-2 py-2.5 sm:px-4 sm:py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#bc955c]/15 dark:bg-[#bc955c]/25" : "bg-white dark:bg-slate-900"
@@ -1158,7 +1159,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                                   {getYear(row.fecha)}
                                 </td>
                               )}
-                              <td className={`sticky left-16 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#bc955c]/15 dark:bg-[#bc955c]/25 text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
+                              <td className={`sticky left-0 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#bc955c]/15 dark:bg-[#bc955c]/25 text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
                                 <div className="flex items-center justify-center gap-2">
                                   {formatDate(row.fecha)}
                                   {isMostRecent && (
@@ -1229,7 +1230,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                       )}
                     </button>
                   )}
-                </div>
               </div>
             </div>
           </Zoom>
