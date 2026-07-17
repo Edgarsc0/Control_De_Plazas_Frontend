@@ -39,18 +39,69 @@ import { PERMISSIONS } from "@/config/permissions";
 
 // ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
 // Nivel → posición de segmento (G,C,A,S,D). "Titular" se trata como raíz (mismo rango que General).
-const LEVEL_SEGPOS = { Titular: 0, General: 0, Central: 1, Director: 2, "Subdir.": 3, "Jefe Depto": 4 };
+// "Enlace" no tiene tramo propio en el código (solo hay 5, y Jefe Depto ya
+// ocupa el último) — se codifica aparte en el backend (_crear_enlace), pero
+// participa aquí igual para que el filtro de tipos disponibles lo ofrezca
+// solo bajo un nivel más superficial (ver usos de LEVEL_SEGPOS más abajo).
+const LEVEL_SEGPOS = { Titular: 0, General: 0, Central: 1, Director: 2, "Subdir.": 3, "Jefe Depto": 4, Enlace: 5 };
 // Tipos que se pueden crear como hijo (General se crea aparte, como unidad de negocio nueva).
 const TIPO_LABELS = {
   Central: "Dirección Central",
   Director: "Dirección de Área",
   "Subdir.": "Subdirección",
   "Jefe Depto": "Jefatura de Departamento",
+  Enlace: "Enlace",
 };
 
+// ─── Config de carriles del árbol (layout visual, independiente de LEVEL_SEGPOS) ─
+const CATCH_ALL_KEY = "__catch_all__";
+const LANE_CONFIG = [
+  { key: "Titular", match: n => n === "Titular", label: "Titular", Icon: Building2, badgeColor: "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-950", iconBg: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" },
+  { key: "General", match: n => n === "General", label: "General", Icon: Building2, badgeColor: "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-950", iconBg: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" },
+  { key: "Central", match: n => n === "Central", label: "Central", Icon: Network, badgeColor: "bg-rose-50 text-rose-950 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-900", iconBg: "bg-rose-100 text-rose-950 dark:bg-rose-950 dark:text-rose-300" },
+  { key: "Director", match: n => n === "Director", label: "Director", Icon: Layers, badgeColor: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900", iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-300" },
+  { key: "Subdir.", match: n => n === "Subdir.", label: "Subdir.", Icon: Users, badgeColor: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900", iconBg: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
+  { key: "Jefe Depto", match: n => n === "Jefe Depto", label: "Jefe Depto", Icon: Briefcase, badgeColor: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 border-slate-200 dark:border-slate-700", iconBg: "bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400" },
+  // Catch-all: agrupa tanto los nodos reales de nivel "Enlace" como
+  // cualquier nivel_direccion no reconocido/vacío ("(en blanco)" u otros).
+  { key: CATCH_ALL_KEY, match: () => true, label: "Enlace", Icon: Briefcase, badgeColor: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 border-slate-200 dark:border-slate-700", iconBg: "bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400" },
+];
+
+function getLaneForLevel(nivelDireccion) {
+  return LANE_CONFIG.find(l => l.key !== CATCH_ALL_KEY && l.match(nivelDireccion)) || LANE_CONFIG[LANE_CONFIG.length - 1];
+}
+
+// ─── Reordenamiento de hermanos (drag-and-drop) ───────────────────────────
+// Pura: no muta `siblingNodes`. Devuelve el nuevo arreglo de nodos (mismo
+// padre) con `draggedCode` insertado antes/después de `targetCode`, o null
+// si alguno de los dos códigos no está en la lista. La usan tanto la
+// previsualización en vivo (onDragOver) como el commit final (onDrop) —
+// así lo que se ve durante el arrastre es exactamente lo que se guarda.
+function reorderSiblings(siblingNodes, draggedCode, targetCode, insertAfter) {
+  const fromIdx = siblingNodes.findIndex(c => c.departamento === draggedCode);
+  if (fromIdx === -1) return null;
+  const arr = [...siblingNodes];
+  const [moved] = arr.splice(fromIdx, 1);
+  const targetIdx = arr.findIndex(c => c.departamento === targetCode);
+  if (targetIdx === -1) return null;
+  arr.splice(insertAfter ? targetIdx + 1 : targetIdx, 0, moved);
+  return arr;
+}
+
+// ─── Geometría del layout de carriles (debe calzar con las clases Tailwind ─
+// w-60 / gap-8 de NodeCard) ────────────────────────────────────────────────
+const CARD_WIDTH = 240; // w-60
+const CARD_HEIGHT = 192; // h-48
+const CARD_GAP = 32; // gap-8
+const SLOT_WIDTH = CARD_WIDTH + CARD_GAP;
+const LANE_ROW_HEIGHT = 240; // alto de tarjeta (h-48=192) + botón toggle + aire
+const LABEL_ROW_HEIGHT = 40; // divisor punteado + etiqueta del carril (h-10)
+const LANE_GAP = 40; // separación vertical entre carriles (gap-10)
+const BUS_DROP = 24; // qué tan abajo del padre baja el "tronco" antes del bus horizontal
+
 // ─── Carga del árbol jerárquico desde el backend (ORGANIGRAMA_ANAM) ──────────
-async function loadOrganigrama(unidadNegocioId) {
-  const resp = await PlantillaService.getOrganigramaTree(unidadNegocioId);
+async function loadOrganigrama(unidadNegocioId, vista = "institucional") {
+  const resp = await PlantillaService.getOrganigramaTree(unidadNegocioId, vista);
   if (!resp.ok) throw new Error(`No se pudo cargar el organigrama de la unidad ${unidadNegocioId}`);
   return resp.json();
 }
@@ -150,6 +201,11 @@ function OrganigramaContent() {
   const [organigramaData, setOrganigramaData] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  // "institucional" (manual/curada, editable) | "alineacion" (recalculada en
+  // vivo desde el determinante real, solo lectura).
+  const [vistaModo, setVistaModo] = useState("institucional");
+  const soloLectura = vistaModo === "alineacion";
+  const TOOLTIP_SOLO_LECTURA = "No editable en Vista Alineación — esta vista es de solo lectura, calculada desde el código oficial.";
 
   const [expandedNodes, setExpandedNodes] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
@@ -159,6 +215,14 @@ function OrganigramaContent() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState(null);
+  // ── Reordenar hermanos por drag-and-drop (mismo padre, ver handleReorderDrop) ─
+  const [draggingCode, setDraggingCode] = useState(null);
+  const [dragOverCode, setDragOverCode] = useState(null);
+  // Previsualización en vivo: { parentCode, order: [departamento,...] } | null.
+  // Se calcula en onDragOver y se consume en visibleNodes (sin mutar
+  // organigramaData) para reflejar el reacomodo antes de soltar.
+  const [previewOrder, setPreviewOrder] = useState(null);
+  const dragOverKeyRef = useRef(null); // evita recalcular en cada mousemove
   const [showExportModal, setShowExportModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -279,13 +343,13 @@ function OrganigramaContent() {
     setSearchQuery("");
     setSelectedNode(null);
     setExpandedNodes({});
-    loadOrganigrama(selectedUnidad.id)
+    loadOrganigrama(selectedUnidad.id, vistaModo)
       .then(data => {
         setOrganigramaData(data);
       })
       .catch(err => setLoadError(err.message))
       .finally(() => setLoadingOrg(false));
-  }, [selectedUnidad]);
+  }, [selectedUnidad, vistaModo]);
 
   // ── Initialize expanded state when data loads ─────────────────────────────
   useEffect(() => {
@@ -381,6 +445,138 @@ function OrganigramaContent() {
     // renderTick fuerza recalcular tras insertar un nodo en sitio (handleCreateChild),
     // ya que organigramaData mantiene su referencia para no reiniciar la vista.
   }, [organigramaData, renderTick]);
+
+  // ── Nodos visibles según expandedNodes (colapsar oculta toda la rama) ──────
+  // Separado del memo estructural de arriba porque depende de expandedNodes,
+  // que cambia en cada expand/collapse — no queremos recalcular allNodes/
+  // parentsMap/flatList (recorrido completo) en cada toggle.
+  const visibleNodes = useMemo(() => {
+    const result = []; // { node, lane, parentDepartamento, order }
+    if (!organigramaData) return result;
+    let order = 0;
+    const walk = (node, parentDepartamento) => {
+      result.push({ node, lane: getLaneForLevel(node.nivel_direccion), parentDepartamento, order: order++ });
+      if (!!expandedNodes[node.departamento]) {
+        let children = node.subordinados || [];
+        // Mientras se arrastra un hermano sobre otro, usa el orden
+        // PREVISUALIZADO (sin tocar organigramaData) para que el árbol se
+        // reacomode en vivo antes de soltar.
+        if (previewOrder && previewOrder.parentCode === node.departamento) {
+          const byCode = new Map(children.map(c => [c.departamento, c]));
+          children = previewOrder.order.map(code => byCode.get(code)).filter(Boolean);
+        }
+        children.forEach(child => walk(child, node.departamento));
+      }
+    };
+    walk(organigramaData, null);
+    return result;
+  }, [organigramaData, expandedNodes, previewOrder]);
+
+  // ── Agrupado por carril, en el orden fijo de LANE_CONFIG, cada uno ordenado
+  // por el índice DFS (mantiene agrupados a los hijos de un mismo padre) ────
+  const lanesToRender = useMemo(() => {
+    const byLaneKey = new Map();
+    visibleNodes.forEach(entry => {
+      if (!byLaneKey.has(entry.lane.key)) byLaneKey.set(entry.lane.key, []);
+      byLaneKey.get(entry.lane.key).push(entry);
+    });
+    return LANE_CONFIG
+      .map(lane => ({ lane, entries: (byLaneKey.get(lane.key) || []).sort((a, b) => a.order - b.order) }))
+      .filter(({ entries }) => entries.length > 0);
+  }, [visibleNodes]);
+
+  // ── Posicionamiento tipo árbol: cada padre centrado sobre sus hijos ────────
+  // (algoritmo clásico simplificado — hojas en posiciones secuenciales,
+  // internos = centro del rango de sus hijos), independiente del carril en
+  // el que caiga cada nodo, para que el padre siempre quede alineado con el
+  // centro horizontal de su propia descendencia visible.
+  const treeLayout = useMemo(() => {
+    const childrenByParent = new Map();
+    visibleNodes.forEach(({ node, parentDepartamento }) => {
+      if (!parentDepartamento) return;
+      if (!childrenByParent.has(parentDepartamento)) childrenByParent.set(parentDepartamento, []);
+      childrenByParent.get(parentDepartamento).push(node.departamento);
+    });
+
+    const centerX = new Map();
+    let leafIndex = 0;
+    const assign = (code) => {
+      const children = childrenByParent.get(code) || [];
+      if (children.length === 0) {
+        const cx = leafIndex * SLOT_WIDTH + SLOT_WIDTH / 2;
+        leafIndex += 1;
+        centerX.set(code, cx);
+        return cx;
+      }
+      const childCenters = children.map(assign);
+      const cx = (Math.min(...childCenters) + Math.max(...childCenters)) / 2;
+      centerX.set(code, cx);
+      return cx;
+    };
+    if (organigramaData) assign(organigramaData.departamento);
+
+    return { centerX, childrenByParent, totalWidth: Math.max(leafIndex * SLOT_WIDTH, SLOT_WIDTH) };
+  }, [visibleNodes, organigramaData]);
+
+  // ── Posición vertical (Y) de cada carril, calculada de forma analítica ─────
+  // (misma técnica que treeLayout: coordenadas fijas en JS, NO medidas del
+  // DOM). Evita el bug de doble escalado que produce medir con
+  // getBoundingClientRect dentro de un contenedor con CSS `zoom`: el propio
+  // SVG de conectores vive dentro de ese contenedor, así que si sus
+  // coordenadas vinieran de una medición ya afectada por el zoom, el
+  // navegador las volvería a escalar una segunda vez al pintarlas.
+  const laneTopY = useMemo(() => {
+    const map = new Map();
+    let cumulative = 0;
+    lanesToRender.forEach(({ lane }) => {
+      cumulative += LABEL_ROW_HEIGHT;
+      map.set(lane.key, cumulative);
+      cumulative += LANE_ROW_HEIGHT + LANE_GAP;
+    });
+    return { map, totalHeight: Math.max(cumulative - LANE_GAP, LANE_ROW_HEIGHT) };
+  }, [lanesToRender]);
+
+  // Un conector por PADRE (no por arista): un solo tronco baja del padre, un
+  // bus horizontal une el rango de sus hijos, y una vertical por hijo baja
+  // desde el bus hasta su tarjeta — igual que un organigrama clásico, en vez
+  // de una línea independiente por cada par padre-hijo.
+  const connectors = useMemo(() => {
+    const next = [];
+    treeLayout.childrenByParent.forEach((childCodes, parentCode) => {
+      const parentLaneKey = getLaneForLevel(allNodes[parentCode]?.nivel_direccion).key;
+      const parentTop = laneTopY.map.get(parentLaneKey);
+      const parentCx = treeLayout.centerX.get(parentCode);
+      if (parentTop === undefined || parentCx === undefined) return;
+      const px = parentCx;
+      const py = parentTop + CARD_HEIGHT;
+
+      const childPoints = childCodes
+        .map(code => {
+          const childLaneKey = getLaneForLevel(allNodes[code]?.nivel_direccion).key;
+          const top = laneTopY.map.get(childLaneKey);
+          const cx = treeLayout.centerX.get(code);
+          if (top === undefined || cx === undefined) return null;
+          return { cx, cy: top };
+        })
+        .filter(Boolean);
+      if (childPoints.length === 0) return;
+
+      const busY = py + BUS_DROP;
+      const minX = Math.min(...childPoints.map(c => c.cx));
+      const maxX = Math.max(...childPoints.map(c => c.cx));
+
+      let path = `M ${px} ${py} L ${px} ${busY}`;
+      if (childPoints.length > 1) {
+        path += ` M ${minX} ${busY} L ${maxX} ${busY}`;
+      }
+      childPoints.forEach(c => {
+        path += ` M ${c.cx} ${busY} L ${c.cx} ${c.cy}`;
+      });
+
+      next.push({ parentId: parentCode, path });
+    });
+    return next;
+  }, [treeLayout, laneTopY, allNodes]);
 
   // ── Preload Global Catalog ──────────────────────────────────────────────────
   useEffect(() => {
@@ -536,6 +732,7 @@ function OrganigramaContent() {
   // ── Aplica un cambio de plaza (titular/superior) y ofrece revertir ───────
   // newOcupanteInfo === null ⇒ se está quitando la asignación (deja la plaza en blanco).
   const applyPlazaChange = async (fieldKey, field, node, newPosicion, newOcupanteInfo) => {
+    if (soloLectura) return;
     const departamento = node.departamento;
     const previousPosicion = node[fieldKey];
     const previousOcupante = node.ocupante;
@@ -648,6 +845,7 @@ function OrganigramaContent() {
 
   // ── Crea una nueva Dirección General (raíz, abre lienzo nuevo) ────────────
   const handleCreateGeneral = async () => {
+    if (soloLectura) return;
     const unidad_negocio = generalForm.unidad_negocio.trim();
     const departamento = generalForm.departamento.trim();
     const descripcion_larga = generalForm.descripcion_larga.trim();
@@ -683,9 +881,62 @@ function OrganigramaContent() {
     }
   };
 
+  // ── Reordena hermanos dentro del MISMO padre por drag-and-drop (fase 1: ─
+  // no re-parenta, solo cambia el orden visual entre hermanos — por eso no
+  // hay riesgo de romper la jerarquía). Confirma exactamente lo que ya se
+  // venía previsualizando en vivo (onDragOver → previewOrder), muta
+  // `parent.subordinados` en sitio (mismo patrón que
+  // handleCreateChild/handleDeleteNode) y persiste vía el PATCH genérico,
+  // que el backend valida como pura permutación (ver
+  // OrganigramaAnamViewSet.perform_update).
+  const handleReorderDrop = async (draggedCode, targetCode, clientX, targetEl) => {
+    const preview = previewOrder;
+    setDraggingCode(null);
+    setDragOverCode(null);
+    setPreviewOrder(null);
+    dragOverKeyRef.current = null;
+    if (soloLectura || !draggedCode || draggedCode === targetCode) return;
+
+    const parentCode = parentsMap[draggedCode];
+    if (!parentCode || parentsMap[targetCode] !== parentCode) return; // solo hermanos del mismo padre
+    const parent = allNodes[parentCode];
+    if (!parent) return;
+
+    let orderedCodes = preview && preview.parentCode === parentCode ? preview.order : null;
+    if (!orderedCodes) {
+      // Sin previsualización válida (ej. drop sin haber pasado por
+      // dragover) — recalcula con la misma lógica pura.
+      const rect = targetEl.getBoundingClientRect();
+      const insertAfter = clientX > rect.left + rect.width / 2;
+      const reordered = reorderSiblings(parent.subordinados, draggedCode, targetCode, insertAfter);
+      if (!reordered) return;
+      orderedCodes = reordered.map(c => c.departamento);
+    }
+
+    const byCode = new Map(parent.subordinados.map(c => [c.departamento, c]));
+    const newSubordinados = orderedCodes.map(code => byCode.get(code)).filter(Boolean);
+
+    const prevOrder = parent.subordinados;
+    parent.subordinados = newSubordinados;
+    bumpRender(t => t + 1);
+
+    try {
+      const res = await CatalogoEstructuraService.patchOrganigramaAnam(parentCode, {
+        subordinados: newSubordinados.map(c => c.departamento).join(","),
+      });
+      if (!res.ok) {
+        parent.subordinados = prevOrder;
+        bumpRender(t => t + 1);
+      }
+    } catch {
+      parent.subordinados = prevOrder;
+      bumpRender(t => t + 1);
+    }
+  };
+
   // ── Crea un subordinado bajo selectedNode, aplicando la regla del determinante en el backend ─
   const handleCreateChild = async () => {
-    if (!selectedNode) return;
+    if (soloLectura || !selectedNode) return;
     const tipo = childForm.tipo;
     const descripcion_larga = childForm.descripcion_larga.trim();
     if (!tipo || !descripcion_larga) {
@@ -791,7 +1042,7 @@ function OrganigramaContent() {
 
   // ── Abre el editor con los valores actuales del nodo seleccionado ─────────
   const handleOpenEdit = () => {
-    if (!selectedNode) return;
+    if (soloLectura || !selectedNode) return;
     setEditForm({
       descripcion_larga: selectedNode.descripcion_larga || "",
       unidad_administrativa: selectedNode.unidad_administrativa || "",
@@ -808,7 +1059,7 @@ function OrganigramaContent() {
 
   // ── Edita nombre/unidad administrativa/DOAF del nodo seleccionado (en sitio) ─
   const handleSaveEdit = async () => {
-    if (!selectedNode) return;
+    if (soloLectura || !selectedNode) return;
     const descripcion_larga = editForm.descripcion_larga.trim();
     if (!descripcion_larga) {
       setEditError("La descripción es obligatoria.");
@@ -846,7 +1097,7 @@ function OrganigramaContent() {
 
   // ── Elimina el nodo seleccionado (bloqueado en backend si tiene subordinados) ─
   const handleDeleteNode = async () => {
-    if (!selectedNode) return;
+    if (soloLectura || !selectedNode) return;
     const departamento = selectedNode.departamento;
     setDeleteError(null);
     setDeletingNode(true);
@@ -946,50 +1197,37 @@ function OrganigramaContent() {
       const prev = { ...expandedNodes };
       const all = {}; Object.keys(allNodes).forEach(k => all[k] = true);
       setExpandedNodes(all);
-      setTimeout(async () => {
-        try {
-          const url = await toPng(treeEl, opts);
-          const a = document.createElement("a");
-          a.download = `organigrama_${selectedUnidad?.id}_completo_${new Date().toISOString().slice(0,10)}.png`;
-          a.href = url; a.click();
-        } finally { setExpandedNodes(prev); setIsExporting(false); }
-      }, 400);
+      // El layout de carriles/conectores ahora es 100% derivado de estado
+      // (sin medición de DOM) — solo hace falta esperar a que React pinte el
+      // re-render con expandedNodes=all antes de capturar.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      try {
+        const url = await toPng(treeEl, opts);
+        const a = document.createElement("a");
+        a.download = `organigrama_${selectedUnidad?.id}_completo_${new Date().toISOString().slice(0,10)}.png`;
+        a.href = url; a.click();
+      } finally { setExpandedNodes(prev); setIsExporting(false); }
     }
   };
 
-  // ── TreeNode component ────────────────────────────────────────────────────
-  const TreeNode = ({ node }) => {
+  // ── NodeCard component (plano, sin recursión — la posición de carril la ─
+  // decide lanesToRender, no el propio nodo) ─────────────────────────────────
+  const NodeCard = ({ node }) => {
     const isExpanded   = !!expandedNodes[node.departamento];
     const hasChildren  = node.subordinados?.length > 0;
     const isSelected   = selectedNode?.departamento === node.departamento;
     const isHighlighted = highlightedNodeId === node.departamento;
+    const { Icon, badgeColor, iconBg } = getLaneForLevel(node.nivel_direccion);
 
-    let Icon = Briefcase;
-    let iconBg    = "bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-400";
-    let badgeColor = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 border-slate-200 dark:border-slate-700";
-    let cardBorder = isHighlighted
+    const isDragOver = dragOverCode === node.departamento;
+
+    let cardBorder = isDragOver
+      ? "border-rose-500 dark:border-rose-500 ring-2 ring-rose-400/40 scale-[1.02]"
+      : isHighlighted
       ? "border-amber-400 dark:border-amber-700 ring-2 ring-amber-400/20 shadow-lg shadow-amber-500/5 scale-[1.02]"
       : isSelected
       ? "border-rose-800 dark:border-rose-950 shadow-md shadow-rose-800/5 ring-1 ring-rose-800/30"
       : "border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 shadow-sm hover:translate-y-[-2px]";
-
-    if (node.nivel_direccion === "Titular" || node.nivel_direccion === "General") {
-      Icon = Building2;
-      badgeColor = "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-950";
-      iconBg     = "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300";
-    } else if (node.nivel_direccion === "Central") {
-      Icon = Network;
-      badgeColor = "bg-rose-50 text-rose-950 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-900";
-      iconBg     = "bg-rose-100 text-rose-950 dark:bg-rose-950 dark:text-rose-300";
-    } else if (node.nivel_direccion === "Director") {
-      Icon = Layers;
-      badgeColor = "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900";
-      iconBg     = "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-300";
-    } else if (node.nivel_direccion === "Subdir.") {
-      Icon = Users;
-      badgeColor = "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900";
-      iconBg     = "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
-    }
 
     return (
       <div className="flex flex-col items-center">
@@ -998,6 +1236,43 @@ function OrganigramaContent() {
           id={`node-${node.departamento}`}
           onClick={() => { setSelectedNode(node); setHighlightedNodeId(node.departamento); }}
           onDoubleClick={(e) => { if (hasChildren) { e.stopPropagation(); toggleNode(node.departamento); } }}
+          draggable={!soloLectura}
+          onDragStart={(e) => {
+            if (soloLectura) return;
+            e.dataTransfer.effectAllowed = "move";
+            // Firefox requiere dataTransfer.setData en dragstart para que el
+            // drag se considere válido y dispare "drop" de forma confiable
+            // (sin esto, dragover funciona pero el drop puede no llegar).
+            e.dataTransfer.setData("text/plain", node.departamento);
+            setDraggingCode(node.departamento);
+          }}
+          onDragEnd={() => {
+            setDraggingCode(null);
+            setDragOverCode(null);
+            setPreviewOrder(null);
+            dragOverKeyRef.current = null;
+          }}
+          onDragOver={(e) => {
+            if (soloLectura || !draggingCode || draggingCode === node.departamento) return;
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const insertAfter = e.clientX > rect.left + rect.width / 2;
+            const key = `${node.departamento}:${insertAfter}`;
+            if (dragOverKeyRef.current === key) return; // ya calculado, evita recalcular en cada mousemove
+            dragOverKeyRef.current = key;
+            setDragOverCode(node.departamento);
+
+            const parentCode = parentsMap[draggingCode];
+            if (!parentCode || parentsMap[node.departamento] !== parentCode) {
+              setPreviewOrder(null); // no son hermanos: sin previsualización (fase 1 no re-parenta)
+              return;
+            }
+            const parent = allNodes[parentCode];
+            const reordered = parent && reorderSiblings(parent.subordinados, draggingCode, node.departamento, insertAfter);
+            setPreviewOrder(reordered ? { parentCode, order: reordered.map(c => c.departamento) } : null);
+          }}
+          onDragLeave={() => setDragOverCode(prev => (prev === node.departamento ? null : prev))}
+          onDrop={(e) => { e.preventDefault(); handleReorderDrop(draggingCode, node.departamento, e.clientX, e.currentTarget); }}
           className={`w-60 p-4 bg-white dark:bg-slate-900 rounded-2xl border text-center transition-all duration-200 cursor-pointer select-none flex flex-col justify-between h-48 relative ${cardBorder}`}
         >
           <div className="flex items-center justify-between gap-1.5 mb-2">
@@ -1041,7 +1316,7 @@ function OrganigramaContent() {
 
         {/* Toggle button */}
         {hasChildren && (
-          <div className="relative z-10 -mt-3.5">
+          <div className="relative z-10 mt-1.5">
             <button
               onClick={(e) => { e.stopPropagation(); toggleNode(node.departamento); }}
               className="w-7 h-7 rounded-full bg-white dark:bg-slate-855 border border-slate-200 dark:border-slate-750 shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-550 dark:text-slate-350 hover:scale-105 active:scale-95 transition-all cursor-pointer"
@@ -1050,105 +1325,24 @@ function OrganigramaContent() {
             </button>
           </div>
         )}
-
-        {/* Children */}
-        {hasChildren && isExpanded && (
-          <>
-            <div className="w-[3px] h-[32px] bg-slate-400 dark:bg-slate-600 -mt-2 -mb-1 relative z-0" />
-            <div className="flex gap-8 items-start relative px-4">
-              {node.subordinados.map((child, idx) => {
-                let cellClass = "flex flex-col items-center relative pt-6 after:content-[''] after:absolute after:top-[-4px] after:left-1/2 after:-translate-x-1/2 after:w-[3px] after:h-[28px] after:bg-slate-400 dark:after:bg-slate-600";
-                let hLine = null;
-                if (node.subordinados.length > 1) {
-                  if (idx === 0)
-                    hLine = <div className="absolute top-0 left-1/2 right-[-17px] h-0 border-t-[3px] border-slate-400 dark:border-slate-600" />;
-                  else if (idx === node.subordinados.length - 1)
-                    hLine = <div className="absolute top-0 left-[-17px] right-1/2 h-0 border-t-[3px] border-slate-400 dark:border-slate-600" />;
-                  else
-                    hLine = <div className="absolute top-0 left-[-17px] right-[-17px] h-0 border-t-[3px] border-slate-400 dark:border-slate-600" />;
-                }
-                return (
-                  <div key={child.departamento} className={cellClass}>
-                    {hLine}
-                    <TreeNode node={child} />
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
       </div>
     );
   };
 
   // ── Skeleton (silueta de organigrama mientras carga) ──────────────────────
-  const SKELETON_SHAPE = [
-    { children: [{ children: [] }, { children: [] }] },
-    { children: [{ children: [] }, { children: [] }, { children: [] }] },
-    { children: [{ children: [] }] },
-  ];
-
   const SkeletonCard = () => (
     <div className="w-60 h-48 rounded-2xl bg-slate-200/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 animate-pulse" />
   );
 
-  const SkeletonNode = ({ node }) => {
-    const hasChildren = node.children?.length > 0;
-    return (
-      <div className="flex flex-col items-center">
-        <SkeletonCard />
-        {hasChildren && (
-          <>
-            <div className="w-[3px] h-[32px] bg-slate-300 dark:bg-slate-700 -mt-2 -mb-1 relative z-0" />
-            <div className="flex gap-8 items-start relative px-4">
-              {node.children.map((child, idx) => {
-                let cellClass = "flex flex-col items-center relative pt-6 after:content-[''] after:absolute after:top-[-4px] after:left-1/2 after:-translate-x-1/2 after:w-[3px] after:h-[28px] after:bg-slate-300 dark:after:bg-slate-700";
-                let hLine = null;
-                if (node.children.length > 1) {
-                  if (idx === 0)
-                    hLine = <div className="absolute top-0 left-1/2 right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />;
-                  else if (idx === node.children.length - 1)
-                    hLine = <div className="absolute top-0 left-[-17px] right-1/2 h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />;
-                  else
-                    hLine = <div className="absolute top-0 left-[-17px] right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />;
-                }
-                return (
-                  <div key={idx} className={cellClass}>
-                    {hLine}
-                    <SkeletonNode node={child} />
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+  const SKELETON_LANE_COUNTS = [1, 2, 3, 2];
 
   const OrganigramaSkeleton = () => (
-    <div className="flex flex-col items-center">
-      <SkeletonCard />
-      <div className="w-[3px] h-[32px] bg-slate-300 dark:bg-slate-700 -mt-2 -mb-1 relative z-0" />
-      <div className="flex gap-8 items-start relative px-4">
-        {SKELETON_SHAPE.map((child, idx) => {
-          let cellClass = "flex flex-col items-center relative pt-6 after:content-[''] after:absolute after:top-[-4px] after:left-1/2 after:-translate-x-1/2 after:w-[3px] after:h-[28px] after:bg-slate-300 dark:after:bg-slate-700";
-          let hLine =
-            idx === 0 ? (
-              <div className="absolute top-0 left-1/2 right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />
-            ) : idx === SKELETON_SHAPE.length - 1 ? (
-              <div className="absolute top-0 left-[-17px] right-1/2 h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />
-            ) : (
-              <div className="absolute top-0 left-[-17px] right-[-17px] h-0 border-t-[3px] border-slate-300 dark:border-slate-700" />
-            );
-          return (
-            <div key={idx} className={cellClass}>
-              {hLine}
-              <SkeletonNode node={child} />
-            </div>
-          );
-        })}
-      </div>
+    <div className="flex flex-col gap-10">
+      {SKELETON_LANE_COUNTS.map((count, i) => (
+        <div key={i} className="flex gap-8 justify-center">
+          {Array.from({ length: count }).map((_, j) => <SkeletonCard key={j} />)}
+        </div>
+      ))}
     </div>
   );
 
@@ -1175,9 +1369,9 @@ function OrganigramaContent() {
                     "(en blanco)",
                     null
                   )}
-                  disabled={savingField !== null}
-                  title="Quitar asignación"
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 transition-colors cursor-pointer disabled:opacity-40"
+                  disabled={savingField !== null || soloLectura}
+                  title={soloLectura ? TOOLTIP_SOLO_LECTURA : "Quitar asignación"}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <X className="w-3 h-3" />
                   Quitar
@@ -1185,9 +1379,9 @@ function OrganigramaContent() {
               )}
               <button
                 onClick={() => { setEditingField(fieldKey); setEmpSearchQuery(""); setEmpSearchResults([]); }}
-                disabled={savingField !== null}
-                title="Cambiar plaza"
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold normal-case tracking-normal text-rose-900 dark:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60 transition-colors cursor-pointer disabled:opacity-40"
+                disabled={savingField !== null || soloLectura}
+                title={soloLectura ? TOOLTIP_SOLO_LECTURA : "Cambiar plaza"}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold normal-case tracking-normal text-rose-900 dark:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Pencil className="w-3 h-3" />
                 Cambiar
@@ -1377,7 +1571,49 @@ function OrganigramaContent() {
             </div>
           )}
           {!loadingOrg && !loadError && organigramaData && (
-            <TreeNode node={organigramaData} />
+            <div className="relative">
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                style={{ width: treeLayout.totalWidth, height: laneTopY.totalHeight, zIndex: 0 }}
+              >
+                {connectors.map(c => (
+                  <path
+                    key={c.parentId}
+                    d={c.path}
+                    className="stroke-slate-400 dark:stroke-slate-600"
+                    fill="none"
+                    strokeWidth={2}
+                  />
+                ))}
+              </svg>
+              <div className="flex flex-col gap-10 relative" style={{ zIndex: 1 }}>
+                {lanesToRender.map(({ lane, entries }) => (
+                  <div key={lane.key}>
+                    <div className="h-10 flex items-center gap-3 px-2" style={{ width: treeLayout.totalWidth }}>
+                      <div className="flex-1 border-t border-dashed border-slate-300 dark:border-slate-700" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                        {lane.label}
+                      </span>
+                      <div className="flex-1 border-t border-dashed border-slate-300 dark:border-slate-700" />
+                    </div>
+                    <div className="relative" style={{ width: treeLayout.totalWidth, height: LANE_ROW_HEIGHT }}>
+                      {entries.map(({ node }) => {
+                        const cx = treeLayout.centerX.get(node.departamento) ?? 0;
+                        return (
+                          <div
+                            key={node.departamento}
+                            className="absolute top-0"
+                            style={{ left: cx - CARD_WIDTH / 2, width: CARD_WIDTH }}
+                          >
+                            <NodeCard node={node} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
           {!loadingOrg && !loadError && !organigramaData && (
             <div className="flex flex-col items-center justify-center gap-3 py-32 text-slate-400">
@@ -1409,8 +1645,9 @@ function OrganigramaContent() {
             </label>
             <button
               onClick={() => { setCreateGeneralError(null); setShowCreateGeneral(true); }}
-              title="Crear nueva Dirección General"
-              className="flex items-center gap-1 text-[9px] font-bold text-rose-900 dark:text-rose-700 hover:underline cursor-pointer"
+              disabled={soloLectura}
+              title={soloLectura ? TOOLTIP_SOLO_LECTURA : "Crear nueva Dirección General"}
+              className="flex items-center gap-1 text-[9px] font-bold text-rose-900 dark:text-rose-700 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
             >
               <Plus className="w-3 h-3" />
               Nueva Dirección General
@@ -1499,6 +1736,31 @@ function OrganigramaContent() {
           <ListCollapse className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Colapsar Todo</span>
         </button>
+        <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
+        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5">
+          <button
+            onClick={() => setVistaModo("institucional")}
+            title="Árbol curado manualmente (editable)"
+            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+              vistaModo === "institucional"
+                ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
+                : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
+            }`}
+          >
+            Institucional
+          </button>
+          <button
+            onClick={() => setVistaModo("alineacion")}
+            title="Árbol recalculado desde el código oficial (solo lectura)"
+            className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+              vistaModo === "alineacion"
+                ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
+                : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
+            }`}
+          >
+            Alineación
+          </button>
+        </div>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
         <button onClick={() => setShowExportModal(true)} title="Exportar a PNG"
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-355 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all border border-slate-200/50 dark:border-slate-750">
@@ -1685,26 +1947,30 @@ function OrganigramaContent() {
                   <>
                     <button
                       onClick={() => {
-                        if ((selectedNode.subordinados?.length || 0) > 0) return;
+                        if (soloLectura || (selectedNode.subordinados?.length || 0) > 0) return;
                         setDeleteError(null);
                         setShowDeleteConfirm(true);
                       }}
-                      disabled={(selectedNode.subordinados?.length || 0) > 0}
-                      title={(selectedNode.subordinados?.length || 0) > 0 ? "Elimina primero sus subordinados." : "Eliminar departamento"}
+                      disabled={soloLectura || (selectedNode.subordinados?.length || 0) > 0}
+                      title={soloLectura ? TOOLTIP_SOLO_LECTURA : (selectedNode.subordinados?.length || 0) > 0 ? "Elimina primero sus subordinados." : "Eliminar departamento"}
                       className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-rose-800 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                       <Trash2 className="w-4 h-4" />
                       <span>Eliminar</span>
                     </button>
                     <button
                       onClick={handleOpenEdit}
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-200 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer">
+                      disabled={soloLectura}
+                      title={soloLectura ? TOOLTIP_SOLO_LECTURA : "Editar departamento"}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-200 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                       <Pencil className="w-4 h-4" />
                       <span>Editar</span>
                     </button>
                     {Object.keys(TIPO_LABELS).some(t => LEVEL_SEGPOS[t] > (LEVEL_SEGPOS[selectedNode.nivel_direccion] ?? -1)) && (
                       <button
                         onClick={() => { setCreateChildError(null); resetChildForm(); setShowCreateChild(true); }}
-                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all cursor-pointer shadow-sm shadow-rose-800/10">
+                        disabled={soloLectura}
+                        title={soloLectura ? TOOLTIP_SOLO_LECTURA : "Agregar subordinado"}
+                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-900 hover:bg-rose-950 rounded-xl transition-all cursor-pointer shadow-sm shadow-rose-800/10 disabled:opacity-40 disabled:cursor-not-allowed">
                         <Plus className="w-4 h-4" />
                         <span>Agregar subordinado</span>
                       </button>

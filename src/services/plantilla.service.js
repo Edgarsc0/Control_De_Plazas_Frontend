@@ -73,11 +73,14 @@ export const PlantillaService = {
      * Obtiene el árbol jerárquico completo (nodo raíz con `subordinados` anidados)
      * de una unidad de negocio, construido en el backend desde ORGANIGRAMA_ANAM.
      * @param {string} unidadNegocio - Código de la unidad de negocio (p.ej. "00900").
+     * @param {string} [vista="institucional"] - "institucional" (manual/curada, editable)
+     * o "alineacion" (recalculada en vivo desde el determinante real, solo lectura).
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el árbol.
      */
-    getOrganigramaTree: (unidadNegocio, options = {}) => {
-        return apiFetch(`/plantilla/organigrama-tree/?unidad_negocio=${encodeURIComponent(unidadNegocio)}`, {
+    getOrganigramaTree: (unidadNegocio, vista = "institucional", options = {}) => {
+        const params = new URLSearchParams({ unidad_negocio: unidadNegocio, vista });
+        return apiFetch(`/plantilla/organigrama-tree/?${params.toString()}`, {
             method: 'GET',
             ...options
         });
