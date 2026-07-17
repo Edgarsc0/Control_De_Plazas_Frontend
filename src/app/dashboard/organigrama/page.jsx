@@ -31,7 +31,8 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { toPng } from "html-to-image";
+import { toSvg } from "html-to-image";
+import jsPDF from "jspdf";
 import { PlantillaService } from "@/services/plantilla.service";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import RequirePermission from "@/components/auth/RequirePermission";
@@ -362,31 +363,51 @@ function OrganigramaContent() {
     }
     setExpandedNodes(initialExpanded);
     setSelectedNode(null);
+  }, [organigramaData]);
 
-    if (pendingScrollNode) {
-      setTimeout(() => {
-        // Find path to pending node and expand
-        const { parentsMap, allNodes } = flatListRef.current || {};
-        if (parentsMap && allNodes && allNodes[pendingScrollNode]) {
-          const toExpand = {};
-          let cur = pendingScrollNode;
-          while (parentsMap[cur]) {
-            toExpand[parentsMap[cur]] = true;
-            cur = parentsMap[cur];
-          }
-          setExpandedNodes(prev => ({ ...prev, ...toExpand }));
-          setHighlightedNodeId(pendingScrollNode);
-          setSelectedNode(allNodes[pendingScrollNode]);
-          setTimeout(() => {
-            document.getElementById(`node-${pendingScrollNode}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-            setPendingScrollNode(null);
-          }, 150);
-        } else {
-            setPendingScrollNode(null);
+  // ── Centra el canvas sobre la raíz al cargar el lienzo. Sin esto el árbol
+  // arranca con scroll en (0,0) y, con árboles grandes, la tarjeta raíz queda
+  // fuera del viewport (canvas se ve en blanco aunque sí haya datos). Se salta
+  // cuando hay un pendingScrollNode activo (búsqueda cross-unidad, ver effect
+  // de abajo) para no pelearse por el scroll con ese otro nodo destino.
+  useEffect(() => {
+    if (!organigramaData || pendingScrollNodeRef.current) return;
+    const rootId = `node-${organigramaData.departamento}`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(rootId)?.scrollIntoView({ block: "start", inline: "center" });
+      });
+    });
+  }, [organigramaData]);
+
+  // ── Resuelve un pendingScrollNode (búsqueda cross-unidad) tras el cambio de
+  // lienzo. Separado del effect de arriba: si dependiera de pendingScrollNode
+  // en el mismo effect, la propia limpieza (setPendingScrollNode(null)) volvía
+  // a disparar el effect y el setSelectedNode(null) inicial borraba el
+  // highlight/modal recién aplicado.
+  useEffect(() => {
+    if (!pendingScrollNode || !organigramaData) return;
+    const target = pendingScrollNode;
+    const timer = setTimeout(() => {
+      const { parentsMap, allNodes } = flatListRef.current || {};
+      if (parentsMap && allNodes && allNodes[target]) {
+        const toExpand = {};
+        let cur = target;
+        while (parentsMap[cur]) {
+          toExpand[parentsMap[cur]] = true;
+          cur = parentsMap[cur];
         }
-      }, 100);
-    }
-  }, [organigramaData, pendingScrollNode]);
+        setExpandedNodes(prev => ({ ...prev, ...toExpand }));
+        setHighlightedNodeId(target);
+        setSelectedNode(allNodes[target]);
+        setTimeout(() => {
+          document.getElementById(`node-${target}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
+      }
+      setPendingScrollNode(null);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [pendingScrollNode, organigramaData]);
 
   // ── Zoom via Ctrl+Wheel ───────────────────────────────────────────────────
   useEffect(() => {
@@ -614,6 +635,9 @@ function OrganigramaContent() {
 
   const flatListRef = useRef({ allNodes: {}, parentsMap: {}, flatList: [] });
   flatListRef.current = { allNodes, parentsMap, flatList };
+
+  const pendingScrollNodeRef = useRef(pendingScrollNode);
+  pendingScrollNodeRef.current = pendingScrollNode;
 
   // ── Consulta ocupante de plaza (titular / superior) al seleccionar nodo ────
   useEffect(() => {
@@ -871,6 +895,12 @@ function OrganigramaContent() {
       const data = await reloadUnidades();
       const nueva = data.find(u => u.id === unidad_negocio) || { id: unidad_negocio, label: descripcion_larga };
       setSelectedUnidad(nueva);
+      setGlobalCatalog(prev => [...prev, {
+        departamento,
+        descripcion_larga,
+        unidad_negocio,
+        nivel_direccion: "General",
+      }]);
       setZoom(1);
       setShowCreateGeneral(false);
       setGeneralForm(emptyGeneralForm);
@@ -1117,8 +1147,8 @@ function OrganigramaContent() {
         setShowDeleteConfirm(false);
         setSelectedNode(null);
         setOrganigramaData(null);
-        const data = await reloadUnidades();
-        setSelectedUnidad(data.find(u => u.id !== selectedUnidad.id) || null);
+        await reloadUnidades();
+        setSelectedUnidad(null);
       } else {
         const parent = allNodes[parentId];
         if (parent) {
@@ -1175,38 +1205,127 @@ function OrganigramaContent() {
     }, 150);
   };
 
-  // ── Export ────────────────────────────────────────────────────────────────
-  const handleExportPng = async (type) => {
+  // ── Export a PDF (Bug #6, optimizado 2026-07-16) ─────────────────────────
+  // html-to-image no puede generar un canvas de más de 16384px de ancho
+  // (límite físico de Chromium) — con árboles grandes el ancho real del
+  // contenedor supera ese límite, así que se captura por franjas verticales
+  // y cada una se coloca como imagen independiente en el PDF (que no tiene
+  // ese límite de canvas).
+  //
+  // La versión anterior llamaba `toCanvas(treeEl, ...)` UNA VEZ POR FRANJA.
+  // `toCanvas` internamente vuelve a llamar `toSvg`, que clona TODO el árbol
+  // DOM, incrusta web fonts e imágenes, y serializa el clon a un data URI —
+  // el costo real no es dibujar en el canvas, es esa clonación/serialización
+  // completa del árbol. Repetirla por cada franja (10+ en árboles grandes)
+  // multiplicaba ese costo por el número de franjas, que es lo que hacía la
+  // exportación lentísima en árboles grandes.
+  //
+  // Ahora se serializa el árbol UNA sola vez a una imagen vectorial (SVG con
+  // foreignObject) y esa MISMA imagen se recorta con `drawImage` una vez por
+  // franja — un recorte de canvas es prácticamente gratis comparado con
+  // reclonar/reserializar. Como el recorte sigue siendo de una fuente
+  // vectorial, la resolución de salida no se degrada: cada franja se
+  // rasteriza a la resolución de destino que se le pida (por eso se puede
+  // subir PDF_PIXEL_RATIO sin pagar el costo de antes).
+  const PDF_PIXEL_RATIO = 4;    // resolución de salida (~4x) — antes costaba caro subirla porque se repetía por franja; ahora es prácticamente gratis
+  const PDF_TILE_PX = 4000;     // ancho lógico por franja — a pixelRatio 4 cada canvas ronda 16000px, justo debajo del límite de 16384 (menos franjas = más rápido)
+  const PDF_MAX_DIM_PT = 14000; // techo físico de página (~194in) por compatibilidad con lectores PDF
+  const PX_TO_PT = 0.75;        // 96 CSS px/in → 72pt/in
+
+  const handleExportPdf = async (type) => {
     const treeEl = document.getElementById("tree-capture-container");
     if (!treeEl) return;
     setShowExportModal(false);
     setIsExporting(true);
     const isDark = document.documentElement.classList.contains("dark");
-    const opts = {
-      backgroundColor: isDark ? "#0f172a" : "#f8fafc",
-      style: { zoom: 1, maxHeight: "none", overflow: "visible", padding: "32px", borderRadius: "16px" },
-    };
-    if (type === "current") {
-      try {
-        const url = await toPng(treeEl, opts);
-        const a = document.createElement("a");
-        a.download = `organigrama_${selectedUnidad?.id}_${new Date().toISOString().slice(0,10)}.png`;
-        a.href = url; a.click();
-      } finally { setIsExporting(false); }
-    } else {
-      const prev = { ...expandedNodes };
+    const backgroundColor = isDark ? "#0f172a" : "#f8fafc";
+    const baseStyle = { zoom: 1, maxHeight: "none", overflow: "visible", padding: "32px", borderRadius: "16px" };
+
+    const prevExpanded = { ...expandedNodes };
+    if (type === "full") {
       const all = {}; Object.keys(allNodes).forEach(k => all[k] = true);
       setExpandedNodes(all);
-      // El layout de carriles/conectores ahora es 100% derivado de estado
-      // (sin medición de DOM) — solo hace falta esperar a que React pinte el
+      // El layout de carriles/conectores es 100% derivado de estado (sin
+      // medición de DOM) — solo hace falta esperar a que React pinte el
       // re-render con expandedNodes=all antes de capturar.
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      try {
-        const url = await toPng(treeEl, opts);
-        const a = document.createElement("a");
-        a.download = `organigrama_${selectedUnidad?.id}_completo_${new Date().toISOString().slice(0,10)}.png`;
-        a.href = url; a.click();
-      } finally { setExpandedNodes(prev); setIsExporting(false); }
+    }
+
+    // Se fuerza zoom:1 también en el DOM real (no solo en el clon que hace
+    // html-to-image) antes de medir: así getBoundingClientRect() reporta las
+    // mismas dimensiones que van a capturarse — si se midiera con el zoom de
+    // pantalla activo, el cálculo de franjas quedaría desalineado y volvería
+    // a truncar contenido.
+    const prevZoomStyle = treeEl.style.zoom;
+    treeEl.style.zoom = "1";
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    try {
+      const rect = treeEl.getBoundingClientRect();
+      const totalW = Math.ceil(rect.width);
+      const totalH = Math.ceil(rect.height);
+
+      // ── Serialización única de todo el árbol a una imagen vectorial ────
+      const svgDataUrl = await toSvg(treeEl, {
+        backgroundColor,
+        style: baseStyle,
+        width: totalW,
+        height: totalH,
+      });
+      const fullImg = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("No se pudo rasterizar el organigrama capturado."));
+        img.decoding = "async";
+        img.src = svgDataUrl;
+      });
+
+      const tileW = Math.min(PDF_TILE_PX, totalW);
+      const numTiles = Math.max(1, Math.ceil(totalW / tileW));
+
+      // Escala física de página: reduce el tamaño impreso (no la resolución
+      // ya capturada en cada franja) si el árbol es tan grande que excede el
+      // techo de compatibilidad de lectores PDF.
+      let pageWpt = totalW * PX_TO_PT;
+      let pageHpt = totalH * PX_TO_PT;
+      const scale = Math.min(1, PDF_MAX_DIM_PT / pageWpt, PDF_MAX_DIM_PT / pageHpt);
+      pageWpt *= scale; pageHpt *= scale;
+
+      const pdf = new jsPDF({
+        orientation: pageWpt >= pageHpt ? "l" : "p",
+        unit: "pt",
+        format: [pageWpt, pageHpt],
+      });
+
+      // Cada franja es ahora solo un recorte (`drawImage` con rect de
+      // origen) de `fullImg`, ya serializado — nada de reclonar/reincrustar
+      // DOM por franja. Se libera cada canvas antes de la siguiente franja
+      // para no acumular varios buffers de pixelRatio 4 en memoria a la vez.
+      for (let i = 0; i < numTiles; i++) {
+        const offset = i * tileW;
+        const thisTileW = Math.min(tileW, totalW - offset);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(thisTileW * PDF_PIXEL_RATIO);
+        canvas.height = Math.round(totalH * PDF_PIXEL_RATIO);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(fullImg, offset, 0, thisTileW, totalH, 0, 0, canvas.width, canvas.height);
+
+        const x = offset * PX_TO_PT * scale;
+        const w = thisTileW * PX_TO_PT * scale;
+        const h = totalH * PX_TO_PT * scale;
+        pdf.addImage(canvas, "PNG", x, 0, w, h, undefined, "FAST");
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+
+      const suffix = type === "full" ? "_completo" : "";
+      pdf.save(`organigrama_${selectedUnidad?.id}${suffix}_${new Date().toISOString().slice(0,10)}.pdf`);
+    } finally {
+      treeEl.style.zoom = prevZoomStyle;
+      if (type === "full") setExpandedNodes(prevExpanded);
+      setIsExporting(false);
     }
   };
 
@@ -1699,7 +1818,7 @@ function OrganigramaContent() {
           </div>
 
           {/* Search results */}
-          {searchResults.length > 0 && (
+          {searchQuery.trim() && searchResults.length > 0 && (
             <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-900 max-h-60 overflow-y-auto">
               {searchResults.map((r, idx) => (
                 <div
@@ -1712,13 +1831,18 @@ function OrganigramaContent() {
                       : "hover:bg-slate-50 dark:hover:bg-slate-900"
                   }`}
                 >
-                  <div className="min-w-0 pr-2">
+                  <div className="min-w-0 pr-2" title={r.descripcion_larga}>
                     <div className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{r.descripcion_larga}</div>
                     <div className="text-[9px] text-slate-400 mt-0.5 font-mono">#{r.departamento} · {r.nivel_direccion}</div>
                   </div>
                   <ArrowRight className="w-3 h-3 text-rose-800 shrink-0" />
                 </div>
               ))}
+            </div>
+          )}
+          {searchQuery.trim() && searchResults.length === 0 && (
+            <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 p-3 text-xs text-slate-400">
+              Sin resultados para «{searchQuery.trim()}»
             </div>
           )}
         </div>
@@ -1762,10 +1886,10 @@ function OrganigramaContent() {
           </button>
         </div>
         <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
-        <button onClick={() => setShowExportModal(true)} title="Exportar a PNG"
+        <button onClick={() => setShowExportModal(true)} title="Exportar a PDF"
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-355 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl transition-all border border-slate-200/50 dark:border-slate-750">
           <Download className="w-3.5 h-3.5 text-rose-800" />
-          <span>Exportar PNG</span>
+          <span>Exportar PDF</span>
         </button>
       </div>
 
@@ -2029,7 +2153,7 @@ function OrganigramaContent() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl p-6 relative">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-2">
               <Download className="w-5 h-5 text-rose-800" />
-              Exportar Organigrama a PNG
+              Exportar Organigrama a PDF
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Selecciona el alcance de exportación.</p>
             <div className="space-y-4 mb-6">
@@ -2037,7 +2161,7 @@ function OrganigramaContent() {
                 { type: "current", title: "Vista Actual", desc: "Respeta las ramas contraídas/expandidas en pantalla." },
                 { type: "full",    title: "Todo Desglosado", desc: "Expande temporalmente todas las ramas." },
               ].map(({ type, title, desc }) => (
-                <button key={type} onClick={() => handleExportPng(type)}
+                <button key={type} onClick={() => handleExportPdf(type)}
                   className="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-800 dark:hover:border-rose-950 hover:bg-rose-50/20 dark:hover:bg-rose-950/15 transition-all group">
                   <div className="font-semibold text-sm text-slate-800 dark:text-slate-100 group-hover:text-rose-900 dark:group-hover:text-rose-700">{title}</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{desc}</div>
@@ -2362,7 +2486,7 @@ function OrganigramaContent() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-200 dark:border-slate-800">
             <Loader2 className="w-5 h-5 text-rose-800 animate-spin" />
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Generando PNG...</span>
+            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Generando PDF...</span>
           </div>
         </div>
       )}
