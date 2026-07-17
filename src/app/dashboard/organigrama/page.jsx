@@ -33,7 +33,6 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { toSvg } from "html-to-image";
 import jsPDF from "jspdf";
 import { PlantillaService } from "@/services/plantilla.service";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
@@ -102,6 +101,337 @@ const LANE_ROW_HEIGHT = 240; // alto de tarjeta (h-48=192) + botón toggle + air
 const LABEL_ROW_HEIGHT = 40; // divisor punteado + etiqueta del carril (h-10)
 const LANE_GAP = 40; // separación vertical entre carriles (gap-10)
 const BUS_DROP = 24; // qué tan abajo del padre baja el "tronco" antes del bus horizontal
+
+// ─── Layout del árbol como funciones puras (sin hooks) ────────────────────
+// Extraídas de los useMemo de OrganigramaContent para poder reutilizarlas
+// tal cual desde la exportación a PDF con un `expandedNodes` arbitrario
+// (p.ej. "todo desglosado"), sin tener que tocar el estado de React ni
+// esperar un re-render — evita el problema de closures obsoletos (la
+// función de exportación, si leyera los valores memoizados del componente
+// tras un setState, seguiría viendo los de ANTES del cambio hasta el
+// siguiente render). Los hooks del componente siguen siendo la única fuente
+// para lo que se pinta en pantalla; estas funciones son las mismas cuentas,
+// solo que también invocables a demanda con cualquier `expandedNodes`.
+function computeVisibleNodes(organigramaData, expandedNodes, previewOrder) {
+  const result = []; // { node, lane, parentDepartamento, order }
+  if (!organigramaData) return result;
+  let order = 0;
+  const walk = (node, parentDepartamento) => {
+    result.push({ node, lane: getLaneForLevel(node.nivel_direccion), parentDepartamento, order: order++ });
+    if (!!expandedNodes[node.departamento]) {
+      let children = node.subordinados || [];
+      if (previewOrder && previewOrder.parentCode === node.departamento) {
+        const byCode = new Map(children.map(c => [c.departamento, c]));
+        children = previewOrder.order.map(code => byCode.get(code)).filter(Boolean);
+      }
+      children.forEach(child => walk(child, node.departamento));
+    }
+  };
+  walk(organigramaData, null);
+  return result;
+}
+
+function computeLanesToRender(visibleNodes) {
+  const byLaneKey = new Map();
+  visibleNodes.forEach(entry => {
+    if (!byLaneKey.has(entry.lane.key)) byLaneKey.set(entry.lane.key, []);
+    byLaneKey.get(entry.lane.key).push(entry);
+  });
+  return LANE_CONFIG
+    .map(lane => ({ lane, entries: (byLaneKey.get(lane.key) || []).sort((a, b) => a.order - b.order) }))
+    .filter(({ entries }) => entries.length > 0);
+}
+
+function computeTreeLayout(visibleNodes, organigramaData) {
+  const childrenByParent = new Map();
+  visibleNodes.forEach(({ node, parentDepartamento }) => {
+    if (!parentDepartamento) return;
+    if (!childrenByParent.has(parentDepartamento)) childrenByParent.set(parentDepartamento, []);
+    childrenByParent.get(parentDepartamento).push(node.departamento);
+  });
+
+  const centerX = new Map();
+  let leafIndex = 0;
+  const assign = (code) => {
+    const children = childrenByParent.get(code) || [];
+    if (children.length === 0) {
+      const cx = leafIndex * SLOT_WIDTH + SLOT_WIDTH / 2;
+      leafIndex += 1;
+      centerX.set(code, cx);
+      return cx;
+    }
+    const childCenters = children.map(assign);
+    const cx = (Math.min(...childCenters) + Math.max(...childCenters)) / 2;
+    centerX.set(code, cx);
+    return cx;
+  };
+  if (organigramaData) assign(organigramaData.departamento);
+
+  return { centerX, childrenByParent, totalWidth: Math.max(leafIndex * SLOT_WIDTH, SLOT_WIDTH) };
+}
+
+function computeLaneTopY(lanesToRender) {
+  const map = new Map();
+  let cumulative = 0;
+  lanesToRender.forEach(({ lane }) => {
+    cumulative += LABEL_ROW_HEIGHT;
+    map.set(lane.key, cumulative);
+    cumulative += LANE_ROW_HEIGHT + LANE_GAP;
+  });
+  return { map, totalHeight: Math.max(cumulative - LANE_GAP, LANE_ROW_HEIGHT) };
+}
+
+// Un conector por PADRE (no por arista): un solo tronco baja del padre, un
+// bus horizontal une el rango de sus hijos, y una vertical por hijo baja
+// desde el bus hasta su tarjeta. Devuelve segmentos crudos (no un `path` de
+// SVG) para que tanto el <svg> en pantalla como el dibujo vectorial del PDF
+// puedan consumir la misma geometría sin duplicar la lógica de trazado.
+function computeConnectors(treeLayout, laneTopY, allNodes) {
+  const next = [];
+  treeLayout.childrenByParent.forEach((childCodes, parentCode) => {
+    const parentLaneKey = getLaneForLevel(allNodes[parentCode]?.nivel_direccion).key;
+    const parentTop = laneTopY.map.get(parentLaneKey);
+    const parentCx = treeLayout.centerX.get(parentCode);
+    if (parentTop === undefined || parentCx === undefined) return;
+    const px = parentCx;
+    const py = parentTop + CARD_HEIGHT;
+
+    const childPoints = childCodes
+      .map(code => {
+        const childLaneKey = getLaneForLevel(allNodes[code]?.nivel_direccion).key;
+        const top = laneTopY.map.get(childLaneKey);
+        const cx = treeLayout.centerX.get(code);
+        if (top === undefined || cx === undefined) return null;
+        return { cx, cy: top };
+      })
+      .filter(Boolean);
+    if (childPoints.length === 0) return;
+
+    const busY = py + BUS_DROP;
+    const minX = Math.min(...childPoints.map(c => c.cx));
+    const maxX = Math.max(...childPoints.map(c => c.cx));
+
+    const segments = [[px, py, px, busY]];
+    if (childPoints.length > 1) segments.push([minX, busY, maxX, busY]);
+    childPoints.forEach(c => segments.push([c.cx, busY, c.cx, c.cy]));
+
+    next.push({ parentId: parentCode, segments });
+  });
+  return next;
+}
+
+function segmentsToSvgPath(segments) {
+  return segments.map(([x1, y1, x2, y2]) => `M ${x1} ${y1} L ${x2} ${y2}`).join(" ");
+}
+
+// ─── Exportación de organigrama a PDF vectorial ───────────────────────────
+// Reemplaza el enfoque anterior (rasterizar el árbol completo a PNG de alta
+// resolución con html-to-image y pegarlo en el PDF): por más que se subiera
+// la resolución, seguía siendo una imagen de ancho de píxeles finito, así
+// que en algún nivel de zoom siempre terminaba pixelándose. Esta versión
+// dibuja el organigrama directo con las primitivas vectoriales de jsPDF
+// (rect/texto/línea) a partir de las MISMAS coordenadas analíticas que ya
+// calcula el layout en pantalla (computeTreeLayout/computeLaneTopY/
+// computeConnectors) — nunca captura el DOM ni pasa por una imagen
+// intermedia, así que el resultado es 100% vectorial: zoom infinito sin
+// perder nitidez, y el archivo pesa una fracción de lo que pesaba la
+// versión rasterizada.
+const PDF_MAX_DIM_PT = 14000; // techo físico de página (~194in), límite práctico de lectores PDF
+const PX_TO_PT = 0.75;        // 96 CSS px/in → 72pt/in
+const PDF_MARGIN_PX = 48;
+
+const PDF_LANE_PALETTE = {
+  Titular: { badgeBg: [255, 241, 242], badgeText: [136, 19, 55] },     // rose-50 / rose-800
+  General: { badgeBg: [255, 241, 242], badgeText: [136, 19, 55] },
+  Central: { badgeBg: [255, 241, 242], badgeText: [76, 5, 25] },       // rose-50 / rose-950
+  Director: { badgeBg: [255, 251, 235], badgeText: [180, 83, 9] },     // amber-50 / amber-700
+  "Subdir.": { badgeBg: [255, 251, 235], badgeText: [180, 83, 9] },
+  "Jefe Depto": { badgeBg: [248, 250, 252], badgeText: [51, 65, 85] }, // slate-50 / slate-700
+  [CATCH_ALL_KEY]: { badgeBg: [248, 250, 252], badgeText: [51, 65, 85] },
+};
+
+function drawOrganigramaCardPdf(pdf, node, leftPx, topPx, X, Y, T, lane) {
+  const palette = PDF_LANE_PALETTE[lane.key] || PDF_LANE_PALETTE[CATCH_ALL_KEY];
+  const x = X(leftPx), y = Y(topPx);
+  const w = T(CARD_WIDTH), h = T(CARD_HEIGHT);
+  const pad = T(16);
+  const contentW = w - pad * 2;
+  const cx = x + w / 2;
+  // Sin piso mínimo de tamaño de fuente: el tamaño de letra debe encoger en
+  // la MISMA proporción que el interlineado/separaciones (todo pasa por la
+  // misma `T`) para que el contenido nunca se amontone dentro de la
+  // tarjeta. Un piso (ej. "nunca bajar de 4pt") rompía justo eso: en
+  // árboles grandes exportados como "Todo Desglosado", `scale` puede
+  // reducirse mucho para que la página quepa en el techo físico de un PDF
+  // (~194in) — con un piso, el texto se quedaba fijo en 4pt pero el
+  // interlineado seguía encogiendo con `scale`, así que las líneas
+  // terminaban superpuestas. Al ser vectorial, un tamaño nominal pequeño no
+  // es un problema: el lector de PDF puede acercar el zoom todo lo que
+  // haga falta sin perder nitidez — para eso se pidió que fuera vectorial.
+  const fs = (px) => T(px);
+
+  // Fondo + borde de la tarjeta (siempre neutro, igual que el estado por
+  // defecto en pantalla — el PDF no reproduce estados interactivos como
+  // selección/arrastre, solo el contenido).
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(226, 232, 240); // slate-200
+  pdf.setLineWidth(Math.max(T(1), 0.4));
+  pdf.roundedRect(x, y, w, h, T(14), T(14), "FD");
+
+  // Badge de nivel
+  const badgeLabel = (node.nivel_direccion || "Depto.").toUpperCase();
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(fs(7));
+  const badgeTextW = pdf.getTextWidth(badgeLabel);
+  const badgePadX = T(8);
+  const badgeH = T(15);
+  const badgeY = y + pad;
+  pdf.setFillColor(...palette.badgeBg);
+  pdf.roundedRect(x + pad, badgeY, badgeTextW + badgePadX * 2, badgeH, badgeH / 2, badgeH / 2, "F");
+  pdf.setTextColor(...palette.badgeText);
+  pdf.text(badgeLabel, x + pad + badgePadX, badgeY + badgeH / 2, { baseline: "middle" });
+
+  // Título (descripcion_larga), hasta 2 líneas
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(fs(9.5));
+  pdf.setTextColor(30, 41, 59); // slate-800
+  let titleLines = pdf.splitTextToSize(node.descripcion_larga || "", contentW);
+  if (titleLines.length > 2) titleLines = [titleLines[0], `${titleLines[1]}…`];
+  const titleStartY = y + T(58);
+  titleLines.forEach((line, i) => pdf.text(line, cx, titleStartY + i * T(13), { align: "center" }));
+
+  // Divisor
+  const dividerY = titleStartY + (titleLines.length - 1) * T(13) + T(12);
+  pdf.setDrawColor(226, 232, 240);
+  pdf.setLineWidth(Math.max(T(1), 0.4));
+  pdf.line(cx - T(16), dividerY, cx + T(16), dividerY);
+
+  // Cuerpo: estado de la plaza titular u ocupante
+  const bodyY = dividerY + T(16);
+  const sinPlaza = !node.num_posicion_gerente || node.num_posicion_gerente === "(en blanco)";
+  const plazaInactiva = !sinPlaza && (!node.ocupante || !node.ocupante.activa);
+  const vacante = !sinPlaza && !plazaInactiva && node.ocupante?.vacante;
+
+  if (sinPlaza) {
+    pdf.setFont("helvetica", "italic");
+    pdf.setFontSize(fs(8.5));
+    pdf.setTextColor(148, 163, 184); // slate-400
+    pdf.text("Sin plaza titular", cx, bodyY, { align: "center" });
+  } else if (plazaInactiva) {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(fs(8.5));
+    pdf.setTextColor(190, 18, 60); // rose-700
+    pdf.text("Plaza inactiva", cx, bodyY, { align: "center" });
+  } else if (vacante) {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(fs(8.5));
+    pdf.setTextColor(180, 83, 9); // amber-700
+    pdf.text("Departamento vacante", cx, bodyY, { align: "center" });
+  } else {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(fs(9.5));
+    pdf.setTextColor(51, 65, 85); // slate-700
+    let nameLines = pdf.splitTextToSize(node.ocupante?.nombre || "", contentW);
+    if (nameLines.length > 2) nameLines = [nameLines[0], `${nameLines[1]}…`];
+    nameLines.forEach((line, i) => pdf.text(line, cx, bodyY + i * T(12), { align: "center" }));
+    const infoY = bodyY + (nameLines.length - 1) * T(12) + T(15);
+    pdf.setFont("courier", "bold");
+    pdf.setFontSize(fs(9));
+    pdf.setTextColor(100, 116, 139); // slate-500
+    pdf.text(`Nivel: ${node.ocupante.nivel || "N/A"}`, cx, infoY, { align: "center" });
+    pdf.text(`SMB: ${formatSMB(node.ocupante.smb)}`, cx, infoY + T(11), { align: "center" });
+  }
+
+  // Footer: código + plaza
+  const footerLineY = y + h - T(24);
+  const footerTextY = y + h - T(13);
+  pdf.setDrawColor(241, 245, 249); // slate-100
+  pdf.setLineWidth(Math.max(T(1), 0.4));
+  pdf.line(x + pad, footerLineY, x + w - pad, footerLineY);
+  pdf.setFont("courier", "normal");
+  pdf.setFontSize(fs(7.5));
+  pdf.setTextColor(148, 163, 184); // slate-400
+  pdf.text(`#${node.departamento}`, x + pad, footerTextY, { baseline: "middle" });
+  if (!sinPlaza) {
+    pdf.text(`Plaza: ${node.num_posicion_gerente}`, x + w - pad, footerTextY, { align: "right", baseline: "middle" });
+  }
+}
+
+// Recibe exactamente los mismos objetos que produce el layout analítico
+// (computeTreeLayout/computeLaneTopY/computeConnectors) y devuelve un
+// jsPDF ya armado (falta solo `.save(nombre)`). Una sola página del tamaño
+// exacto del contenido (escalada uniformemente solo si excede el techo
+// físico de un lector PDF) — como es vectorial, reducir la escala física no
+// pierde nitidez: el lector siempre puede hacer zoom sobre los mismos
+// trazos vectoriales.
+function buildOrganigramaPdf({ lanesToRender, treeLayout, laneTopY, connectors, allNodes }) {
+  const totalWpx = treeLayout.totalWidth + PDF_MARGIN_PX * 2;
+  const totalHpx = laneTopY.totalHeight + PDF_MARGIN_PX * 2;
+
+  let pageWpt = totalWpx * PX_TO_PT;
+  let pageHpt = totalHpx * PX_TO_PT;
+  const scale = Math.min(1, PDF_MAX_DIM_PT / pageWpt, PDF_MAX_DIM_PT / pageHpt);
+  pageWpt *= scale;
+  pageHpt *= scale;
+
+  const pdf = new jsPDF({
+    orientation: pageWpt >= pageHpt ? "l" : "p",
+    unit: "pt",
+    format: [pageWpt, pageHpt],
+  });
+
+  const T = (px) => px * PX_TO_PT * scale;
+  const X = (px) => T(px + PDF_MARGIN_PX);
+  const Y = (px) => T(px + PDF_MARGIN_PX);
+
+  pdf.setFillColor(248, 250, 252); // slate-50
+  pdf.rect(0, 0, pageWpt, pageHpt, "F");
+
+  // Divisores punteados de carril
+  pdf.setDrawColor(203, 213, 225); // slate-300
+  pdf.setLineWidth(Math.max(T(1), 0.4));
+  pdf.setLineDashPattern([T(4), T(3)], 0);
+  lanesToRender.forEach(({ lane }) => {
+    const labelY = Y(laneTopY.map.get(lane.key) - LABEL_ROW_HEIGHT / 2);
+    pdf.line(X(0), labelY, X(treeLayout.totalWidth), labelY);
+  });
+  pdf.setLineDashPattern([], 0);
+
+  // Etiquetas de carril (con "hueco" de fondo sobre la línea, como en pantalla)
+  // Sin piso de tamaño (ver comentario en drawOrganigramaCardPdf): el
+  // "hueco" de fondo se calcula con el mismo tamaño de fuente realmente
+  // aplicado, así que deben escalar juntos o el texto no cabría en el hueco.
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(T(9));
+  lanesToRender.forEach(({ lane }) => {
+    const labelY = Y(laneTopY.map.get(lane.key) - LABEL_ROW_HEIGHT / 2);
+    const label = lane.label.toUpperCase();
+    const labelW = pdf.getTextWidth(label);
+    const cx = X(treeLayout.totalWidth / 2);
+    pdf.setFillColor(248, 250, 252);
+    pdf.rect(cx - labelW / 2 - T(6), labelY - T(7), labelW + T(12), T(14), "F");
+    pdf.setTextColor(148, 163, 184); // slate-400
+    pdf.text(label, cx, labelY, { align: "center", baseline: "middle" });
+  });
+
+  // Conectores
+  pdf.setDrawColor(148, 163, 184); // slate-400
+  pdf.setLineWidth(Math.max(T(2), 0.5));
+  connectors.forEach(({ segments }) => {
+    segments.forEach(([x1, y1, x2, y2]) => pdf.line(X(x1), Y(y1), X(x2), Y(y2)));
+  });
+
+  // Tarjetas
+  lanesToRender.forEach(({ lane, entries }) => {
+    const top = laneTopY.map.get(lane.key);
+    entries.forEach(({ node }) => {
+      const cx = treeLayout.centerX.get(node.departamento) ?? 0;
+      drawOrganigramaCardPdf(pdf, node, cx - CARD_WIDTH / 2, top, X, Y, T, lane);
+    });
+  });
+
+  return pdf;
+}
 
 // ─── Carga del árbol jerárquico desde el backend (ORGANIGRAMA_ANAM) ──────────
 async function loadOrganigrama(unidadNegocioId, vista = "institucional") {
@@ -205,38 +535,35 @@ function OrganigramaContent() {
   const [organigramaData, setOrganigramaData] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
   const [loadError, setLoadError] = useState(null);
-  // "institucional" (manual/curada, editable) | "alineacion" (recalculada en
-  // vivo desde el determinante real, solo lectura) | "sig" (igual algoritmo
-  // que institucional, filtrado a filas isSIGInfo=1, solo lectura).
+  // "institucional" (manual/curada, editable) | "sig" (mismo algoritmo que
+  // institucional, filtrado a filas isSIGInfo=1, solo lectura — reemplaza a
+  // la antigua "alineacion": el backend sigue soportando vista=alineacion
+  // por si se retoma, pero ya no tiene botón propio en la UI).
   const [vistaModo, setVistaModo] = useState("institucional");
   const { isLoading: authLoading, hasPermission } = useAuth();
   const canEditOrganigrama = hasPermission(PERMISSIONS.EDIT_ORGANIGRAMA);
   const canViewInstitucional = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL);
-  const canViewAlineacion = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION);
   const canViewSig = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_SIG);
-  // Solo Institucional es editable; Alineación y SIG son siempre solo lectura.
+  // Solo Institucional es editable; SIG es siempre solo lectura.
   const soloLectura = vistaModo !== "institucional" || !canEditOrganigrama;
-  const TOOLTIP_SOLO_LECTURA = vistaModo === "alineacion"
-    ? "No editable en Vista Alineación — esta vista es de solo lectura, calculada desde el código oficial."
-    : vistaModo === "sig"
+  const TOOLTIP_SOLO_LECTURA = vistaModo === "sig"
     ? "No editable en Vista SIG — esta vista es de solo lectura."
     : "No tienes permiso para editar el Organigrama.";
 
-  // ── Si el usuario no tiene permiso para la vista activa (p. ej. solo tiene
-  // Alineación) fuerza la única vista a la que sí tiene acceso, en cuanto los
-  // permisos terminan de cargar — mismo patrón que activeTab en plantilla_empleados.
+  // ── Si el usuario no tiene permiso para la vista activa fuerza la única
+  // vista a la que sí tiene acceso, en cuanto los permisos terminan de
+  // cargar — mismo patrón que activeTab en plantilla_empleados.
   useEffect(() => {
     if (authLoading) return;
     const permitido = {
       institucional: canViewInstitucional,
-      alineacion: canViewAlineacion,
       sig: canViewSig,
     };
     if (!permitido[vistaModo]) {
-      const fallback = ["institucional", "alineacion", "sig"].find((v) => permitido[v]);
+      const fallback = ["institucional", "sig"].find((v) => permitido[v]);
       if (fallback) setVistaModo(fallback);
     }
-  }, [authLoading, vistaModo, canViewInstitucional, canViewAlineacion, canViewSig]);
+  }, [authLoading, vistaModo, canViewInstitucional, canViewSig]);
 
   const [expandedNodes, setExpandedNodes] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
@@ -369,9 +696,16 @@ function OrganigramaContent() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Load organigrama when unidad changes ───────────────────────────────────
+  // ── Load organigrama when unidad or vista cambian ───────────────────────────
+  // Guard de cancelación: si el usuario cambia de vista/unidad varias veces
+  // rápido, una respuesta lenta de un fetch VIEJO no debe pisar los datos de
+  // la vista ACTUAL — sin esto, cambiar Institucional→SIG→Institucional
+  // rápido podría dejar en pantalla datos de SIG mientras el toggle ya
+  // marca Institucional (mismo patrón ya usado en este archivo para
+  // unidades/búsqueda de empleado, ver useEffect de arriba).
   useEffect(() => {
     if (!selectedUnidad) return;
+    let cancelled = false;
     setLoadingOrg(true);
     setLoadError(null);
     setOrganigramaData(null);
@@ -382,10 +716,12 @@ function OrganigramaContent() {
     setHighlightedNodeId(null);
     loadOrganigrama(selectedUnidad.id, vistaModo)
       .then(data => {
+        if (cancelled) return;
         setOrganigramaData(data);
       })
-      .catch(err => setLoadError(err.message))
-      .finally(() => setLoadingOrg(false));
+      .catch(err => { if (!cancelled) setLoadError(err.message); })
+      .finally(() => { if (!cancelled) setLoadingOrg(false); });
+    return () => { cancelled = true; };
   }, [selectedUnidad, vistaModo]);
 
   // ── Initialize expanded state when data loads ─────────────────────────────
@@ -516,73 +852,21 @@ function OrganigramaContent() {
   // Separado del memo estructural de arriba porque depende de expandedNodes,
   // que cambia en cada expand/collapse — no queremos recalcular allNodes/
   // parentsMap/flatList (recorrido completo) en cada toggle.
-  const visibleNodes = useMemo(() => {
-    const result = []; // { node, lane, parentDepartamento, order }
-    if (!organigramaData) return result;
-    let order = 0;
-    const walk = (node, parentDepartamento) => {
-      result.push({ node, lane: getLaneForLevel(node.nivel_direccion), parentDepartamento, order: order++ });
-      if (!!expandedNodes[node.departamento]) {
-        let children = node.subordinados || [];
-        // Mientras se arrastra un hermano sobre otro, usa el orden
-        // PREVISUALIZADO (sin tocar organigramaData) para que el árbol se
-        // reacomode en vivo antes de soltar.
-        if (previewOrder && previewOrder.parentCode === node.departamento) {
-          const byCode = new Map(children.map(c => [c.departamento, c]));
-          children = previewOrder.order.map(code => byCode.get(code)).filter(Boolean);
-        }
-        children.forEach(child => walk(child, node.departamento));
-      }
-    };
-    walk(organigramaData, null);
-    return result;
-  }, [organigramaData, expandedNodes, previewOrder]);
+  const visibleNodes = useMemo(
+    () => computeVisibleNodes(organigramaData, expandedNodes, previewOrder),
+    [organigramaData, expandedNodes, previewOrder]
+  );
 
   // ── Agrupado por carril, en el orden fijo de LANE_CONFIG, cada uno ordenado
   // por el índice DFS (mantiene agrupados a los hijos de un mismo padre) ────
-  const lanesToRender = useMemo(() => {
-    const byLaneKey = new Map();
-    visibleNodes.forEach(entry => {
-      if (!byLaneKey.has(entry.lane.key)) byLaneKey.set(entry.lane.key, []);
-      byLaneKey.get(entry.lane.key).push(entry);
-    });
-    return LANE_CONFIG
-      .map(lane => ({ lane, entries: (byLaneKey.get(lane.key) || []).sort((a, b) => a.order - b.order) }))
-      .filter(({ entries }) => entries.length > 0);
-  }, [visibleNodes]);
+  const lanesToRender = useMemo(() => computeLanesToRender(visibleNodes), [visibleNodes]);
 
   // ── Posicionamiento tipo árbol: cada padre centrado sobre sus hijos ────────
   // (algoritmo clásico simplificado — hojas en posiciones secuenciales,
   // internos = centro del rango de sus hijos), independiente del carril en
   // el que caiga cada nodo, para que el padre siempre quede alineado con el
   // centro horizontal de su propia descendencia visible.
-  const treeLayout = useMemo(() => {
-    const childrenByParent = new Map();
-    visibleNodes.forEach(({ node, parentDepartamento }) => {
-      if (!parentDepartamento) return;
-      if (!childrenByParent.has(parentDepartamento)) childrenByParent.set(parentDepartamento, []);
-      childrenByParent.get(parentDepartamento).push(node.departamento);
-    });
-
-    const centerX = new Map();
-    let leafIndex = 0;
-    const assign = (code) => {
-      const children = childrenByParent.get(code) || [];
-      if (children.length === 0) {
-        const cx = leafIndex * SLOT_WIDTH + SLOT_WIDTH / 2;
-        leafIndex += 1;
-        centerX.set(code, cx);
-        return cx;
-      }
-      const childCenters = children.map(assign);
-      const cx = (Math.min(...childCenters) + Math.max(...childCenters)) / 2;
-      centerX.set(code, cx);
-      return cx;
-    };
-    if (organigramaData) assign(organigramaData.departamento);
-
-    return { centerX, childrenByParent, totalWidth: Math.max(leafIndex * SLOT_WIDTH, SLOT_WIDTH) };
-  }, [visibleNodes, organigramaData]);
+  const treeLayout = useMemo(() => computeTreeLayout(visibleNodes, organigramaData), [visibleNodes, organigramaData]);
 
   // ── Posición vertical (Y) de cada carril, calculada de forma analítica ─────
   // (misma técnica que treeLayout: coordenadas fijas en JS, NO medidas del
@@ -591,58 +875,13 @@ function OrganigramaContent() {
   // SVG de conectores vive dentro de ese contenedor, así que si sus
   // coordenadas vinieran de una medición ya afectada por el zoom, el
   // navegador las volvería a escalar una segunda vez al pintarlas.
-  const laneTopY = useMemo(() => {
-    const map = new Map();
-    let cumulative = 0;
-    lanesToRender.forEach(({ lane }) => {
-      cumulative += LABEL_ROW_HEIGHT;
-      map.set(lane.key, cumulative);
-      cumulative += LANE_ROW_HEIGHT + LANE_GAP;
-    });
-    return { map, totalHeight: Math.max(cumulative - LANE_GAP, LANE_ROW_HEIGHT) };
-  }, [lanesToRender]);
+  const laneTopY = useMemo(() => computeLaneTopY(lanesToRender), [lanesToRender]);
 
   // Un conector por PADRE (no por arista): un solo tronco baja del padre, un
   // bus horizontal une el rango de sus hijos, y una vertical por hijo baja
   // desde el bus hasta su tarjeta — igual que un organigrama clásico, en vez
   // de una línea independiente por cada par padre-hijo.
-  const connectors = useMemo(() => {
-    const next = [];
-    treeLayout.childrenByParent.forEach((childCodes, parentCode) => {
-      const parentLaneKey = getLaneForLevel(allNodes[parentCode]?.nivel_direccion).key;
-      const parentTop = laneTopY.map.get(parentLaneKey);
-      const parentCx = treeLayout.centerX.get(parentCode);
-      if (parentTop === undefined || parentCx === undefined) return;
-      const px = parentCx;
-      const py = parentTop + CARD_HEIGHT;
-
-      const childPoints = childCodes
-        .map(code => {
-          const childLaneKey = getLaneForLevel(allNodes[code]?.nivel_direccion).key;
-          const top = laneTopY.map.get(childLaneKey);
-          const cx = treeLayout.centerX.get(code);
-          if (top === undefined || cx === undefined) return null;
-          return { cx, cy: top };
-        })
-        .filter(Boolean);
-      if (childPoints.length === 0) return;
-
-      const busY = py + BUS_DROP;
-      const minX = Math.min(...childPoints.map(c => c.cx));
-      const maxX = Math.max(...childPoints.map(c => c.cx));
-
-      let path = `M ${px} ${py} L ${px} ${busY}`;
-      if (childPoints.length > 1) {
-        path += ` M ${minX} ${busY} L ${maxX} ${busY}`;
-      }
-      childPoints.forEach(c => {
-        path += ` M ${c.cx} ${busY} L ${c.cx} ${c.cy}`;
-      });
-
-      next.push({ parentId: parentCode, path });
-    });
-    return next;
-  }, [treeLayout, laneTopY, allNodes]);
+  const connectors = useMemo(() => computeConnectors(treeLayout, laneTopY, allNodes), [treeLayout, laneTopY, allNodes]);
 
   // ── Preload Global Catalog ──────────────────────────────────────────────────
   useEffect(() => {
@@ -673,12 +912,10 @@ function OrganigramaContent() {
     // si no, al hacer clic el nodo no aparecería (espejo exacto de los
     // filtros de organigrama_tree.build_tree):
     //   - SIG: solo isSIGInfo=1.
-    //   - Alineación: excluye nivel "Enlace" (nunca existe en esa vista).
     //   - Institucional: sin filtro extra (incluye todo, igual que el árbol).
     const results = globalCatalog
       .filter(n => {
         if (vistaModo === "sig") return n.isSIGInfo;
-        if (vistaModo === "alineacion") return n.nivel_direccion !== "Enlace";
         return true;
       })
       .filter(n =>
@@ -1293,128 +1530,45 @@ function OrganigramaContent() {
     goToVacanteIndex(0);
   };
 
-  // ── Export a PDF (Bug #6, optimizado 2026-07-16) ─────────────────────────
-  // html-to-image no puede generar un canvas de más de 16384px de ancho
-  // (límite físico de Chromium) — con árboles grandes el ancho real del
-  // contenedor supera ese límite, así que se captura por franjas verticales
-  // y cada una se coloca como imagen independiente en el PDF (que no tiene
-  // ese límite de canvas).
-  //
-  // La versión anterior llamaba `toCanvas(treeEl, ...)` UNA VEZ POR FRANJA.
-  // `toCanvas` internamente vuelve a llamar `toSvg`, que clona TODO el árbol
-  // DOM, incrusta web fonts e imágenes, y serializa el clon a un data URI —
-  // el costo real no es dibujar en el canvas, es esa clonación/serialización
-  // completa del árbol. Repetirla por cada franja (10+ en árboles grandes)
-  // multiplicaba ese costo por el número de franjas, que es lo que hacía la
-  // exportación lentísima en árboles grandes.
-  //
-  // Ahora se serializa el árbol UNA sola vez a una imagen vectorial (SVG con
-  // foreignObject) y esa MISMA imagen se recorta con `drawImage` una vez por
-  // franja — un recorte de canvas es prácticamente gratis comparado con
-  // reclonar/reserializar. Como el recorte sigue siendo de una fuente
-  // vectorial, la resolución de salida no se degrada: cada franja se
-  // rasteriza a la resolución de destino que se le pida (por eso se puede
-  // subir PDF_PIXEL_RATIO sin pagar el costo de antes).
-  const PDF_PIXEL_RATIO = 4;    // resolución de salida (~4x) — antes costaba caro subirla porque se repetía por franja; ahora es prácticamente gratis
-  const PDF_TILE_PX = 4000;     // ancho lógico por franja — a pixelRatio 4 cada canvas ronda 16000px, justo debajo del límite de 16384 (menos franjas = más rápido)
-  const PDF_MAX_DIM_PT = 14000; // techo físico de página (~194in) por compatibilidad con lectores PDF
-  const PX_TO_PT = 0.75;        // 96 CSS px/in → 72pt/in
-
-  const handleExportPdf = async (type) => {
-    const treeEl = document.getElementById("tree-capture-container");
-    if (!treeEl) return;
+  // ── Export a PDF (vectorial, reescrito 2026-07-17) ───────────────────────
+  // No captura el DOM en absoluto: recalcula el layout analítico
+  // (computeVisibleNodes/computeTreeLayout/computeLaneTopY/computeConnectors
+  // — las mismas funciones puras que usan los useMemo de arriba) con el
+  // `expandedNodes` que corresponda al alcance elegido, y lo dibuja directo
+  // en el PDF con buildOrganigramaPdf. Al ser funciones puras (no hooks) se
+  // puede pedir "todo desglosado" sin tocar el estado de React ni esperar un
+  // re-render — evita el problema de closures obsoletos que tendría leer
+  // `treeLayout`/`connectors` del componente justo después de un
+  // `setExpandedNodes` (seguirían siendo los de antes del cambio hasta el
+  // siguiente render).
+  const handleExportPdf = (type) => {
+    if (!organigramaData) return;
     setShowExportModal(false);
     setIsExporting(true);
-    const isDark = document.documentElement.classList.contains("dark");
-    const backgroundColor = isDark ? "#0f172a" : "#f8fafc";
-    const baseStyle = { zoom: 1, maxHeight: "none", overflow: "visible", padding: "32px", borderRadius: "16px" };
+    // Doble rAF: deja que el modal "Generando PDF..." pinte antes de que el
+    // cómputo (síncrono — ya no hay await de por medio) bloquee el hilo
+    // principal en árboles grandes.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try {
+        const expandedForExport = type === "full"
+          ? Object.fromEntries(Object.keys(allNodes).map(code => [code, true]))
+          : expandedNodes;
 
-    const prevExpanded = { ...expandedNodes };
-    if (type === "full") {
-      const all = {}; Object.keys(allNodes).forEach(k => all[k] = true);
-      setExpandedNodes(all);
-      // El layout de carriles/conectores es 100% derivado de estado (sin
-      // medición de DOM) — solo hace falta esperar a que React pinte el
-      // re-render con expandedNodes=all antes de capturar.
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }
+        const vn = computeVisibleNodes(organigramaData, expandedForExport, null);
+        const lanes = computeLanesToRender(vn);
+        const layout = computeTreeLayout(vn, organigramaData);
+        const laneY = computeLaneTopY(lanes);
+        const conns = computeConnectors(layout, laneY, allNodes);
 
-    // Se fuerza zoom:1 también en el DOM real (no solo en el clon que hace
-    // html-to-image) antes de medir: así getBoundingClientRect() reporta las
-    // mismas dimensiones que van a capturarse — si se midiera con el zoom de
-    // pantalla activo, el cálculo de franjas quedaría desalineado y volvería
-    // a truncar contenido.
-    const prevZoomStyle = treeEl.style.zoom;
-    treeEl.style.zoom = "1";
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-    try {
-      const rect = treeEl.getBoundingClientRect();
-      const totalW = Math.ceil(rect.width);
-      const totalH = Math.ceil(rect.height);
-
-      // ── Serialización única de todo el árbol a una imagen vectorial ────
-      const svgDataUrl = await toSvg(treeEl, {
-        backgroundColor,
-        style: baseStyle,
-        width: totalW,
-        height: totalH,
-      });
-      const fullImg = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error("No se pudo rasterizar el organigrama capturado."));
-        img.decoding = "async";
-        img.src = svgDataUrl;
-      });
-
-      const tileW = Math.min(PDF_TILE_PX, totalW);
-      const numTiles = Math.max(1, Math.ceil(totalW / tileW));
-
-      // Escala física de página: reduce el tamaño impreso (no la resolución
-      // ya capturada en cada franja) si el árbol es tan grande que excede el
-      // techo de compatibilidad de lectores PDF.
-      let pageWpt = totalW * PX_TO_PT;
-      let pageHpt = totalH * PX_TO_PT;
-      const scale = Math.min(1, PDF_MAX_DIM_PT / pageWpt, PDF_MAX_DIM_PT / pageHpt);
-      pageWpt *= scale; pageHpt *= scale;
-
-      const pdf = new jsPDF({
-        orientation: pageWpt >= pageHpt ? "l" : "p",
-        unit: "pt",
-        format: [pageWpt, pageHpt],
-      });
-
-      // Cada franja es ahora solo un recorte (`drawImage` con rect de
-      // origen) de `fullImg`, ya serializado — nada de reclonar/reincrustar
-      // DOM por franja. Se libera cada canvas antes de la siguiente franja
-      // para no acumular varios buffers de pixelRatio 4 en memoria a la vez.
-      for (let i = 0; i < numTiles; i++) {
-        const offset = i * tileW;
-        const thisTileW = Math.min(tileW, totalW - offset);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(thisTileW * PDF_PIXEL_RATIO);
-        canvas.height = Math.round(totalH * PDF_PIXEL_RATIO);
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(fullImg, offset, 0, thisTileW, totalH, 0, 0, canvas.width, canvas.height);
-
-        const x = offset * PX_TO_PT * scale;
-        const w = thisTileW * PX_TO_PT * scale;
-        const h = totalH * PX_TO_PT * scale;
-        pdf.addImage(canvas, "PNG", x, 0, w, h, undefined, "FAST");
-        canvas.width = 0;
-        canvas.height = 0;
+        const pdf = buildOrganigramaPdf({ lanesToRender: lanes, treeLayout: layout, laneTopY: laneY, connectors: conns, allNodes });
+        const suffix = type === "full" ? "_completo" : "";
+        pdf.save(`organigrama_${selectedUnidad?.id}${suffix}_${new Date().toISOString().slice(0,10)}.pdf`);
+      } catch (err) {
+        console.error("Error generando el PDF del organigrama:", err);
+      } finally {
+        setIsExporting(false);
       }
-
-      const suffix = type === "full" ? "_completo" : "";
-      pdf.save(`organigrama_${selectedUnidad?.id}${suffix}_${new Date().toISOString().slice(0,10)}.pdf`);
-    } finally {
-      treeEl.style.zoom = prevZoomStyle;
-      if (type === "full") setExpandedNodes(prevExpanded);
-      setIsExporting(false);
-    }
+    }));
   };
 
   // ── NodeCard component (plano, sin recursión — la posición de carril la ─
@@ -1791,7 +1945,7 @@ function OrganigramaContent() {
                 {connectors.map(c => (
                   <path
                     key={c.parentId}
-                    d={c.path}
+                    d={segmentsToSvgPath(c.segments)}
                     className="stroke-slate-400 dark:stroke-slate-600"
                     fill="none"
                     strokeWidth={2}
@@ -1957,11 +2111,13 @@ function OrganigramaContent() {
           <ListCollapse className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Colapsar Todo</span>
         </button>
-        {/* Toggle Institucional/Alineación/SIG: solo tiene sentido mostrarlo si
-            el usuario tiene permiso para ver MÁS DE UNA vista — si solo tiene
+        {/* Toggle Institucional/SIG: solo tiene sentido mostrarlo si el
+            usuario tiene permiso para ver MÁS DE UNA vista — si solo tiene
             una, no hay nada entre lo que elegir (ver VIEW_ORGANIGRAMA_INSTITUCIONAL /
-            VIEW_ORGANIGRAMA_ALINEACION / VIEW_ORGANIGRAMA_SIG en @/config/permissions). */}
-        {[canViewInstitucional, canViewAlineacion, canViewSig].filter(Boolean).length > 1 && (
+            VIEW_ORGANIGRAMA_SIG en @/config/permissions). El botón de
+            "Alineación" se retiró de la UI (el backend sigue soportando
+            vista=alineacion por si se retoma más adelante). */}
+        {[canViewInstitucional, canViewSig].filter(Boolean).length > 1 && (
           <>
             <div className="shrink-0 w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
             <div className="shrink-0 flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5">
@@ -1976,19 +2132,6 @@ function OrganigramaContent() {
                   }`}
                 >
                   Institucional
-                </button>
-              )}
-              {canViewAlineacion && (
-                <button
-                  onClick={() => setVistaModo("alineacion")}
-                  title="Árbol recalculado desde el código oficial (solo lectura)"
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                    vistaModo === "alineacion"
-                      ? "bg-rose-900 text-white shadow-sm shadow-rose-800/10"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750"
-                  }`}
-                >
-                  Alineación
                 </button>
               )}
               {canViewSig && (
