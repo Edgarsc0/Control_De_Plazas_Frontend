@@ -16,7 +16,10 @@ export const PERMISSION_PREVIEWS = {
   [PERMISSIONS.VIEW_OCUPACION_SANKEY]: '/permission-previews/view_ocupacion_sankey.png',
   [PERMISSIONS.VIEW_OCUPACION_TABLA]: '/permission-previews/view_ocupacion_tabla.png',
   [PERMISSIONS.VIEW_OFICIOS_TURNADOS]: '/permission-previews/view_oficios_turnados.png',
-  [PERMISSIONS.VIEW_ORGANIGRAMA]: '/permission-previews/view_organigrama.png',
+  // TODO: capturar screenshots dedicados de cada vista; de momento ambas
+  // reusan la captura única que existía para el permiso original.
+  [PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL]: '/permission-previews/view_organigrama.png',
+  [PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION]: '/permission-previews/view_organigrama.png',
   [PERMISSIONS.VIEW_PLANTILLA_BAJAS]: '/permission-previews/view_plantilla_bajas.png',
   [PERMISSIONS.VIEW_PLANTILLA_CATALOGOS]: '/permission-previews/view_plantilla_catalogos.png',
   [PERMISSIONS.VIEW_PLANTILLA_DETALLE]: '/permission-previews/view_plantilla_detalle.png',

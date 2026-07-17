@@ -104,7 +104,7 @@ export const MODULES = [
     bg: 'rgba(124,58,237,0.10)',
     description: '13 unidades · 1,365 áreas',
     group: 'Estructura',
-    permission: PERMISSIONS.VIEW_ORGANIGRAMA,
+    permissions: [PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL, PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION],
     primary: false,
   },
   {
