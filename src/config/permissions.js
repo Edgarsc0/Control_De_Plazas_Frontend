@@ -27,6 +27,7 @@ export const PERMISSIONS = {
   // Módulos sin tabs
   VIEW_OFICIOS_TURNADOS: 'authentication.view_oficios_turnados',
   VIEW_ORGANIGRAMA: 'authentication.view_organigrama',
+  EDIT_ORGANIGRAMA: 'authentication.edit_organigrama',
   VIEW_MONITOREO_ZAFIRO: 'authentication.view_monitoreo_zafiro',
 
   // Administración del propio sistema de roles

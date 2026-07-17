@@ -37,6 +37,7 @@ import { PlantillaService } from "@/services/plantilla.service";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import RequirePermission from "@/components/auth/RequirePermission";
 import { PERMISSIONS } from "@/config/permissions";
+import { useAuth } from "@/hooks/useAuth";
 
 // ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
 // Nivel → posición de segmento (G,C,A,S,D). "Titular" se trata como raíz (mismo rango que General).
@@ -205,8 +206,12 @@ function OrganigramaContent() {
   // "institucional" (manual/curada, editable) | "alineacion" (recalculada en
   // vivo desde el determinante real, solo lectura).
   const [vistaModo, setVistaModo] = useState("institucional");
-  const soloLectura = vistaModo === "alineacion";
-  const TOOLTIP_SOLO_LECTURA = "No editable en Vista Alineación — esta vista es de solo lectura, calculada desde el código oficial.";
+  const { hasPermission } = useAuth();
+  const canEditOrganigrama = hasPermission(PERMISSIONS.EDIT_ORGANIGRAMA);
+  const soloLectura = vistaModo === "alineacion" || !canEditOrganigrama;
+  const TOOLTIP_SOLO_LECTURA = vistaModo === "alineacion"
+    ? "No editable en Vista Alineación — esta vista es de solo lectura, calculada desde el código oficial."
+    : "No tienes permiso para editar el Organigrama.";
 
   const [expandedNodes, setExpandedNodes] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
