@@ -667,6 +667,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const openVacanciaModal = useCallback((row) => {
     if (!row || row.id === undefined || row.id === null) return;
+    setSelectedRowData(null);
     setVacanciaRowId(row.id);
     setIsVacanciaModalOpen(true);
   }, []);
