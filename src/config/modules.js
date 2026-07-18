@@ -162,3 +162,17 @@ export function getVisibleSections(auth) {
 export function getVisibleModules(auth) {
   return MODULES.filter((m) => isModuleVisible(m, auth));
 }
+
+/**
+ * Módulo cuyo href coincide con `pathname` (prefijo más largo gana, para que
+ * p. ej. '/dashboard/roles' no matchee contra el 'dashboard' genérico).
+ * Usado por PresenceHeartbeat para resolver el título a mandar en cada latido.
+ */
+export function resolveModuleByPath(pathname) {
+  if (!pathname) return null;
+  const candidates = MODULES.filter((m) =>
+    m.exact ? pathname === m.href : pathname.startsWith(m.href)
+  );
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, m) => (m.href.length > best.href.length ? m : best));
+}

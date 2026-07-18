@@ -10,6 +10,7 @@ import { PageTabsProvider } from "@/context/PageTabsContext"
 import { ToastProvider } from "@/hooks/useToast"
 import { AuthProvider } from "@/hooks/useAuth"
 import Toaster from "@/components/ui/Toaster"
+import PresenceHeartbeat from "@/components/system/PresenceHeartbeat"
 
 
 const notoSans = Noto_Sans({
@@ -41,6 +42,7 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <ToastProvider>
             <PageTabsProvider>
+              <PresenceHeartbeat />
               <Fade>
                 <main className="flex-grow relative z-10 flex flex-col pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
                   <ZafiroUpdatesProvider>

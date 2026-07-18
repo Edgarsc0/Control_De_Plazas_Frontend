@@ -35,12 +35,21 @@ import { useToast } from '@/hooks/useToast';
 import { RoleService } from '@/services/role.service';
 import { WhitelistService } from '@/services/whitelist.service';
 import { UaService } from '@/services/ua.service';
+import { PresenceService } from '@/services/presence.service';
 import { PERMISSIONS } from '@/config/permissions';
 import { PERMISSION_PREVIEWS } from '@/config/permissionPreviews';
 import { PERMISSION_CATEGORY_ORDER, getPermissionCategory } from '@/config/permissionCategories';
 
 const ROLE_PAGE_SIZE = 8;
 const USER_PAGE_SIZE = 10;
+const PRESENCE_POLL_MS = 15000;
+
+function timeAgoLabel(ts) {
+    if (!ts) return '';
+    const diffSec = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 1000));
+    if (diffSec < 60) return `hace ${diffSec}s`;
+    return `hace ${Math.round(diffSec / 60)}m`;
+}
 
 const SELECT_TRIGGER_CLASS =
     'rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 focus-visible:border-[#621f32] focus-visible:ring-[#621f32]/20';
@@ -146,6 +155,7 @@ function RolesAdminContent() {
     const [userSearch, setUserSearch] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userPage, setUserPage] = useState(1);
+    const [activeSessionsByEmail, setActiveSessionsByEmail] = useState({});
 
     const loadAll = useCallback(async () => {
         setIsLoading(true);
@@ -171,6 +181,34 @@ function RolesAdminContent() {
     useEffect(() => {
         loadAll();
     }, [loadAll]);
+
+    // Presencia: quién está activo ahora y en qué página, refrescado por
+    // polling (ver PresenceHeartbeat, que es quien alimenta este endpoint).
+    useEffect(() => {
+        let active = true;
+
+        const pollActiveSessions = async () => {
+            try {
+                const response = await PresenceService.listActive();
+                if (!response.ok || !active) return;
+                const data = await response.json();
+                const byEmail = {};
+                data.forEach((entry) => {
+                    byEmail[entry.email] = entry;
+                });
+                if (active) setActiveSessionsByEmail(byEmail);
+            } catch (error) {
+                console.error('Error cargando usuarios activos:', error);
+            }
+        };
+
+        pollActiveSessions();
+        const interval = setInterval(pollActiveSessions, PRESENCE_POLL_MS);
+        return () => {
+            active = false;
+            clearInterval(interval);
+        };
+    }, []);
 
     useEffect(() => {
         setRolePage(1);
@@ -564,43 +602,73 @@ function RolesAdminContent() {
                                 <tr>
                                     <th className="text-left px-4 py-2.5">Correo</th>
                                     <th className="text-left px-4 py-2.5">UA</th>
+                                    <th className="text-left px-4 py-2.5">Estado</th>
+                                    <th className="text-left px-4 py-2.5">Página actual</th>
                                     <th className="text-left px-4 py-2.5">Rol</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginatedWhitelist.map((entry) => (
-                                    <tr
-                                        key={entry.id}
-                                        className="border-t border-slate-100 dark:border-slate-800"
-                                    >
-                                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200">
-                                            {entry.email}
-                                        </td>
-                                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
-                                            {entry.ua_nombre || '—'}
-                                        </td>
-                                        <td className="px-4 py-2.5">
-                                            <Select
-                                                defaultValue={String(entry.rol)}
-                                                onValueChange={(value) => handleReassignRole(entry, value)}
-                                            >
-                                                <SelectTrigger className={`w-[160px] ${SELECT_TRIGGER_CLASS}`}>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {roles.map((role) => (
-                                                        <SelectItem key={role.id} value={String(role.id)}>
-                                                            {role.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {paginatedWhitelist.map((entry) => {
+                                    const sessions = activeSessionsByEmail[entry.email]?.sessions || [];
+                                    return (
+                                        <tr
+                                            key={entry.id}
+                                            className="border-t border-slate-100 dark:border-slate-800"
+                                        >
+                                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200">
+                                                {entry.email}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                                                {entry.ua_nombre || '—'}
+                                            </td>
+                                            <td className="px-4 py-2.5">
+                                                {sessions.length > 0 ? (
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold whitespace-nowrap">
+                                                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                        Activo{sessions.length > 1 ? ` · ${sessions.length} pestañas` : ''}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs font-bold text-slate-300 dark:text-slate-600">—</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
+                                                {sessions.length > 0 ? (
+                                                    <div className="flex flex-col gap-0.5">
+                                                        {sessions.map((s) => (
+                                                            <span key={`${s.path}-${s.ts}`} className="whitespace-nowrap">
+                                                                {s.title}
+                                                                {s.subtab ? ` › ${s.subtab}` : ''}
+                                                                <span className="text-slate-300 dark:text-slate-600"> · {timeAgoLabel(s.ts)}</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    '—'
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2.5">
+                                                <Select
+                                                    defaultValue={String(entry.rol)}
+                                                    onValueChange={(value) => handleReassignRole(entry, value)}
+                                                >
+                                                    <SelectTrigger className={`w-[160px] ${SELECT_TRIGGER_CLASS}`}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {roles.map((role) => (
+                                                            <SelectItem key={role.id} value={String(role.id)}>
+                                                                {role.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                                 {paginatedWhitelist.length === 0 && (
                                     <tr>
-                                        <td colSpan={3} className="px-4 py-10 text-center text-slate-400">
+                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
                                             {whitelist.length === 0
                                                 ? 'Sin usuarios en la whitelist.'
                                                 : 'Sin usuarios que coincidan con la búsqueda.'}
