@@ -10,13 +10,19 @@ import { PresenceService } from '@/services/presence.service';
 const HEARTBEAT_INTERVAL_MS = 20000;
 const TAB_ID_STORAGE_KEY = 'presence_tab_id';
 
+// crypto.randomUUID() exige contexto seguro (https o localhost); el server
+// se sirve por http:// plano sobre IP, así que no está disponible ahí.
+function generateTabId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 // sessionStorage (no localStorage) a propósito: cada pestaña/dispositivo debe
 // tener su propio tab_id para que el panel de Roles > Usuarios los liste por
 // separado, en vez de colapsar todas las pestañas del mismo usuario en una.
 function getTabId() {
     let tabId = window.sessionStorage.getItem(TAB_ID_STORAGE_KEY);
     if (!tabId) {
-        tabId = crypto.randomUUID();
+        tabId = generateTabId();
         window.sessionStorage.setItem(TAB_ID_STORAGE_KEY, tabId);
     }
     return tabId;
