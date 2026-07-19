@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Search, Download, Columns, X, RotateCcw,
-  ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, XCircle,
+  ChevronLeft, ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle,
   Layers, Users, GitCompareArrows, ListFilter, Check,
 } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
@@ -21,7 +21,8 @@ import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
+import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { finalizeFilterDropdownValues, normalizeForSearch, sortValueCounts } from "@/utils/columnFilters";
 
 // Mismos 14 pares de columnas que compara el backend (ver ALINEACIÓN_PLAZA_PERSONA
@@ -110,7 +111,8 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const [pageSize, setPageSize] = useState(50);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  // 7.3 QA: persistir configuración por usuario en localStorage.
+  const [sortConfig, setSortConfig] = usePersistedState("alineacion_sort", { key: null, direction: null });
   const [cardWidth, setCardWidth] = useState(null);
   const [detalleRow, setDetalleRow] = useState(null);
   const [isDetalleOpen, setIsDetalleOpen] = useState(false);
@@ -122,7 +124,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
 
   const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
 
-  const filters = useColumnFilters();
+  const filters = useColumnFilters({ storageKey: "alineacion_filters" });
   const {
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
@@ -133,6 +135,9 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
     filterSearchText, setFilterSearchText,
     debouncedFilterSearchText,
   } = filters;
+
+  // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, debouncedSearch, sortConfig.key, sortConfig.direction, diffFields]);
 
   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
   const [uniqueColumnValues, setUniqueColumnValues] = useState({});
@@ -163,7 +168,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const {
     columns, setColumns, toggleVisibility: toggleColumnVisibility,
     isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen,
-  } = useColumnState(initialColumns);
+  } = useColumnState(initialColumns, "alineacion_columns");
 
   const isMonoColumn = useCallback((key) => key === "no_pos_actual", []);
 
@@ -766,14 +771,35 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                   </select>
                 </div>
                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/50 dark:border-slate-800/50 select-none">
-                  <button onClick={() => { setLoading(true); setPage((p) => Math.max(1, p - 1)); }} disabled={page === 1 || loading} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                  {/* 7.12 QA: paginación server-side sólo tenía ‹ › — se agregan
+                      primera/última página y un campo para saltar a la página N. */}
+                  <button onClick={() => { setLoading(true); setPage(1); }} disabled={page === 1 || loading} title="Primera página" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                    <ChevronsLeft className="size-3.5" />
+                  </button>
+                  <button onClick={() => { setLoading(true); setPage((p) => Math.max(1, p - 1)); }} disabled={page === 1 || loading} title="Página anterior" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
                     <ChevronLeft className="size-3.5" />
                   </button>
-                  <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 px-1">
-                    Pág. <span className="text-[#621f32] dark:text-[#bc955c]">{page}</span> de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
+                  <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 px-1 flex items-center gap-1">
+                    Pág.
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={page}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(n) && n >= 1 && n <= totalPages) { setLoading(true); setPage(n); }
+                      }}
+                      disabled={loading}
+                      className="w-10 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md text-center text-[#621f32] dark:text-[#bc955c] font-black outline-none focus:border-[#621f32]/50 dark:focus:border-[#bc955c]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
                   </span>
-                  <button onClick={() => { setLoading(true); setPage((p) => Math.min(totalPages, p + 1)); }} disabled={page === totalPages || loading} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                  <button onClick={() => { setLoading(true); setPage((p) => Math.min(totalPages, p + 1)); }} disabled={page === totalPages || loading} title="Página siguiente" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
                     <ChevronRightIcon className="size-3.5" />
+                  </button>
+                  <button onClick={() => { setLoading(true); setPage(totalPages); }} disabled={page === totalPages || loading} title="Última página" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                    <ChevronsRight className="size-3.5" />
                   </button>
                 </div>
               </div>

@@ -101,6 +101,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
       .map(row => ({
         fecha: row.fecha,
+        // V-03 QA: eje X numérico por timestamp (no categórico) para que el
+        // espacio entre puntos refleje el tiempo real transcurrido — antes
+        // "01/Ene/2025 → 01/Ene/2026" ocupaba el mismo ancho que dos quincenas
+        // consecutivas.
+        ts: new Date(row.fecha).getTime(),
         label: formatDate(row.fecha),
         ocupadas_permanente: row.ocupadas_permanente || 0,
         ocupadas_eventual: row.ocupadas_eventual || 0,
@@ -1268,7 +1273,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <LineChart data={historicoChartData} margin={{ top: 10, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.6} className="text-slate-350 dark:text-slate-600" />
                       <XAxis
-                        dataKey="label"
+                        dataKey="ts"
+                        type="number"
+                        scale="time"
+                        domain={['dataMin', 'dataMax']}
+                        tickFormatter={(ts) => formatDate(new Date(ts).toISOString().slice(0, 10))}
                         tick={{ fontSize: isCompactChart ? 8 : 10, fontWeight: 700 }}
                         stroke="currentColor"
                         className="text-slate-400 dark:text-slate-500"
@@ -1281,7 +1290,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                         tickFormatter={formatNumber}
                         width={isCompactChart ? 36 : 55}
                       />
-                      <Tooltip content={<HistoricoTooltip />} cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                      <Tooltip
+                        content={<HistoricoTooltip />}
+                        labelFormatter={(ts) => formatDate(new Date(ts).toISOString().slice(0, 10))}
+                        cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      />
                       <Legend
                         wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
                         formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}

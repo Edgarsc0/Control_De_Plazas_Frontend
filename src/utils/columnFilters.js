@@ -275,12 +275,12 @@ export const applyColumnFilters = (data, config = {}) => {
     isMonoColumn = () => false,
   } = config;
 
-  const search = globalSearch ? globalSearch.toLowerCase() : '';
+  const search = globalSearch ? normalizeForSearch(globalSearch) : '';
 
   return data.filter((row) => {
     // 1. Búsqueda global: alguna celda contiene el texto.
     if (search) {
-      const hit = Object.keys(row).some((key) => getCellValue(row, key).toLowerCase().includes(search));
+      const hit = Object.keys(row).some((key) => normalizeForSearch(getCellValue(row, key)).includes(search));
       if (!hit) return false;
     }
     // 2. Selección de valores por columna (checkboxes).
@@ -292,7 +292,7 @@ export const applyColumnFilters = (data, config = {}) => {
     for (const [colKey, filterObj] of Object.entries(textFilters)) {
       if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
       const condition = filterObj.condition || (isMonoColumn(colKey) ? 'starts_with' : 'contains');
-      if (!matchesTextCondition(getCellValue(row, colKey), condition, filterObj.value)) return false;
+      if (!matchesTextCondition(getCellValue(row, colKey), condition, filterObj.value, { normalize: true })) return false;
     }
     return true;
   });

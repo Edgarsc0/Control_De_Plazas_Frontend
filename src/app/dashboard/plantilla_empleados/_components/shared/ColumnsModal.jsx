@@ -4,6 +4,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Columns, Search, X, Check } from "lucide-react";
+import { normalizeForSearch } from "@/utils/columnFilters";
+import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 
 /**
  * Modal genérico para configurar la visibilidad de columnas de una tabla.
@@ -22,9 +24,29 @@ import { Columns, Search, X, Check } from "lucide-react";
 export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, onHideAll, onClose }) {
   const [search, setSearch] = useState("");
 
+  useEscapeToClose(open, onClose);
+
   if (typeof document === "undefined") return null;
 
-  const filtered = columns.filter((col) => `${col.group || ""} ${col.label}`.toLowerCase().includes(search.toLowerCase()));
+  const normalizedSearch = normalizeForSearch(search);
+  const filtered = columns.filter((col) => normalizeForSearch(`${col.group || ""} ${col.label}`).includes(normalizedSearch));
+
+  const visibleCount = columns.filter((col) => col.visible).length;
+
+  // Nunca deja la tabla sin columnas visibles: bloquea ocultar la última, y
+  // "Borrar todas" conserva una (la primera básica, o la primera de la lista).
+  const handleToggle = (col) => {
+    if (col.visible && visibleCount <= 1) return;
+    onToggle(col.key);
+  };
+
+  const handleHideAll = () => {
+    const keeper = columns.find((c) => c.isBasic) || columns[0];
+    if (!keeper) return;
+    columns.forEach((c) => {
+      if (c.key !== keeper.key && c.visible) onToggle(c.key);
+    });
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -41,6 +63,9 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Configurar Columnas"
             className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-4xl w-full flex flex-col z-[100] overflow-hidden max-h-[90vh]"
           >
             <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
@@ -77,7 +102,8 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
                     Mostrar todas
                   </button>
                   <button
-                    onClick={onHideAll}
+                    onClick={handleHideAll}
+                    title="Deja al menos una columna visible"
                     className="flex-1 sm:flex-none px-5 py-3 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 text-[10px] font-black uppercase rounded-xl border border-red-100 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all active:scale-95"
                   >
                     Borrar todas
@@ -88,11 +114,15 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
 
             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filtered.map((col) => (
+                {filtered.map((col) => {
+                  const isLastVisible = col.visible && visibleCount <= 1;
+                  return (
                   <button
                     key={col.key}
-                    onClick={() => onToggle(col.key)}
-                    className={`flex items-start gap-4 p-4 border-2 rounded-[1.5rem] text-left transition-all duration-200 group relative overflow-hidden ${
+                    onClick={() => handleToggle(col)}
+                    disabled={isLastVisible}
+                    title={isLastVisible ? "Debe quedar al menos una columna visible" : undefined}
+                    className={`flex items-start gap-4 p-4 border-2 rounded-[1.5rem] text-left transition-all duration-200 group relative overflow-hidden ${isLastVisible ? "cursor-not-allowed opacity-70" : ""} ${
                       col.visible
                         ? "border-[#621f32]/40 bg-[#621f32]/[0.03] dark:bg-[#bc955c]/[0.03] dark:border-[#bc955c]/40"
                         : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:border-slate-200 dark:hover:border-slate-700"
@@ -111,7 +141,8 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
                       <span className="text-[9px] font-bold uppercase text-slate-400 dark:text-slate-500 mt-0.5 block">{col.isBasic ? "Campo Principal" : "Campo Extra"}</span>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
               {filtered.length === 0 && (
                 <div className="py-20 flex flex-col items-center justify-center text-slate-400">
@@ -126,7 +157,7 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
                 onClick={onClose}
                 className="w-full bg-gradient-to-r from-[#621f32] to-[#8d2c48] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black py-4 rounded-2xl text-xs uppercase tracking-[0.2em] transition-all shadow-xl shadow-[#621f32]/20 dark:shadow-none active:scale-[0.98] hover:opacity-90"
               >
-                Confirmar Selección
+                Cerrar
               </button>
             </div>
           </motion.div>

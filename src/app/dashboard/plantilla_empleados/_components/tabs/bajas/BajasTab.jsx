@@ -21,10 +21,11 @@ import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
+import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -176,13 +177,14 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     { key: "rfc", label: "RFC", width: 150, visible: false },
     { key: "curp", label: "CURP", width: 180, visible: false },
     { key: "genero", label: "Género", width: 100, visible: false }
-  ]);
+  ], "bajas_columns");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  // 7.3 QA: persistir configuración por usuario en localStorage.
+  const [sortConfig, setSortConfig] = usePersistedState("bajas_sort", { key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
-  const filters = useColumnFilters();
+  const filters = useColumnFilters({ storageKey: "bajas_filters" });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -237,11 +239,11 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
   const filteredTimelineData = useMemo(() => {
     if (!timelineSearch) return timelineData;
-    const lower = timelineSearch.toLowerCase();
-    return timelineData.filter(row => 
-      (row.motivo_descr && String(row.motivo_descr).toLowerCase().includes(lower)) || 
-      (row.motivo && String(row.motivo).toLowerCase().includes(lower)) ||
-      (row.accion_descr && String(row.accion_descr).toLowerCase().includes(lower))
+    const lower = normalizeForSearch(timelineSearch);
+    return timelineData.filter(row =>
+      (row.motivo_descr && normalizeForSearch(row.motivo_descr).includes(lower)) ||
+      (row.motivo && normalizeForSearch(row.motivo).includes(lower)) ||
+      (row.accion_descr && normalizeForSearch(row.accion_descr).includes(lower))
     );
   }, [timelineData, timelineSearch]);
 
@@ -310,6 +312,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
   } = useAdvancedFilters({ mode: "client", isDateColumn });
+
+  // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
 
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
@@ -523,8 +528,8 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const filteredSortedData = useMemo(() => {
     let result = bajasData.filter(row => {
       if (deferredGlobalSearch) {
-        const searchText = deferredGlobalSearch.toLowerCase();
-        if (!Object.entries(row).some(([key, val]) => String(val || "").toLowerCase().includes(searchText))) return false;
+        const searchText = normalizeForSearch(deferredGlobalSearch);
+        if (!Object.entries(row).some(([key, val]) => normalizeForSearch(val).includes(searchText))) return false;
       }
       for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
         if (!selectedVals.includes(String(row[colKey] || "").trim())) return false;
@@ -533,10 +538,10 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
         const searchText = filterObj.value;
         const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
-        
+
         const val = String(row[colKey] || "");
-        const lowerVal = val.toLowerCase().trim();
-        const lowerSearch = searchText.toLowerCase().trim();
+        const lowerVal = normalizeForSearch(val).trim();
+        const lowerSearch = normalizeForSearch(searchText).trim();
         
         switch (condition) {
           case "contains":
@@ -912,6 +917,15 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
               </div>
             )}
 
+            {/* V-06 QA: los motivos con "*" vienen así del catálogo oficial de RH
+                (texto crudo, sin descripción propia en BD) — se aclara el origen
+                del asterisco para que no quede sin explicación visible. */}
+            {pieSlices.some((s) => String(s.motivo || "").includes("*")) && (
+              <p className="w-full text-[10px] font-semibold text-slate-400 dark:text-slate-500 -mt-3">
+                * Motivo tal cual aparece en el catálogo oficial de RH.
+              </p>
+            )}
+
             {/* Line chart (Historial de Bajas) */}
             {lineChartData && (
               <div ref={chartContainerRef} className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col justify-between select-none">
@@ -1053,25 +1067,42 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                       </g>
                     ))}
 
-                    {/* X-axis labels (Dates) directly aligned under each mapped point */}
-                    {lineChartData.points.map((p, i) => {
-                      const parts = p.fecha.split("-");
-                      const label = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : p.fecha;
-                      return (
-                        <text
-                          key={i}
-                          x={p.x}
-                          y={lineChartData.height - 8}
-                          textAnchor="middle"
-                          fontSize="9"
-                          fontWeight="normal"
-                          fill={hoveredPointIndex === i ? "#621f32" : "#000000"}
-                          className="dark:fill-white transition-all duration-150"
-                        >
-                          {label}
-                        </text>
-                      );
-                    })}
+                    {/* X-axis labels (Dates): V-02 QA — antes se dibujaba una
+                        etiqueta por cada punto y se solapaban en una sola línea
+                        ilegible cuando había muchos días. Se muestran sólo ~6
+                        ticks espaciados (siempre incluye el primero y el último). */}
+                    {(() => {
+                      const total = lineChartData.points.length;
+                      const maxTicks = 6;
+                      let tickIndices;
+                      if (total <= maxTicks) {
+                        tickIndices = lineChartData.points.map((_, i) => i);
+                      } else {
+                        const step = (total - 1) / (maxTicks - 1);
+                        tickIndices = Array.from(new Set(
+                          Array.from({ length: maxTicks }, (_, i) => Math.round(i * step))
+                        ));
+                      }
+                      return tickIndices.map((i) => {
+                        const p = lineChartData.points[i];
+                        const parts = p.fecha.split("-");
+                        const label = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : p.fecha;
+                        return (
+                          <text
+                            key={i}
+                            x={p.x}
+                            y={lineChartData.height - 8}
+                            textAnchor="middle"
+                            fontSize="9"
+                            fontWeight="normal"
+                            fill={hoveredPointIndex === i ? "#621f32" : "#000000"}
+                            className="dark:fill-white transition-all duration-150"
+                          >
+                            {label}
+                          </text>
+                        );
+                      });
+                    })()}
                   </svg>
                 </div>
               </div>

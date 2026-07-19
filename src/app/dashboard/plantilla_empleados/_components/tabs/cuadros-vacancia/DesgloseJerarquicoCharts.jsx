@@ -278,7 +278,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
-                    width={35}
+                    width={45}
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   <Bar
@@ -398,7 +398,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
-                    width={35}
+                    width={45}
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   {drillFamily ? (

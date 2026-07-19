@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, 
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
-, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick } from "lucide-react";
+, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -27,7 +27,8 @@ import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useColumnState } from "../../../_hooks/useColumnState";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
+import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -318,7 +319,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [pageSize, setPageSize] = useState(50);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: "fecha_efectiva,fecha_captura", direction: "desc" });
+  // 7.3 QA: persistir configuración por usuario en localStorage.
+  const [sortConfig, setSortConfig] = usePersistedState("movimientos_personal_sort", { key: "fecha_efectiva,fecha_captura", direction: "desc" });
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
 
@@ -468,7 +470,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       .finally(() => setDistinctDatesLoading(false));
   }, []);
 
-  const filters = useColumnFilters();
+  const filters = useColumnFilters({ storageKey: "movimientos_personal_filters" });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -483,6 +485,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     expandedDateNodes, setExpandedDateNodes,
     debouncedFilterSearchText,
   } = filters;
+
+  // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, debouncedSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
+
   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
   const [cardWidth, setCardWidth] = useState(null);
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
@@ -666,7 +672,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     { key: "sexo", label: "Sexo", width: 90, visible: false, isBasic: false },
     { key: "fecha_entrada", label: "Fecha Entrada", width: 130, visible: false, isBasic: false },
     { key: "fecha_posicion", label: "Fecha Posición", width: 130, visible: false, isBasic: false },
-  ]);
+  ], "movimientos_personal_columns");
 
   useEffect(() => setMounted(true), []);
 
@@ -1771,6 +1777,17 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               </button>
             </div>
 
+            {/* BUG-10 QA: en Bitácora, la tarjeta de la izquierda muestra el total
+                del día(s) seleccionado(s) (puede ser 0 si aún no hay capturas),
+                mientras que "En el tiempo" es un navegador histórico global (para
+                saltar a cualquier fecha pasada) — son dos datasets distintos a
+                propósito; se aclara para que no se lean como una contradicción. */}
+            {activeSubTab === "bitacora" && statsViewMode === "bar" && (
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 -mt-1 ml-1">
+                "En el tiempo" muestra el histórico completo de capturas (para saltar a otra fecha) — no el total del día seleccionado en la tarjeta.
+              </p>
+            )}
+
             <div className="flex flex-col lg:flex-row gap-5 items-stretch w-full">
                     {statsLoading ? (
               <div className="flex-shrink-0 lg:w-56">
@@ -2297,15 +2314,36 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                   </select>
                 </div>
                 <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || loading} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-355 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                <div className="flex items-center gap-1">
+                  {/* 7.12 QA: paginación server-side sólo tenía ‹ › — se agregan
+                      primera/última página y un campo para saltar a la página N. */}
+                  <button onClick={() => setPage(1)} disabled={page === 1 || loading} title="Primera página" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-355 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                    <ChevronsLeft className="size-3.5" />
+                  </button>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || loading} title="Página anterior" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-355 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
                     <ChevronLeft className="size-3.5" />
                   </button>
-                  <span className="text-[10px] font-black uppercase text-slate-550 dark:text-slate-400 select-none whitespace-nowrap">
-                    Pág. <span className="text-[#621f32] dark:text-[#bc955c]">{page}</span> de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
+                  <span className="text-[10px] font-black uppercase text-slate-550 dark:text-slate-400 select-none whitespace-nowrap flex items-center gap-1">
+                    Pág.
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={page}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(n) && n >= 1 && n <= totalPages) setPage(n);
+                      }}
+                      disabled={loading}
+                      className="w-10 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md text-center text-[#621f32] dark:text-[#bc955c] font-black outline-none focus:border-[#621f32]/50 dark:focus:border-[#bc955c]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
                   </span>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages || loading} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-355 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages || loading} title="Página siguiente" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-355 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
                     <ChevronRightIcon className="size-3.5" />
+                  </button>
+                  <button onClick={() => setPage(totalPages)} disabled={page === totalPages || loading} title="Última página" className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-355 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+                    <ChevronsRight className="size-3.5" />
                   </button>
                 </div>
               </div>

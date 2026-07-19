@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Users, Loader2, DollarSign, Briefcase, Calendar, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { VacantesService } from "@/services/vacantes.service";
+import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 
 const formatDate = (dateString) => {
   if (!dateString) return "-";
@@ -24,6 +25,8 @@ const formatCurrency = (val) => {
 export default function PosicionTimelineModal({ open, onOpenChange, posicion }) {
   const [occupants, setOccupants] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  useEscapeToClose(open, () => onOpenChange(false));
 
   useEffect(() => {
     if (open && posicion) {

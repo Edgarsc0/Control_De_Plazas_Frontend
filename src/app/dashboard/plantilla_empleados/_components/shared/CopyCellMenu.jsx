@@ -22,7 +22,16 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
-  const [deleteState, setDeleteState] = useState("idle"); // idle | deleting | done | error
+  const [deleteState, setDeleteState] = useState("idle"); // idle | confirm | deleting | done | error
+
+  // El menú es una única instancia persistente (se abre/cierra vía `contextMenu`,
+  // no se desmonta); sin este reset, un "Borrar" armado (confirm) en una celda
+  // podía quedar armado al abrir el menú sobre OTRA celda distinta.
+  useEffect(() => {
+    setCopied(false);
+    setPasteState("idle");
+    setDeleteState("idle");
+  }, [contextMenu]);
 
   // Fallback para HTTP plano (sin secure context, navigator.clipboard no existe):
   // en vez de leer el portapapeles por API, se espera el evento nativo `paste`
@@ -123,6 +132,12 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
 
   const handleDelete = async () => {
     if (!onDelete || !canDelete || deleteState === "deleting") return;
+    // 7.14 QA: acción destructiva a un click de "Copiar" — primer click sólo
+    // arma la confirmación, el borrado real ocurre hasta el segundo click.
+    if (deleteState === "idle") {
+      setDeleteState("confirm");
+      return;
+    }
     setDeleteState("deleting");
     try {
       await onDelete();
@@ -191,13 +206,20 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
             <button
               onClick={handleDelete}
               disabled={!canDelete || deleteState === "deleting"}
-              title={!canDelete ? "Columna de solo lectura" : undefined}
-              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-transparent"
+              title={!canDelete ? "Columna de solo lectura" : deleteState === "confirm" ? "Click de nuevo para confirmar" : undefined}
+              className={`w-full text-left px-4 py-2.5 text-sm font-semibold flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-transparent ${
+                deleteState === "confirm"
+                  ? "text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+                  : "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+              }`}
             >
               {deleteState === "done" ? <Check className="size-4 text-emerald-500" />
                 : deleteState === "error" ? <AlertTriangle className="size-4 text-red-500" />
                 : <Eraser className="size-4" />}
-              {deleteState === "done" ? "¡Borrado!" : deleteState === "error" ? "No se pudo borrar" : "Borrar contenido de celda"}
+              {deleteState === "done" ? "¡Borrado!"
+                : deleteState === "error" ? "No se pudo borrar"
+                : deleteState === "confirm" ? "¿Confirmar borrado?"
+                : "Borrar contenido de celda"}
             </button>
           )}
         </motion.div>

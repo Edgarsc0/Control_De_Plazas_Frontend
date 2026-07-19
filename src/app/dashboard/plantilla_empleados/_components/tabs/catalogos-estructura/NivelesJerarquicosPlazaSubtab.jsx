@@ -10,7 +10,8 @@ import CopyCellMenu from "../../shared/CopyCellMenu";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import PrioridadNivelJerarquicoModal from "./PrioridadNivelJerarquicoModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
+import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import {
   applyColumnFilters,
@@ -48,7 +49,8 @@ export default function NivelesJerarquicosPlazaSubtab() {
   const [opciones, setOpciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  // 7.3 QA: persistir configuración por usuario en localStorage.
+  const [sortConfig, setSortConfig] = usePersistedState("niveles_jerarquicos_sort", { key: null, direction: null });
 
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
   const [selected, setSelected] = useState(() => new Set());
@@ -66,10 +68,10 @@ export default function NivelesJerarquicosPlazaSubtab() {
   const [pendingFuente, setPendingFuente] = useState(null);
   const [aplicandoPrioridad, setAplicandoPrioridad] = useState(false);
 
-  const { columns, setColumns } = useColumnState(COLUMNS);
+  const { columns, setColumns } = useColumnState(COLUMNS, "niveles_jerarquicos_columns");
   const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
 
-  const filters = useColumnFilters();
+  const filters = useColumnFilters({ storageKey: "niveles_jerarquicos_filters" });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -83,6 +85,9 @@ export default function NivelesJerarquicosPlazaSubtab() {
     filterSearchCondition,
     debouncedFilterSearchText,
   } = filters;
+
+  // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, estadoFiltro]);
 
   const isMonoColumn = useCallback((key) => MONO_COLUMN_KEYS.includes(key), []);
 

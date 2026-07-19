@@ -22,10 +22,12 @@ import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
+import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
+import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, getConditionLabel } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -109,18 +111,18 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "codigo_presupuestal", label: "Código Presupuestal", width: 150, visible: true, isBasic: true },
     { key: "nivel", label: "Nivel", width: 85, visible: true, isBasic: true },
 
-    { key: "numeral", label: "numeral", width: 100, visible: false, isBasic: false },
-    { key: "ua", label: "ua", width: 150, visible: false, isBasic: false },
-    { key: "cent", label: "cent", width: 80, visible: false, isBasic: false },
-    { key: "dir", label: "dir", width: 80, visible: false, isBasic: false },
-    { key: "subd", label: "subd", width: 80, visible: false, isBasic: false },
-    { key: "jd", label: "jd", width: 80, visible: false, isBasic: false },
-    { key: "depto", label: "depto", width: 120, visible: false, isBasic: false },
+    { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
+    { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
+    { key: "cent", label: "Centro (Código)", width: 80, visible: false, isBasic: false },
+    { key: "dir", label: "Dirección (Código)", width: 80, visible: false, isBasic: false },
+    { key: "subd", label: "Subdirección (Código)", width: 80, visible: false, isBasic: false },
+    { key: "jd", label: "Jefatura Depto. (Código)", width: 80, visible: false, isBasic: false },
+    { key: "depto", label: "Departamento (Código)", width: 120, visible: false, isBasic: false },
     { key: "aduana", label: "Aduana", width: 200, visible: false, isBasic: false },
-    { key: "tipo", label: "tipo", width: 130, visible: false, isBasic: false },
-    { key: "estado", label: "estado", width: 150, visible: false, isBasic: false },
-    { key: "municipio", label: "municipio", width: 180, visible: false, isBasic: false },
-    { key: "ua2", label: "ua2", width: 200, visible: false, isBasic: false },
+    { key: "tipo", label: "Tipo", width: 130, visible: false, isBasic: false },
+    { key: "estado", label: "Estado", width: 150, visible: false, isBasic: false },
+    { key: "municipio", label: "Municipio", width: 180, visible: false, isBasic: false },
+    { key: "ua2", label: "UA (Nombre)", width: 200, visible: false, isBasic: false },
     { key: "escala", label: "Escala", width: 120, visible: false, isBasic: false },
     { key: "smb", label: "SMB", width: 150, visible: false, isBasic: false },
     { key: "smn", label: "SMN", width: 150, visible: false, isBasic: false },
@@ -156,15 +158,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "nj_comp", label: "NJ COMP", width: 150, visible: false, isBasic: false },
     { key: "nj_ok", label: "NJ OK", width: 150, visible: false, isBasic: false },
     { key: "columna", label: "Columna", width: 150, visible: false, isBasic: false },
-    { key: "nombre_nj", label: "nombreNJ", width: 150, visible: false, isBasic: false },
-    { key: "nj_operativo_comb", label: "NJOperativoComb", width: 150, visible: false, isBasic: false },
-  ]);
+    { key: "nombre_nj", label: "Nombre NJ", width: 150, visible: false, isBasic: false },
+    { key: "nj_operativo_comb", label: "NJ Operativo Combinado", width: 150, visible: false, isBasic: false },
+  ], "plantilla_detalle_columns");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
+  const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort", { key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
-  const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] } });
+  const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] }, storageKey: "plantilla_detalle_filters" });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -194,22 +197,24 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [cadenaData, setCadenaData] = useState(null);
   const [showCadenaSuggestions, setShowCadenaSuggestions] = useState(false);
   const cadenaSuggestions = useMemo(() => {
-    const q = cadenaQuery.trim().toLowerCase();
+    const q = normalizeForSearch(cadenaQuery.trim());
     if (q.length < 2 || !detalle) return [];
-    return detalle.filter(row => 
-      String(row.posicion || "").toLowerCase().includes(q) ||
-      String(row.nombres || "").toLowerCase().includes(q) ||
-      String(row.numempleado || "").toLowerCase().includes(q)
+    return detalle.filter(row =>
+      normalizeForSearch(row.posicion).includes(q) ||
+      normalizeForSearch(row.nombres).includes(q) ||
+      normalizeForSearch(row.numempleado).includes(q)
     ).slice(0, 5);
   }, [cadenaQuery, detalle]);
   const [isCadenaLoading, setIsCadenaLoading] = useState(false);
   const [cadenaError, setCadenaError] = useState(null);
+  useEscapeToClose(isCadenaModalOpen, () => setIsCadenaModalOpen(false));
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
 
   const handleBuscarCadena = async (e) => {
     e?.preventDefault();
     if (!cadenaQuery.trim()) return;
+    setShowCadenaSuggestions(false);
     setIsCadenaLoading(true);
     setCadenaError(null);
     setCadenaData(null);
@@ -282,6 +287,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
   } = useAdvancedFilters({ mode: "client", isDateColumn });
+
+  // BUG-05 QA: la selección es posicional ({row, col}); si cambia el filtro u
+  // orden, la celda puede quedar apuntando a otro registro sin avisar.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
 
   // OPTIMIZACIÓN CRÍTICA: Los cálculos pesados dependen solo de los datos y de la columna activa
   const dateHierarchies = useMemo(() => {
@@ -494,17 +503,19 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     };
   }, [activeFilterDropdown, isColumnsModalOpen]);
 
-  // Índice de búsqueda precomputado por fila: un solo string en minúsculas por fila,
-  // calculado una vez cuando cambia `detalle` (no en cada tecla de la búsqueda global).
-  // Antes se hacía Object.entries + toLowerCase de las 70+ columnas de cada fila en
-  // cada pulsación; ahora es una búsqueda O(1) sobre un blob ya normalizado.
+  // Índice de búsqueda precomputado por fila: un solo string normalizado (sin
+  // acentos, minúsculas) por fila, calculado una vez cuando cambia `detalle` (no
+  // en cada tecla de la búsqueda global). Antes se hacía Object.entries +
+  // toLowerCase de las 70+ columnas de cada fila en cada pulsación; ahora es una
+  // búsqueda O(1) sobre un blob ya normalizado.
   const searchIndex = useMemo(() => {
     const map = new Map();
     detalle.forEach((row) => {
-      const blob = Object.entries(row)
-        .map(([key, val]) => (key === "estado_nomina" ? mapEstadoNomina(val) : String(val || "")))
-        .join(" ")
-        .toLowerCase();
+      const blob = normalizeForSearch(
+        Object.entries(row)
+          .map(([key, val]) => (key === "estado_nomina" ? mapEstadoNomina(val) : String(val || "")))
+          .join(" ")
+      );
       map.set(row, blob);
     });
     return map;
@@ -516,7 +527,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const filteredData = useMemo(() => {
     return detalle.filter(row => {
       if (deferredGlobalSearch) {
-        const searchText = deferredGlobalSearch.toLowerCase();
+        const searchText = normalizeForSearch(deferredGlobalSearch);
         const blob = searchIndex.get(row) || "";
         if (!blob.includes(searchText)) return false;
       }
@@ -529,8 +540,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
 
         const val = colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "");
-        const lowerVal = val.toLowerCase().trim();
-        const lowerSearch = searchText.toLowerCase().trim();
+        const lowerVal = normalizeForSearch(val).trim();
+        const lowerSearch = normalizeForSearch(searchText).trim();
 
         switch (condition) {
           case "contains":
@@ -589,7 +600,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       const counts = {};
       detalle.forEach(row => {
         if (deferredGlobalSearch) {
-          const searchText = deferredGlobalSearch.toLowerCase();
+          const searchText = normalizeForSearch(deferredGlobalSearch);
           const blob = searchIndex.get(row) || "";
           if (!blob.includes(searchText)) return;
         }
@@ -602,8 +613,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           const searchText = filterObj.value;
           const condition = filterObj.condition || ((typeof isMonoColumn !== 'undefined' && isMonoColumn(colKey)) ? "starts_with" : "contains");
           const valStr = colKey === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "");
-          const lowerVal = valStr.toLowerCase().trim();
-          const lowerSearch = searchText.toLowerCase().trim();
+          const lowerVal = normalizeForSearch(valStr).trim();
+          const lowerSearch = normalizeForSearch(searchText).trim();
           let pass = false;
           switch (condition) {
             case "contains": pass = lowerVal.includes(lowerSearch); break;
@@ -1347,6 +1358,35 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
               </button>
             </div>
           </div>
+
+          {/* 7.2 QA: chips de filtros activos — antes el único indicio era el
+              punto blanco del header y había hasta 4 mecanismos de filtro
+              (tarjeta, global, columna, avanzados) invisibles entre sí. */}
+          {(globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some(v => v?.value) || appliedAdvancedFilters.length > 0) && (
+            <div className="hidden md:flex flex-wrap items-center gap-2 px-6 py-3 border-b border-slate-200/50 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/20">
+              <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest shrink-0">Filtros activos:</span>
+              {globalSearch && (
+                <button onClick={() => { setSearchQuery(""); setGlobalSearch(""); }} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-red-300 dark:hover:border-red-900 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer">
+                  <Search className="size-2.5" /><span>Búsqueda: "{globalSearch}"</span><X className="size-2.5" />
+                </button>
+              )}
+              {Object.entries(columnFilters).map(([colKey, values]) => (
+                <button key={`cf-${colKey}`} onClick={() => setColumnFilters(prev => { const next = { ...prev }; delete next[colKey]; return next; })} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-red-300 dark:hover:border-red-900 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer">
+                  <span>{columns.find(c => c.key === colKey)?.label || colKey}: {values.length} valor{values.length === 1 ? "" : "es"}</span><X className="size-2.5" />
+                </button>
+              ))}
+              {Object.entries(textFilters).filter(([, f]) => f?.value).map(([colKey, f]) => (
+                <button key={`tf-${colKey}`} onClick={() => setTextFilters(prev => { const next = { ...prev }; delete next[colKey]; return next; })} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-red-300 dark:hover:border-red-900 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer">
+                  <span>{columns.find(c => c.key === colKey)?.label || colKey} {getConditionLabel(f.condition)}: "{f.value}"</span><X className="size-2.5" />
+                </button>
+              ))}
+              {appliedAdvancedFilters.length > 0 && (
+                <button onClick={resetAdvancedFilters} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-red-300 dark:hover:border-red-900 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer">
+                  <Filter className="size-2.5" /><span>{appliedAdvancedFilters.length} filtro{appliedAdvancedFilters.length === 1 ? "" : "s"} avanzado{appliedAdvancedFilters.length === 1 ? "" : "s"}</span><X className="size-2.5" />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Tabla densa estilo Excel: sólo desktop */}
           <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">

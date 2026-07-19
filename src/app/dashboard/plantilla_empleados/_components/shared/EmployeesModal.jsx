@@ -15,13 +15,14 @@ import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import DataTable from "./DataTable";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
 import { useColumnFilters } from "../../_hooks/useColumnFilters";
-import { useCellSelection } from "../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../_hooks/useCellSelection";
 import {
     applyColumnFilters,
     getUniqueColumnValues,
     matchesTextCondition,
     finalizeFilterDropdownValues,
     defaultGetCellValue,
+    normalizeForSearch,
 } from "@/utils/columnFilters";
 
 // --- CONSTANTS ---
@@ -155,8 +156,9 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
 
     const groupedColumns = useMemo(() => {
         const groups = {};
+        const normalizedQuery = normalizeForSearch(searchQuery);
         ALL_AVAILABLE_COLUMNS.forEach(col => {
-            if (searchQuery && !col.label.toLowerCase().includes(searchQuery.toLowerCase()) && !col.key.toLowerCase().includes(searchQuery.toLowerCase())) {
+            if (normalizedQuery && !normalizeForSearch(col.label).includes(normalizedQuery) && !normalizeForSearch(col.key).includes(normalizedQuery)) {
                 return;
             }
             if (!groups[col.category]) groups[col.category] = [];
@@ -315,13 +317,13 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         const groups = {};
         if (!record) return groups;
         const fieldsSource = columns || ALL_AVAILABLE_COLUMNS;
-        const query = fieldSearch.trim().toLowerCase();
+        const query = normalizeForSearch(fieldSearch.trim());
 
         fieldsSource.forEach(field => {
             const category = field.category || 'General';
-            const label = (field.label || '').toLowerCase();
-            const valStr = String(record[field.key] ?? '').toLowerCase();
-            const catLower = category.toLowerCase();
+            const label = normalizeForSearch(field.label || '');
+            const valStr = normalizeForSearch(record[field.key] ?? '');
+            const catLower = normalizeForSearch(category);
 
             if (query && !label.includes(query) && !valStr.includes(query) && !catLower.includes(query)) {
                 return;
@@ -478,6 +480,9 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
         debouncedFilterSearchText,
         resetFilters,
     } = filters;
+
+    // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+    useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, sortConfig.key, sortConfig.direction]);
 
     const [columnWidths, setColumnWidths] = useState(() => {
         const widths = {};

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 
 const PAGE_SIZE = 60;
 
@@ -50,6 +51,8 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+
+  useEscapeToClose(open, onClose);
 
   const debouncedSearch = useDebouncedValue(search, 350);
   const debouncedPosicion = useDebouncedValue(posicionFiltro, 350);

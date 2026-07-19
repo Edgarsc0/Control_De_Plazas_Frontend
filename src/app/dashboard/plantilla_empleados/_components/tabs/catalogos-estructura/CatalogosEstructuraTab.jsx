@@ -9,7 +9,7 @@ import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import CatalogRecordModal from "./CatalogRecordModal";
 import NivelesJerarquicosPlazaSubtab from "./NivelesJerarquicosPlazaSubtab";
 import { useColumnState } from "../../../_hooks/useColumnState";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import {
   applyColumnFilters,
@@ -97,6 +97,9 @@ function GenericCatalogSubtab({ activeCatalog }) {
     filterSearchCondition,
     debouncedFilterSearchText,
   } = filters;
+
+  // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, activeCatalog]);
 
   const isMonoColumn = useCallback((key) => MONO_CATALOG_COLUMN_KEYS.includes(key), []);
 

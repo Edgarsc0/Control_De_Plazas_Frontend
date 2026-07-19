@@ -1,5 +1,16 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+
+/** Lee `{globalSearch, columnFilters, textFilters}` persistidos bajo `storageKey`, si existen. */
+const readPersistedFilters = (storageKey) => {
+  if (!storageKey || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Contenedor del estado de filtrado estilo Excel por columna compartido por los
@@ -13,12 +24,22 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
  *
  * @param {Object} [params={}]
  * @param {Object<string, string[]>} [params.initialColumnFilters={}] - Filtros de valores iniciales por columna.
+ * @param {?string} [params.storageKey] - 7.3 QA: si se provee, persiste búsqueda global/filtros por usuario en `localStorage` bajo esta clave.
  * @returns {Object} Estado plano + setters + `debouncedFilterSearchText` y `resetFilters`.
  */
-export function useColumnFilters({ initialColumnFilters = {} } = {}) {
-  const [globalSearch, setGlobalSearch] = useState('');
-  const [columnFilters, setColumnFilters] = useState(initialColumnFilters);
-  const [textFilters, setTextFilters] = useState({});
+export function useColumnFilters({ initialColumnFilters = {}, storageKey } = {}) {
+  const [globalSearch, setGlobalSearch] = useState(() => readPersistedFilters(storageKey)?.globalSearch ?? '');
+  const [columnFilters, setColumnFilters] = useState(() => readPersistedFilters(storageKey)?.columnFilters ?? initialColumnFilters);
+  const [textFilters, setTextFilters] = useState(() => readPersistedFilters(storageKey)?.textFilters ?? {});
+
+  useEffect(() => {
+    if (!storageKey || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({ globalSearch, columnFilters, textFilters }));
+    } catch {
+      // localStorage lleno/deshabilitado: no es crítico, se ignora.
+    }
+  }, [storageKey, globalSearch, columnFilters, textFilters]);
 
   // UI del dropdown por columna
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);

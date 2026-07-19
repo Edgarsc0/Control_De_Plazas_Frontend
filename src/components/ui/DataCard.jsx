@@ -35,11 +35,11 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight">
+          <h3 className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight" title={typeof title === "string" ? title : undefined}>
             {title || <span className="text-slate-400 dark:text-slate-600 italic font-bold">Sin nombre</span>}
           </h3>
           {subtitle && (
-            <p className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+            <p className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 mt-0.5 truncate" title={typeof subtitle === "string" ? subtitle : undefined}>
               {subtitle}
             </p>
           )}
@@ -59,11 +59,12 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
             const extraClass = f.valueClassName ? f.valueClassName(row) : "";
             return (
               <div key={f.key || f.label} className="min-w-0">
-                <span className="block text-[8px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-600 mb-0.5">
+                <span className="block text-[8px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-600 mb-0.5 truncate" title={f.label}>
                   {f.label}
                 </span>
                 <span
                   onClick={clickable ? (e) => { e.stopPropagation(); f.onClick(row); } : undefined}
+                  title={empty ? undefined : String(raw)}
                   className={`block text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate ${f.mono ? "font-mono" : ""} ${clickable ? "cursor-pointer" : ""} ${extraClass}`}
                 >
                   {empty ? <span className="text-slate-300 dark:text-slate-700 italic">—</span> : String(raw)}

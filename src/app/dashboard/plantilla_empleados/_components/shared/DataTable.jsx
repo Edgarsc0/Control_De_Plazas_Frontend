@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowUpDown, Filter, X, Check, Search, Eye } from "lucide-react";
 import { getConditionLabel } from "@/utils/columnFilters";
@@ -162,6 +163,23 @@ function DataTable({
   const colSpan = visible.length + 2;
   const columnsWidth = 95 + visible.reduce((sum, col) => sum + col.width, 0);
 
+  // Dropdown de condición de filtro: se porta a `document.body` (posicionado por
+  // el rect del botón) para no quedar recortado por el `overflow-auto` de la
+  // tabla — el mismo problema que ya resolvía `ColumnsModal` con su propio portal.
+  const [conditionDropdownRect, setConditionDropdownRect] = useState(null);
+  const closeConditionDropdown = useCallback(() => {
+    setActiveConditionDropdown(null);
+    setConditionDropdownRect(null);
+  }, [setActiveConditionDropdown]);
+  useEffect(() => {
+    if (!activeConditionDropdown) return;
+    const scrollEl = containerRef?.current;
+    if (!scrollEl) return;
+    const handleScroll = () => closeConditionDropdown();
+    scrollEl.addEventListener('scroll', handleScroll);
+    return () => scrollEl.removeEventListener('scroll', handleScroll);
+  }, [activeConditionDropdown, containerRef, closeConditionDropdown]);
+
   // Navegación con flechas (opt-in vía `enableKeyboardNav`): mueve `selectedCell`
   // dentro de los límites de filas/columnas visibles, con aceleración de paso en
   // mantenido presionado. Refs (no deps de effect) para no remover/re-agregar el
@@ -281,7 +299,14 @@ function DataTable({
                       <div className="flex flex-col items-center gap-1 w-full">
                         <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
                         <div className="flex items-center justify-between w-full">
-                          <div onClick={() => onSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                          <div
+                            onClick={() => onSort(col.key)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(col.key); } }}
+                            title={col.label}
+                            className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded"
+                          >
                             <span>{col.label}</span>
                             <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
                           </div>
@@ -314,7 +339,14 @@ function DataTable({
                         {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
                         <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'left')} />
                         <div className="flex items-center justify-between w-full">
-                          <div onClick={() => onSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                          <div
+                            onClick={() => onSort(col.key)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(col.key); } }}
+                            title={col.label}
+                            className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded"
+                          >
                             <span>{col.label}</span>
                             <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
                           </div>
@@ -394,7 +426,12 @@ function DataTable({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setActiveConditionDropdown(activeConditionDropdown === col.key ? null : col.key);
+                        if (activeConditionDropdown === col.key) {
+                          closeConditionDropdown();
+                        } else {
+                          setConditionDropdownRect(e.currentTarget.getBoundingClientRect());
+                          setActiveConditionDropdown(col.key);
+                        }
                       }}
                       title={`Condición: ${getConditionLabel(condition)}`}
                       className="absolute left-1.5 z-10 size-4 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded text-white text-[8px] font-black cursor-pointer select-none transition-colors"
@@ -419,10 +456,13 @@ function DataTable({
                       placeholder="Filtrar..."
                       className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-white text-[9px] font-bold placeholder-white/30 rounded-md py-1.5 pl-7 pr-2 outline-none transition-all border border-white/5 focus:border-[#bc955c]/50"
                     />
-                    {activeConditionDropdown === col.key && (
+                    {activeConditionDropdown === col.key && conditionDropdownRect && typeof document !== "undefined" && createPortal(
                       <>
-                        <div className="fixed inset-0 z-40 bg-transparent" onClick={(e) => { e.stopPropagation(); setActiveConditionDropdown(null); }} />
-                        <div className="absolute top-full left-0 mt-1 z-50 w-36 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200">
+                        <div className="fixed inset-0 z-[110] bg-transparent" onClick={(e) => { e.stopPropagation(); closeConditionDropdown(); }} />
+                        <div
+                          className="fixed z-[120] w-36 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200"
+                          style={{ top: conditionDropdownRect.bottom + 4, left: conditionDropdownRect.left }}
+                        >
                           {CONDITION_DROPDOWN_OPTIONS.map(item => (
                             <button
                               key={item.key}
@@ -430,7 +470,7 @@ function DataTable({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setTextFilters(prev => ({ ...prev, [col.key]: { value: filterObj.value, condition: item.key } }));
-                                setActiveConditionDropdown(null);
+                                closeConditionDropdown();
                               }}
                               className={`px-2 py-1 text-[9px] font-bold rounded-lg text-left transition-colors cursor-pointer w-full flex items-center justify-between ${condition === item.key ? "bg-[#bc955c] text-slate-950" : "hover:bg-white/10"}`}
                             >
@@ -439,7 +479,8 @@ function DataTable({
                             </button>
                           ))}
                         </div>
-                      </>
+                      </>,
+                      document.body
                     )}
                   </div>
                 </th>

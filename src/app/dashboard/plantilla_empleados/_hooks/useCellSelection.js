@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 /**
  * Estado de selección de celda/fila: celda activa, datos de la fila, modal de
@@ -45,4 +45,25 @@ export function useCellSelection() {
     // métodos semánticos (preferidos en código nuevo)
     selectCell, openCellModal, closeCellModal, openContextMenu, closeContextMenu,
   };
+}
+
+/**
+ * Limpia la celda seleccionada cuando cambia cualquier criterio de
+ * filtrado/orden de la tabla (`deps`). Evita el BUG-05 del QA: la selección es
+ * posicional (`{row, col}` por índice), así que tras refiltrar/reordenar el
+ * chip "seleccionado" podía terminar apuntando a otro registro sin que el
+ * usuario lo notara. No corre en el primer render (sólo ante cambios reales).
+ * @param {(cell: null) => void} setSelectedCell
+ * @param {Array} deps - Criterios que invalidan la selección (filtros, orden, búsqueda...).
+ */
+export function useClearSelectionOnFilterChange(setSelectedCell, deps) {
+  const isFirstRun = useRef(true);
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    setSelectedCell(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }

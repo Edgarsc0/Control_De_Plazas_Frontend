@@ -8,6 +8,7 @@ import {
     TooltipProvider
 } from "@/components/ui/tooltip"
 import EmployeesModal from "../../shared/EmployeesModal"
+import { normalizeForSearch } from "@/utils/columnFilters"
 
 const STATUS_CONFIG = [
     { key: 'Activo', label: 'Activo', color: '#621f32', icon: CheckCircle },
@@ -134,9 +135,8 @@ export default function PieChartsGrid({ data }) {
     const filteredData = useMemo(() => {
         if (!data || !Array.isArray(data)) return [];
         if (!searchTerm) return data;
-        return data.filter(item =>
-            item.nivel.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const q = normalizeForSearch(searchTerm);
+        return data.filter(item => normalizeForSearch(item.nivel).includes(q));
     }, [data, searchTerm]);
 
     useEffect(() => {

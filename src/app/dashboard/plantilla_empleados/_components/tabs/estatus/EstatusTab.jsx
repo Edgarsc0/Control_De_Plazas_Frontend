@@ -16,6 +16,11 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import EmployeesModal from "../../shared/EmployeesModal";
 import { VacantesService } from "@/services/vacantes.service";
+import { normalizeForSearch } from "@/utils/columnFilters";
+import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
+
+/** Orden alfanumérico correcto ("2" antes que "11"), no lexicográfico plano. */
+const sortLevels = (keys) => [...keys].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -357,7 +362,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
   };
 
   const uasList = useMemo(() => {
-    return Object.keys(estatusPorNivelUa?.por_ua || {}).sort();
+    return sortLevels(Object.keys(estatusPorNivelUa?.por_ua || {}));
   }, [estatusPorNivelUa]);
 
   // Group status counts by level
@@ -371,7 +376,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
   }, [estatusPorNivelUa]);
 
   const allLevels = useMemo(() => {
-    return Object.keys(porNivelGrouped).sort();
+    return sortLevels(Object.keys(porNivelGrouped));
   }, [porNivelGrouped]);
 
   const handleOpenUaDownloadModal = () => {
@@ -385,10 +390,10 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
   };
 
   const filteredLevelsList = useMemo(() => {
-    let list = Object.keys(porNivelGrouped).sort();
+    let list = sortLevels(Object.keys(porNivelGrouped));
     if (levelSearchQuery.trim()) {
-      const q = levelSearchQuery.toLowerCase();
-      list = list.filter(l => l.toLowerCase().includes(q));
+      const q = normalizeForSearch(levelSearchQuery);
+      list = list.filter(l => normalizeForSearch(l).includes(q));
     }
     return list;
   }, [porNivelGrouped, levelSearchQuery]);
@@ -407,10 +412,10 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
 
   // Filtered UAs
   const filteredUas = useMemo(() => {
-    const uas = Object.keys(estatusPorNivelUa?.por_ua || {}).sort();
+    const uas = sortLevels(Object.keys(estatusPorNivelUa?.por_ua || {}));
     if (!uaSearchQuery.trim()) return uas;
-    const query = uaSearchQuery.toLowerCase();
-    return uas.filter((ua) => ua.toLowerCase().includes(query));
+    const query = normalizeForSearch(uaSearchQuery);
+    return uas.filter((ua) => normalizeForSearch(ua).includes(query));
   }, [estatusPorNivelUa, uaSearchQuery]);
 
   const totalUasPages = Math.ceil(filteredUas.length / uasPageSize) || 1;
@@ -745,7 +750,9 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
   const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const allLevels = useMemo(() => Object.keys(levelsData).sort(), [levelsData]);
+  useEscapeToClose(true, onClose);
+
+  const allLevels = useMemo(() => sortLevels(Object.keys(levelsData)), [levelsData]);
   const [selectedLevels, setSelectedLevels] = useState(new Set());
 
   // Initialize selectedLevels when component mounts/receives data
@@ -755,7 +762,7 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
 
   useEffect(() => { setMounted(true); }, []);
 
-  const levels = allLevels.filter((level) => level.toLowerCase().includes(searchQuery.toLowerCase()));
+  const levels = allLevels.filter((level) => normalizeForSearch(level).includes(normalizeForSearch(searchQuery)));
   
   const totalPositions = Object.values(levelsData).reduce((total, statusCounts) => {
     return total + Object.values(statusCounts || {}).reduce((sum, count) => sum + count, 0);
@@ -883,7 +890,8 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
 // ─── GlobalDownloadModal ──────────────────────────────────────────────────────
 function GlobalDownloadModal({ uasList, selectedUas, setSelectedUas, onClose, onConfirm, isExporting }) {
   const [search, setSearch] = useState("");
-  const filtered = uasList.filter(ua => ua.toLowerCase().includes(search.toLowerCase()));
+  useEscapeToClose(true, onClose);
+  const filtered = uasList.filter(ua => normalizeForSearch(ua).includes(normalizeForSearch(search)));
 
   const handleToggleAll = () => {
     if (selectedUas.size === uasList.length) {
@@ -1011,8 +1019,10 @@ function LevelDownloadModal({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
+  useEscapeToClose(true, onClose);
+
   const filteredLevels = useMemo(() => {
-    return levelsList.filter(lvl => lvl.toLowerCase().includes(searchQuery.toLowerCase()));
+    return levelsList.filter(lvl => normalizeForSearch(lvl).includes(normalizeForSearch(searchQuery)));
   }, [levelsList, searchQuery]);
 
   const handleToggleAll = () => {

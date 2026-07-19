@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { useEscapeToClose } from '../../../_hooks/useEscapeToClose';
 
 const ALL_COLUMNS = [
   { key: 'Posición', label: 'Posición', default: true },
@@ -31,6 +32,8 @@ function getModalWidth(colCount) {
 }
 
 export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title = '' }) {
+  useEscapeToClose(isOpen, onClose);
+
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {

@@ -22,10 +22,11 @@ import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
-import { useCellSelection } from "../../../_hooks/useCellSelection";
+import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
+import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts } from "@/utils/columnFilters";
+import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts, normalizeForSearch } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -203,9 +204,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "posn_clv", label: "Posn Clv", width: 120, visible: true, isBasic: true },
     { key: "presupuesto", label: "Presupuesto", width: 120, visible: true, isBasic: true },
     { key: "nombre_puesto", label: "Nombre Puesto", width: 250, visible: true, isBasic: true },
-  ]);
+  ], "movimientos_columns");
 
-  const filters = useColumnFilters({ initialColumnFilters: { estado_psn: ["A"], is_latest: ["true"] } });
+  const filters = useColumnFilters({ initialColumnFilters: { estado_psn: ["A"], is_latest: ["true"] }, storageKey: "movimientos_filters" });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -221,7 +222,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     debouncedFilterSearchText,
   } = filters;
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  // 7.3 QA: persistir configuración por usuario en localStorage.
+  const [sortConfig, setSortConfig] = usePersistedState("movimientos_sort", { key: null, direction: null });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
@@ -241,6 +243,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     isDateColumn,
     onApply: () => { setLoading(true); setPage(1); },
   });
+
+  // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
+  useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
 
   const [count, setCount] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]).length || 0);
   const hasInitialData = initialMovPosData && (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData));
@@ -706,10 +711,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const filteredTimelineData = useMemo(() => {
     if (!timelineSearch) return timelineData;
-    const lower = timelineSearch.toLowerCase();
-    return timelineData.filter(row => 
-      (row.motivo && String(row.motivo).toLowerCase().includes(lower)) || 
-      (row.cd_motivo && String(row.cd_motivo).toLowerCase().includes(lower))
+    const lower = normalizeForSearch(timelineSearch);
+    return timelineData.filter(row =>
+      (row.motivo && normalizeForSearch(row.motivo).includes(lower)) ||
+      (row.cd_motivo && normalizeForSearch(row.cd_motivo).includes(lower))
     );
   }, [timelineData, timelineSearch]);
 
@@ -1092,7 +1097,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}>{badge.label}</span></td>);
     }
     const isPosicionCol = col.key === "no_pos_actual";
-    const handleCellClick = (e) => { onClick(e); if (isPosicionCol) { setActiveModalTab('timeline'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
+    // 7.6 QA: la columna "Histórico" (total_movimientos) mostraba sólo un
+    // número sin acción — ahora abre el mismo timeline que la columna Posición.
+    const isHistoricoCol = col.key === "total_movimientos";
+    const handleCellClick = (e) => { onClick(e); if (isPosicionCol || isHistoricoCol) { setActiveModalTab('timeline'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
     if (col.key === "fecha_vacancia") {
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
@@ -1242,7 +1250,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         </Tooltip>
       );
     }
-    return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (String(value))}</td>);
+    return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (String(value))}</td>);
   }, [isMonoColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
@@ -1658,22 +1666,55 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   </div>
 
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/50 dark:border-slate-800/50 select-none">
-                    <button 
-                      onClick={() => { setLoading(true); setPage(p => Math.max(1, p - 1)); }} 
+                    {/* 7.12 QA: paginación server-side sólo tenía ‹ › — se agregan
+                        primera/última página y un campo para saltar a la página N. */}
+                    <button
+                      onClick={() => { setLoading(true); setPage(1); }}
                       disabled={page === 1 || loading}
+                      title="Primera página"
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <ChevronsLeft className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => { setLoading(true); setPage(p => Math.max(1, p - 1)); }}
+                      disabled={page === 1 || loading}
+                      title="Página anterior"
                       className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                     >
                       <ChevronLeft className="size-3.5" />
                     </button>
-                    <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 px-1">
-                      Pág. <span className="text-[#621f32] dark:text-[#bc955c]">{page}</span> de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
+                    <span className="text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 px-1 flex items-center gap-1">
+                      Pág.
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages}
+                        value={page}
+                        onChange={(e) => {
+                          const n = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(n) && n >= 1 && n <= totalPages) { setLoading(true); setPage(n); }
+                        }}
+                        disabled={loading}
+                        className="w-10 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md text-center text-[#621f32] dark:text-[#bc955c] font-black outline-none focus:border-[#621f32]/50 dark:focus:border-[#bc955c]/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      de <span className="text-[#621f32] dark:text-[#bc955c]">{totalPages}</span>
                     </span>
-                    <button 
-                      onClick={() => { setLoading(true); setPage(p => Math.min(totalPages, p + 1)); }} 
+                    <button
+                      onClick={() => { setLoading(true); setPage(p => Math.min(totalPages, p + 1)); }}
                       disabled={page === totalPages || loading}
+                      title="Página siguiente"
                       className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                     >
                       <ChevronRightIcon className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => { setLoading(true); setPage(totalPages); }}
+                      disabled={page === totalPages || loading}
+                      title="Última página"
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-350 rounded-lg transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <ChevronsRight className="size-3.5" />
                     </button>
                   </div>
                 </div>

@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { X, Calendar, Activity, Loader2, ArrowUpRight, MapPin, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Note: using framer-motion as it seems imported differently sometimes, I'll use "motion/react" if it was "motion/react" in the tab
 import { VacantesService } from "@/services/vacantes.service";
+import { normalizeForSearch } from "@/utils/columnFilters";
+import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 
 // format date if needed
 const formatDate = (dateString) => {
@@ -122,10 +124,12 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
   const [activeTab, setActiveTab] = useState("timeline"); // "timeline" | "table"
   const [searchQuery, setSearchQuery] = useState("");
 
+  useEscapeToClose(open, () => onOpenChange(false));
+
   const filteredData = data.filter(row => {
     if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return Object.values(row).some(val => String(val || "").toLowerCase().includes(q));
+    const q = normalizeForSearch(searchQuery);
+    return Object.values(row).some(val => normalizeForSearch(val).includes(q));
   });
 
   useEffect(() => {
