@@ -188,7 +188,8 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
                 hideClose
-                className="w-full max-w-xl max-h-[80vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=closed]:animate-out data-[state=closed]:zoom-out-90 data-[state=closed]:fade-out-0 duration-300"
+                overlayClassName="z-[1100]"
+                className="z-[1100] w-full max-w-xl max-h-[80vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=closed]:animate-out data-[state=closed]:zoom-out-90 data-[state=closed]:fade-out-0 duration-300"
             >
                 <div className="w-full max-h-[80vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col rounded-[28px] shadow-2xl border border-[#621f32]/10 dark:border-slate-800/80 overflow-hidden">
                     <LetterheadBar />
