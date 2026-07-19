@@ -17,6 +17,7 @@ import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
+import CeldaValorModal from "../../shared/CeldaValorModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -1627,52 +1628,22 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         fetchSuggestions={fetchAdvSuggestions}
       />
 
-      <AnimatePresence>
-        {isCellModalOpen && selectedCell && (
-          <div key="cell-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCellModalOpen(false)} className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#621f32] text-white rounded-lg">
-                    <Search className="size-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Detalle de Celda</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{getColumnLetter(selectedCell.col)}{selectedCell.row + 1}</p>
-                  </div>
-                </div>
-                <button onClick={() => setIsCellModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors"><X className="size-5" /></button>
-              </div>
-              <div className="p-8 flex flex-col gap-6">
-                <div>
-                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 block">Columna</label>
-                  <p className="text-base font-bold text-[#621f32] dark:text-[#bc955c]">{columns.filter(c => c.visible)[selectedCell.col]?.label}</p>
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 block">Valor completo</label>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <p className="text-sm text-slate-700 dark:text-slate-200 font-medium leading-relaxed break-words whitespace-pre-wrap">
-                      {(() => { 
-                        const row = filteredSortedData[selectedCell.row];
-                        const col = columns.filter(c => c.visible)[selectedCell.col];
-                        const v = row?.[col?.key]; 
-                        if (!v) return "(Vacío)";
-                        if (col?.key === "estado_nomina") return mapEstadoNomina(v);
-                        return String(v); 
-                      })()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-100 dark:border-slate-800 text-right bg-slate-50/30 dark:bg-slate-800/10">
-                <button onClick={() => setIsCellModalOpen(false)} className="px-6 py-2.5 bg-slate-900 dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl transition-all hover:opacity-90 active:scale-95">Cerrar</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-      
+      <CeldaValorModal
+        open={isCellModalOpen && !!selectedCell}
+        onClose={() => setIsCellModalOpen(false)}
+        columnLabel={selectedCell ? columns.filter(c => c.visible)[selectedCell.col]?.label : ""}
+        cellRef={selectedCell ? `${getColumnLetter(selectedCell.col)}${selectedCell.row + 1}` : ""}
+        value={(() => {
+          if (!selectedCell) return null;
+          const row = filteredSortedData[selectedCell.row];
+          const col = columns.filter(c => c.visible)[selectedCell.col];
+          const v = row?.[col?.key];
+          if (!v) return null;
+          if (col?.key === "estado_nomina") return mapEstadoNomina(v);
+          return v;
+        })()}
+      />
+
       <CeldaHistorialModal
         open={isHistorialModalOpen}
         onClose={() => setIsHistorialModalOpen(false)}

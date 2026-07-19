@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
-  Calendar, Hash, User, Info, AlertTriangle, MousePointerClick,
+  Calendar, Hash, User, Info, AlertTriangle, MousePointerClick, Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zoom } from "react-awesome-reveal";
@@ -17,6 +17,7 @@ import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
+import CeldaValorModal from "../../shared/CeldaValorModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -656,7 +657,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [modalHistoryData, setModalHistoryData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
-  const [activeModalTab, setActiveModalTab] = useState('tabla');
+  const [activeModalTab, setActiveModalTab] = useState('timeline');
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
 
@@ -1091,7 +1092,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}>{badge.label}</span></td>);
     }
     const isPosicionCol = col.key === "no_pos_actual";
-    const handleCellClick = (e) => { onClick(e); if (isPosicionCol) { setActiveModalTab('tabla'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
+    const handleCellClick = (e) => { onClick(e); if (isPosicionCol) { setActiveModalTab('timeline'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
     if (col.key === "fecha_vacancia") {
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
@@ -1838,57 +1839,59 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       {mounted && createPortal(
         <AnimatePresence>
         {isHistoryModalOpen && selectedCell && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsHistoryModalOpen(false)} className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsHistoryModalOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
             <motion.div
-              initial={{ opacity: 0, scale: 0.97, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 16 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-              className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_24px_64px_rgba(0,0,0,0.25)] w-full max-w-[96vw] max-h-[85vh] flex flex-col z-[90] overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full z-[9999] flex flex-col overflow-hidden h-[80vh] transition-[max-width] duration-500 ease-in-out ${activeModalTab === 'timeline' ? 'max-w-3xl' : 'max-w-[95vw]'}`}
             >
-              {/* ── Header ── */}
-              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 flex items-center justify-between sticky top-0 z-10 backdrop-blur-md">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                 <div className="flex items-center gap-4">
-                  {/* Icon */}
-                  <div className="p-2.5 bg-gradient-to-br from-[#621f32] to-[#8d2c48] text-white rounded-xl shadow-lg shadow-[#621f32]/20 shrink-0">
-                    <Briefcase className="size-5" />
+                  <div className="size-12 rounded-2xl bg-gradient-to-br from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] flex items-center justify-center shadow-md">
+                    <Briefcase className="size-6 text-white dark:text-[#3e131f]" />
                   </div>
-                  {/* Title */}
                   <div>
-                    <h3 className="text-lg font-extrabold text-slate-700 dark:text-slate-100 leading-tight">
+                    <h3 className="text-xl font-black text-[#621f32] dark:text-[#bc955c] leading-tight">
                       Detalle de Posición
                     </h3>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                      # {filteredSortedData[selectedCell.row]?.no_pos_actual || 'N/A'}
+                    <p className="text-sm text-slate-500 font-medium">
+                      No. Posición: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{filteredSortedData[selectedCell.row]?.no_pos_actual || 'N/A'}</span>
                     </p>
-                  </div>
-                  {/* Tab switcher */}
-                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60 ml-2">
-                    <button
-                      onClick={() => { setActiveModalTab('tabla'); setComparingIndex(null); }}
-                      className={`px-4 py-1.5 text-[11px] font-black uppercase rounded-lg transition-all ${activeModalTab === 'tabla' ? 'bg-white dark:bg-slate-600 text-[#621f32] dark:text-[#bc955c] shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                    >Tabla</button>
-                    <button
-                      onClick={() => { setActiveModalTab('timeline'); setComparingIndex(null); }}
-                      className={`px-4 py-1.5 text-[11px] font-black uppercase rounded-lg transition-all ${activeModalTab === 'timeline' ? 'bg-white dark:bg-slate-600 text-[#621f32] dark:text-[#bc955c] shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                    >Línea del Tiempo</button>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsHistoryModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 transition-all hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 shrink-0"
+                  className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                 >
-                  <X className="size-4" />
+                  <X className="size-5" />
                 </button>
               </div>
 
-              {/* ── Body ── */}
-              <div className="flex-1 overflow-auto bg-slate-50/60 dark:bg-slate-900/50">
+              {/* Tabs */}
+              <div className="flex items-center gap-6 px-6 pt-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+                <button
+                  onClick={() => { setActiveModalTab('timeline'); setComparingIndex(null); }}
+                  className={`pb-3 text-[11px] font-black uppercase tracking-wider border-b-2 transition-colors ${activeModalTab === 'timeline' ? 'border-[#621f32] text-[#621f32] dark:border-[#bc955c] dark:text-[#bc955c]' : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                >
+                  Línea de Tiempo
+                </button>
+                <button
+                  onClick={() => { setActiveModalTab('tabla'); setComparingIndex(null); }}
+                  className={`pb-3 text-[11px] font-black uppercase tracking-wider border-b-2 transition-colors ${(activeModalTab === 'tabla' || activeModalTab === 'diff_table') ? 'border-[#621f32] text-[#621f32] dark:border-[#bc955c] dark:text-[#bc955c]' : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                >
+                  Vista de Tabla
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-900/50 custom-scrollbar relative flex flex-col">
                 {isModalLoading ? (
-                  <div className="flex flex-col items-center justify-center py-24 gap-4">
-                    <div className="size-10 border-4 border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando historial...</p>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-[#621f32] dark:text-[#bc955c]">
+                    <Loader2 className="size-10 animate-spin mb-4" />
+                    <p className="text-sm font-bold uppercase tracking-widest animate-pulse">Cargando historial...</p>
                   </div>
                 ) : activeModalTab === 'tabla' || activeModalTab === 'diff_table' ? (
                   <div className="w-full flex flex-col h-full">
@@ -1960,15 +1963,18 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                         </table>
                         )
                       ) : (
-                        <div className="text-center py-20 text-slate-400 text-sm font-medium">No se encontraron registros de historia para esta posición.</div>
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400 min-h-[200px]">
+                          <Search className="size-12 mb-4 opacity-50" />
+                          <p className="font-bold">No se encontraron registros de historia para esta posición.</p>
+                        </div>
                       )}
                     </div>
                   </div>
                 ) : (
                   /* ── Timeline ── */
-                  <div className="w-full max-w-5xl mx-auto p-4 sm:p-8 flex flex-col gap-6">
+                  <div className="w-full px-4 sm:px-6 pt-3 pb-6 flex flex-col gap-6">
                     {/* Search */}
-                    <div className="relative max-w-md mx-auto sm:mx-0 w-full ml-4 sm:ml-6">
+                    <div className="relative max-w-md mx-auto sm:mx-0 w-full">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="size-4 text-slate-400" />
                       </div>
@@ -1982,89 +1988,73 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                     </div>
 
                     {filteredTimelineData && filteredTimelineData.length > 0 ? (
-                      <div className="relative border-l-2 border-slate-200 dark:border-slate-800 ml-4 sm:ml-6 flex flex-col gap-8 py-6 before:absolute before:inset-0 before:-left-[2px] before:w-[2px] before:bg-gradient-to-b before:from-[#621f32] before:via-[#621f32]/40 before:to-transparent before:h-full before:z-0">
+                      <div className="relative border-l-2 border-[#621f32]/20 dark:border-[#bc955c]/20 ml-14 flex flex-col">
                         {filteredTimelineData.map((row, index) => (
                           <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4, delay: Math.min(index * 0.1, 0.8), ease: "easeOut" }}
                             key={row.id || index}
-                            className="relative pl-8 sm:pl-12 group cursor-pointer z-10"
+                            className="mb-10 relative group cursor-pointer"
                             onClick={() => { setComparingIndex(index); setActiveModalTab('diff_table'); }}
                           >
                             {/* Timeline dot */}
-                            <div className="absolute -left-[11px] top-6 size-5 rounded-full bg-white dark:bg-slate-900 border-[4px] border-slate-300 dark:border-slate-700 group-hover:border-[#621f32] dark:group-hover:border-[#bc955c] group-hover:scale-125 transition-all duration-300 shadow-sm z-20" />
-                            {/* Dot glow */}
-                            <div className="absolute -left-[19px] top-4 size-9 rounded-full bg-[#621f32]/0 group-hover:bg-[#621f32]/15 dark:group-hover:bg-[#bc955c]/15 blur-sm transition-all duration-300 z-10" />
-
-                            {/* Connecting line */}
-                            <div className="absolute left-[9px] top-8 w-6 sm:w-10 h-[2px] bg-slate-200 dark:bg-slate-800 group-hover:bg-[#621f32]/30 dark:group-hover:bg-[#bc955c]/30 transition-colors duration-300" />
+                            <div className="absolute -left-[33px] top-4">
+                              <div className="size-4 rounded-full bg-white dark:bg-slate-900 border-[4px] border-[#621f32] dark:border-[#bc955c] shadow-md z-10 relative" />
+                              {index === 0 && (
+                                <div className="absolute inset-0 size-4 rounded-full bg-[#621f32] dark:bg-[#bc955c] animate-ping opacity-75" />
+                              )}
+                            </div>
 
                             {/* Card */}
-                            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 rounded-[1.5rem] p-5 sm:p-7 shadow-sm transition-all duration-300 group-hover:shadow-[0_12px_40px_-12px_rgba(98,31,50,0.15)] group-hover:border-[#621f32]/40 dark:group-hover:border-[#bc955c]/40 group-hover:-translate-y-1 group-hover:bg-white dark:group-hover:bg-slate-900 overflow-hidden relative">
-                              {/* Top accent line */}
-                              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-transparent to-transparent group-hover:from-[#621f32] group-hover:via-[#bc955c] group-hover:to-[#621f32] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                            <div className="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 ml-6 hover:shadow-md hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 transition-all">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                                 <div>
                                   <div className="flex items-center gap-2.5 mb-1 flex-wrap">
-                                    <h4 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-tight">{row.motivo || 'Actualización Inicial'}</h4>
+                                    <h4 className="text-sm font-black uppercase text-[#621f32] dark:text-[#bc955c] tracking-wider">{row.motivo || 'Actualización Inicial'}</h4>
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[10px] font-bold uppercase ${MOV_STATUS_BADGE_STYLES[row.estado_psn]?.bg || 'bg-slate-50'} ${MOV_STATUS_BADGE_STYLES[row.estado_psn]?.text || 'text-slate-600'} ${MOV_STATUS_BADGE_STYLES[row.estado_psn]?.border || 'border-slate-200'}`}>
                                       {MOV_STATUS_BADGE_STYLES[row.estado_psn]?.label || row.estado_psn || '-'}
                                     </span>
                                   </div>
-                                  <p className="text-xs font-bold text-slate-400">Cod. Motivo: <span className="font-mono text-slate-500 dark:text-slate-300">{row.cd_motivo || 'N/A'}</span></p>
+                                  <p className="text-xs font-bold text-slate-500 uppercase bg-slate-100 dark:bg-slate-700/50 inline-block px-2 py-0.5 rounded-md">
+                                    Cod. Motivo: {row.cd_motivo || 'N/A'}
+                                  </p>
                                 </div>
-                                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                  <span className="bg-[#621f32]/6 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c] px-3 py-1 rounded-xl text-[10px] font-black uppercase border border-[#621f32]/20 dark:border-[#bc955c]/30">
-                                    Efectiva: {row.f_efva || '-'}
-                                  </span>
-                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-3 py-1 rounded-xl text-[10px] font-black uppercase border border-slate-200 dark:border-slate-700">
-                                    Captura: {row.fecha_captura || '-'}
-                                  </span>
+
+                                <div className="flex items-center gap-3 text-xs bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Fecha Efectiva</span>
+                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{row.f_efva || '-'}</span>
+                                  </div>
+                                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Fecha Captura</span>
+                                    <span className="font-mono font-bold text-slate-600 dark:text-slate-400">{row.fecha_captura || '-'}</span>
+                                  </div>
                                 </div>
                               </div>
 
-                              {row.changes && row.changes.length > 0 ? (
-                                <div className="mt-5 pt-5 border-t border-slate-100 dark:border-slate-800/80">
-                                  <div className="flex items-center gap-2 mb-4">
-                                    <div className="p-1.5 bg-[#621f32]/10 dark:bg-[#bc955c]/10 rounded-lg">
-                                      <Activity className="size-3.5 text-[#621f32] dark:text-[#bc955c]" />
-                                    </div>
-                                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 dark:text-slate-400">Cambios Estructurales</p>
-                                    <span className="ml-auto text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{row.changes.length} detectados</span>
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {index === 0 && (
+                                <div className="mt-4 inline-flex items-center justify-center px-3 py-1 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-500">
+                                  Movimiento más reciente
+                                </div>
+                              )}
+
+                              {row.changes && row.changes.length > 0 && (
+                                <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                                    Cambios Detectados:
+                                  </h5>
+                                  <div className="flex flex-col gap-2">
                                     {row.changes.map((change, cIdx) => (
-                                      <div key={cIdx} className="group/change flex flex-col bg-slate-50/50 dark:bg-slate-900/30 hover:bg-white dark:hover:bg-slate-800 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-800 transition-all duration-200 hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-700">
-                                        <p className="text-[10px] uppercase font-black text-slate-400 dark:text-slate-500 mb-3 truncate flex items-center gap-1.5" title={change.label}>
-                                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" />
-                                          {change.label}
-                                        </p>
-                                        <div className="flex items-center gap-2 sm:gap-3">
-                                          <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
-                                            <span className="text-[8px] font-bold uppercase text-slate-400 px-2 py-0.5 bg-slate-200/50 dark:bg-slate-800/50 rounded-md text-center w-full border border-slate-200 dark:border-slate-700/50">Anterior</span>
-                                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 line-through truncate w-full text-center" title={change.before}>{change.before}</span>
-                                          </div>
-                                          <div className="shrink-0 text-slate-300 dark:text-slate-600 bg-white dark:bg-slate-900 rounded-full p-1 border border-slate-200 dark:border-slate-800 group-hover/change:border-[#bc955c]/50 group-hover/change:text-[#bc955c] transition-colors shadow-sm">
-                                            <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                                          </div>
-                                          <div className="flex-1 min-w-0 flex flex-col items-center gap-1.5">
-                                            <span className="text-[8px] font-black uppercase text-emerald-600 dark:text-emerald-400 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-md text-center w-full border border-emerald-100 dark:border-emerald-800/50">Nuevo</span>
-                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate w-full text-center" title={change.after}>{change.after}</span>
-                                          </div>
-                                        </div>
+                                      <div key={cIdx} className="flex items-center flex-wrap gap-2 text-xs bg-slate-50/50 dark:bg-slate-900/20 p-2 rounded-lg border border-slate-100/50 dark:border-slate-800/50">
+                                        <span className="font-bold text-slate-600 dark:text-slate-300 mr-1 min-w-[120px]">{change.label}:</span>
+                                        <span className="line-through text-slate-400 dark:text-slate-500 italic px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">{change.before}</span>
+                                        <span className="text-slate-400 mx-1">➜</span>
+                                        <span className="font-black text-[#621f32] dark:text-[#bc955c] px-1.5 py-0.5 bg-[#621f32]/10 dark:bg-[#bc955c]/10 rounded shadow-sm">{change.after}</span>
                                       </div>
                                     ))}
                                   </div>
-                                </div>
-                              ) : (
-                                <div className="mt-5 p-4 bg-slate-50/80 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center gap-3 group-hover:bg-slate-50 dark:group-hover:bg-slate-800 transition-colors">
-                                  <div className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-100 dark:border-slate-700">
-                                    <CheckCircle2 className="size-4 text-emerald-500" />
-                                  </div>
-                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                    {index === 0 ? 'Registro de creación (datos iniciales de la posición).' : 'Actualización administrativa sin cambios estructurales.'}
-                                  </span>
                                 </div>
                               )}
                             </div>
@@ -2072,7 +2062,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-20 text-slate-400 text-sm font-medium">No se encontraron registros de historia para esta posición.</div>
+                      <div className="flex flex-col items-center justify-center h-full text-slate-400 min-h-[200px]">
+                        <Search className="size-12 mb-4 opacity-50" />
+                        <p className="font-bold">No se encontraron registros de historia para esta posición.</p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -2410,53 +2403,18 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       )}
 
       {/* Modal de Detalle de Celda Completa */}
-      {mounted && createPortal(
-        <AnimatePresence>
-        {isCellModalOpen && selectedCell && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCellModalOpen(false)} className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[#621f32] text-white rounded-lg">
-                    <Search className="size-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Detalle de Celda</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{getColumnLetter(selectedCell.col)}{selectedCell.row + 1}</p>
-                  </div>
-                </div>
-                <button onClick={() => setIsCellModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors"><X className="size-5" /></button>
-              </div>
-              <div className="p-8 flex flex-col gap-6">
-                <div>
-                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 block">Columna</label>
-                  <p className="text-base font-bold text-[#621f32] dark:text-[#bc955c]">{columns.filter(c => c.visible)[selectedCell.col]?.label}</p>
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] mb-2 block">Valor completo</label>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <p className="text-sm text-slate-700 dark:text-slate-200 font-medium leading-relaxed break-words whitespace-pre-wrap">
-                      {(() => { 
-                        const row = filteredSortedData[selectedCell.row];
-                        const col = columns.filter(c => c.visible)[selectedCell.col];
-                        const v = row?.[col?.key]; 
-                        if (!v) return "(Vacío)";
-                        return String(v); 
-                      })()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-100 dark:border-slate-800 text-right bg-slate-50/30 dark:bg-slate-800/10">
-                <button onClick={() => setIsCellModalOpen(false)} className="px-6 py-2.5 bg-slate-900 dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl transition-all hover:opacity-90 active:scale-95">Cerrar</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>,
-      document.body
-      )}
+      <CeldaValorModal
+        open={isCellModalOpen && !!selectedCell}
+        onClose={() => setIsCellModalOpen(false)}
+        columnLabel={selectedCell ? columns.filter(c => c.visible)[selectedCell.col]?.label : ""}
+        cellRef={selectedCell ? `${getColumnLetter(selectedCell.col)}${selectedCell.row + 1}` : ""}
+        value={(() => {
+          if (!selectedCell) return null;
+          const row = filteredSortedData[selectedCell.row];
+          const col = columns.filter(c => c.visible)[selectedCell.col];
+          return row?.[col?.key] ?? null;
+        })()}
+      />
 
       <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
       

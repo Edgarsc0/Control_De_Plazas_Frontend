@@ -17,6 +17,8 @@ import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
+import CeldaValorModal from "../../shared/CeldaValorModal";
+import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -179,40 +181,30 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
     }
   };
 
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => { setIsMounted(true); }, []);
-
   const modalContent = (
-    <AnimatePresence>
-      {isOpen && (
-        <div key="bitacora-date-modal" className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px]" />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: 24 }}
-            className="relative bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl w-full sm:w-[450px] max-w-full sm:max-w-[95vw] max-h-[85vh] sm:max-h-[500px] flex flex-col overflow-hidden z-[70] rounded-t-3xl sm:rounded-3xl"
-          >
-            <div className="sm:hidden shrink-0 pt-2.5 pb-1 flex justify-center">
-              <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
-            </div>
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-black uppercase tracking-tight text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                  <Filter className="size-3 text-[#621f32] dark:text-[#bc955c]" />
-                  Seleccionar Fechas
-                </h4>
-                <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 -m-1"><X className="size-5 sm:size-4" /></button>
-              </div>
-            </div>
-            <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-slate-900">
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                <div className="flex flex-col gap-1">
-                  {distinctDates.length > 0 && (
-                    <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
-                      <button onClick={() => onChange(distinctDates.map(d => d.value))} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
-                      <button onClick={() => onChange([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
-                    </div>
-                  )}
-                  {Object.keys(hierarchy).sort((a, b) => b.localeCompare(a)).map(year => {
+    <ModalShell
+      open={isOpen}
+      onClose={() => setIsOpen(false)}
+      size="sm"
+      icon={Filter}
+      eyebrow="Filtro"
+      title="Filtrar Bitácora"
+      subtitle="Selecciona fechas de captura"
+      footer={
+        <>
+          <button onClick={() => onChange([])} className="flex-1 px-3 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition-all cursor-pointer">Limpiar</button>
+          <button onClick={() => setIsOpen(false)} className="flex-[2] px-3 py-2.5 bg-[#621f32] text-white text-[10px] font-black uppercase rounded-full shadow-lg shadow-[#621f32]/20 hover:bg-[#4a1726] active:scale-95 transition-all cursor-pointer">Aceptar</button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-1">
+        {distinctDates.length > 0 && (
+          <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 flex gap-2 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+            <button onClick={() => onChange(distinctDates.map(d => d.value))} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Marcar Todo</button>
+            <button onClick={() => onChange([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Desmarcar Todo</button>
+          </div>
+        )}
+        {Object.keys(hierarchy).sort((a, b) => b.localeCompare(a)).map(year => {
                     const yearData = hierarchy[year];
                     const isYearExpanded = expandedYears[year];
                     const yearDates = distinctDates.filter(d => d.value.startsWith(year)).map(d => d.value);
@@ -293,17 +285,8 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2 shrink-0">
-              <button onClick={() => onChange([])} className="flex-1 px-3 py-3 sm:py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl hover:bg-white dark:hover:bg-slate-800 active:scale-95 transition-all">Limpiar</button>
-              <button onClick={() => setIsOpen(false)} className="flex-[2] px-3 py-3 sm:py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[10px] font-black uppercase rounded-xl shadow-lg shadow-[#621f32]/20 dark:shadow-none hover:opacity-90 active:scale-95 transition-all">Aceptar</button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+      </div>
+    </ModalShell>
   );
 
   return (
@@ -314,7 +297,7 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
           {selectedDates.length === 0 ? "Ninguna" : selectedDates.length === 1 ? selectedDates[0] : `${selectedDates.length} fechas`}
         </span>
       </button>
-      {isMounted && createPortal(modalContent, document.body)}
+      {modalContent}
     </>
   );
 };
@@ -2473,36 +2456,13 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       </AnimatePresence>
 
       {/* Cell Detail Modal */}
-      {mounted && isCellModalOpen && selectedCell && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            onClick={() => setIsCellModalOpen(false)} 
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" 
-          />
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-            animate={{ opacity: 1, scale: 1 }} 
-            exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-            className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl p-8 max-w-lg w-full z-[100] flex flex-col"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-base font-extrabold text-[#621f32] dark:text-[#bc955c] uppercase tracking-wider">{selectedCell.colName}</h4>
-              <button onClick={() => setIsCellModalOpen(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-650 transition-colors"><X className="size-5" /></button>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 p-6 rounded-2xl min-h-[100px] max-h-[400px] overflow-y-auto custom-scrollbar font-bold text-slate-800 dark:text-slate-100 break-words leading-relaxed text-sm select-all">
-              {selectedCell.value === null || selectedCell.value === undefined || String(selectedCell.value).trim() === "" ? (
-                <span className="text-slate-400 italic">Dato vacío / No especificado</span>
-              ) : (
-                String(selectedCell.value)
-              )}
-            </div>
-          </motion.div>
-        </div>,
-        document.body
-      )}
+      <CeldaValorModal
+        open={isCellModalOpen && !!selectedCell}
+        onClose={() => setIsCellModalOpen(false)}
+        columnLabel={selectedCell?.colName}
+        cellRef={selectedCell ? `${getColumnLetter(selectedCell.colIdx)}${selectedCell.rowIdx + 1}` : ""}
+        value={selectedCell?.value}
+      />
 
       {/* PIE CHART TOOLTIP */}
       {typeof window !== 'undefined' && createPortal(

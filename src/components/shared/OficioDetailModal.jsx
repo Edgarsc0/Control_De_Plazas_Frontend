@@ -1,8 +1,6 @@
 'use client';
 
-import React from 'react';
-import { createPortal } from 'react-dom';
-import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 import {
   FileText,
   CheckCircle2,
@@ -12,7 +10,7 @@ import {
   ClipboardList,
   Search,
   ChevronRight,
-  X,
+  ChevronLeft,
   Tag,
   ExternalLink,
   File,
@@ -20,10 +18,10 @@ import {
   Loader2,
   FileSearch,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
 import Select from 'react-select';
 import { customSelectStyles } from './OficioSelectStyles';
+import ModalShell from './ModalShell';
 
 
 const DetailSection = ({
@@ -33,13 +31,13 @@ const DetailSection = ({
   fullWidth = false,
 }) => (
   <div
-    className={`bg-white/40 backdrop-blur-sm rounded-[2rem] p-6 border border-white/60 shadow-sm space-y-4 transition-all hover:shadow-md hover:bg-white/50 ${fullWidth ? 'col-span-full' : ''}`}
+    className={`bg-white dark:bg-slate-900/40 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 transition-all hover:shadow-md ${fullWidth ? 'col-span-full' : ''}`}
   >
     <div className="flex items-center gap-3">
-      <div className="p-2.5 bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-sm text-[#621f32] border border-gray-100">
+      <div className="p-2.5 bg-[#621f32]/5 dark:bg-[#621f32]/20 rounded-xl shadow-sm text-[#621f32] dark:text-[#bc955c] border border-[#621f32]/10 dark:border-[#621f32]/30">
         <Icon className="size-4" />
       </div>
-      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
+      <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">
         {title}
       </h4>
     </div>
@@ -49,15 +47,15 @@ const DetailSection = ({
 
 const DataItem = ({ label, value, icon: Icon, highlight = false }) => (
   <div className="flex flex-col gap-1 group">
-    <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+    <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
       {Icon && <Icon className="size-2.5 opacity-50" />}
       {label}
     </span>
     <div
-      className={`text-[13px] font-bold leading-tight ${highlight ? 'text-[#621f32]' : 'text-gray-800'}`}
+      className={`text-[13px] font-bold leading-tight ${highlight ? 'text-[#621f32] dark:text-[#e3c793]' : 'text-slate-800 dark:text-slate-200'}`}
     >
       {value || (
-        <span className="text-gray-300 font-normal italic">
+        <span className="text-slate-300 dark:text-slate-700 font-normal italic">
           No especificado
         </span>
       )}
@@ -255,68 +253,37 @@ const DetailModal = ({
     })
   };
 
-  // RENDER PORTAL TO BODY
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 md:p-8 overflow-hidden"
+  return (
+    <ModalShell
+      open
+      onClose={onClose}
+      size="xl"
+      icon={FileText}
+      eyebrow="Expediente digital integrado"
+      title={item.asuntoFolio}
+      subtitle={item.asuntoNoOficio}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={onClose}
-      />
-      <motion.div
-        initial={{ scale: 0.95, y: 40, opacity: 0 }}
-        animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.95, y: 40, opacity: 0 }}
-        className="relative w-full max-w-[95vw] h-[90vh] bg-white rounded-[3.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col border border-gray-100"
-      >
-        {/* Header */}
-        <div className="px-10 py-6 bg-white border-b border-gray-100 flex items-center justify-between shrink-0 relative z-10 shadow-sm">
-          <div className="flex items-center gap-6">
-            <div className="p-4 bg-[#621f32] rounded-2xl shadow-lg">
-              <FileText className="size-6 text-[#bc955c]" />
+      <div className="flex flex-col gap-4">
+        {/* Barra de estatus + clasificación + navegación */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div
+              className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${statusStyle.border} ${statusStyle.bg} ${statusStyle.text} flex items-center gap-2`}
+            >
+              <div className={`size-1.5 rounded-full ${statusStyle.fill} animate-pulse`} />
+              {item.statusTurnado}
             </div>
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <span className="text-[9px] font-black text-[#bc955c] uppercase tracking-[0.4em]">
-                  Expediente Digital Integrado
-                </span>
-                <div
-                  className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${statusStyle.border} ${statusStyle.bg} ${statusStyle.text} flex items-center gap-2`}
-                >
-                  <div
-                    className={`size-1.5 rounded-full ${statusStyle.fill} animate-pulse`}
-                  />
-                  {item.statusTurnado}
-                </div>
-              </div>
-              <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-                {item.asuntoFolio}
-                <span className="text-gray-300 font-light">/</span>
-                <span className="text-base text-gray-400 font-mono font-bold tracking-normal">
-                  {item.asuntoNoOficio}
-                </span>
-              </h2>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-4">
-            {/* TIPO DE ASUNTO SELECTOR - MORE STRIKING DESIGN */}
-            <div className="relative flex items-center gap-2 bg-gradient-to-r from-white to-gray-50/50 pl-4 pr-1 py-1 rounded-2xl border-2 border-[#621f32]/20 shadow-[0_4px_20px_-4px_rgba(98,31,50,0.1)] group hover:border-[#621f32]/40 hover:shadow-md transition-all duration-300">
+            <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 pl-3 pr-1 py-1 rounded-2xl border border-[#621f32]/20 dark:border-slate-700 shadow-sm group hover:border-[#621f32]/40 transition-all">
               <div className="flex items-center gap-2 mr-1">
-                <div className="p-1.5 bg-[#621f32] rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                <div className="p-1.5 bg-[#621f32] rounded-lg shadow-sm">
                   <Tag className="size-3 text-[#bc955c]" />
                 </div>
-                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter hidden xl:block">
+                <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter hidden xl:block">
                   Clasificar:
                 </span>
               </div>
-              
+
               <Select
                 styles={headerSelectStyles}
                 options={tipoOptions}
@@ -324,60 +291,48 @@ const DetailModal = ({
                 onChange={handleTipoAsuntoChange}
                 isDisabled={isUpdatingTipo}
                 placeholder="Seleccionar tipo..."
-                menuPortalTarget={document.body}
+                menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                 menuPlacement="auto"
                 isSearchable={false}
                 isClearable={true}
               />
 
               {isUpdatingTipo && (
-                <div className="absolute right-10 top-1/2 -translate-y-1/2">
-                   <Loader2 className="size-3 text-[#621f32] animate-spin" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="size-3 text-[#621f32] animate-spin" />
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="w-px h-8 bg-gray-100 mx-2" />
-
-            <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
-              <button
-                onClick={onPrevious}
-                disabled={!hasPrevious}
-                className="p-2.5 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-xl text-gray-400 hover:text-white transition-all duration-300 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 group/nav"
-                title="Anterior"
-              >
-                <ChevronRight className="size-5 rotate-180 group-hover/nav:scale-110 transition-transform" />
-              </button>
-              <button
-                onClick={onNext}
-                disabled={!hasNext}
-                className="p-2.5 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-xl text-gray-400 hover:text-white transition-all duration-300 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-gray-400 group/nav"
-                title="Siguiente"
-              >
-                <ChevronRight className="size-5 group-hover/nav:scale-110 transition-transform" />
-              </button>
-            </div>
-
-            <div className="w-px h-8 bg-gray-100 mx-2" />
-
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
             <button
-              onClick={onClose}
-              className="p-3 hover:bg-red-50 hover:text-red-500 rounded-2xl transition-all group"
+              onClick={onPrevious}
+              disabled={!hasPrevious}
+              className="p-2 bg-white dark:bg-slate-950 hover:bg-[#621f32] border border-slate-100 dark:border-slate-800 shadow-sm rounded-xl text-slate-400 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-white dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 cursor-pointer"
+              title="Anterior"
             >
-              <X className="size-6 text-gray-400 group-hover:rotate-90 transition-transform" />
+              <ChevronLeft className="size-4.5" />
+            </button>
+            <button
+              onClick={onNext}
+              disabled={!hasNext}
+              className="p-2 bg-white dark:bg-slate-950 hover:bg-[#621f32] border border-slate-100 dark:border-slate-800 shadow-sm rounded-xl text-slate-400 hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-white dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 cursor-pointer"
+              title="Siguiente"
+            >
+              <ChevronRight className="size-4.5" />
             </button>
           </div>
         </div>
 
-        {/* Content Split View */}
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Left Panel: PDF Viewer */}
-          <div className="w-1/2 bg-gray-100/50 border-r border-gray-100 relative flex flex-col">
+        {/* Visor de documento + metadata */}
+        <div className="flex flex-col lg:flex-row gap-4 lg:h-[62vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+          <div className="lg:w-1/2 h-64 lg:h-full bg-slate-50 dark:bg-slate-900/40 relative flex flex-col shrink-0">
             {isPreviewing ? (
-              <div className="absolute inset-0 z-20 bg-white/40 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+              <div className="absolute inset-0 z-20 bg-white/60 dark:bg-slate-950/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
                 <Loader2 className="size-8 text-[#621f32] animate-spin" />
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  Cargando Documento...
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Cargando documento...
                 </span>
               </div>
             ) : null}
@@ -389,20 +344,19 @@ const DetailModal = ({
                 title="Visor de Documento"
               />
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-4">
-                <FileSearch className="size-16 opacity-20" />
-                <p className="text-xs font-black uppercase tracking-widest opacity-40">
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-300 dark:text-slate-700 gap-4">
+                <FileSearch className="size-16 opacity-30" />
+                <p className="text-xs font-black uppercase tracking-widest opacity-50">
                   Seleccione un archivo para visualizar
                 </p>
               </div>
             )}
 
-            {/* Quick Actions overlay for the PDF */}
             {pdfUrl && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-black/80 backdrop-blur-md rounded-xl shadow-2xl">
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-slate-950/85 backdrop-blur-md rounded-xl shadow-2xl">
                 <button
                   onClick={() => window.open(pdfUrl, '_blank')}
-                  className="flex items-center gap-2 text-[9px] font-black text-white uppercase tracking-widest hover:text-[#bc955c] transition-colors"
+                  className="flex items-center gap-2 text-[9px] font-black text-white uppercase tracking-widest hover:text-[#bc955c] transition-colors cursor-pointer"
                 >
                   <ExternalLink className="size-3" />
                   Abrir en pestaña nueva
@@ -411,31 +365,30 @@ const DetailModal = ({
             )}
           </div>
 
-          {/* Right Panel: Metadata and Messages */}
-          <div className="w-1/2 flex flex-col overflow-y-auto custom-scrollbar bg-gray-50/30">
+          <div className="lg:w-1/2 flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-950">
             {isLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-4">
+              <div className="h-full flex flex-col items-center justify-center gap-4">
                 <Loader2 className="size-10 text-[#621f32] animate-spin" />
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
-                  Consultando Servidor...
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                  Consultando servidor...
                 </p>
               </div>
             ) : (
-              <div className="p-10 space-y-10">
+              <div className="p-5 sm:p-7 space-y-7">
                 {/* Description and Synthesis */}
-                <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
+                <div className="bg-white dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#621f32]/5 rounded-xl text-[#621f32]">
+                    <div className="p-2 bg-[#621f32]/5 dark:bg-[#621f32]/20 rounded-xl text-[#621f32] dark:text-[#bc955c]">
                       <ClipboardList className="size-5" />
                     </div>
-                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-800">
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-800 dark:text-slate-200">
                       Asunto descripción
                     </h3>
                   </div>
-                  <p className="text-sm text-gray-600 leading-relaxed font-medium">
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                     {item.asuntoDescripcion}
                   </p>
-                  <div className="grid grid-cols-2 gap-8 pt-4 border-t border-gray-50">
+                  <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-100 dark:border-slate-800">
                     <DataItem
                       label="Remitente"
                       value={item.asuntoRemitente}
@@ -454,87 +407,87 @@ const DetailModal = ({
                 {(model.documentos?.length > 0 ||
                   model.respuestas?.length > 0 ||
                   model.anexos?.length > 0) && (
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-3 px-2">
-                        <div className="p-2 bg-[#621f32]/5 rounded-xl text-[#621f32]">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 px-1">
+                        <div className="p-2 bg-[#621f32]/5 dark:bg-[#621f32]/20 rounded-xl text-[#621f32] dark:text-[#bc955c]">
                           <Search className="size-4" />
                         </div>
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">
+                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
                           Archivos del Expediente
                         </h3>
                       </div>
-                      <div className="grid grid-cols-1 gap-3">
+                      <div className="grid grid-cols-1 gap-2.5">
                         {model.documentos?.map((doc) => (
                           <button
                             key={doc.idDocumentoAsunto}
                             onClick={() => onPreview(doc.ruta || doc.nombre)}
-                            className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#621f32]/30 hover:shadow-md transition-all group text-left"
+                            className="flex items-center justify-between p-4 bg-white dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-[#621f32]/30 hover:shadow-md transition-all group text-left cursor-pointer"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#621f32]/5 rounded-lg text-[#621f32]">
+                              <div className="p-2 bg-[#621f32]/5 dark:bg-[#621f32]/20 rounded-lg text-[#621f32] dark:text-[#bc955c]">
                                 <File className="size-4" />
                               </div>
                               <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-gray-700 truncate max-w-[250px]">
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate max-w-[250px]">
                                   {doc.nombre}
                                 </span>
-                                <span className="text-[8px] text-gray-400 font-bold uppercase">
+                                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                                   {doc.tipoDocumento}
                                 </span>
                               </div>
                             </div>
-                            <ChevronRight className="size-4 text-gray-300 group-hover:text-[#621f32] transition-colors" />
+                            <ChevronRight className="size-4 text-slate-300 dark:text-slate-700 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c] transition-colors" />
                           </button>
                         ))}
                         {model.respuestas?.map((resp) => (
                           <button
                             key={resp.idDocumentoTurnado}
                             onClick={() => onPreview(resp.ruta || resp.nombre)}
-                            className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 hover:border-emerald-500/30 hover:shadow-md transition-all group text-left"
+                            className="flex items-center justify-between p-4 bg-white dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-emerald-500/30 hover:shadow-md transition-all group text-left cursor-pointer"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+                              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg text-emerald-600 dark:text-emerald-400">
                                 <FileText className="size-4" />
                               </div>
                               <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-gray-700 truncate max-w-[250px]">
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate max-w-[250px]">
                                   {resp.nombre}
                                 </span>
-                                <span className="text-[8px] text-gray-400 font-bold uppercase">
+                                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                                   Respuesta Turnado #{resp.consecutivoTurnado}
                                 </span>
                               </div>
                             </div>
-                            <ChevronRight className="size-4 text-gray-300 group-hover:text-emerald-600 transition-colors" />
+                            <ChevronRight className="size-4 text-slate-300 dark:text-slate-700 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
                           </button>
                         ))}
                         {model.anexos?.map((anexo, idx) => (
                           <button
                             key={idx}
                             onClick={() => onPreview(anexo.ruta || anexo.nombre)}
-                            className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 hover:border-[#bc955c]/30 hover:shadow-md transition-all group text-left"
+                            className="flex items-center justify-between p-4 bg-white dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-[#bc955c]/30 hover:shadow-md transition-all group text-left cursor-pointer"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-[#bc955c]/5 rounded-lg text-[#bc955c]">
+                              <div className="p-2 bg-[#bc955c]/10 dark:bg-[#bc955c]/20 rounded-lg text-[#bc955c]">
                                 <Paperclip className="size-4" />
                               </div>
                               <div className="flex flex-col">
-                                <span className="text-[11px] font-bold text-gray-700 truncate max-w-[250px]">
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate max-w-[250px]">
                                   {anexo.nombre || 'Anexo'}
                                 </span>
-                                <span className="text-[8px] text-gray-400 font-bold uppercase">
+                                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                                   Anexo Digital
                                 </span>
                               </div>
                             </div>
-                            <ChevronRight className="size-4 text-gray-300 group-hover:text-[#bc955c] transition-colors" />
+                            <ChevronRight className="size-4 text-slate-300 dark:text-slate-700 group-hover:text-[#bc955c] transition-colors" />
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <DetailSection icon={User} title="Remitente">
                     <DataItem label="Nombre" value={item.asuntoRemitente} />
                     <DataItem
@@ -557,7 +510,7 @@ const DetailModal = ({
                   title="Turnado Institucional"
                   fullWidth
                 >
-                  <div className="grid grid-cols-2 gap-8">
+                  <div className="grid grid-cols-2 gap-6">
                     <DataItem
                       label="Unidad Responsable"
                       value={item.nombreUnidadResponsable}
@@ -575,9 +528,8 @@ const DetailModal = ({
             )}
           </div>
         </div>
-      </motion.div>
-    </motion.div>,
-    document.body,
+      </div>
+    </ModalShell>
   );
 };
 

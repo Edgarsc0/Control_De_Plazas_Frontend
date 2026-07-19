@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { AnimatePresence } from "motion/react";
 import { VacantesService } from "@/services/vacantes.service";
 import {
     Dialog,
@@ -8,10 +9,20 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogPortal,
 } from "@/components/ui/dialog";
-import { X, Filter, ChevronLeft, ChevronRight, Search, ChevronsUpDown, ArrowDownAZ, ArrowUpAZ, Users, Columns3, Eye, Stamp, LayoutGrid } from "lucide-react";
-import { Zoom } from "react-awesome-reveal";
+import { X, ChevronLeft, ChevronRight, Search, Columns3, Stamp, LayoutGrid } from "lucide-react";
+import ModalShell, { Pill } from "@/components/shared/ModalShell";
+import DataTable from "./DataTable";
+import ColumnFilterDropdown from "./ColumnFilterDropdown";
+import { useColumnFilters } from "../../_hooks/useColumnFilters";
+import { useCellSelection } from "../../_hooks/useCellSelection";
+import {
+    applyColumnFilters,
+    getUniqueColumnValues,
+    matchesTextCondition,
+    finalizeFilterDropdownValues,
+    defaultGetCellValue,
+} from "@/utils/columnFilters";
 
 // --- CONSTANTS ---
 const ALL_AVAILABLE_COLUMNS = [
@@ -129,151 +140,6 @@ const HighlightText = ({ text, highlight }) => {
 const LetterheadBar = () => (
     <div className="h-1.5 w-full shrink-0 bg-gradient-to-r from-[#bc955c] via-[#621f32] to-[#bc955c]" />
 );
-
-// --- COMPONENTE DE FILTRO EXCEL-LIKE ---
-const FilterPopup = ({ column, rowData, filters, setFilters, onClose, position }) => {
-    const allValues = useMemo(() => {
-        const unique = new Set();
-        rowData.forEach(row => {
-            const val = row[column.key];
-            if (val !== undefined && val !== null && val !== "") {
-                unique.add(String(val));
-            }
-        });
-        return Array.from(unique).sort();
-    }, [rowData, column.key]);
-
-    const valueCounts = useMemo(() => {
-        const counts = {};
-        rowData.forEach(row => {
-            const val = row[column.key];
-            if (val !== undefined && val !== null && val !== "") {
-                const sVal = String(val);
-                counts[sVal] = (counts[sVal] || 0) + 1;
-            }
-        });
-        return counts;
-    }, [rowData, column.key]);
-
-    const activeFilter = filters[column.key];
-    const [selectedValues, setSelectedValues] = useState(
-        activeFilter ? new Set(activeFilter.values) : new Set(allValues)
-    );
-    const [searchText, setSearchText] = useState("");
-
-    const updateFilters = (newSelected) => {
-        setFilters(prev => {
-            const next = { ...prev };
-            if (newSelected.size === allValues.length) {
-                delete next[column.key];
-            } else {
-                next[column.key] = { values: newSelected };
-            }
-            return next;
-        });
-    };
-
-    const toggleValue = (val) => {
-        const next = new Set(selectedValues);
-        if (next.has(val)) next.delete(val);
-        else next.add(val);
-        setSelectedValues(next);
-        updateFilters(next);
-    };
-
-    const toggleAll = () => {
-        const next = selectedValues.size === allValues.length ? new Set() : new Set(allValues);
-        setSelectedValues(next);
-        updateFilters(next);
-    };
-
-    const clearFilter = () => {
-        setSelectedValues(new Set(allValues));
-        setFilters(prev => {
-            const next = { ...prev };
-            delete next[column.key];
-            return next;
-        });
-        onClose();
-    };
-
-    const filteredOptions = allValues.filter(v =>
-        v.toLowerCase().includes(searchText.toLowerCase())
-    );
-
-    const popLeft = Math.min(position.x, typeof window !== 'undefined' ? window.innerWidth - 340 : position.x);
-    const popTop = Math.min(position.y, typeof window !== 'undefined' ? window.innerHeight - 470 : position.y);
-
-    return (
-        <div
-            role="presentation"
-            className="fixed z-[250] flex flex-col gap-3 min-w-[300px] max-w-[340px] max-h-[470px] bg-white/97 dark:bg-slate-950/97 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-[#621f32]/15 dark:border-slate-800 outline-none animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
-            style={{ left: popLeft, top: popTop }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            <LetterheadBar />
-            <div className="px-4 pt-1 pb-0 flex flex-col gap-3">
-                <span className="text-[11px] font-black text-[#bc955c] uppercase tracking-widest font-serif italic">Filtrar · {column.label}</span>
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#621f32]/50 dark:focus-within:border-[#bc955c]/40 transition-all">
-                    <Search className="size-4 text-[#621f32]/50 dark:text-slate-500 shrink-0" />
-                    <input
-                        type="text"
-                        placeholder="Buscar opciones..."
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
-                    />
-                </div>
-
-                <div className="flex items-center justify-between px-1">
-                    <button onClick={toggleAll} className="text-xs font-black text-[#621f32] dark:text-[#bc955c] uppercase hover:underline cursor-pointer">
-                        {selectedValues.size === allValues.length ? 'Desmarcar todo' : 'Seleccionar todo'}
-                    </button>
-                    <span className="text-xs font-black text-[#621f32]/70 dark:text-slate-400 bg-[#621f32]/8 dark:bg-slate-900 px-2.5 py-1 rounded-md">
-                        {selectedValues.size} / {allValues.length}
-                    </span>
-                </div>
-            </div>
-
-            <div
-                className="flex-1 overflow-y-auto custom-scrollbar border-y-2 border-dashed border-[#621f32]/10 dark:border-slate-900 p-2 min-h-[160px]"
-                style={{ overscrollBehaviorY: "contain" }}
-            >
-                {filteredOptions.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic text-center py-6 font-serif">Sin coincidencias</p>
-                ) : (
-                    <div className="flex flex-col gap-0.5">
-                        {filteredOptions.map((val) => (
-                            <label key={val} className="flex items-center gap-3 p-2.5 hover:bg-[#621f32]/6 dark:hover:bg-slate-900/40 rounded-lg cursor-pointer transition-colors group">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedValues.has(val)}
-                                    onChange={() => toggleValue(val)}
-                                    className="size-4 rounded border-gray-300 dark:border-slate-750 text-[#621f32] dark:text-[#bc955c] focus:ring-[#621f32]/20 cursor-pointer"
-                                />
-                                <span className={`text-[13px] font-semibold uppercase truncate flex-1 ${selectedValues.has(val) ? 'text-slate-900 dark:text-white' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                                    {val}
-                                </span>
-                                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900 px-1.5 py-0.5 rounded ml-2">
-                                    {valueCounts[val] || 0}
-                                </span>
-                            </label>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            <div className="p-3.5 bg-[#621f32]/5 dark:bg-slate-900/50 flex items-center justify-between">
-                <button onClick={clearFilter} className="text-xs font-black text-slate-500 hover:text-red-600 transition-colors cursor-pointer uppercase">
-                    Limpiar
-                </button>
-                <button onClick={onClose} className="px-6 py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-slate-950 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-[#4a1726] dark:hover:opacity-90 transition-all shadow-md shadow-[#621f32]/20 cursor-pointer">
-                    Aplicar
-                </button>
-            </div>
-        </div>
-    );
-};
 
 // --- COMPONENTE SELECTOR DE COLUMNAS (MODAL CENTRADO) ---
 const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) => {
@@ -444,10 +310,9 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         }
     }, [isOpen]);
 
-    if (!record) return null;
-
     const filteredGroupedFields = useMemo(() => {
         const groups = {};
+        if (!record) return groups;
         const fieldsSource = columns || ALL_AVAILABLE_COLUMNS;
         const query = fieldSearch.trim().toLowerCase();
 
@@ -475,132 +340,110 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         return Object.values(filteredGroupedFields).some(group => group.length > 0);
     }, [filteredGroupedFields]);
 
+    if (!record) return null;
+
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent
-                hideClose
-                className="w-full max-w-4xl max-h-[85vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] data-[state=open]:slide-in-from-bottom-[2%] data-[state=closed]:animate-out data-[state=closed]:zoom-out-[0.98] data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-[2%] duration-500 ease-out"
-            >
-                <div className="w-full max-h-[92vh] sm:max-h-[85vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col rounded-2xl sm:rounded-[28px] shadow-2xl border border-[#621f32]/10 dark:border-slate-800/80 overflow-hidden">
-                    <LetterheadBar />
-                    <div className="flex flex-col flex-1 min-h-0 p-4 sm:p-7">
-                        <DialogHeader className="mb-3 sm:mb-4 shrink-0 flex flex-row justify-between items-center border-b-2 border-dashed border-[#621f32]/15 dark:border-slate-800/60 pb-3 sm:pb-5">
-                            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
-                                <div className="relative shrink-0 size-11 sm:size-16 rounded-full border-2 sm:border-[3px] border-double border-[#bc955c] flex flex-col items-center justify-center bg-[#621f32]/5 dark:bg-slate-900 rotate-[-4deg] shadow-inner select-none">
-                                    <Stamp className="size-4.5 sm:size-6 text-[#621f32] dark:text-[#bc955c]" />
-                                </div>
-                                <div className="text-left min-w-0">
-                                    <DialogTitle className="text-lg sm:text-2xl font-black text-[#621f32] dark:text-[#bc955c] tracking-tight font-serif truncate">
-                                        Expediente de plaza
-                                    </DialogTitle>
-                                    <DialogDescription className="text-[11px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 mt-0.5 sm:mt-1 uppercase tracking-wide truncate">
-                                        Consulta detallada de la plaza
-                                    </DialogDescription>
-                                </div>
-                            </div>
-                            <button
-                                onClick={onClose}
-                                className="p-2 sm:p-2.5 rounded-full bg-white dark:bg-slate-900 border border-[#621f32]/15 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
-                            >
-                                <X className="size-4.5 sm:size-5" />
-                            </button>
-                        </DialogHeader>
+        <ModalShell
+            open={isOpen}
+            onClose={onClose}
+            size="lg"
+            icon={Stamp}
+            eyebrow="Expediente"
+            title="Expediente de Plaza"
+            subtitle="Consulta detallada de la plaza"
+        >
+            <div className="flex flex-col gap-5 sm:gap-7">
+                {/* Buscador de Campos */}
+                <div className="shrink-0 flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
+                    <Search className="size-4.5 sm:size-5 text-[#bc955c] shrink-0" />
+                    <input
+                        type="text"
+                        placeholder="Buscar campos (RFC, aduana, nivel, sueldo...)"
+                        value={fieldSearch}
+                        onChange={(e) => setFieldSearch(e.target.value)}
+                        className="bg-transparent border-none focus:ring-0 text-[13px] sm:text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                    />
+                    {fieldSearch && (
+                        <button
+                            onClick={() => setFieldSearch("")}
+                            className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer shrink-0"
+                        >
+                            <X className="size-4.5" />
+                        </button>
+                    )}
+                </div>
 
-                        {/* Buscador de Campos */}
-                        <div className="mb-3 sm:mb-5 shrink-0 flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
-                            <Search className="size-4.5 sm:size-5 text-[#bc955c] shrink-0" />
-                            <input
-                                type="text"
-                                placeholder="Buscar campos (RFC, aduana, nivel, sueldo...)"
-                                value={fieldSearch}
-                                onChange={(e) => setFieldSearch(e.target.value)}
-                                className="bg-transparent border-none focus:ring-0 text-[13px] sm:text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
-                            />
-                            {fieldSearch && (
-                                <button
-                                    onClick={() => setFieldSearch("")}
-                                    className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer shrink-0"
-                                >
-                                    <X className="size-4.5" />
-                                </button>
-                            )}
+                {/* Tarjetas principales */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 p-3.5 sm:p-5 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800">
+                    {[
+                        { label: "No. Empleado", value: record.id_empleado, isMono: true },
+                        { label: "Posición", value: record.posicion, isMono: true },
+                        { label: "RFC", value: record.rfc, isMono: true },
+                        { label: "Nivel Salarial", value: record.nivel, isMono: true }
+                    ].map((item, idx) => (
+                        <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
+                            <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
+                            <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
+                                {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
+                            </span>
                         </div>
+                    ))}
+                </div>
 
-                        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-5 sm:gap-7 custom-scrollbar">
-                            {/* Tarjetas principales */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 p-3.5 sm:p-5 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800">
-                                {[
-                                    { label: "No. Empleado", value: record.id_empleado, isMono: true },
-                                    { label: "Posición", value: record.posicion, isMono: true },
-                                    { label: "RFC", value: record.rfc, isMono: true },
-                                    { label: "Nivel Salarial", value: record.nivel, isMono: true }
-                                ].map((item, idx) => (
-                                    <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
-                                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
-                                        <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
-                                            {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
+                {/* Detalle Categorizado */}
+                <div className="flex flex-col gap-5 sm:gap-7 mb-2">
+                    {!hasVisibleFields ? (
+                        <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center px-4">
+                            <div className="size-14 sm:size-16 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
+                                <Search className="size-6 sm:size-7 text-[#621f32]/40 dark:text-slate-500 animate-pulse" />
+                            </div>
+                            <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest">No se encontraron campos coincidentes</p>
+                            <p className="text-xs text-slate-400 mt-1">Prueba con otra palabra clave o limpia el buscador</p>
+                        </div>
+                    ) : (
+                        Object.entries(filteredGroupedFields).map(([category, fields]) => {
+                            if (fields.length === 0) return null;
+                            return (
+                                <div key={category} className="flex flex-col gap-2.5 sm:gap-3.5">
+                                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-900 pb-2">
+                                        <span className="text-[11px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                            {category}
+                                        </span>
+                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400">
+                                            {fields.length} {fields.length === 1 ? 'campo' : 'campos'}
                                         </span>
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Detalle Categorizado */}
-                            <div className="flex flex-col gap-5 sm:gap-7 mb-2">
-                                {!hasVisibleFields ? (
-                                    <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center px-4">
-                                        <div className="size-14 sm:size-16 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
-                                            <Search className="size-6 sm:size-7 text-[#621f32]/40 dark:text-slate-500 animate-pulse" />
-                                        </div>
-                                        <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest font-serif">No se encontraron campos coincidentes</p>
-                                        <p className="text-xs text-slate-400 mt-1">Prueba con otra palabra clave o limpia el buscador</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
+                                        {fields.map((field, idx) => {
+                                            const hasValue = field.value !== undefined && field.value !== null && String(field.value).trim() !== "";
+                                            const clickHandler = fieldClickHandlers[field.key];
+                                            const isClickable = hasValue && typeof clickHandler === "function";
+                                            return (
+                                                <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
+                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
+                                                        <HighlightText text={field.label} highlight={fieldSearch} />
+                                                    </span>
+                                                    <span
+                                                        onClick={isClickable ? () => clickHandler(record) : undefined}
+                                                        className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'} ${isClickable ? 'cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid' : ''}`}
+                                                    >
+                                                        {hasValue ? (
+                                                            <HighlightText text={String(field.value)} highlight={fieldSearch} />
+                                                        ) : (
+                                                            <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                ) : (
-                                    Object.entries(filteredGroupedFields).map(([category, fields]) => {
-                                        if (fields.length === 0) return null;
-                                        return (
-                                            <div key={category} className="flex flex-col gap-2.5 sm:gap-3.5">
-                                                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-900 pb-2">
-                                                    <span className="text-[11px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                                        {category}
-                                                    </span>
-                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400">
-                                                        {fields.length} {fields.length === 1 ? 'campo' : 'campos'}
-                                                    </span>
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
-                                                    {fields.map((field, idx) => {
-                                                        const hasValue = field.value !== undefined && field.value !== null && String(field.value).trim() !== "";
-                                                        const clickHandler = fieldClickHandlers[field.key];
-                                                        const isClickable = hasValue && typeof clickHandler === "function";
-                                                        return (
-                                                            <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
-                                                                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
-                                                                    <HighlightText text={field.label} highlight={fieldSearch} />
-                                                                </span>
-                                                                <span
-                                                                    onClick={isClickable ? () => clickHandler(record) : undefined}
-                                                                    className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'} ${isClickable ? 'cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid' : ''}`}
-                                                                >
-                                                                    {hasValue ? (
-                                                                        <HighlightText text={String(field.value)} highlight={fieldSearch} />
-                                                                    ) : (
-                                                                        <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </ModalShell>
     );
 };
 
@@ -612,20 +455,28 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
     const [error, setError] = useState(null);
 
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-    const [filters, setFilters] = useState({});
-    const [textFilters, setTextFilters] = useState({});
-    const [popupConfig, setPopupConfig] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(50);
-    const [isClosing, setIsClosing] = useState(false);
 
     const [visibleKeys, setVisibleKeys] = useState(DEFAULT_COLUMN_KEYS);
     const [showColumnsModal, setShowColumnsModal] = useState(false);
     const [selectedEmployeeRecord, setSelectedEmployeeRecord] = useState(null);
 
-    const activeColumns = useMemo(() => {
-        return ALL_AVAILABLE_COLUMNS.filter(col => visibleKeys.includes(col.key));
-    }, [visibleKeys]);
+    const { selectedCell, setSelectedCell } = useCellSelection();
+    const filters = useColumnFilters();
+    const {
+        columnFilters, setColumnFilters,
+        textFilters, setTextFilters,
+        activeFilterDropdown, setActiveFilterDropdown,
+        filterDropdownTab, setFilterDropdownTab,
+        activeConditionDropdown, setActiveConditionDropdown,
+        setTempSelectedValues,
+        tempSelectedValues,
+        setFilterSearchText,
+        filterSearchCondition,
+        debouncedFilterSearchText,
+        resetFilters,
+    } = filters;
 
     const [columnWidths, setColumnWidths] = useState(() => {
         const widths = {};
@@ -641,6 +492,13 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
         widths["fecha_de_ingreso"] = 145;
         return widths;
     });
+
+    const columns = useMemo(() => ALL_AVAILABLE_COLUMNS.map(col => ({
+        key: col.key,
+        label: col.label,
+        width: columnWidths[col.key] || 175,
+        visible: visibleKeys.includes(col.key),
+    })), [visibleKeys, columnWidths]);
 
     const fetchData = useCallback(async () => {
         if (!nivel || !estatus) return;
@@ -679,41 +537,36 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
 
     useEffect(() => {
         if (open) {
-            setIsClosing(false);
             fetchData();
-            setFilters({});
-            setTextFilters({});
+            resetFilters();
             setSortConfig({ key: null, direction: 'asc' });
             setCurrentPage(1);
         } else {
-            setIsClosing(true);
-            const timer = setTimeout(() => {
-                setRowData([]);
-                setPopupConfig(null);
-                setShowColumnsModal(false);
-                setSelectedEmployeeRecord(null);
-            }, 300);
-            return () => clearTimeout(timer);
+            setRowData([]);
+            setActiveFilterDropdown(null);
+            setShowColumnsModal(false);
+            setSelectedEmployeeRecord(null);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, fetchData]);
 
-    const handleResizeStart = (e, colKey) => {
+    const handleResizeStart = (e, index, direction = 'right') => {
         e.preventDefault();
-        e.stopPropagation();
-        const startX = e.pageX;
-        const startWidth = columnWidths[colKey];
-        const onMouseMove = (moveEvent) => {
-            const newWidth = Math.max(80, startWidth + (moveEvent.pageX - startX));
-            setColumnWidths(prev => ({ ...prev, [colKey]: newWidth }));
+        const colKey = columns[index]?.key;
+        if (!colKey) return;
+        const startX = e.clientX;
+        const startWidth = columnWidths[colKey] || 175;
+        const onMove = (moveEvent) => {
+            const deltaX = moveEvent.clientX - startX;
+            const newWidth = direction === 'left' ? startWidth - deltaX : startWidth + deltaX;
+            setColumnWidths(prev => ({ ...prev, [colKey]: Math.max(80, newWidth) }));
         };
-        const onMouseUp = () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            document.body.style.cursor = 'default';
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
         };
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = 'col-resize';
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
     };
 
     const handleSort = (key) => {
@@ -727,34 +580,24 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
     };
 
     const processedData = useMemo(() => {
-        let result = [...rowData];
-        Object.entries(filters).forEach(([key, filter]) => {
-            result = result.filter(row => {
-                const val = String(row[key] ?? "");
-                return filter.values.has(val);
-            });
+        const result = applyColumnFilters(rowData, {
+            columnFilters, textFilters, getCellValue: defaultGetCellValue, isMonoColumn,
         });
-        Object.entries(textFilters).forEach(([key, term]) => {
-            if (!term) return;
-            const lowerTerm = term.toLowerCase();
-            result = result.filter(row => String(row[key] ?? "").toLowerCase().includes(lowerTerm));
+        if (!sortConfig.key) return result;
+        const { key, direction } = sortConfig;
+        return [...result].sort((a, b) => {
+            let valA = a[key];
+            let valB = b[key];
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+            const strA = String(valA).toLowerCase();
+            const strB = String(valB).toLowerCase();
+            if (strA < strB) return direction === 'asc' ? -1 : 1;
+            if (strA > strB) return direction === 'asc' ? 1 : -1;
+            return 0;
         });
-        if (sortConfig.key) {
-            result.sort((a, b) => {
-                let valA = a[sortConfig.key];
-                let valB = b[sortConfig.key];
-                if (valA === valB) return 0;
-                if (valA === null || valA === undefined) return 1;
-                if (valB === null || valB === undefined) return -1;
-                const strA = String(valA).toLowerCase();
-                const strB = String(valB).toLowerCase();
-                if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
-            });
-        }
-        return result;
-    }, [rowData, filters, textFilters, sortConfig]);
+    }, [rowData, columnFilters, textFilters, sortConfig]);
 
     const totalPages = Math.max(1, Math.ceil(processedData.length / pageSize));
     const paginatedData = useMemo(() => {
@@ -764,335 +607,251 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [filters, textFilters, pageSize, sortConfig.key, sortConfig.direction]);
+    }, [columnFilters, textFilters, pageSize, sortConfig.key, sortConfig.direction]);
 
-    const openFilter = (e, column) => {
-        e.stopPropagation();
-        const rect = e.currentTarget.getBoundingClientRect();
-        setPopupConfig({ column, x: rect.left, y: rect.bottom + 8 });
+    const getColumnLetter = useCallback((index) => {
+        let temp = index, letter = "";
+        while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
+        return letter;
+    }, []);
+
+    const openFilterDropdown = (colKey) => {
+        if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
+        setActiveFilterDropdown(colKey);
+        setFilterDropdownTab("todos");
+        setFilterSearchText("");
+        const allValues = [...new Set(rowData.map((row) => defaultGetCellValue(row, colKey)))];
+        setTempSelectedValues(columnFilters[colKey] || allValues);
     };
 
-    const handleCloseAllPopups = () => {
-        setPopupConfig(null);
-        setShowColumnsModal(false);
+    const applyColumnFilter = (colKey) => {
+        const totalUnique = getUniqueColumnValues(rowData, colKey, defaultGetCellValue).map((v) => v.value);
+        if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+            setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+        } else {
+            setColumnFilters((prev) => ({ ...prev, [colKey]: tempSelectedValues }));
+        }
+        setActiveFilterDropdown(null);
     };
+
+    const clearColumnFilter = (colKey) => {
+        setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+        setActiveFilterDropdown(null);
+    };
+
+    const dropdownUniqueValues = useMemo(() => {
+        if (!activeFilterDropdown) return [];
+        return getUniqueColumnValues(rowData, activeFilterDropdown, defaultGetCellValue);
+    }, [activeFilterDropdown, rowData]);
+
+    const filterDropdownValues = useMemo(() => {
+        if (!activeFilterDropdown) {
+            return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
+        }
+        let baseUniqueValues = dropdownUniqueValues;
+        if (filterDropdownTab === "actuales") {
+            baseUniqueValues = getUniqueColumnValues(processedData, activeFilterDropdown, defaultGetCellValue);
+        }
+        const filteredVals = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
+        return finalizeFilterDropdownValues({
+            baseUniqueValues,
+            filtered: filteredVals,
+            tempSelectedValues,
+            committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+        });
+    }, [activeFilterDropdown, dropdownUniqueValues, filterDropdownTab, processedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
     // Chips de filtros activos (columna + texto libre) para retirarlos con un clic
     const activeFilterChips = useMemo(() => {
         const chips = [];
-        Object.keys(filters).forEach((key) => {
-            chips.push({ id: `col-${key}`, label: COLUMN_LABEL_BY_KEY[key] || key, remove: () => setFilters(prev => { const n = { ...prev }; delete n[key]; return n; }) });
+        Object.keys(columnFilters).forEach((key) => {
+            chips.push({ id: `col-${key}`, label: COLUMN_LABEL_BY_KEY[key] || key, remove: () => setColumnFilters(prev => { const n = { ...prev }; delete n[key]; return n; }) });
         });
-        Object.entries(textFilters).forEach(([key, term]) => {
-            if (!term) return;
-            chips.push({ id: `text-${key}`, label: `${COLUMN_LABEL_BY_KEY[key] || key}: "${term}"`, remove: () => setTextFilters(prev => { const n = { ...prev }; delete n[key]; return n; }) });
+        Object.entries(textFilters).forEach(([key, f]) => {
+            if (!f?.value) return;
+            chips.push({ id: `text-${key}`, label: `${COLUMN_LABEL_BY_KEY[key] || key}: "${f.value}"`, remove: () => setTextFilters(prev => { const n = { ...prev }; delete n[key]; return n; }) });
         });
         return chips;
-    }, [filters, textFilters]);
+    }, [columnFilters, textFilters]);
 
     const hasActiveFilters = activeFilterChips.length > 0;
-    const clearAllFilters = () => { setFilters({}); setTextFilters({}); setSortConfig({ key: null, direction: 'asc' }); };
+    const clearAllFilters = () => { setColumnFilters({}); setTextFilters({}); setSortConfig({ key: null, direction: 'asc' }); };
+
+    const renderCell = ({ col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+        const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
+        return (
+            <td
+                key={col.key}
+                onClick={onClick}
+                onContextMenu={onContextMenu}
+                style={stickyStyle}
+                className={`px-4 text-sm border-r truncate h-[37px] align-middle ${
+                    isSelected
+                        ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]"
+                        : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
+                } ${isMonoColumn(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}`}
+                title={value}
+            >
+                {value !== undefined && value !== null && String(value).trim() !== "" ? String(value) : (
+                    <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
+                )}
+            </td>
+        );
+    };
 
     return (
         <>
-            <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                hideClose
-                className="w-fit max-w-[96vw] lg:max-w-[95vw] max-h-[94vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=closed]:animate-out data-[state=closed]:zoom-out-90 data-[state=closed]:fade-out-0 duration-300"
-                onClick={handleCloseAllPopups}
-                onPointerDownOutside={(e) => {
-                    const target = e.target;
-                    if (target && (target.closest('[role="presentation"]') || target.closest('.z-\\[250\\]') || target.closest('.fixed.z-\\[250\\]'))) {
-                        e.preventDefault();
-                    }
-                }}
-                onInteractOutside={(e) => {
-                    const target = e.target;
-                    if (target && (target.closest('[role="presentation"]') || target.closest('.z-\\[250\\]') || target.closest('.fixed.z-\\[250\\]'))) {
-                        e.preventDefault();
-                    }
-                }}
+            <ModalShell
+                open={open}
+                onClose={() => onOpenChange(false)}
+                size="xl"
+                icon={LayoutGrid}
+                eyebrow="Listado"
+                title="Listado de Empleados"
+                subtitle="Exploración y filtrado de capital humano"
             >
-                <Zoom
-                    triggerOnce
-                    duration={500}
-                    className={`w-full max-h-[94vh] min-h-0 flex flex-col ${isClosing ? 'animate-out fade-out-0 zoom-out-90 duration-300' : ''}`}
-                >
-                    <div className="w-full max-h-[94vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col rounded-[28px] shadow-2xl ring-1 ring-black/5 border border-[#621f32]/10 dark:border-slate-800/80 overflow-hidden">
-                        <LetterheadBar />
-
-                        {/* Encabezado tipo membrete */}
-                        <div className="shrink-0 flex flex-row justify-between items-center border-b-2 border-dashed border-[#621f32]/15 dark:border-slate-800/60 px-7 py-5">
-                            <div className="flex items-center gap-3">
-                                <LayoutGrid className="size-5 text-[#bc955c]" />
-                                <div>
-                                    <DialogTitle className="text-[26px] font-black text-[#621f32] dark:text-[#bc955c] tracking-tight font-serif leading-none">
-                                        Listado de Empleados
-                                    </DialogTitle>
-                                    <DialogDescription className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mt-1.5 uppercase tracking-widest">
-                                        Exploración y filtrado de capital humano
-                                    </DialogDescription>
-                                </div>
+                <div className="flex flex-col gap-4">
+                    {/* Barra de contexto + acciones */}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Pill tone="guinda">Nivel {nivel ?? "—"}</Pill>
+                            <Pill tone="dorado">{estatus ?? "—"}</Pill>
+                            {ua && <Pill tone="slate">{ua}</Pill>}
+                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                {loading ? "···" : processedData.length.toLocaleString()} registros
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                {[20, 50, 100, 500].map((size) => (
+                                    <button key={size} onClick={() => setPageSize(size)} className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${pageSize === size ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950' : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'}`}>
+                                        {size}
+                                    </button>
+                                ))}
                             </div>
                             <button
-                                onClick={() => onOpenChange(false)}
-                                className="p-3 rounded-full bg-white dark:bg-slate-900 border border-[#621f32]/15 dark:border-slate-800 text-slate-450 dark:text-slate-550 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all shadow-sm active:scale-95 cursor-pointer"
+                                onClick={() => setShowColumnsModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[11px] font-bold hover:border-[#bc955c]/50 hover:text-[#621f32] dark:hover:text-[#bc955c] transition-all cursor-pointer"
                             >
-                                <X className="size-5" />
+                                <Columns3 className="size-3.5" /> Columnas
                             </button>
-                        </div>
-
-                        {/* Cuerpo: sidebar tipo "carpeta" + tabla estilo libro de registro */}
-                        <div className={`flex flex-col lg:flex-row flex-1 min-h-0 w-full relative overflow-hidden transition-all duration-300 ${isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-
-                            {/* ---- SIDEBAR ---- */}
-                            <div className="lg:w-72 w-full shrink-0 flex flex-col gap-5 bg-[#621f32]/[0.035] dark:bg-slate-900/30 border-b-2 lg:border-b-0 lg:border-r-2 border-dashed border-[#621f32]/15 dark:border-slate-800 p-6 overflow-y-auto custom-scrollbar">
-
-                                {/* Sello circular con el nivel */}
-                                <div className="flex flex-col items-center gap-3 py-2">
-                                    <div className="relative size-24 rounded-full border-[3px] border-double border-[#bc955c] flex flex-col items-center justify-center bg-[#621f32]/5 dark:bg-slate-900 rotate-[-4deg] shadow-inner select-none">
-                                        <span className="text-[9px] font-black text-[#621f32]/70 dark:text-slate-400 uppercase tracking-widest">Nivel</span>
-                                        <span className="text-2xl font-black text-[#621f32] dark:text-[#bc955c] font-serif -mt-0.5">{nivel ?? "—"}</span>
-                                    </div>
-                                    <div className="flex flex-col items-center gap-1">
-                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Estatus</span>
-                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 text-center">{estatus ?? "—"}</span>
-                                    </div>
-                                    {ua && (
-                                        <div className="flex flex-col items-center gap-1 max-w-full">
-                                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Unidad administrativa</span>
-                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 text-center truncate max-w-full" title={ua}>{ua}</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="border-t-2 border-dashed border-[#621f32]/15 dark:border-slate-800" />
-
-                                {/* KPI total */}
-                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-950 rounded-2xl border border-[#621f32]/10 dark:border-slate-800 p-4 shadow-sm">
-                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total registros</span>
-                                    <span className="text-3xl font-black text-[#621f32] dark:text-[#bc955c] font-serif">{loading ? "···" : processedData.length.toLocaleString()}</span>
-                                </div>
-
-                                {/* Mostrar (page size) */}
-                                <div className="flex flex-col gap-2">
-                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Registros por página</span>
-                                    <div className="grid grid-cols-4 gap-1.5">
-                                        {[20, 50, 100, 500].map((size) => (
-                                            <button key={size} onClick={() => setPageSize(size)} className={`py-2 rounded-lg text-xs font-black transition-all duration-200 cursor-pointer ${pageSize === size ? 'bg-[#621f32] text-white shadow-md dark:bg-[#bc955c] dark:text-slate-950' : 'bg-white dark:bg-slate-900 text-slate-500 border border-[#621f32]/10 dark:border-slate-800 hover:border-[#bc955c]/50 hover:text-[#621f32] dark:hover:text-[#bc955c]'}`}>
-                                                {size}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Columnas */}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setShowColumnsModal(true); }}
-                                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-[#621f32]/15 dark:border-slate-855 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold hover:border-[#bc955c]/50 hover:bg-[#621f32]/[0.03] transition-all shadow-sm flex items-center justify-center gap-2.5 cursor-pointer"
-                                    title="Agregar/Ocultar columnas de la tabla"
-                                >
-                                    <Columns3 className="size-4.5 text-[#bc955c]" />
-                                    <span>Configurar columnas</span>
+                            {hasActiveFilters && (
+                                <button onClick={clearAllFilters} className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-200/40 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-[11px] font-black uppercase cursor-pointer">
+                                    <X className="size-3.5" /> Limpiar filtros
                                 </button>
-
-                                {hasActiveFilters && (
-                                    <button onClick={clearAllFilters} className="w-full text-xs font-black text-red-650 hover:text-red-700 dark:text-red-400 dark:hover:text-red-350 uppercase tracking-widest px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200/40 dark:border-red-900/30 transition-colors cursor-pointer">
-                                        Limpiar todos los filtros
-                                    </button>
-                                )}
-
-                                {/* Empuja la paginación al fondo */}
-                                <div className="flex-1 hidden lg:block" />
-
-                                <div className="border-t-2 border-dashed border-[#621f32]/15 dark:border-slate-800 pt-4 flex flex-col gap-2">
-                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Paginación</span>
-                                    <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-950 p-1.5 rounded-xl border border-[#621f32]/10 dark:border-slate-800 shadow-sm">
-                                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#621f32] dark:hover:text-[#bc955c] disabled:opacity-20 transition-all cursor-pointer">
-                                            <ChevronLeft className="size-5" />
-                                        </button>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c]">{currentPage}</span>
-                                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase">de</span>
-                                            <span className="text-sm font-black text-slate-500 dark:text-slate-400">{totalPages}</span>
-                                        </div>
-                                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#621f32] dark:hover:text-[#bc955c] disabled:opacity-20 transition-all cursor-pointer">
-                                            <ChevronRight className="size-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ---- CONTENIDO PRINCIPAL ---- */}
-                            <div className="flex-1 min-h-0 flex flex-col p-6 gap-4 overflow-hidden">
-
-                                {/* Barra de chips de filtros activos */}
-                                {hasActiveFilters && (
-                                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Filtros activos:</span>
-                                        {activeFilterChips.map(chip => (
-                                            <span key={chip.id} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 bg-[#621f32]/8 dark:bg-[#bc955c]/10 border border-[#621f32]/15 dark:border-[#bc955c]/20 text-[#621f32] dark:text-[#bc955c] rounded-full text-[11px] font-bold">
-                                                {chip.label}
-                                                <button onClick={chip.remove} className="p-0.5 rounded-full hover:bg-[#621f32]/15 dark:hover:bg-[#bc955c]/20 cursor-pointer">
-                                                    <X className="size-3" />
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {loading ? (
-                                    <div className="flex-1 min-h-0 overflow-auto relative custom-scrollbar border-2 border-[#621f32]/10 dark:border-slate-855 rounded-2xl">
-                                        <table className="w-max min-w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
-                                            <thead className="sticky top-0 z-20 shadow-md">
-                                                <tr className="bg-gradient-to-r from-[#621f32] to-[#712339] text-white">
-                                                    <th style={{ width: 56, minWidth: 56, maxWidth: 56 }} className="py-3.5 px-2 text-center align-middle" />
-                                                    {activeColumns.map((col, idx) => (
-                                                        <th key={idx} style={{ width: columnWidths[col.key] || 175, minWidth: columnWidths[col.key] || 175, maxWidth: columnWidths[col.key] || 175 }} className="py-3.5 px-4 align-middle">
-                                                            <span className="text-xs font-bold uppercase tracking-wider text-slate-100 font-serif">{col.label}</span>
-                                                        </th>
-                                                    ))}
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y-2 divide-dashed divide-[#621f32]/10 dark:divide-slate-900 bg-white dark:bg-slate-950">
-                                                {[...Array(10)].map((_, rIdx) => (
-                                                    <tr key={rIdx} className="h-12">
-                                                        <td className="px-2 align-middle">
-                                                            <div className="size-4 bg-slate-200/60 dark:bg-slate-800/60 rounded-full animate-pulse mx-auto" />
-                                                        </td>
-                                                        {activeColumns.map((col, cIdx) => (
-                                                            <td key={cIdx} className="px-4 py-2.5 align-middle">
-                                                                <div className="h-3.5 bg-slate-200/60 dark:bg-slate-800/60 rounded animate-pulse" style={{ width: `${Math.floor(Math.random() * (90 - 55 + 1) + 55)}%` }} />
-                                                            </td>
-                                                        ))}
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : error ? (
-                                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-red-50/40 dark:bg-red-950/10 rounded-2xl border-2 border-dashed border-red-200 dark:border-red-900/30">
-                                        <div className="size-20 bg-red-100/40 rounded-full flex items-center justify-center mb-6 text-red-650 shadow-xl shadow-red-100/10 border-2 border-double border-red-300">
-                                            <X className="size-10" />
-                                        </div>
-                                        <h3 className="text-2xl font-black text-gray-800 dark:text-slate-200 mb-2 font-serif">Error de carga</h3>
-                                        <p className="text-base text-gray-500 dark:text-slate-400 max-w-md font-medium">{error}</p>
-                                        <button onClick={fetchData} className="mt-8 px-10 py-3.5 bg-[#621f32] text-white rounded-full font-bold text-sm uppercase tracking-widest hover:bg-[#4a1726] transition-all shadow-xl shadow-[#621f32]/30 active:scale-95 cursor-pointer">
-                                            Reintentar ahora
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="flex-1 min-h-0 overflow-auto relative custom-scrollbar border-2 border-[#621f32]/10 dark:border-slate-855 rounded-2xl" onScroll={() => setPopupConfig(null)}>
-                                        <table className="w-max min-w-full border-collapse text-left" style={{ tableLayout: 'fixed' }}>
-                                            <thead className="sticky top-0 z-20 shadow-md">
-                                                <tr className="bg-gradient-to-r from-[#621f32] to-[#712339] text-white border-b-2 border-[#bc955c]/50">
-                                                    <th style={{ width: 56, minWidth: 56, maxWidth: 56 }} className="py-3 px-2 text-center align-middle border-r border-white/10">
-                                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-100 font-serif">Ver</span>
-                                                    </th>
-                                                    {activeColumns.map(col => {
-                                                        const isFiltered = !!filters[col.key];
-                                                        const isSorted = sortConfig.key === col.key;
-                                                        return (
-                                                            <th key={col.key} style={{ width: columnWidths[col.key], minWidth: columnWidths[col.key], maxWidth: columnWidths[col.key] }} className={`relative py-2.5 px-4 border-r border-white/10 select-none group/th align-top ${isFiltered ? 'bg-[#501929]/95' : ''}`}>
-                                                                <div className="flex flex-col gap-1.5">
-                                                                    <div className="flex items-center justify-between gap-2">
-                                                                        <div role="button" tabIndex={0} className="flex-1 flex items-center gap-1.5 cursor-pointer overflow-hidden hover:opacity-85 transition-opacity" onClick={() => handleSort(col.key)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSort(col.key); }}>
-                                                                            <span className={`text-xs font-bold uppercase tracking-wider truncate font-serif ${isSorted ? 'text-[#bc955c]' : 'text-slate-100'}`}>
-                                                                                {col.label}
-                                                                            </span>
-                                                                            {isSorted ? (
-                                                                                sortConfig.direction === 'asc' ? <ArrowUpAZ className="size-4 shrink-0 text-[#bc955c]" /> : <ArrowDownAZ className="size-4 shrink-0 text-[#bc955c]" />
-                                                                            ) : (
-                                                                                <ChevronsUpDown className="size-3.5 shrink-0 text-white/30 opacity-0 group-hover/th:opacity-100 transition-opacity" />
-                                                                            )}
-                                                                        </div>
-                                                                        <button onClick={(e) => openFilter(e, col)} className={`p-1.5 rounded-full transition-all duration-200 shrink-0 cursor-pointer ${isFiltered ? 'text-[#bc955c] bg-white/10' : 'text-white/60 hover:bg-white/10'}`}>
-                                                                            <Filter className="size-3.5" />
-                                                                        </button>
-                                                                    </div>
-                                                                    <div className="relative flex items-center">
-                                                                        <Search className="absolute left-0.5 top-1/2 -translate-y-1/2 size-3 text-white/35" />
-                                                                        <input
-                                                                            type="text"
-                                                                            placeholder="Buscar..."
-                                                                            value={textFilters[col.key] || ""}
-                                                                            onChange={(e) => setTextFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
-                                                                            className="w-full pl-5 pr-1 py-1 bg-transparent border-b border-white/20 focus:border-[#bc955c] text-[11px] font-semibold text-white placeholder-white/30 transition-all outline-none"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                                <div role="separator" aria-label="Cambiar tamaño de columna" tabIndex={-1} onMouseDown={(e) => handleResizeStart(e, col.key)} className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-[#bc955c] active:bg-[#bc955c] transition-colors z-30" />
-                                                            </th>
-                                                        );
-                                                    })}
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y-2 divide-dashed divide-[#621f32]/10 dark:divide-slate-900 bg-white dark:bg-slate-950">
-                                                {paginatedData.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={activeColumns.length + 1} className="py-32 text-center bg-[#621f32]/[0.02] dark:bg-slate-900/10">
-                                                            <div className="flex flex-col items-center justify-center">
-                                                                <div className="size-20 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
-                                                                    <Search className="size-8 text-[#621f32]/40 dark:text-slate-655" />
-                                                                </div>
-                                                                <p className="text-base font-bold text-slate-500 uppercase tracking-widest font-serif">No se encontraron registros</p>
-                                                                {hasActiveFilters && (
-                                                                    <button onClick={clearAllFilters} className="mt-6 px-6 py-3 bg-[#621f32] text-white rounded-full text-xs font-bold uppercase tracking-widest hover:bg-[#4a1726] transition-all shadow-lg shadow-[#621f32]/20 cursor-pointer">
-                                                                        Restablecer filtros
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ) : (
-                                                    paginatedData.map((row, index) => (
-                                                        <tr key={row.id !== undefined && row.id !== null ? String(row.id) : `row-${index}`} className="hover:bg-[#bc955c]/[0.10] dark:hover:bg-slate-900/40 even:bg-[#621f32]/[0.02] dark:even:bg-slate-900/10 h-12 transition-colors">
-                                                            <td className="px-2 text-center align-middle border-r border-[#621f32]/8 dark:border-slate-900">
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); setSelectedEmployeeRecord(row); }}
-                                                                    className="p-1.5 rounded-full text-slate-400 dark:text-slate-555 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-[#621f32]/10 dark:hover:bg-slate-900/50 transition-colors cursor-pointer"
-                                                                    title="Ver expediente detallado de la plaza"
-                                                                >
-                                                                    <Eye className="size-4.5" />
-                                                                </button>
-                                                            </td>
-                                                            {activeColumns.map(col => (
-                                                                <td key={col.key} className={`px-4 text-sm truncate align-middle ${isMonoColumn(col.key) ? 'font-mono text-[13px] font-semibold text-slate-600 dark:text-slate-400' : 'font-medium text-slate-700 dark:text-slate-300'}`} title={row[col.key]}>
-                                                                    {row[col.key] !== undefined && row[col.key] !== null && String(row[col.key]).trim() !== "" ? (
-                                                                        String(row[col.key])
-                                                                    ) : (
-                                                                        <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
-                                                                    )}
-                                                                </td>
-                                                            ))}
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>
+                            )}
                         </div>
                     </div>
-                </Zoom>
 
-                {popupConfig && (
-                    <DialogPortal>
-                        <FilterPopup column={popupConfig.column} rowData={rowData} filters={filters} setFilters={setFilters} onClose={() => setPopupConfig(null)} position={{ x: popupConfig.x, y: popupConfig.y }} />
-                    </DialogPortal>
+                    {/* Chips de filtros activos */}
+                    {hasActiveFilters && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            {activeFilterChips.map(chip => (
+                                <span key={chip.id} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 bg-[#621f32]/8 dark:bg-[#bc955c]/10 border border-[#621f32]/15 dark:border-[#bc955c]/20 text-[#621f32] dark:text-[#bc955c] rounded-full text-[11px] font-bold">
+                                    {chip.label}
+                                    <button onClick={chip.remove} className="p-0.5 rounded-full hover:bg-[#621f32]/15 dark:hover:bg-[#bc955c]/20 cursor-pointer">
+                                        <X className="size-3" />
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    {error ? (
+                        <div className="flex flex-col items-center justify-center text-center p-8 bg-red-50/40 dark:bg-red-950/10 rounded-2xl border-2 border-dashed border-red-200 dark:border-red-900/30">
+                            <div className="size-16 bg-red-100/40 rounded-full flex items-center justify-center mb-4 text-red-600">
+                                <X className="size-8" />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-200 mb-1">Error de carga</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md font-medium">{error}</p>
+                            <button onClick={fetchData} className="mt-6 px-8 py-3 bg-[#621f32] text-white rounded-full font-bold text-xs uppercase tracking-widest hover:bg-[#4a1726] transition-all shadow-lg shadow-[#621f32]/30 active:scale-95 cursor-pointer">
+                                Reintentar ahora
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex flex-col h-[55vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+                                <DataTable
+                                    fillHeight
+                                    fillWidth
+                                    onScroll={() => {}}
+                                    columns={columns}
+                                    columnFilters={columnFilters}
+                                    textFilters={textFilters}
+                                    setTextFilters={setTextFilters}
+                                    activeConditionDropdown={activeConditionDropdown}
+                                    setActiveConditionDropdown={setActiveConditionDropdown}
+                                    selectedCell={selectedCell}
+                                    onSelectCell={setSelectedCell}
+                                    onCellContextMenu={() => {}}
+                                    onShowRecord={(row) => setSelectedEmployeeRecord(row)}
+                                    sortConfig={sortConfig}
+                                    onSort={handleSort}
+                                    onOpenFilter={openFilterDropdown}
+                                    onResizeStart={handleResizeStart}
+                                    getColumnLetter={getColumnLetter}
+                                    isMonoColumn={isMonoColumn}
+                                    isPending={false}
+                                    isLoading={loading}
+                                    loadingVariant="skeleton"
+                                    loadingMessage="Consultando base de datos..."
+                                    data={paginatedData}
+                                    startIndex={0}
+                                    endIndex={paginatedData.length}
+                                    totalCount={paginatedData.length}
+                                    rowHeight={37}
+                                    getRowId={(row, i) => row.id_empleado ?? i}
+                                    renderCell={renderCell}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 shrink-0">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Página</span>
+                                <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#621f32] dark:hover:text-[#bc955c] disabled:opacity-20 transition-all cursor-pointer">
+                                        <ChevronLeft className="size-4" />
+                                    </button>
+                                    <div className="flex items-baseline gap-1 px-1">
+                                        <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c]">{currentPage}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase">de</span>
+                                        <span className="text-sm font-black text-slate-500 dark:text-slate-400">{totalPages}</span>
+                                    </div>
+                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#621f32] dark:hover:text-[#bc955c] disabled:opacity-20 transition-all cursor-pointer">
+                                        <ChevronRight className="size-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </ModalShell>
+
+            <AnimatePresence>
+                {activeFilterDropdown && (
+                    <ColumnFilterDropdown
+                        open={!!activeFilterDropdown}
+                        columnKey={activeFilterDropdown}
+                        columnLabel={COLUMN_LABEL_BY_KEY[activeFilterDropdown]}
+                        isDate={false}
+                        data={rowData}
+                        getCellValue={defaultGetCellValue}
+                        filters={filters}
+                        dropdownValues={filterDropdownValues}
+                        onApply={() => applyColumnFilter(activeFilterDropdown)}
+                        onClear={() => clearColumnFilter(activeFilterDropdown)}
+                        onClose={() => setActiveFilterDropdown(null)}
+                    />
                 )}
-            </DialogContent>
-        </Dialog>
+            </AnimatePresence>
 
-        <ColumnsSelectorModal
-            isOpen={showColumnsModal}
-            onClose={() => setShowColumnsModal(false)}
-            visibleKeys={visibleKeys}
-            setVisibleKeys={setVisibleKeys}
-        />
+            <ColumnsSelectorModal
+                isOpen={showColumnsModal}
+                onClose={() => setShowColumnsModal(false)}
+                visibleKeys={visibleKeys}
+                setVisibleKeys={setVisibleKeys}
+            />
 
-        <EmployeeRecordModal isOpen={!!selectedEmployeeRecord} onClose={() => setSelectedEmployeeRecord(null)} record={selectedEmployeeRecord} />
+            <EmployeeRecordModal isOpen={!!selectedEmployeeRecord} onClose={() => setSelectedEmployeeRecord(null)} record={selectedEmployeeRecord} />
         </>
     );
 }
