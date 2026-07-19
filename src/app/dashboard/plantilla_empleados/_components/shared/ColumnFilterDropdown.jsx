@@ -259,7 +259,7 @@ export default function ColumnFilterDropdown({
                 )}
               </div>
               {!isDate && dropdownValues && (
-                <div className="mt-2 text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 px-0.5">
+                <div className="mt-2 text-[9px] font-black uppercase text-slate-500 dark:text-slate-500 px-0.5">
                   {filterSearchText
                     ? `${dropdownValues.visibleVals.filter((v) => tempSelectedValues.includes(v)).length} de ${dropdownValues.visibleVals.length} visibles seleccionados`
                     : `${tempSelectedValues.length} de ${dropdownValues.allVals.length} seleccionados`}
@@ -335,7 +335,7 @@ export default function ColumnFilterDropdown({
                                           {isMonthPartial && <div className="size-1 bg-[#621f32] dark:bg-[#bc955c] rounded-xs" />}
                                         </div>
                                         <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{monthData.name}</span>
-                                        <span className="text-[9px] font-black text-slate-400">({monthData.count})</span>
+                                        <span className="text-[9px] font-black text-slate-500">({monthData.count})</span>
                                       </div>
                                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                         <button onClick={(e) => { e.stopPropagation(); markValues(monthLeafValues); }} title="Marcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
@@ -427,7 +427,7 @@ export default function ColumnFilterDropdown({
                                     <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
                                       {value ? (renderValueLabel ? renderValueLabel(value, filterSearchText) : highlightMatch(value, filterSearchText)) : "(Vacío)"}
                                     </span>
-                                    <span className="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-lg shrink-0">{count}</span>
+                                    <span className="text-[9px] font-black text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-lg shrink-0">{count}</span>
                                   </div>
                                 </button>
                               );

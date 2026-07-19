@@ -74,7 +74,7 @@ const HistoricoAlineacionTooltip = ({ active, payload }) => {
   const p = payload[0].payload;
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-xl">
-      <p className="text-[9px] font-black uppercase text-slate-400">{formatFechaCorta(p.fecha)}</p>
+      <p className="text-[9px] font-black uppercase text-slate-500">{formatFechaCorta(p.fecha)}</p>
       <p className="text-sm font-black text-[#621f32] dark:text-[#bc955c]">{p.porcentaje_alineacion_general}%</p>
     </div>
   );
@@ -673,7 +673,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <card.icon className="size-4" style={{ color: card.color }} />
-                    <span className="text-[9px] font-black uppercase tracking-wide text-slate-400">{card.label}</span>
+                    <span className="text-[9px] font-black uppercase tracking-wide text-slate-500">{card.label}</span>
                   </div>
                   <span className="text-2xl font-black" style={{ color: card.color }}>{formatNumber(card.count)}</span>
                   {card.breakdown && (
@@ -693,7 +693,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
 
             {/* Ranking columnas con más discrepancias (barras verticales) */}
             <div className="relative overflow-hidden rounded-[1.5rem] p-4 flex flex-col shrink-0 lg:w-80 border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm">
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 block shrink-0">Columnas con más discrepancias</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3 block shrink-0">Columnas con más discrepancias</span>
               {rankingColumnasProblema.length > 0 ? (
                 <div className="flex-1 flex items-end justify-between gap-2 min-h-[96px]">
                   {rankingColumnasProblema.map((c) => {
@@ -753,7 +753,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                   {searchQuery && <button onClick={() => setSearchQuery("")} className="text-slate-400 hover:text-slate-600 ml-1.5"><X className="size-3.5" /></button>}
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
-                  <span className="text-[9px] font-black uppercase text-slate-400 leading-none mb-1">Registros</span>
+                  <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(count)}</span>
                 </div>
               </div>
@@ -814,7 +814,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                 {diffFieldsOpen && (
                   <div className="absolute z-40 top-full mt-2 right-0 w-72 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 max-h-96 overflow-y-auto">
                     <div className="flex items-center justify-between px-2 py-1.5 mb-1">
-                      <span className="text-[9px] font-black uppercase text-slate-400">Ver plazas que difieren en...</span>
+                      <span className="text-[9px] font-black uppercase text-slate-500">Ver plazas que difieren en...</span>
                       {diffFields.length > 0 && (
                         <button
                           onClick={() => { setLoading(true); setDiffFields([]); setPage(1); }}

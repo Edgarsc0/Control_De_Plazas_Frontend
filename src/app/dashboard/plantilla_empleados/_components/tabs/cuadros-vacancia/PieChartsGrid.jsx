@@ -112,7 +112,7 @@ function LevelCard({ data, onStatusClick }) {
 
             <div className="mt-auto pt-6 border-t border-gray-100 grid grid-cols-2 gap-4">
                 <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Capacidad Total</span>
+                    <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Capacidad Total</span>
                     <span className="text-xl font-black text-gray-900 tabular-nums leading-none">{formatNumber(total)}</span>
                 </div>
                 <div className="flex flex-col items-end text-right">

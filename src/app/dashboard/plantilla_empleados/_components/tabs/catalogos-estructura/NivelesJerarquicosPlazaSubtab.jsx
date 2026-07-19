@@ -18,6 +18,7 @@ import {
   getUniqueColumnValues,
   matchesTextCondition,
   finalizeFilterDropdownValues,
+  formatDateEsMx,
 } from "@/utils/columnFilters";
 
 const ROW_HEIGHT = 37;
@@ -417,7 +418,7 @@ export default function NivelesJerarquicosPlazaSubtab() {
         display = descs ? `${raw} — ${descs.join(" / ")}` : String(raw);
       }
     } else if (col.type === "datetime" && value) {
-      display = new Date(value).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" });
+      display = formatDateEsMx(value, { withTime: true });
     } else {
       display = value === null || value === undefined || String(value).trim() === "" ? null : String(value);
     }

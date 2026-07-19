@@ -5,18 +5,13 @@ import { createPortal } from "react-dom";
 import { X, Calendar, Activity, Loader2, ArrowUpRight, MapPin, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Note: using framer-motion as it seems imported differently sometimes, I'll use "motion/react" if it was "motion/react" in the tab
 import { VacantesService } from "@/services/vacantes.service";
-import { normalizeForSearch } from "@/utils/columnFilters";
+import { normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 
-// format date if needed
+// 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-MX", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC", // Avoid offset shift for YYYY-MM-DD
-  });
+  return formatDateEsMx(dateString);
 };
 
 const IGNORED_DIFF_FIELDS = [
@@ -249,14 +244,14 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
 
                       <div className="flex items-center gap-3 text-xs bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800">
                         <div className="flex flex-col">
-                          <span className="text-[9px] text-slate-400 font-bold uppercase">Fecha Efectiva</span>
+                          <span className="text-[9px] text-slate-500 font-bold uppercase">Fecha Efectiva</span>
                           <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
                             {formatDate(mov.fecha_efectiva)}
                           </span>
                         </div>
                         <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
                         <div className="flex flex-col">
-                          <span className="text-[9px] text-slate-400 font-bold uppercase">Fecha Captura</span>
+                          <span className="text-[9px] text-slate-500 font-bold uppercase">Fecha Captura</span>
                           <span className="font-mono font-bold text-slate-600 dark:text-slate-400">
                             {formatDate(mov.fecha_captura)}
                           </span>

@@ -136,7 +136,7 @@ export default function MobileCardList({
           <span className="block text-[11px] font-black text-slate-700 dark:text-slate-200">
             Página {safePage + 1} de {fmt(totalPages)}
           </span>
-          <span className="block text-[9px] font-bold text-slate-400">
+          <span className="block text-[9px] font-bold text-slate-500">
             {fmt(start + 1)}–{fmt(Math.min(start + pageSize, data.length))} de {fmt(data.length)}
           </span>
         </div>

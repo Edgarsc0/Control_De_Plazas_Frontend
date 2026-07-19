@@ -16,6 +16,7 @@ import {
   getUniqueColumnValues,
   matchesTextCondition,
   finalizeFilterDropdownValues,
+  formatDateEsMx,
 } from "@/utils/columnFilters";
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER, MONO_CATALOG_COLUMN_KEYS } from "./catalogosConfig";
 
@@ -259,7 +260,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
   const renderCell = ({ col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
     const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
     const display = col.type === "datetime" && value
-      ? new Date(value).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })
+      ? formatDateEsMx(value, { withTime: true })
       : (value === null || value === undefined || String(value).trim() === "" ? null : String(value));
     return (
       <td

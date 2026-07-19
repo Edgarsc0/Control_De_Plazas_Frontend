@@ -950,7 +950,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 <div className="w-full bg-rose-100 dark:bg-rose-950/40 h-2 rounded-full overflow-hidden flex">
                   <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${kpis.ocupadasPct}%` }} />
                 </div>
-                <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-500 dark:text-slate-500 font-bold uppercase tracking-wider">
                   <span>{kpis.ocupadasPct}% Ocupadas</span>
                   <span>{kpis.vacantesPct}% Vacantes</span>
                 </div>
@@ -1263,10 +1263,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 </div>
               ) : (
                 <div data-pdf-chart className={`w-full relative pl-4 sm:pl-5 ${(isGeneratingPdf || isGeneratingWord) ? 'h-[650px]' : 'h-[320px] sm:h-[380px]'}`}>
-                  <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
+                  <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-500 select-none">
                     OCUPADAS
                   </span>
-                  <span className="absolute left-0 top-[78%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-400 dark:text-slate-500 select-none">
+                  <span className="absolute left-0 top-[78%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-500 select-none">
                     VACANTES
                   </span>
                   <ResponsiveContainer width="100%" height="100%">

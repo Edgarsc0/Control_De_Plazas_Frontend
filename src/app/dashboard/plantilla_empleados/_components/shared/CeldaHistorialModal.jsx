@@ -10,6 +10,7 @@ import {
 import { VacantesService } from "@/services/vacantes.service";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
+import { formatDateEsMx } from "@/utils/columnFilters";
 
 const PAGE_SIZE = 60;
 
@@ -19,11 +20,10 @@ const ESTADO_TABS = [
   { key: "false", label: "Sobrescritos" },
 ];
 
+// 7.9 QA: DD/MM/AAAA HH:mm — antes "18 jul, 2026" (formato distinto al resto del módulo).
 const formatFecha = (iso) => {
   if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return formatDateEsMx(iso, { withTime: true });
 };
 
 /**
@@ -162,7 +162,7 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
                   <div key={s.label} className="rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-sm flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${s.color}15`, color: s.color }}><s.icon className="size-3.5" /></div>
-                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">{s.label}</span>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{s.label}</span>
                     </div>
                     <span className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{new Intl.NumberFormat("es-MX").format(s.value || 0)}</span>
                   </div>
@@ -262,7 +262,7 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
                             {ov.activo ? (
                               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-900/40"><CheckCircle2 className="size-3" />Vigente</span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700"><XCircle className="size-3" />Sobrescrito</span>
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-500 border border-slate-200 dark:border-slate-700"><XCircle className="size-3" />Sobrescrito</span>
                             )}
                           </div>
 

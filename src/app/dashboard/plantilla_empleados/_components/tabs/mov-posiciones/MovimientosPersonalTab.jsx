@@ -22,7 +22,7 @@ import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
-import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts } from "@/utils/columnFilters";
+import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts, formatDateEsMx } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -254,7 +254,7 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
                                         {isMonthPartial && <div className="size-1 bg-[#621f32] dark:bg-[#bc955c] rounded-xs" />}
                                       </div>
                                       <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{MONTH_NAMES[parseInt(month, 10) - 1] || month}</span>
-                                      <span className="text-[9px] font-black text-slate-400">({monthData.count})</span>
+                                      <span className="text-[9px] font-black text-slate-500">({monthData.count})</span>
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                       <button onClick={(e) => { e.stopPropagation(); selectMonth(year, month, true); }} title="Marcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
@@ -295,7 +295,8 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
       <button onClick={() => setIsOpen(true)} className={triggerClassName || "flex items-center gap-2.5 px-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm hover:border-[#621f32]/50 transition-colors"}>
         <span className="text-[10px] text-slate-400 font-bold uppercase">Bitácora:</span>
         <span className="font-bold text-xs text-[#621f32] dark:text-[#bc955c] truncate max-w-[200px]">
-          {selectedDates.length === 0 ? "Ninguna" : selectedDates.length === 1 ? selectedDates[0] : `${selectedDates.length} fechas`}
+          {/* 7.9 QA: DD/MM/AAAA — antes mostraba el ISO crudo (2026-07-18). */}
+          {selectedDates.length === 0 ? "Ninguna" : selectedDates.length === 1 ? formatDateEsMx(selectedDates[0]) : `${selectedDates.length} fechas`}
         </span>
       </button>
       {modalContent}
@@ -783,6 +784,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     if (val === null || val === undefined) val = "";
     if (col.key === "fecha_ult_actz" && val) {
       try { const d = new Date(val); if (!isNaN(d.getTime())) val = d.toLocaleString("es-MX", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch (e) {}
+    } else if (isDateColumn(col.key) && val) {
+      // 7.9 QA: resto de columnas de fecha (fecha_efectiva, fecha_captura...)
+      // a DD/MM/AAAA — antes se mostraban crudas (ISO) via el fallback String(val).
+      val = formatDateEsMx(val);
     } else if (["sal_base", "smb", "smn", "sueldo_bruto", "sueldo_neto"].includes(col.key) && val) {
       val = `$${formatNumber(val)}`;
     }
@@ -1914,7 +1919,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                     >
                       <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
                       <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={`${slice.accion_nombre} (con ${getMotivosCount(slice.accion_nombre) ?? "…"} motivos diferentes)`}>
-                        {slice.accion_nombre} <span className="text-[9px] font-normal text-slate-400 dark:text-slate-500"> (con {getMotivosCount(slice.accion_nombre) ?? "…"} motivos diferentes)</span>
+                        {slice.accion_nombre} <span className="text-[9px] font-normal text-slate-500 dark:text-slate-500"> (con {getMotivosCount(slice.accion_nombre) ?? "…"} motivos diferentes)</span>
                       </span>
                       <span className="text-[10px] font-black text-slate-500 shrink-0">
                         {formatNumber(slice.total)}
@@ -1995,7 +2000,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                         </button>
                       )}
                       <div className="flex flex-col items-end">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total en el periodo</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total en el periodo</span>
                         <span className="text-xl font-black text-[#621f32] dark:text-[#bc955c] leading-none">
                           {formatNumber(temporalChartData.reduce((acc, curr) => acc + curr.total, 0))}
                         </span>
@@ -2291,7 +2296,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               )}
               
               <div className="flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
-                <span className="text-[9px] font-black uppercase text-slate-400 leading-none mb-1">Registros</span>
+                <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                 <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">
                   {formatNumber(count)}
                 </span>

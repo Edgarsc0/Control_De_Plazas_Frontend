@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
-  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, Eye, History, Loader2
+  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
@@ -27,7 +27,7 @@ import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, getConditionLabel } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, getConditionLabel, formatDateEsMx } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -85,6 +85,59 @@ const ALL_DETAIL_KEYS = [
 ];
 
 const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso"];
+
+/**
+ * 8.5 QA — Cadena de mando descendente: nodo recursivo del árbol de
+ * subordinados (directos + indirectos). A diferencia de la pirámide
+ * ascendente (camino único, 1 jefe por nivel), aquí cada nodo puede tener N
+ * hijos, así que se renderiza como árbol expandible en vez de columna lineal.
+ * Colapsado por defecto salvo la raíz, para no reventar el layout con
+ * organigramas grandes.
+ */
+function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }) {
+  const hasChildren = node.children.length > 0;
+  const isExpanded = isRoot || expandedNodes.has(node.Posicion);
+
+  return (
+    <div className={depth > 0 ? "ml-5 sm:ml-7 border-l-2 border-slate-200 dark:border-slate-800 pl-4 sm:pl-5" : ""}>
+      <div className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isRoot ? "bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/15 dark:border-[#bc955c]/20" : "hover:bg-slate-50 dark:hover:bg-slate-900/60"}`}>
+        <button
+          type="button"
+          onClick={() => hasChildren && onToggle(node.Posicion)}
+          disabled={!hasChildren}
+          className={`shrink-0 size-6 flex items-center justify-center rounded-lg transition-colors ${hasChildren ? "text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer" : "text-slate-300 dark:text-slate-700"}`}
+          title={hasChildren ? (isExpanded ? "Colapsar" : "Expandir") : "Sin subordinados"}
+        >
+          {hasChildren ? (isExpanded ? <ChevronDown className="size-4" /> : <ChevronRightIcon className="size-4" />) : <span className="size-1.5 rounded-full bg-current" />}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`font-black truncate ${isRoot ? "text-base text-slate-900 dark:text-white" : "text-sm text-slate-700 dark:text-slate-200"}`}>
+              {node.Empleado || "Sin Nombre"}
+            </span>
+            {isRoot && <span className="shrink-0 px-2 py-0.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[9px] font-black uppercase rounded-full">Consultado</span>}
+            {hasChildren && (
+              <span className="shrink-0 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-black rounded-full">
+                {node.children.length} directo{node.children.length === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold truncate">{node.Puesto_Funcional || "Puesto no especificado"}</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+            POS: {node.Posicion}{node.Nivel && <span className="ml-2">NIVEL: {node.Nivel}</span>}
+          </p>
+        </div>
+      </div>
+      {hasChildren && isExpanded && (
+        <div className="flex flex-col gap-1 mt-1">
+          {node.children.map(child => (
+            <CadenaTreeNode key={child.Posicion} node={child} depth={depth + 1} expandedNodes={expandedNodes} onToggle={onToggle} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading, remoteUpdatesCount = 0, onClearRemoteUpdates }) {
   const [mounted, setMounted] = useState(false);
@@ -195,6 +248,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
+  // 8.5 QA: cadena de mando descendente — 'arriba' (jefes, camino único,
+  // pirámide lineal ya existente) o 'abajo' (subordinados directos+indirectos,
+  // árbol con N hijos por nivel, nuevo).
+  const [cadenaDirection, setCadenaDirection] = useState("arriba");
+  const [expandedCadenaNodes, setExpandedCadenaNodes] = useState(() => new Set());
   const [showCadenaSuggestions, setShowCadenaSuggestions] = useState(false);
   const cadenaSuggestions = useMemo(() => {
     const q = normalizeForSearch(cadenaQuery.trim());
@@ -211,15 +269,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
 
-  const handleBuscarCadena = async (e) => {
+  const handleBuscarCadena = async (e, direction = cadenaDirection) => {
     e?.preventDefault();
     if (!cadenaQuery.trim()) return;
     setShowCadenaSuggestions(false);
     setIsCadenaLoading(true);
     setCadenaError(null);
     setCadenaData(null);
+    setExpandedCadenaNodes(new Set());
     try {
-      const response = await VacantesService.getCadenaMando(cadenaQuery.trim());
+      const response = await VacantesService.getCadenaMando(cadenaQuery.trim(), { direction });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || data.detail || "Error al buscar la cadena de mando");
@@ -231,6 +290,83 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       setIsCadenaLoading(false);
     }
   };
+
+  // 8.5 QA: alterna Ascendente/Descendente; si ya hay una búsqueda hecha,
+  // vuelve a consultar de inmediato en la nueva dirección.
+  const handleToggleCadenaDirection = useCallback((direction) => {
+    setCadenaDirection(direction);
+    if (cadenaQuery.trim() && (cadenaData || cadenaError)) {
+      handleBuscarCadena(null, direction);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cadenaQuery, cadenaData, cadenaError]);
+
+  const toggleCadenaNode = useCallback((posicion) => {
+    setExpandedCadenaNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(posicion)) next.delete(posicion); else next.add(posicion);
+      return next;
+    });
+  }, []);
+
+  // Arma el árbol de subordinados a partir del arreglo plano que devuelve el
+  // backend (cada fila trae su Jefe_Directo) — agrupa hijos por padre una vez
+  // (Map) en vez de un .filter() por nodo, O(n) en vez de O(n²).
+  const cadenaTree = useMemo(() => {
+    if (cadenaDirection !== "abajo" || !cadenaData?.cadena?.length) return null;
+    const childrenByParent = new Map();
+    let root = null;
+    cadenaData.cadena.forEach(nodo => {
+      if (nodo.Nivel_Hacia_Abajo === 0) { root = nodo; return; }
+      const parentKey = nodo.Jefe_Directo;
+      if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
+      childrenByParent.get(parentKey).push(nodo);
+    });
+    const buildNode = (nodo) => ({ ...nodo, children: (childrenByParent.get(nodo.Posicion) || []).map(buildNode) });
+    return root ? buildNode(root) : null;
+  }, [cadenaDirection, cadenaData]);
+
+  const countDescendants = useCallback((node) => (
+    node.children.reduce((acc, c) => acc + 1 + countDescendants(c), 0)
+  ), []);
+
+  const handleExportCadenaDescendente = useCallback(async () => {
+    if (!cadenaTree) return;
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Cadena_Mando_Descendente");
+    worksheet.columns = [
+      { header: "Profundidad", key: "profundidad", width: 12 },
+      { header: "Posición", key: "posicion", width: 16 },
+      { header: "Nombre", key: "nombre", width: 35 },
+      { header: "Puesto Funcional", key: "puesto", width: 35 },
+      { header: "Nivel", key: "nivel", width: 12 },
+      { header: "Jefe Directo (Posición)", key: "jefe", width: 20 },
+    ];
+    const flatten = (node) => {
+      worksheet.addRow({
+        profundidad: node.Nivel_Hacia_Abajo,
+        posicion: node.Posicion,
+        nombre: node.Empleado || "",
+        puesto: node.Puesto_Funcional || "",
+        nivel: node.Nivel || "",
+        jefe: node.Jefe_Directo || "",
+      });
+      node.children.forEach(flatten);
+    };
+    flatten(cadenaTree);
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    headerRow.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Cadena_Mando_Descendente_${cadenaTree.Posicion}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [cadenaTree]);
 
   const deferredTextFilters = useDeferredValue(textFilters);
   const deferredGlobalSearch = useDeferredValue(globalSearch);
@@ -826,8 +962,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         </Tooltip>
       );
     }
-    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value))}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
-  }, [isMonoColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay]);
+    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (isDateColumn(col.key) ? formatDateEsMx(value) : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value)))}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -1268,13 +1404,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">
             <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
+              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
               <div className="relative size-28 flex items-center justify-center">
                 <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none"><defs><mask id="donut-mask-detalle"><circle cx="0" cy="0" r="1" fill="white" /><circle cx="0" cy="0" r="0.65" fill="black" /></mask></defs><g mask="url(#donut-mask-detalle)">{donutData.map((slice, i) => (<path key={slice.label} d={slice.pathData} fill={slice.color} className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90" style={{ transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)", opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.label) ? 0.35 : 1 }} onMouseEnter={() => setHoveredSlice(i)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} />))}</g></svg>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1"><AnimatePresence mode="wait">{activeHoverData ? (<motion.div key={activeHoverData.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{activeHoverData.label}</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(activeHoverData.count)}</span><br /><span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current" style={{ color: activeHoverData.color, backgroundColor: `${activeHoverData.color}15` }}>{(activeHoverData.percent * 100).toFixed(1)}%</span></motion.div>) : (<motion.div key="total" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(resumen?.total_registros || 11957)}</span><br /><span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">100%</span></motion.div>)}</AnimatePresence></div>
               </div>
             </div>
-            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-6 gap-3">{donutData.map((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); return (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
+            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-6 gap-3">{donutData.map((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); return (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
           </div>
         </Zoom>
       </div>
@@ -1311,7 +1447,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                   {searchQuery && <button onClick={() => { setSearchQuery(""); startTransition(() => setGlobalSearch("")); }} className="text-slate-400 hover:text-slate-600 ml-1.5"><X className="size-3.5" /></button>}
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
-                  <span className="text-[9px] font-black uppercase text-slate-400 leading-none mb-1">Registros</span>
+                  <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
                 </div>
               </div>
@@ -1364,7 +1500,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
               (tarjeta, global, columna, avanzados) invisibles entre sí. */}
           {(globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some(v => v?.value) || appliedAdvancedFilters.length > 0) && (
             <div className="hidden md:flex flex-wrap items-center gap-2 px-6 py-3 border-b border-slate-200/50 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/20">
-              <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest shrink-0">Filtros activos:</span>
+              <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest shrink-0">Filtros activos:</span>
               {globalSearch && (
                 <button onClick={() => { setSearchQuery(""); setGlobalSearch(""); }} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-red-300 dark:hover:border-red-900 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer">
                   <Search className="size-2.5" /><span>Búsqueda: "{globalSearch}"</span><X className="size-2.5" />
@@ -1512,6 +1648,24 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                     )}
                   </AnimatePresence>
                 </form>
+
+                {/* 8.5 QA: toggle Ascendente/Descendente */}
+                <div className="flex items-center gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCadenaDirection("arriba")}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${cadenaDirection === "arriba" ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] shadow-sm" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
+                  >
+                    <ArrowUp className="size-3" /><span>Ascendente (jefes)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCadenaDirection("abajo")}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${cadenaDirection === "abajo" ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] shadow-sm" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
+                  >
+                    <ArrowDown className="size-3" /><span>Descendente (subordinados)</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar relative">
@@ -1528,7 +1682,23 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                     <h4 className="text-lg font-black text-slate-800 dark:text-white">Sin resultados</h4>
                     <p className="text-sm font-medium text-slate-500 mt-2 max-w-md">{cadenaError}</p>
                   </div>
-                ) : cadenaData && cadenaData.cadena ? (
+                ) : cadenaDirection === "abajo" && cadenaTree ? (
+                  <div className="w-full max-w-3xl mx-auto py-4 px-2">
+                    <div className="flex items-center justify-between gap-3 mb-4 px-1">
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        {countDescendants(cadenaTree)} subordinado{countDescendants(cadenaTree) === 1 ? "" : "s"} (directos + indirectos)
+                      </p>
+                      <button
+                        onClick={handleExportCadenaDescendente}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] text-[10px] font-black uppercase rounded-lg shadow-sm hover:shadow transition-all active:scale-95 cursor-pointer"
+                        title="Exportar árbol de subordinados a Excel"
+                      >
+                        <Download className="size-3" /><span>Exportar árbol</span>
+                      </button>
+                    </div>
+                    <CadenaTreeNode node={cadenaTree} depth={0} expandedNodes={expandedCadenaNodes} onToggle={toggleCadenaNode} isRoot />
+                  </div>
+                ) : cadenaDirection === "arriba" && cadenaData && cadenaData.cadena ? (
                   <div className="w-full max-w-4xl mx-auto py-8 px-4 flex flex-col items-center">
                     {/* Pirámide / Organigrama Centrado */}
                     <div className="flex flex-col items-center relative w-full">
@@ -1592,12 +1762,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                                 {/* Info Pills */}
                                 <div className="flex flex-wrap justify-center gap-3 w-full">
                                   <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-slate-800/50 flex-1 min-w-[120px]">
-                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Posición</span>
+                                    <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Posición</span>
                                     <span className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">{nodo.Posicion}</span>
                                   </div>
                                   {nodo.Nivel && (
                                     <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-slate-800/50 flex-1 min-w-[120px]">
-                                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Nivel</span>
+                                      <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Nivel</span>
                                       <span className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">{nodo.Nivel}</span>
                                     </div>
                                   )}
@@ -1625,7 +1795,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                       <Network className="size-10 text-slate-400 dark:text-slate-600" />
                     </div>
                     <h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Buscar Jerarquía</h4>
-                    <p className="text-sm font-medium text-slate-500 mt-2 max-w-sm">Ingresa la posición, nombre o número de empleado para visualizar toda su cadena de mando hacia arriba.</p>
+                    <p className="text-sm font-medium text-slate-500 mt-2 max-w-sm">
+                      Ingresa la posición, nombre o número de empleado para visualizar {cadenaDirection === "abajo" ? "sus subordinados directos e indirectos" : "toda su cadena de mando hacia arriba"}.
+                    </p>
                   </div>
                 )}
               </div>

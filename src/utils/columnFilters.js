@@ -87,6 +87,48 @@ export const parseDateParts = (val) => {
 };
 
 /**
+ * Formatea una fecha a `DD/MM/AAAA` — formato único de todo el módulo
+ * `plantilla_empleados` (7.9 QA: antes convivían ISO crudo `2026-04-01`,
+ * `1 ago 2026` del historial y variantes por tab). Si el valor no es una
+ * fecha válida devuelve el string original tal cual (para no mostrar
+ * "Invalid Date" sobre una columna que en realidad no es de fecha, o sobre
+ * texto de estatus como "Vacante" en un campo de fecha con dato sucio).
+ *
+ * Deliberadamente NO usa `new Date(...)` en ningún punto: ese constructor
+ * interpreta `"YYYY-MM-DD"` como medianoche **UTC**, y leerlo con getters
+ * **locales** en un huso horario negativo (México, UTC-6) resta un día a la
+ * fecha mostrada — el bug clásico de off-by-one. Día/mes/año/hora se extraen
+ * siempre por string, tal como los manda el backend, sin ninguna conversión
+ * de zona horaria de por medio.
+ * @param {*} val - Valor a formatear.
+ * @param {{ withTime?: boolean }} [opts={}] - `withTime: true` agrega `HH:mm` si el valor trae hora.
+ * @returns {string} `DD/MM/AAAA` (+ ` HH:mm` opcional), o el valor original si no es fecha.
+ */
+export const formatDateEsMx = (val, opts = {}) => {
+  if (val === null || val === undefined || String(val).trim() === '') return '';
+  const str = String(val).trim();
+
+  const dateSection = str.split(/[T ]/)[0];
+  const sep = dateSection.includes('/') ? '/' : dateSection.includes('-') ? '-' : null;
+  let base = null;
+  if (sep) {
+    const parts = dateSection.split(sep);
+    if (parts.length === 3) {
+      const [a, b, c] = parts;
+      const [year, month, day] = a.length === 4 ? [a, b, c] : [c, b, a];
+      if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month) && /^\d{1,2}$/.test(day)) {
+        base = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+      }
+    }
+  }
+  if (!base) return str;
+  if (!opts.withTime) return base;
+
+  const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
+  return timeMatch ? `${base} ${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}` : base;
+};
+
+/**
  * Normaliza un texto para búsqueda: quita acentos (NFD) y pasa a minúsculas.
  * @param {*} val - Valor a normalizar.
  * @returns {string} Texto normalizado (cadena vacía si es nulo).

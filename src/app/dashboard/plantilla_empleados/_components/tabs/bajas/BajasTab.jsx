@@ -25,7 +25,7 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -693,7 +693,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         </Tooltip>
       );
     }
-    return (<td key={col.key} onClick={handleCellClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : (String(value))}</td>);
+    return (<td key={col.key} onClick={handleCellClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center">{value !== undefined && value !== null ? (<span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm" title={`${value} movimientos históricos`}>{value}</span>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
   };
 
   const handleExportExcel = async () => {
@@ -1134,7 +1134,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                   {searchQuery && <button onClick={() => { setSearchQuery(""); startTransition(() => setGlobalSearch("")); }} className="text-slate-400 hover:text-slate-600 ml-1.5"><X className="size-3.5" /></button>}
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
-                  <span className="text-[9px] font-black uppercase text-slate-400 leading-none mb-1">Registros</span>
+                  <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
                 </div>
               </div>
@@ -1431,7 +1431,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {row.changes.map((change, cIdx) => (
                                       <div key={cIdx} className="bg-slate-50/80 dark:bg-slate-950/50 rounded-lg p-3 border border-slate-200/60 dark:border-slate-800">
-                                        <p className="text-[9px] uppercase font-bold text-slate-400 mb-2 truncate" title={change.label}>{change.label}</p>
+                                        <p className="text-[9px] uppercase font-bold text-slate-500 mb-2 truncate" title={change.label}>{change.label}</p>
                                         <div className="flex flex-col gap-1.5">
                                           <div className="flex items-start gap-2">
                                             <span className="text-[8px] font-black uppercase text-rose-500 bg-rose-50 dark:bg-rose-950/30 px-1 py-0.5 rounded border border-rose-200 dark:border-rose-900 w-10 text-center shrink-0">Antes</span>

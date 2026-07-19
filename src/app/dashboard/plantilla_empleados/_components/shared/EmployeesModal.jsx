@@ -23,6 +23,7 @@ import {
     finalizeFilterDropdownValues,
     defaultGetCellValue,
     normalizeForSearch,
+    formatDateEsMx,
 } from "@/utils/columnFilters";
 
 // --- CONSTANTS ---
@@ -113,6 +114,9 @@ const DEFAULT_COLUMN_KEYS = [
 const isMonoColumn = (key) => {
     return ["id_empleado", "posicion", "rfc", "curp", "nivel", "fecha_de_ingreso"].includes(key);
 };
+
+// 7.9 QA: formato de fecha consistente — todas las columnas de fecha de este modal empiezan con "fecha_".
+const isDateField = (key) => typeof key === 'string' && key.startsWith('fecha_');
 
 const COLUMN_LABEL_BY_KEY = ALL_AVAILABLE_COLUMNS.reduce((acc, col) => {
     acc[col.key] = col.label;
@@ -385,7 +389,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                         { label: "Nivel Salarial", value: record.nivel, isMono: true }
                     ].map((item, idx) => (
                         <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
-                            <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
+                            <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
                             <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
                                 {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
                             </span>
@@ -423,7 +427,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                                             const isClickable = hasValue && typeof clickHandler === "function";
                                             return (
                                                 <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
-                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
+                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
                                                         <HighlightText text={field.label} highlight={fieldSearch} />
                                                     </span>
                                                     <span
@@ -431,7 +435,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                                                         className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'} ${isClickable ? 'cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid' : ''}`}
                                                     >
                                                         {hasValue ? (
-                                                            <HighlightText text={String(field.value)} highlight={fieldSearch} />
+                                                            <HighlightText text={isDateField(field.key) ? formatDateEsMx(field.value) : String(field.value)} highlight={fieldSearch} />
                                                         ) : (
                                                             <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
                                                         )}
@@ -698,7 +702,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
                 } ${isMonoColumn(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}`}
                 title={value}
             >
-                {value !== undefined && value !== null && String(value).trim() !== "" ? String(value) : (
+                {value !== undefined && value !== null && String(value).trim() !== "" ? (isDateField(col.key) ? formatDateEsMx(value) : String(value)) : (
                     <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
                 )}
             </td>

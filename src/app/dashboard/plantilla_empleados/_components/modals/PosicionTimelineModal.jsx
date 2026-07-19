@@ -6,15 +6,12 @@ import { X, Users, Loader2, DollarSign, Briefcase, Calendar, ArrowRight } from "
 import { motion, AnimatePresence } from "framer-motion";
 import { VacantesService } from "@/services/vacantes.service";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
+import { formatDateEsMx } from "@/utils/columnFilters";
 
+// 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
   if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("es-MX", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  return formatDateEsMx(dateString);
 };
 
 const formatCurrency = (val) => {
@@ -227,14 +224,14 @@ export default function PosicionTimelineModal({ open, onOpenChange, posicion }) 
                     <div className="mt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-700/50 pt-3">
                       {occ.fue_baja ? (
                         <div className="flex flex-col">
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Motivo de Salida</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-500">Motivo de Salida</span>
                           <span className="text-xs font-black text-rose-600/80 dark:text-rose-400 uppercase tracking-tight">
                             {occ.ultimo_motivo || occ.ultima_accion || "Baja"}
                           </span>
                         </div>
                       ) : (
                         <div className="flex flex-col">
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Estatus</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-500">Estatus</span>
                           <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">
                             Ocupando Posición Actual
                           </span>

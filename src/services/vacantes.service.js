@@ -293,11 +293,13 @@ export const VacantesService = {
     /**
      * Obtiene la cadena de mando para una búsqueda dada.
      * @param {string} query - Texto de búsqueda.
+     * @param {Object} [params={}] - Parámetros extra.
+     * @param {('arriba'|'abajo')} [params.direction='arriba'] - 8.5 QA: 'arriba' (jefes, Bottom-Up, camino único) o 'abajo' (subordinados directos+indirectos, árbol completo).
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
-    getCadenaMando: (query, options = {}) => {
-        return apiFetch(`/plantilla/cadena_mando/?q=${encodeURIComponent(query)}`, {
+    getCadenaMando: (query, { direction = 'arriba' } = {}, options = {}) => {
+        return apiFetch(`/plantilla/cadena_mando/?q=${encodeURIComponent(query)}&direction=${encodeURIComponent(direction)}`, {
             method: 'GET',
             ...options
         });

@@ -194,7 +194,7 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
                 className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
               >
                 <span className="truncate">{s.value || "(Vacío)"}</span>
-                <span className="text-[9px] text-slate-400 shrink-0">{s.count}</span>
+                <span className="text-[9px] text-slate-500 shrink-0">{s.count}</span>
               </button>
             ))}
           </div>

@@ -26,7 +26,7 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts, normalizeForSearch } from "@/utils/columnFilters";
+import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts, normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -1250,8 +1250,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         </Tooltip>
       );
     }
-    return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (String(value))}</td>);
-  }, [isMonoColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog]);
+    return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
+  }, [isMonoColumn, isDateColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
@@ -1425,7 +1425,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch max-w-6xl mx-auto">
             {/* Donut Chart */}
             <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">
-              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
+              <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
               <div className="relative size-28 flex items-center justify-center">
                 <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none">
                   <defs>
@@ -1554,7 +1554,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                         >
                           <IconComponent className="size-3.5" />
                         </div>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 truncate">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">
                           {card.label}
                         </span>
                       </div>
@@ -1584,7 +1584,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                             className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
                               activeOcupacionFilter === "Ocupada"
                                 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                                : "bg-slate-50 dark:bg-slate-800/40 text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:text-emerald-600 hover:border-emerald-300"
+                                : "bg-slate-50 dark:bg-slate-800/40 text-slate-500 border-slate-200/60 dark:border-slate-700/60 hover:text-emerald-600 hover:border-emerald-300"
                             }`}
                           >
                             <UserCheck className="size-3" /> Ocupadas
@@ -1594,7 +1594,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                             className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
                               activeOcupacionFilter === "Vacante"
                                 ? "bg-[#bc955c]/10 text-[#8d6a3d] dark:text-[#ebd1ac] border-[#bc955c]/30"
-                                : "bg-slate-50 dark:bg-slate-800/40 text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:text-[#bc955c] hover:border-[#bc955c]/40"
+                                : "bg-slate-50 dark:bg-slate-800/40 text-slate-500 border-slate-200/60 dark:border-slate-700/60 hover:text-[#bc955c] hover:border-[#bc955c]/40"
                             }`}
                           >
                             <Briefcase className="size-3" /> Vacantes
@@ -1638,7 +1638,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   {searchQuery && <button onClick={() => { setSearchQuery(""); startTransition(() => setGlobalSearch("")); }} className="text-slate-400 hover:text-slate-600 ml-1.5"><X className="size-3.5" /></button>}
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
-                  <span className="text-[9px] font-black uppercase text-slate-400 leading-none mb-1">Registros</span>
+                  <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
                 </div>
               </div>
@@ -2064,12 +2064,12 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
                                 <div className="flex items-center gap-3 text-xs bg-slate-50 dark:bg-slate-900/50 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-800">
                                   <div className="flex flex-col">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Fecha Efectiva</span>
+                                    <span className="text-[9px] text-slate-500 font-bold uppercase">Fecha Efectiva</span>
                                     <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{row.f_efva || '-'}</span>
                                   </div>
                                   <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
                                   <div className="flex flex-col">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">Fecha Captura</span>
+                                    <span className="text-[9px] text-slate-500 font-bold uppercase">Fecha Captura</span>
                                     <span className="font-mono font-bold text-slate-600 dark:text-slate-400">{row.fecha_captura || '-'}</span>
                                   </div>
                                 </div>
@@ -2296,14 +2296,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                         >
                           <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors group">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em]">Fecha de Vacancia</span>
+                              <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em]">Fecha de Vacancia</span>
                               <Calendar className="size-3.5 text-slate-400 group-hover:text-[#bc955c] transition-colors" />
                             </div>
                             <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{vacanciaDetalle.fecha_vacancia || '—'}</p>
                           </div>
                           <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors group">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em]">
+                              <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em]">
                                 {vacanciaDetalle.categoria_vacancia === "B" ? "Posición Destino" : "Nº Posición"}
                               </span>
                               <Hash className="size-3.5 text-slate-400 group-hover:text-[#bc955c] transition-colors" />
@@ -2330,7 +2330,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                 }
                               </div>
                               <div className="min-w-0 flex-1">
-                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] block mb-1">
+                                <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] block mb-1">
                                   {vacanciaDetalle.categoria_vacancia === "A" ? "Empleado Saliente (Baja)" : "Empleado Trasladado"}
                                 </span>
                                 <h4 className="text-sm font-extrabold text-slate-850 dark:text-slate-100 truncate" title={vacanciaDetalle.empleado?.nombre_completo}>
@@ -2354,7 +2354,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                             >
                               <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                                 <div>
-                                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2 block">
+                                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-2 block">
                                     {vacanciaDetalle.categoria_vacancia === "A" ? "Motivo de Baja" : "Motivo del Cambio"}
                                   </label>
                                   <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">{vacanciaDetalle.motivo_nombre || '—'}</p>
@@ -2370,7 +2370,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                               
                               <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                                 <div>
-                                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-2 block">Acción Administrativa</label>
+                                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-2 block">Acción Administrativa</label>
                                   <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug">{vacanciaDetalle.accion_nombre || '—'}</p>
                                 </div>
                                 {vacanciaDetalle.accion && (
@@ -2397,7 +2397,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                               <Eye className="size-4.5" />
                             </div>
                             <div className="flex-1">
-                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] block mb-1">Nota del Sistema</span>
+                              <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] block mb-1">Nota del Sistema</span>
                               <p className="text-xs font-medium text-slate-650 dark:text-slate-400 leading-relaxed">
                                 Esta posición nunca ha tenido un ocupante registrado. Las fechas y detalles reflejados corresponden al primer movimiento documentado en el historial de esta plaza.
                               </p>
@@ -2413,11 +2413,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                           className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 grid grid-cols-2 gap-4 divide-x divide-slate-200/60 dark:divide-slate-800/80"
                         >
                           <div className="flex flex-col">
-                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5">Fecha Efectiva</label>
+                            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-1.5">Fecha Efectiva</label>
                             <p className={`text-sm font-extrabold ${catStyle.accent}`}>{vacanciaDetalle.fecha_efectiva || '—'}</p>
                           </div>
                           <div className="flex flex-col pl-4">
-                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.15em] mb-1.5">Fecha de Captura</label>
+                            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-1.5">Fecha de Captura</label>
                             <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{vacanciaDetalle.fecha_captura || '—'}</p>
                           </div>
                         </motion.div>

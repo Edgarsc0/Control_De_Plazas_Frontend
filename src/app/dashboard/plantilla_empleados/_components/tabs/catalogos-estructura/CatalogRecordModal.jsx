@@ -10,12 +10,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Trash2, Save, Loader2, ShieldCheck } from "lucide-react";
+import { formatDateEsMx } from "@/utils/columnFilters";
 
+// 7.9 QA: DD/MM/AAAA HH:mm — antes "18 jul 2026, 09:15" (formato distinto al resto del módulo).
 function formatAuditDate(value) {
   if (!value) return "—";
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return String(value);
-  return d.toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" });
+  return formatDateEsMx(value, { withTime: true });
 }
 
 /**

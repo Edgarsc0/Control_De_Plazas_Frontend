@@ -273,7 +273,7 @@ function DataTable({
             <>
               <tr>
                 <th rowSpan={2} className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
-                <th rowSpan={2} className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">{rowActionHeaderLabel}</span></th>
+                <th rowSpan={2} className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-500">{rowActionHeaderLabel}</span></th>
                 {headerGroupRuns.map((run) => {
                   if (run.type === 'group') {
                     return (
@@ -364,7 +364,7 @@ function DataTable({
           ) : (
           <tr>
             <th className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
-            <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-300">{rowActionHeaderLabel}</span></th>
+            <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-500">{rowActionHeaderLabel}</span></th>
             {visible.map((col, index, arr) => {
               const isSticky = index < 2;
               let leftOffset = 95;
