@@ -544,6 +544,20 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     return stats;
   }, [cadenaDisplayRoot]);
 
+  // Filas de la gráfica de barras apiladas de niveles (Directos + Indirectos),
+  // ordenadas por total descendente. maxTotal escala el ancho de las barras.
+  const cadenaNivelesChart = useMemo(() => {
+    if (!cadenaStats) return null;
+    const niveles = new Set([...cadenaStats.nivelesDir.keys(), ...cadenaStats.nivelesInd.keys()]);
+    if (niveles.size === 0) return null;
+    const rows = [...niveles].map((nivel) => {
+      const dir = cadenaStats.nivelesDir.get(nivel) || 0;
+      const ind = cadenaStats.nivelesInd.get(nivel) || 0;
+      return { nivel, dir, ind, total: dir + ind };
+    }).sort((a, b) => b.total - a.total || a.nivel.localeCompare(b.nivel, undefined, { numeric: true }));
+    return { rows, maxTotal: rows[0].total };
+  }, [cadenaStats]);
+
   // Búsqueda + filtros dentro del árbol: matched = nodos que cumplen todo;
   // visible = matched + ancestros (contexto atenuado para no perder la ruta).
   const cadenaFilterResult = useMemo(() => {
@@ -2107,29 +2121,63 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                           </div>
                         )}
 
-                        {/* Distribución de niveles por directos / indirectos (clic = filtrar) */}
-                        {[
-                          { label: "Niveles · Directos", bucket: cadenaStats.nivelesDir },
-                          { label: "Niveles · Indirectos", bucket: cadenaStats.nivelesInd },
-                        ].map(({ label, bucket }) => bucket.size > 0 && (
-                          <div key={label} className="flex items-start gap-1.5 flex-wrap mb-2 px-1 max-h-20 overflow-y-auto custom-scrollbar">
-                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-1 mt-1">{label}:</span>
-                            {[...bucket.entries()].sort((a, b) => b[1] - a[1]).map(([nivel, count]) => {
-                              const active = cadenaNivelFilter.has(nivel);
-                              return (
-                                <button
-                                  key={nivel}
-                                  type="button"
-                                  onClick={() => toggleCadenaNivelFilter(nivel)}
-                                  className={`px-2 py-0.5 text-[10px] font-black font-mono rounded-lg border transition-all cursor-pointer ${active ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] border-transparent shadow-sm" : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40"}`}
-                                  title={active ? "Quitar filtro" : `Filtrar por nivel ${nivel}`}
-                                >
-                                  {nivel} ×{count}
-                                </button>
-                              );
-                            })}
+                        {/* Distribución de niveles: barras apiladas Directos/Indirectos.
+                            Paleta validada (CVD + contraste) sobre blanco/#0f172a:
+                            light #93304a/#b8823a · dark #d65f85/#b08a26. Clic en
+                            fila = filtrar por ese nivel. */}
+                        {cadenaNivelesChart && (
+                          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 mb-2">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Distribución de niveles</p>
+                              <div className="flex items-center gap-3">
+                                <span className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                                  <span className="size-2 rounded-[2px] bg-[#93304a] dark:bg-[#d65f85]" />Directos
+                                </span>
+                                <span className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                                  <span className="size-2 rounded-[2px] bg-[#b8823a] dark:bg-[#b08a26]" />Indirectos
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                              {cadenaNivelesChart.rows.map(({ nivel, dir, ind, total }) => {
+                                const active = cadenaNivelFilter.has(nivel);
+                                const dimmed = cadenaNivelFilter.size > 0 && !active;
+                                return (
+                                  <Tooltip key={nivel}>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleCadenaNivelFilter(nivel)}
+                                        className={`w-full flex items-center gap-2 py-0.5 px-1 rounded-lg transition-all cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 ${active ? "bg-slate-50 dark:bg-slate-800/60 ring-1 ring-[#621f32]/40 dark:ring-[#bc955c]/40" : ""} ${dimmed ? "opacity-40" : ""}`}
+                                        title={active ? "Quitar filtro" : `Filtrar por nivel ${nivel}`}
+                                      >
+                                        <span className="shrink-0 w-16 text-right text-[10px] font-black font-mono text-slate-600 dark:text-slate-300 truncate">{nivel}</span>
+                                        <span className="flex-1 flex items-center h-3.5 min-w-0">
+                                          {dir > 0 && (
+                                            <span
+                                              className={`h-full bg-[#93304a] dark:bg-[#d65f85] ${ind === 0 ? "rounded-r-[4px]" : "mr-[2px]"}`}
+                                              style={{ width: `${Math.max((dir / cadenaNivelesChart.maxTotal) * 100, 1.5)}%` }}
+                                            />
+                                          )}
+                                          {ind > 0 && (
+                                            <span
+                                              className="h-full bg-[#b8823a] dark:bg-[#b08a26] rounded-r-[4px]"
+                                              style={{ width: `${Math.max((ind / cadenaNivelesChart.maxTotal) * 100, 1.5)}%` }}
+                                            />
+                                          )}
+                                        </span>
+                                        <span className="shrink-0 w-10 text-left text-[10px] font-black text-slate-600 dark:text-slate-300">{formatNumber(total)}</span>
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      <p className="text-[11px] font-bold">{nivel}: {formatNumber(dir)} directo{dir === 1 ? "" : "s"} · {formatNumber(ind)} indirecto{ind === 1 ? "" : "s"} · {formatNumber(total)} total</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ))}
+                        )}
                       </>
                     )}
 
