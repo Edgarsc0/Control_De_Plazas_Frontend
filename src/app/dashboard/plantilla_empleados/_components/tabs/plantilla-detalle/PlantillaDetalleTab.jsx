@@ -67,6 +67,11 @@ const formatNumber = (num) => {
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
+// Cadena de mando descendente: el backend no manda estado_nomina para estos
+// nodos, solo `Nombres` (Empleado) vía LEFT JOIN implícito de la posición —
+// vacía/ausente = posición vacante.
+const isNodoVacante = (node) => !node?.Empleado || String(node.Empleado).trim() === "";
+
 // Configuración de todas las claves posibles (fuera del componente para evitar re-creación)
 const ALL_DETAIL_KEYS = [
   "posicion", "estado_nomina", "id_empleado", "rfc", "curp", "nombres", "motivo", 
@@ -97,10 +102,25 @@ const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_previst
 function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }) {
   const hasChildren = node.children.length > 0;
   const isExpanded = isRoot || expandedNodes.has(node.Posicion);
+  const isVacante = isNodoVacante(node);
+  // Hijos ya vienen ordenados (ocupados primero, vacantes al final) desde
+  // cadenaTree; aquí solo se cuentan para el resumen del badge.
+  const ocupadosDirectos = node.children.reduce((acc, c) => acc + (isNodoVacante(c) ? 0 : 1), 0);
+  const vacantesDirectos = node.children.length - ocupadosDirectos;
+  const statusStyle = isVacante ? STATUS_BADGE_STYLES["Vacante"] : STATUS_BADGE_STYLES["Activo"];
+  const StatusIcon = isVacante ? STATUS_ICONS["Vacante"] : STATUS_ICONS["Activo"];
 
   return (
     <div className={depth > 0 ? "ml-5 sm:ml-7 border-l-2 border-slate-200 dark:border-slate-800 pl-4 sm:pl-5" : ""}>
-      <div className={`flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors ${isRoot ? "bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/15 dark:border-[#bc955c]/20" : "hover:bg-slate-50 dark:hover:bg-slate-900/60"}`}>
+      <div
+        className={`flex items-center gap-3 py-2.5 px-3 rounded-xl border transition-colors ${
+          isRoot
+            ? "bg-[#621f32]/5 dark:bg-[#bc955c]/10 border-[#621f32]/15 dark:border-[#bc955c]/20"
+            : isVacante
+              ? "border-dashed border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+              : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-900/60"
+        }`}
+      >
         <button
           type="button"
           onClick={() => hasChildren && onToggle(node.Posicion)}
@@ -110,19 +130,36 @@ function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }
         >
           {hasChildren ? (isExpanded ? <ChevronDown className="size-4" /> : <ChevronRightIcon className="size-4" />) : <span className="size-1.5 rounded-full bg-current" />}
         </button>
+        <div className={`shrink-0 size-8 rounded-full flex items-center justify-center border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+          <StatusIcon className="size-4" />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-black truncate ${isRoot ? "text-base text-slate-900 dark:text-white" : "text-sm text-slate-700 dark:text-slate-200"}`}>
-              {node.Empleado || "Sin Nombre"}
+            <span className={`font-black truncate ${isRoot ? "text-base text-slate-900 dark:text-white" : isVacante ? "text-sm text-slate-400 dark:text-slate-500 italic" : "text-sm text-slate-700 dark:text-slate-200"}`}>
+              {isVacante ? "Posición vacante" : node.Empleado}
             </span>
             {isRoot && <span className="shrink-0 px-2 py-0.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[9px] font-black uppercase rounded-full">Consultado</span>}
+            {!isRoot && (
+              <span className={`shrink-0 px-2 py-0.5 text-[9px] font-black uppercase rounded-full border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                {isVacante ? "Vacante" : "Ocupada"}
+              </span>
+            )}
             {hasChildren && (
-              <span className="shrink-0 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-black rounded-full">
-                {node.children.length} directo{node.children.length === 1 ? "" : "s"}
+              <span className="shrink-0 flex items-center gap-1">
+                {ocupadosDirectos > 0 && (
+                  <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${STATUS_BADGE_STYLES["Activo"].bg} ${STATUS_BADGE_STYLES["Activo"].text} ${STATUS_BADGE_STYLES["Activo"].border}`}>
+                    {ocupadosDirectos} ocupado{ocupadosDirectos === 1 ? "" : "s"}
+                  </span>
+                )}
+                {vacantesDirectos > 0 && (
+                  <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${STATUS_BADGE_STYLES["Vacante"].bg} ${STATUS_BADGE_STYLES["Vacante"].text} ${STATUS_BADGE_STYLES["Vacante"].border}`}>
+                    {vacantesDirectos} vacante{vacantesDirectos === 1 ? "" : "s"}
+                  </span>
+                )}
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold truncate">{node.Puesto_Funcional || "Puesto no especificado"}</p>
+          <p className={`text-xs font-bold truncate ${isVacante ? "text-slate-400 dark:text-slate-600" : "text-slate-500 dark:text-slate-400"}`}>{node.Puesto_Funcional || "Puesto no especificado"}</p>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
             POS: {node.Posicion}{node.Nivel && <span className="ml-2">NIVEL: {node.Nivel}</span>}
           </p>
@@ -269,16 +306,22 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
 
-  const handleBuscarCadena = async (e, direction = cadenaDirection) => {
+  // `queryOverride`: al elegir una sugerencia el input se rellena con
+  // "Posición - Nombre" (más legible) pero el backend necesita solo la
+  // posición para el match exacto; además evita leer `cadenaQuery` del
+  // closure justo después de un setCadenaQuery (estado aún no actualizado).
+  const handleBuscarCadena = async (e, direction = cadenaDirection, queryOverride = null) => {
     e?.preventDefault();
-    if (!cadenaQuery.trim()) return;
+    const raw = (queryOverride ?? cadenaQuery).trim();
+    if (!raw) return;
+    const searchTerm = raw.includes(" - ") ? raw.split(" - ")[0].trim() : raw;
     setShowCadenaSuggestions(false);
     setIsCadenaLoading(true);
     setCadenaError(null);
     setCadenaData(null);
     setExpandedCadenaNodes(new Set());
     try {
-      const response = await VacantesService.getCadenaMando(cadenaQuery.trim(), { direction });
+      const response = await VacantesService.getCadenaMando(searchTerm, { direction });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || data.detail || "Error al buscar la cadena de mando");
@@ -322,7 +365,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
       childrenByParent.get(parentKey).push(nodo);
     });
-    const buildNode = (nodo) => ({ ...nodo, children: (childrenByParent.get(nodo.Posicion) || []).map(buildNode) });
+    // Ocupadas al inicio, vacantes hasta el final (dentro de cada nivel);
+    // sort es estable, así que conserva el orden original (por posición) dentro de cada grupo.
+    const buildNode = (nodo) => ({
+      ...nodo,
+      children: (childrenByParent.get(nodo.Posicion) || [])
+        .map(buildNode)
+        .sort((a, b) => Number(isNodoVacante(a)) - Number(isNodoVacante(b))),
+    });
     return root ? buildNode(root) : null;
   }, [cadenaDirection, cadenaData]);
 
@@ -1632,8 +1682,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                             key={idx}
                             type="button"
                             onClick={() => {
-                              setCadenaQuery(sug.posicion || sug.numempleado);
-                              setShowCadenaSuggestions(false);
+                              const label = sug.posicion
+                                ? (sug.nombres?.trim() ? `${sug.posicion} - ${sug.nombres.trim()}` : sug.posicion)
+                                : sug.numempleado;
+                              setCadenaQuery(label);
+                              handleBuscarCadena(null, cadenaDirection, label);
                             }}
                             className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0 flex flex-col transition-colors group"
                           >
