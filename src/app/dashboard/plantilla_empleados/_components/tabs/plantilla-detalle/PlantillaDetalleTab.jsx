@@ -67,10 +67,16 @@ const formatNumber = (num) => {
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-// Cadena de mando descendente: el backend no manda estado_nomina para estos
-// nodos, solo `Nombres` (Empleado) vía LEFT JOIN implícito de la posición —
-// vacía/ausente = posición vacante.
-const isNodoVacante = (node) => !node?.Empleado || String(node.Empleado).trim() === "";
+// Cadena de mando: el backend ya manda `Estado_Nomina` real por nodo (A/S/L/P
+// o vacío = vacante). Fallback para respuestas viejas sin el campo: nombre
+// vacío = posición vacante.
+const getNodoEstado = (node) => {
+  if (node?.Estado_Nomina !== undefined && node?.Estado_Nomina !== null) {
+    return mapEstadoNomina(String(node.Estado_Nomina));
+  }
+  return !node?.Empleado || String(node.Empleado).trim() === "" ? "Vacante" : "Activo";
+};
+const isNodoVacante = (node) => getNodoEstado(node) === "Vacante";
 
 // Configuración de todas las claves posibles (fuera del componente para evitar re-creación)
 const ALL_DETAIL_KEYS = [
@@ -99,21 +105,54 @@ const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_previst
  * Colapsado por defecto salvo la raíz, para no reventar el layout con
  * organigramas grandes.
  */
-function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }) {
+function CadenaTreeNode({
+  node, depth, expandedNodes, onToggle, isRoot = false,
+  // Filtro/búsqueda dentro del árbol: visibleSet = nodos a renderizar (matches
+  // + sus ancestros como contexto atenuado); null = sin filtro, todo visible.
+  filterActive = false, visibleSet = null, matchedSet = null,
+  // Catálogo departamento→{nombre, nivel} de ORGANIGRAMA_ANAM (isSIGInfo=1).
+  deptoCatalog = null,
+  // Agrupación de vacantes hoja y drill-down de rama.
+  expandedVacGroups, onToggleVacGroup, onFocusNode,
+  // Poda "solo directos": no renderizar hijos a partir de esta profundidad.
+  maxDepth = Infinity,
+}) {
   const hasChildren = node.children.length > 0;
-  const isExpanded = isRoot || expandedNodes.has(node.Posicion);
-  const isVacante = isNodoVacante(node);
+  const canShowChildren = hasChildren && depth < maxDepth;
+  // Con filtro activo se fuerza expansión: los visibles son matches y su
+  // cadena de ancestros, colapsarlos escondería justo lo buscado.
+  const isExpanded = filterActive ? true : (isRoot || expandedNodes.has(node.Posicion));
+  const estado = getNodoEstado(node);
+  const isVacante = estado === "Vacante";
+  const isDimmed = filterActive && matchedSet && !matchedSet.has(node.Posicion);
   // Hijos ya vienen ordenados (ocupados primero, vacantes al final) desde
   // cadenaTree; aquí solo se cuentan para el resumen del badge.
   const ocupadosDirectos = node.children.reduce((acc, c) => acc + (isNodoVacante(c) ? 0 : 1), 0);
   const vacantesDirectos = node.children.length - ocupadosDirectos;
-  const statusStyle = isVacante ? STATUS_BADGE_STYLES["Vacante"] : STATUS_BADGE_STYLES["Activo"];
-  const StatusIcon = isVacante ? STATUS_ICONS["Vacante"] : STATUS_ICONS["Activo"];
+  const statusStyle = STATUS_BADGE_STYLES[estado] || STATUS_BADGE_STYLES["Vacante"];
+  const StatusIcon = STATUS_ICONS[estado] || STATUS_ICONS["Vacante"];
+  const deptoInfo = getDeptoInfo(deptoCatalog, node.Id_Departamento);
+  const sinMatchSig = !!deptoCatalog && !!String(node.Id_Departamento || "").trim() && !deptoInfo;
+
+  // Vacantes hoja (sin subordinados) se agrupan en una sola fila expandible
+  // cuando son 4+, para no ahogar el árbol; con filtro activo se muestran
+  // normales (podrían ser justo el resultado buscado).
+  const visibleChildren = visibleSet ? node.children.filter(c => visibleSet.has(c.Posicion)) : node.children;
+  const vacantesHoja = [];
+  const hijosNormales = [];
+  visibleChildren.forEach(c => {
+    if (isNodoVacante(c) && c.children.length === 0) vacantesHoja.push(c);
+    else hijosNormales.push(c);
+  });
+  const agruparVacantes = !filterActive && vacantesHoja.length > 3;
+  const grupoExpandido = agruparVacantes && expandedVacGroups?.has(node.Posicion);
+
+  const childProps = { expandedNodes, onToggle, filterActive, visibleSet, matchedSet, deptoCatalog, expandedVacGroups, onToggleVacGroup, onFocusNode, maxDepth };
 
   return (
     <div className={depth > 0 ? "ml-5 sm:ml-7 border-l-2 border-slate-200 dark:border-slate-800 pl-4 sm:pl-5" : ""}>
       <div
-        className={`flex items-center gap-3 py-2.5 px-3 rounded-xl border transition-colors ${
+        className={`group/nodo flex items-center gap-3 py-2.5 px-3 rounded-xl border transition-colors ${isDimmed ? "opacity-50" : ""} ${
           isRoot
             ? "bg-[#621f32]/5 dark:bg-[#bc955c]/10 border-[#621f32]/15 dark:border-[#bc955c]/20"
             : isVacante
@@ -123,12 +162,12 @@ function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }
       >
         <button
           type="button"
-          onClick={() => hasChildren && onToggle(node.Posicion)}
-          disabled={!hasChildren}
-          className={`shrink-0 size-6 flex items-center justify-center rounded-lg transition-colors ${hasChildren ? "text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer" : "text-slate-300 dark:text-slate-700"}`}
-          title={hasChildren ? (isExpanded ? "Colapsar" : "Expandir") : "Sin subordinados"}
+          onClick={() => canShowChildren && onToggle(node.Posicion)}
+          disabled={!canShowChildren}
+          className={`shrink-0 size-6 flex items-center justify-center rounded-lg transition-colors ${canShowChildren ? "text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer" : "text-slate-300 dark:text-slate-700"}`}
+          title={canShowChildren ? (isExpanded ? "Colapsar" : "Expandir") : "Sin subordinados"}
         >
-          {hasChildren ? (isExpanded ? <ChevronDown className="size-4" /> : <ChevronRightIcon className="size-4" />) : <span className="size-1.5 rounded-full bg-current" />}
+          {canShowChildren ? (isExpanded ? <ChevronDown className="size-4" /> : <ChevronRightIcon className="size-4" />) : <span className="size-1.5 rounded-full bg-current" />}
         </button>
         <div className={`shrink-0 size-8 rounded-full flex items-center justify-center border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
           <StatusIcon className="size-4" />
@@ -141,7 +180,7 @@ function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }
             {isRoot && <span className="shrink-0 px-2 py-0.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[9px] font-black uppercase rounded-full">Consultado</span>}
             {!isRoot && (
               <span className={`shrink-0 px-2 py-0.5 text-[9px] font-black uppercase rounded-full border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
-                {isVacante ? "Vacante" : "Ocupada"}
+                {estado === "Activo" ? "Ocupada" : estado}
               </span>
             )}
             {hasChildren && (
@@ -158,17 +197,73 @@ function CadenaTreeNode({ node, depth, expandedNodes, onToggle, isRoot = false }
                 )}
               </span>
             )}
+            {sinMatchSig && (
+              <span className="shrink-0 px-2 py-0.5 text-[9px] font-black uppercase rounded-full border bg-amber-50/60 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-900/40" title="El código de departamento no existe en ORGANIGRAMA_ANAM (isSIGInfo=1)">
+                Sin match SIG
+              </span>
+            )}
+            {hasChildren && !isRoot && onFocusNode && (
+              <button
+                type="button"
+                onClick={() => onFocusNode(node.Posicion)}
+                className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 opacity-0 group-hover/nodo:opacity-100 transition-all cursor-pointer"
+                title="Enfocar esta rama"
+              >
+                <Eye className="size-3.5" />
+              </button>
+            )}
           </div>
           <p className={`text-xs font-bold truncate ${isVacante ? "text-slate-400 dark:text-slate-600" : "text-slate-500 dark:text-slate-400"}`}>{node.Puesto_Funcional || "Puesto no especificado"}</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-            POS: {node.Posicion}{node.Nivel && <span className="ml-2">NIVEL: {node.Nivel}</span>}
+          {(deptoInfo || node.Departamento || node.Unidad_Administrativa) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 truncate mt-0.5 cursor-help w-fit max-w-full">
+                  <span className="text-slate-500 dark:text-slate-400">{deptoInfo?.nombre || node.Departamento || "Departamento no especificado"}</span>
+                  {deptoInfo?.nivel && <span className="ml-1.5 px-1.5 py-px rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase text-[8px] font-black">{deptoInfo.nivel}</span>}
+                </p>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                <div className="text-[11px] space-y-1">
+                  <p><span className="font-black uppercase text-[9px] opacity-70">Unidad de Negocio:</span> {node.Cd_UN ? `${node.Cd_UN} — ` : ""}{node.Unidad_Negocio || "—"}</p>
+                  <p><span className="font-black uppercase text-[9px] opacity-70">Unidad Administrativa:</span> {node.Cd_UA ? `${node.Cd_UA} — ` : ""}{node.Unidad_Administrativa || "—"}</p>
+                  <p><span className="font-black uppercase text-[9px] opacity-70">Departamento:</span> {node.Id_Departamento || "—"}</p>
+                  <p><span className="font-black uppercase text-[9px] opacity-70">Nombre SIG:</span> {deptoInfo?.nombre || "Sin match en organigrama SIG"}</p>
+                  {deptoInfo?.nivel && <p><span className="font-black uppercase text-[9px] opacity-70">Nivel dirección:</span> {deptoInfo.nivel}</p>}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate">
+            POS: {node.Posicion}
+            {node.Nivel && <span className="ml-2">NIVEL: {node.Nivel}</span>}
+            {node.Cd_UA && <span className="ml-2">UA: {node.Cd_UA}</span>}
+            {node.Cd_UN && <span className="ml-2">UN: {node.Cd_UN}</span>}
+            {node.Id_Departamento && <span className="ml-2">DEPTO: {node.Id_Departamento}</span>}
+            {hasChildren && !isRoot && <span className="ml-2 text-[#621f32]/60 dark:text-[#bc955c]/60 font-bold">{node.totalDescendants} en rama</span>}
           </p>
         </div>
       </div>
-      {hasChildren && isExpanded && (
+      {canShowChildren && isExpanded && (
         <div className="flex flex-col gap-1 mt-1">
-          {node.children.map(child => (
-            <CadenaTreeNode key={child.Posicion} node={child} depth={depth + 1} expandedNodes={expandedNodes} onToggle={onToggle} />
+          {hijosNormales.map(child => (
+            <CadenaTreeNode key={child.Posicion} node={child} depth={depth + 1} {...childProps} />
+          ))}
+          {agruparVacantes ? (
+            <div className="ml-5 sm:ml-7 border-l-2 border-slate-200 dark:border-slate-800 pl-4 sm:pl-5">
+              <button
+                type="button"
+                onClick={() => onToggleVacGroup?.(node.Posicion)}
+                className="w-full flex items-center gap-2 py-2 px-3 rounded-xl border border-dashed border-[#bc955c]/40 dark:border-[#bc955c]/30 bg-[#bc955c]/5 dark:bg-[#bc955c]/10 text-left hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/15 transition-colors cursor-pointer"
+              >
+                {grupoExpandido ? <ChevronDown className="size-4 text-[#a37944] dark:text-[#ebd1ac]" /> : <ChevronRightIcon className="size-4 text-[#a37944] dark:text-[#ebd1ac]" />}
+                <UserMinus className="size-4 text-[#a37944] dark:text-[#ebd1ac]" />
+                <span className="text-xs font-black text-[#a37944] dark:text-[#ebd1ac]">{vacantesHoja.length} posiciones vacantes</span>
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{grupoExpandido ? "(clic para agrupar)" : "(clic para desglosar)"}</span>
+              </button>
+            </div>
+          ) : null}
+          {(agruparVacantes ? (grupoExpandido ? vacantesHoja : []) : vacantesHoja).map(child => (
+            <CadenaTreeNode key={child.Posicion} node={child} depth={depth + 1} {...childProps} />
           ))}
         </div>
       )}
@@ -302,6 +397,22 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   }, [cadenaQuery, detalle]);
   const [isCadenaLoading, setIsCadenaLoading] = useState(false);
   const [cadenaError, setCadenaError] = useState(null);
+  // Herramientas del árbol descendente: búsqueda/filtros internos, agrupación
+  // de vacantes hoja y drill-down ("enfocar rama").
+  const [cadenaTreeSearch, setCadenaTreeSearch] = useState("");
+  const [cadenaEstadoFilter, setCadenaEstadoFilter] = useState(() => new Set());
+  const [cadenaNivelFilter, setCadenaNivelFilter] = useState(() => new Set());
+  const [cadenaSoloDirectos, setCadenaSoloDirectos] = useState(false);
+  const [expandedVacGroups, setExpandedVacGroups] = useState(() => new Set());
+  const [cadenaFocusPos, setCadenaFocusPos] = useState(null);
+  const resetCadenaTreeTools = useCallback(() => {
+    setCadenaTreeSearch("");
+    setCadenaEstadoFilter(new Set());
+    setCadenaNivelFilter(new Set());
+    setCadenaSoloDirectos(false);
+    setExpandedVacGroups(new Set());
+    setCadenaFocusPos(null);
+  }, []);
   useEscapeToClose(isCadenaModalOpen, () => setIsCadenaModalOpen(false));
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
@@ -320,6 +431,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setCadenaError(null);
     setCadenaData(null);
     setExpandedCadenaNodes(new Set());
+    resetCadenaTreeTools();
     try {
       const response = await VacantesService.getCadenaMando(searchTerm, { direction });
       const data = await response.json();
@@ -367,21 +479,147 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     });
     // Ocupadas al inicio, vacantes hasta el final (dentro de cada nivel);
     // sort es estable, así que conserva el orden original (por posición) dentro de cada grupo.
-    const buildNode = (nodo) => ({
-      ...nodo,
-      children: (childrenByParent.get(nodo.Posicion) || [])
+    // `totalDescendants` se precalcula aquí una vez (badge "N en rama" por nodo).
+    const buildNode = (nodo) => {
+      const children = (childrenByParent.get(nodo.Posicion) || [])
         .map(buildNode)
-        .sort((a, b) => Number(isNodoVacante(a)) - Number(isNodoVacante(b))),
-    });
+        .sort((a, b) => Number(isNodoVacante(a)) - Number(isNodoVacante(b)));
+      return {
+        ...nodo,
+        children,
+        totalDescendants: children.reduce((acc, c) => acc + 1 + c.totalDescendants, 0),
+      };
+    };
     return root ? buildNode(root) : null;
   }, [cadenaDirection, cadenaData]);
 
-  const countDescendants = useCallback((node) => (
-    node.children.reduce((acc, c) => acc + 1 + countDescendants(c), 0)
-  ), []);
+  // Drill-down: raíz mostrada = nodo enfocado (o la raíz consultada).
+  const cadenaDisplayRoot = useMemo(() => {
+    if (!cadenaTree) return null;
+    if (!cadenaFocusPos) return cadenaTree;
+    const find = (n) => (n.Posicion === cadenaFocusPos ? n : n.children.reduce((f, c) => f || find(c), null));
+    return find(cadenaTree) || cadenaTree;
+  }, [cadenaTree, cadenaFocusPos]);
+
+  // Camino raíz→nodo enfocado para el breadcrumb; null si no hay enfoque.
+  const cadenaBreadcrumb = useMemo(() => {
+    if (!cadenaTree || !cadenaFocusPos || cadenaFocusPos === cadenaTree.Posicion) return null;
+    const path = [];
+    const walk = (n, acc) => {
+      const next = [...acc, n];
+      if (n.Posicion === cadenaFocusPos) { path.push(...next); return true; }
+      return n.children.some((c) => walk(c, next));
+    };
+    walk(cadenaTree, []);
+    return path.length > 1 ? path : null;
+  }, [cadenaTree, cadenaFocusPos]);
+
+  // Resumen del subárbol mostrado: directos vs indirectos, ocupadas/vacantes,
+  // profundidad y distribución de niveles por grupo (chips clicables = filtro).
+  const cadenaStats = useMemo(() => {
+    if (!cadenaDisplayRoot) return null;
+    const stats = {
+      directos: 0, indirectos: 0,
+      ocupadasDir: 0, vacantesDir: 0, ocupadasInd: 0, vacantesInd: 0,
+      profundidad: 0,
+      nivelesDir: new Map(), nivelesInd: new Map(),
+      estados: new Map(),
+    };
+    const walk = (n, depth) => {
+      n.children.forEach((c) => {
+        const esDirecto = depth === 0;
+        const vacante = isNodoVacante(c);
+        if (esDirecto) { stats.directos++; vacante ? stats.vacantesDir++ : stats.ocupadasDir++; }
+        else { stats.indirectos++; vacante ? stats.vacantesInd++ : stats.ocupadasInd++; }
+        const nivel = String(c.Nivel || "").trim() || "Sin nivel";
+        const bucket = esDirecto ? stats.nivelesDir : stats.nivelesInd;
+        bucket.set(nivel, (bucket.get(nivel) || 0) + 1);
+        const estado = getNodoEstado(c);
+        stats.estados.set(estado, (stats.estados.get(estado) || 0) + 1);
+        stats.profundidad = Math.max(stats.profundidad, depth + 1);
+        walk(c, depth + 1);
+      });
+    };
+    walk(cadenaDisplayRoot, 0);
+    return stats;
+  }, [cadenaDisplayRoot]);
+
+  // Búsqueda + filtros dentro del árbol: matched = nodos que cumplen todo;
+  // visible = matched + ancestros (contexto atenuado para no perder la ruta).
+  const cadenaFilterResult = useMemo(() => {
+    const inactive = { active: false, matchedSet: null, visibleSet: null, matchCount: 0 };
+    if (!cadenaDisplayRoot) return inactive;
+    const q = normalizeForSearch(cadenaTreeSearch.trim());
+    const hasSearch = q.length >= 2;
+    const hasEstado = cadenaEstadoFilter.size > 0;
+    const hasNivel = cadenaNivelFilter.size > 0;
+    if (!hasSearch && !hasEstado && !hasNivel) return inactive;
+    const matched = new Set();
+    const visible = new Set();
+    const walk = (n, ancestors) => {
+      const matchSearch = !hasSearch || [
+        n.Posicion, n.Empleado, n.Puesto_Funcional, n.Departamento,
+        n.Unidad_Administrativa, n.Unidad_Negocio, n.Id_Departamento,
+      ].some((v) => normalizeForSearch(String(v || "")).includes(q));
+      const matchEstado = !hasEstado || cadenaEstadoFilter.has(getNodoEstado(n));
+      const matchNivel = !hasNivel || cadenaNivelFilter.has(String(n.Nivel || "").trim() || "Sin nivel");
+      if (matchSearch && matchEstado && matchNivel) {
+        matched.add(n.Posicion);
+        visible.add(n.Posicion);
+        ancestors.forEach((a) => visible.add(a));
+      }
+      const next = [...ancestors, n.Posicion];
+      n.children.forEach((c) => walk(c, next));
+    };
+    walk(cadenaDisplayRoot, []);
+    visible.add(cadenaDisplayRoot.Posicion);
+    return { active: true, matchedSet: matched, visibleSet: visible, matchCount: matched.size };
+  }, [cadenaDisplayRoot, cadenaTreeSearch, cadenaEstadoFilter, cadenaNivelFilter]);
+
+  const handleExpandAllCadena = useCallback(() => {
+    if (!cadenaDisplayRoot) return;
+    const conHijos = new Set();
+    const walk = (n) => { if (n.children.length) { conHijos.add(n.Posicion); n.children.forEach(walk); } };
+    walk(cadenaDisplayRoot);
+    setExpandedCadenaNodes((prev) => new Set([...prev, ...conHijos]));
+    setExpandedVacGroups((prev) => new Set([...prev, ...conHijos]));
+  }, [cadenaDisplayRoot]);
+
+  const handleCollapseAllCadena = useCallback(() => {
+    setExpandedCadenaNodes(new Set());
+    setExpandedVacGroups(new Set());
+  }, []);
+
+  const toggleCadenaEstadoFilter = useCallback((estado) => {
+    setCadenaEstadoFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(estado)) next.delete(estado); else next.add(estado);
+      return next;
+    });
+  }, []);
+
+  const toggleCadenaNivelFilter = useCallback((nivel) => {
+    setCadenaNivelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(nivel)) next.delete(nivel); else next.add(nivel);
+      return next;
+    });
+  }, []);
+
+  const toggleVacGroup = useCallback((posicion) => {
+    setExpandedVacGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(posicion)) next.delete(posicion); else next.add(posicion);
+      return next;
+    });
+  }, []);
+
+  const handleFocusCadenaNode = useCallback((posicion) => {
+    setCadenaFocusPos(posicion);
+  }, []);
 
   const handleExportCadenaDescendente = useCallback(async () => {
-    if (!cadenaTree) return;
+    if (!cadenaDisplayRoot) return;
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Cadena_Mando_Descendente");
@@ -389,34 +627,93 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       { header: "Profundidad", key: "profundidad", width: 12 },
       { header: "Posición", key: "posicion", width: 16 },
       { header: "Nombre", key: "nombre", width: 35 },
+      { header: "Estado", key: "estado", width: 14 },
       { header: "Puesto Funcional", key: "puesto", width: 35 },
       { header: "Nivel", key: "nivel", width: 12 },
+      { header: "Cd UN", key: "cd_un", width: 10 },
+      { header: "Unidad de Negocio", key: "un", width: 30 },
+      { header: "Cd UA", key: "cd_ua", width: 10 },
+      { header: "Unidad Administrativa", key: "ua", width: 30 },
+      { header: "Id Departamento", key: "id_depto", width: 16 },
+      { header: "Departamento (SIG)", key: "depto_sig", width: 40 },
+      { header: "Nivel Dirección (SIG)", key: "nivel_dir", width: 16 },
       { header: "Jefe Directo (Posición)", key: "jefe", width: 20 },
+      { header: "Subordinados en rama", key: "rama", width: 18 },
     ];
     const flatten = (node) => {
+      const deptoInfo = getDeptoInfo(deptoCatalog, node.Id_Departamento);
       worksheet.addRow({
         profundidad: node.Nivel_Hacia_Abajo,
         posicion: node.Posicion,
         nombre: node.Empleado || "",
+        estado: getNodoEstado(node),
         puesto: node.Puesto_Funcional || "",
         nivel: node.Nivel || "",
+        cd_un: node.Cd_UN || "",
+        un: node.Unidad_Negocio || "",
+        cd_ua: node.Cd_UA || "",
+        ua: node.Unidad_Administrativa || "",
+        id_depto: node.Id_Departamento || "",
+        depto_sig: deptoInfo?.nombre || node.Departamento || "",
+        nivel_dir: deptoInfo?.nivel || "",
         jefe: node.Jefe_Directo || "",
+        rama: node.totalDescendants,
       });
       node.children.forEach(flatten);
     };
-    flatten(cadenaTree);
+    flatten(cadenaDisplayRoot);
     const headerRow = worksheet.getRow(1);
     headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
     headerRow.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
+
+    // Hoja Resumen: totales + distribución de niveles (directos/indirectos).
+    if (cadenaStats) {
+      const resumenSheet = workbook.addWorksheet("Resumen");
+      resumenSheet.columns = [
+        { header: "Concepto", key: "concepto", width: 32 },
+        { header: "Valor", key: "valor", width: 18 },
+      ];
+      [
+        ["Posición raíz", cadenaDisplayRoot.Posicion],
+        ["Nombre raíz", cadenaDisplayRoot.Empleado || "(Vacante)"],
+        ["Total subordinados", cadenaStats.directos + cadenaStats.indirectos],
+        ["Directos", cadenaStats.directos],
+        ["Indirectos", cadenaStats.indirectos],
+        ["Ocupadas (directos)", cadenaStats.ocupadasDir],
+        ["Vacantes (directos)", cadenaStats.vacantesDir],
+        ["Ocupadas (indirectos)", cadenaStats.ocupadasInd],
+        ["Vacantes (indirectos)", cadenaStats.vacantesInd],
+        ["Profundidad máxima", cadenaStats.profundidad],
+      ].forEach(([concepto, valor]) => resumenSheet.addRow({ concepto, valor }));
+      resumenSheet.addRow({});
+      const nivelesHeader = resumenSheet.addRow({ concepto: "Nivel", valor: "Directos" });
+      nivelesHeader.getCell(3).value = "Indirectos";
+      nivelesHeader.getCell(4).value = "Total";
+      nivelesHeader.font = { bold: true };
+      const todosNiveles = new Set([...cadenaStats.nivelesDir.keys(), ...cadenaStats.nivelesInd.keys()]);
+      [...todosNiveles]
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+        .forEach((nivel) => {
+          const dir = cadenaStats.nivelesDir.get(nivel) || 0;
+          const ind = cadenaStats.nivelesInd.get(nivel) || 0;
+          const row = resumenSheet.addRow({ concepto: nivel, valor: dir });
+          row.getCell(3).value = ind;
+          row.getCell(4).value = dir + ind;
+        });
+      const resumenHeaderRow = resumenSheet.getRow(1);
+      resumenHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      resumenHeaderRow.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
+    }
+
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Cadena_Mando_Descendente_${cadenaTree.Posicion}.xlsx`;
+    link.download = `Cadena_Mando_Descendente_${cadenaDisplayRoot.Posicion}.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [cadenaTree]);
+  }, [cadenaDisplayRoot, cadenaStats, deptoCatalog]);
 
   const deferredTextFilters = useDeferredValue(textFilters);
   const deferredGlobalSearch = useDeferredValue(globalSearch);
@@ -1735,21 +2032,196 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                     <h4 className="text-lg font-black text-slate-800 dark:text-white">Sin resultados</h4>
                     <p className="text-sm font-medium text-slate-500 mt-2 max-w-md">{cadenaError}</p>
                   </div>
-                ) : cadenaDirection === "abajo" && cadenaTree ? (
-                  <div className="w-full max-w-3xl mx-auto py-4 px-2">
-                    <div className="flex items-center justify-between gap-3 mb-4 px-1">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                        {countDescendants(cadenaTree)} subordinado{countDescendants(cadenaTree) === 1 ? "" : "s"} (directos + indirectos)
-                      </p>
+                ) : cadenaDirection === "abajo" && cadenaDisplayRoot ? (
+                  <div className="w-full max-w-4xl mx-auto py-4 px-2">
+                    {/* Breadcrumb del drill-down (enfocar rama) */}
+                    {cadenaBreadcrumb && (
+                      <div className="flex items-center gap-1.5 flex-wrap mb-4 px-1">
+                        {cadenaBreadcrumb.map((n, idx) => {
+                          const isLast = idx === cadenaBreadcrumb.length - 1;
+                          return (
+                            <React.Fragment key={n.Posicion}>
+                              {idx > 0 && <ChevronRightIcon className="size-3 text-slate-400 shrink-0" />}
+                              <button
+                                type="button"
+                                onClick={() => setCadenaFocusPos(idx === 0 ? null : n.Posicion)}
+                                disabled={isLast}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${isLast ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f]" : "text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"}`}
+                                title={isLast ? "Rama enfocada" : "Ir a este nivel"}
+                              >
+                                {(n.Empleado || "").trim() || `POS ${n.Posicion}`}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => setCadenaFocusPos(null)}
+                          className="ml-1 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                          title="Quitar enfoque y volver a la raíz consultada"
+                        >
+                          <X className="size-3" /><span>Quitar enfoque</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Panel resumen: totales del subárbol mostrado */}
+                    {cadenaStats && (
+                      <>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                          {[
+                            { label: "Total", value: cadenaStats.directos + cadenaStats.indirectos, sub: "subordinados" },
+                            { label: "Directos", value: cadenaStats.directos, sub: `${cadenaStats.ocupadasDir} ocup · ${cadenaStats.vacantesDir} vac` },
+                            { label: "Indirectos", value: cadenaStats.indirectos, sub: `${cadenaStats.ocupadasInd} ocup · ${cadenaStats.vacantesInd} vac` },
+                            { label: "Ocupadas", value: cadenaStats.ocupadasDir + cadenaStats.ocupadasInd, sub: "posiciones" },
+                            { label: "Vacantes", value: cadenaStats.vacantesDir + cadenaStats.vacantesInd, sub: "posiciones" },
+                            { label: "Profundidad", value: cadenaStats.profundidad, sub: cadenaStats.profundidad === 1 ? "nivel" : "niveles" },
+                          ].map((tile) => (
+                            <div key={tile.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2">
+                              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{tile.label}</p>
+                              <p className="text-lg font-black text-slate-900 dark:text-white leading-tight">{formatNumber(tile.value)}</p>
+                              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 truncate">{tile.sub}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Chips de estado (clic = filtrar) */}
+                        {cadenaStats.estados.size > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap mb-2 px-1">
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-1">Estado:</span>
+                            {[...cadenaStats.estados.entries()].sort((a, b) => b[1] - a[1]).map(([estado, count]) => {
+                              const style = STATUS_BADGE_STYLES[estado] || STATUS_BADGE_STYLES["Vacante"];
+                              const active = cadenaEstadoFilter.has(estado);
+                              return (
+                                <button
+                                  key={estado}
+                                  type="button"
+                                  onClick={() => toggleCadenaEstadoFilter(estado)}
+                                  className={`px-2.5 py-1 text-[10px] font-black rounded-full border transition-all cursor-pointer ${active ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] border-transparent shadow-sm" : `${style.bg} ${style.text} ${style.border} hover:shadow-sm`}`}
+                                  title={active ? "Quitar filtro" : `Filtrar por ${estado}`}
+                                >
+                                  {estado === "Activo" ? "Ocupada" : estado} ×{count}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Distribución de niveles por directos / indirectos (clic = filtrar) */}
+                        {[
+                          { label: "Niveles · Directos", bucket: cadenaStats.nivelesDir },
+                          { label: "Niveles · Indirectos", bucket: cadenaStats.nivelesInd },
+                        ].map(({ label, bucket }) => bucket.size > 0 && (
+                          <div key={label} className="flex items-start gap-1.5 flex-wrap mb-2 px-1 max-h-20 overflow-y-auto custom-scrollbar">
+                            <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-1 mt-1">{label}:</span>
+                            {[...bucket.entries()].sort((a, b) => b[1] - a[1]).map(([nivel, count]) => {
+                              const active = cadenaNivelFilter.has(nivel);
+                              return (
+                                <button
+                                  key={nivel}
+                                  type="button"
+                                  onClick={() => toggleCadenaNivelFilter(nivel)}
+                                  className={`px-2 py-0.5 text-[10px] font-black font-mono rounded-lg border transition-all cursor-pointer ${active ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] border-transparent shadow-sm" : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40"}`}
+                                  title={active ? "Quitar filtro" : `Filtrar por nivel ${nivel}`}
+                                >
+                                  {nivel} ×{count}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Toolbar: búsqueda en el árbol + controles */}
+                    <div className="flex items-center gap-2 flex-wrap mb-4 px-1 mt-3">
+                      <div className="flex items-center flex-1 min-w-[200px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] rounded-xl px-3 py-2 transition-colors">
+                        <Search className="size-4 text-slate-400 mr-2 shrink-0" />
+                        <input
+                          type="text"
+                          value={cadenaTreeSearch}
+                          onChange={(e) => setCadenaTreeSearch(e.target.value)}
+                          placeholder="Filtrar por nombre, posición, puesto, UA, depto..."
+                          className="bg-transparent text-xs w-full outline-none text-slate-700 dark:text-slate-200 font-bold placeholder-slate-400"
+                        />
+                        {cadenaTreeSearch && (
+                          <button type="button" onClick={() => setCadenaTreeSearch("")} className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer" title="Limpiar búsqueda">
+                            <X className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCadenaSoloDirectos((v) => !v)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${cadenaSoloDirectos ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] shadow-sm" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
+                        title="Mostrar solo subordinados directos"
+                      >
+                        <Users className="size-3" /><span>Solo directos</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExpandAllCadena}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] text-[10px] font-black uppercase rounded-xl transition-all active:scale-95 cursor-pointer"
+                        title="Expandir todos los nodos"
+                      >
+                        <ChevronDown className="size-3" /><span>Expandir todo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCollapseAllCadena}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] text-[10px] font-black uppercase rounded-xl transition-all active:scale-95 cursor-pointer"
+                        title="Colapsar todos los nodos"
+                      >
+                        <ChevronRightIcon className="size-3" /><span>Colapsar todo</span>
+                      </button>
                       <button
                         onClick={handleExportCadenaDescendente}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] text-[10px] font-black uppercase rounded-lg shadow-sm hover:shadow transition-all active:scale-95 cursor-pointer"
-                        title="Exportar árbol de subordinados a Excel"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] text-[10px] font-black uppercase rounded-xl shadow-sm hover:shadow transition-all active:scale-95 cursor-pointer"
+                        title="Exportar árbol de subordinados a Excel (con hoja de resumen)"
                       >
-                        <Download className="size-3" /><span>Exportar árbol</span>
+                        <Download className="size-3" /><span>Exportar</span>
                       </button>
                     </div>
-                    <CadenaTreeNode node={cadenaTree} depth={0} expandedNodes={expandedCadenaNodes} onToggle={toggleCadenaNode} isRoot />
+
+                    {/* Contador de coincidencias / limpiar filtros */}
+                    {cadenaFilterResult.active && (
+                      <div className="flex items-center gap-2 mb-3 px-1">
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                          {formatNumber(cadenaFilterResult.matchCount)} coincidencia{cadenaFilterResult.matchCount === 1 ? "" : "s"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setCadenaTreeSearch(""); setCadenaEstadoFilter(new Set()); setCadenaNivelFilter(new Set()); }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                        >
+                          <RotateCcw className="size-3" /><span>Limpiar filtros</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {cadenaFilterResult.active && cadenaFilterResult.matchCount === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center opacity-60">
+                        <Filter className="size-8 text-slate-400 mb-3" />
+                        <p className="text-sm font-black text-slate-600 dark:text-slate-300">Sin coincidencias en el árbol</p>
+                        <p className="text-xs font-medium text-slate-400 mt-1">Ajusta la búsqueda o quita filtros de estado/nivel.</p>
+                      </div>
+                    ) : (
+                      <CadenaTreeNode
+                        node={cadenaDisplayRoot}
+                        depth={0}
+                        expandedNodes={expandedCadenaNodes}
+                        onToggle={toggleCadenaNode}
+                        isRoot
+                        filterActive={cadenaFilterResult.active}
+                        visibleSet={cadenaFilterResult.visibleSet}
+                        matchedSet={cadenaFilterResult.matchedSet}
+                        deptoCatalog={deptoCatalog}
+                        expandedVacGroups={expandedVacGroups}
+                        onToggleVacGroup={toggleVacGroup}
+                        onFocusNode={handleFocusCadenaNode}
+                        maxDepth={cadenaSoloDirectos ? 1 : Infinity}
+                      />
+                    )}
                   </div>
                 ) : cadenaDirection === "arriba" && cadenaData && cadenaData.cadena ? (
                   <div className="w-full max-w-4xl mx-auto py-8 px-4 flex flex-col items-center">
