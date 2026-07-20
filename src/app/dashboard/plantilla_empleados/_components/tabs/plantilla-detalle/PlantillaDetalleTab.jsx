@@ -78,6 +78,12 @@ const getNodoEstado = (node) => {
 };
 const isNodoVacante = (node) => getNodoEstado(node) === "Vacante";
 
+// `Posicion_Activa`: independiente del estado del empleado que la ocupa —
+// viene del backend (MOV_POS: `Estado Psn` del movimiento más reciente por
+// posición). Una posición puede seguir marcada "Activo" en Estado_Nomina sin
+// que su último movimiento la reconozca como vigente (dato desincronizado).
+const isPosicionActiva = (node) => node?.Posicion_Activa === true;
+
 // Configuración de todas las claves posibles (fuera del componente para evitar re-creación)
 const ALL_DETAIL_KEYS = [
   "posicion", "estado_nomina", "id_empleado", "rfc", "curp", "nombres", "motivo", 
@@ -200,6 +206,11 @@ function CadenaTreeNode({
             {sinMatchSig && (
               <span className="shrink-0 px-2 py-0.5 text-[9px] font-black uppercase rounded-full border bg-amber-50/60 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-900/40" title="El código de departamento no existe en ORGANIGRAMA_ANAM (isSIGInfo=1)">
                 Sin match SIG
+              </span>
+            )}
+            {node.Posicion_Activa === false && (
+              <span className="shrink-0 px-2 py-0.5 text-[9px] font-black uppercase rounded-full border bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-900/40" title="El movimiento más reciente de esta posición en MOV_POS no tiene Estado Psn = 'A'">
+                Posición inactiva
               </span>
             )}
             {hasChildren && !isRoot && onFocusNode && (
@@ -402,6 +413,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [cadenaTreeSearch, setCadenaTreeSearch] = useState("");
   const [cadenaEstadoFilter, setCadenaEstadoFilter] = useState(() => new Set());
   const [cadenaNivelFilter, setCadenaNivelFilter] = useState(() => new Set());
+  // Filtro por "posición activa" (MOV_POS, independiente del estado del
+  // empleado): valores posibles "activa" / "inactiva".
+  const [cadenaPosActivaFilter, setCadenaPosActivaFilter] = useState(() => new Set());
   const [cadenaSoloDirectos, setCadenaSoloDirectos] = useState(false);
   const [expandedVacGroups, setExpandedVacGroups] = useState(() => new Set());
   const [cadenaFocusPos, setCadenaFocusPos] = useState(null);
@@ -409,6 +423,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setCadenaTreeSearch("");
     setCadenaEstadoFilter(new Set());
     setCadenaNivelFilter(new Set());
+    setCadenaPosActivaFilter(new Set());
     setCadenaSoloDirectos(false);
     setExpandedVacGroups(new Set());
     setCadenaFocusPos(null);
@@ -521,6 +536,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const stats = {
       directos: 0, indirectos: 0,
       ocupadasDir: 0, vacantesDir: 0, ocupadasInd: 0, vacantesInd: 0,
+      posActivas: 0, posInactivas: 0,
       profundidad: 0,
       nivelesDir: new Map(), nivelesInd: new Map(),
       estados: new Map(),
@@ -531,6 +547,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         const vacante = isNodoVacante(c);
         if (esDirecto) { stats.directos++; vacante ? stats.vacantesDir++ : stats.ocupadasDir++; }
         else { stats.indirectos++; vacante ? stats.vacantesInd++ : stats.ocupadasInd++; }
+        isPosicionActiva(c) ? stats.posActivas++ : stats.posInactivas++;
         const nivel = String(c.Nivel || "").trim() || "Sin nivel";
         const bucket = esDirecto ? stats.nivelesDir : stats.nivelesInd;
         bucket.set(nivel, (bucket.get(nivel) || 0) + 1);
@@ -567,7 +584,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const hasSearch = q.length >= 2;
     const hasEstado = cadenaEstadoFilter.size > 0;
     const hasNivel = cadenaNivelFilter.size > 0;
-    if (!hasSearch && !hasEstado && !hasNivel) return inactive;
+    const hasPosActiva = cadenaPosActivaFilter.size > 0;
+    if (!hasSearch && !hasEstado && !hasNivel && !hasPosActiva) return inactive;
     const matched = new Set();
     const visible = new Set();
     const walk = (n, ancestors) => {
@@ -577,7 +595,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       ].some((v) => normalizeForSearch(String(v || "")).includes(q));
       const matchEstado = !hasEstado || cadenaEstadoFilter.has(getNodoEstado(n));
       const matchNivel = !hasNivel || cadenaNivelFilter.has(String(n.Nivel || "").trim() || "Sin nivel");
-      if (matchSearch && matchEstado && matchNivel) {
+      const matchPosActiva = !hasPosActiva || cadenaPosActivaFilter.has(isPosicionActiva(n) ? "activa" : "inactiva");
+      if (matchSearch && matchEstado && matchNivel && matchPosActiva) {
         matched.add(n.Posicion);
         visible.add(n.Posicion);
         ancestors.forEach((a) => visible.add(a));
@@ -588,7 +607,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     walk(cadenaDisplayRoot, []);
     visible.add(cadenaDisplayRoot.Posicion);
     return { active: true, matchedSet: matched, visibleSet: visible, matchCount: matched.size };
-  }, [cadenaDisplayRoot, cadenaTreeSearch, cadenaEstadoFilter, cadenaNivelFilter]);
+  }, [cadenaDisplayRoot, cadenaTreeSearch, cadenaEstadoFilter, cadenaNivelFilter, cadenaPosActivaFilter]);
 
   const handleExpandAllCadena = useCallback(() => {
     if (!cadenaDisplayRoot) return;
@@ -608,6 +627,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setCadenaEstadoFilter((prev) => {
       const next = new Set(prev);
       if (next.has(estado)) next.delete(estado); else next.add(estado);
+      return next;
+    });
+  }, []);
+
+  const toggleCadenaPosActivaFilter = useCallback((valor) => {
+    setCadenaPosActivaFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(valor)) next.delete(valor); else next.add(valor);
       return next;
     });
   }, []);
@@ -642,6 +669,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       { header: "Posición", key: "posicion", width: 16 },
       { header: "Nombre", key: "nombre", width: 35 },
       { header: "Estado", key: "estado", width: 14 },
+      { header: "Posición Activa (MOV_POS)", key: "pos_activa", width: 20 },
       { header: "Puesto Funcional", key: "puesto", width: 35 },
       { header: "Nivel", key: "nivel", width: 12 },
       { header: "Cd UN", key: "cd_un", width: 10 },
@@ -661,6 +689,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         posicion: node.Posicion,
         nombre: node.Empleado || "",
         estado: getNodoEstado(node),
+        pos_activa: isPosicionActiva(node) ? "Sí" : "No",
         puesto: node.Puesto_Funcional || "",
         nivel: node.Nivel || "",
         cd_un: node.Cd_UN || "",
@@ -697,6 +726,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         ["Vacantes (directos)", cadenaStats.vacantesDir],
         ["Ocupadas (indirectos)", cadenaStats.ocupadasInd],
         ["Vacantes (indirectos)", cadenaStats.vacantesInd],
+        ["Posiciones activas (MOV_POS)", cadenaStats.posActivas],
+        ["Posiciones inactivas (MOV_POS)", cadenaStats.posInactivas],
         ["Profundidad máxima", cadenaStats.profundidad],
       ].forEach(([concepto, valor]) => resumenSheet.addRow({ concepto, valor }));
       resumenSheet.addRow({});
@@ -2121,6 +2152,29 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                           </div>
                         )}
 
+                        {/* Posición activa/inactiva por MOV_POS (independiente del estado
+                            del empleado) — clic filtra el árbol; ver isPosicionActiva. */}
+                        <div className="flex items-center gap-1.5 flex-wrap mb-2 px-1">
+                          <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mr-1">Posición (MOV_POS):</span>
+                          {[
+                            { key: "activa", label: "Activa", count: cadenaStats.posActivas, style: { bg: "bg-emerald-50/50 dark:bg-emerald-950/20", text: "text-emerald-600 dark:text-emerald-300", border: "border-emerald-200/50 dark:border-emerald-900/40" } },
+                            { key: "inactiva", label: "Inactiva", count: cadenaStats.posInactivas, style: { bg: "bg-rose-50/60 dark:bg-rose-950/20", text: "text-rose-600 dark:text-rose-400", border: "border-rose-200/60 dark:border-rose-900/40" } },
+                          ].map(({ key, label, count, style }) => {
+                            const active = cadenaPosActivaFilter.has(key);
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => toggleCadenaPosActivaFilter(key)}
+                                className={`px-2.5 py-1 text-[10px] font-black rounded-full border transition-all cursor-pointer ${active ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] border-transparent shadow-sm" : `${style.bg} ${style.text} ${style.border} hover:shadow-sm`}`}
+                                title={active ? "Quitar filtro" : `Ver solo posiciones ${label.toLowerCase()}s (clic para detalle)`}
+                              >
+                                {label} ×{formatNumber(count)}
+                              </button>
+                            );
+                          })}
+                        </div>
+
                         {/* Distribución de niveles: barras apiladas Directos/Indirectos.
                             Paleta validada (CVD + contraste) sobre blanco/#0f172a:
                             light #93304a/#b8823a · dark #d65f85/#b08a26. Clic en
@@ -2239,7 +2293,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                         </span>
                         <button
                           type="button"
-                          onClick={() => { setCadenaTreeSearch(""); setCadenaEstadoFilter(new Set()); setCadenaNivelFilter(new Set()); }}
+                          onClick={() => { setCadenaTreeSearch(""); setCadenaEstadoFilter(new Set()); setCadenaNivelFilter(new Set()); setCadenaPosActivaFilter(new Set()); }}
                           className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                         >
                           <RotateCcw className="size-3" /><span>Limpiar filtros</span>
@@ -2251,7 +2305,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                       <div className="flex flex-col items-center justify-center py-12 text-center opacity-60">
                         <Filter className="size-8 text-slate-400 mb-3" />
                         <p className="text-sm font-black text-slate-600 dark:text-slate-300">Sin coincidencias en el árbol</p>
-                        <p className="text-xs font-medium text-slate-400 mt-1">Ajusta la búsqueda o quita filtros de estado/nivel.</p>
+                        <p className="text-xs font-medium text-slate-400 mt-1">Ajusta la búsqueda o quita filtros de estado/nivel/posición.</p>
                       </div>
                     ) : (
                       <CadenaTreeNode
