@@ -135,6 +135,18 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     return result;
   }, [historicoChartData]);
 
+  // Cada serie del grupo (Ocupadas: permanente+eventual / Vacantes: permanente+eventual)
+  // comparte rango de valores, así que sus etiquetas de máximo/mínimo pueden caer
+  // muy cerca en x/y y encimarse. Se les asigna un "carril" vertical distinto por
+  // serie dentro del grupo para separarlas incluso cuando el punto extremo coincide
+  // en el mismo índice de fecha.
+  const HISTORICO_LABEL_LANE = {
+    ocupadas_permanente: { max: -11, min: 18 },
+    ocupadas_eventual: { max: -26, min: 33 },
+    vacantes_permanente: { max: -11, min: 18 },
+    vacantes_eventual: { max: -26, min: 33 },
+  };
+
   const renderHistoricoDot = (key, color) => (dotProps) => {
     const { cx, cy, index, value } = dotProps;
     const minMax = historicoMinMax[key];
@@ -145,16 +157,27 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       return <circle key={`dot-${key}-${index}`} cx={cx} cy={cy} r={3.5} fill={color} strokeWidth={0} />;
     }
 
+    const lane = HISTORICO_LABEL_LANE[key];
+    // Cerca del borde izquierdo/derecho el texto centrado se recorta contra el
+    // área del gráfico: se ancla hacia adentro en vez de centrarlo sobre el punto.
+    const isFirstPoint = index === 0;
+    const isLastPoint = index === historicoChartData.length - 1;
+    const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
+    const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
+
     return (
       <g key={`dot-${key}-${index}`}>
         <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
         <text
-          x={cx}
-          y={isMax ? cy - 11 : cy + 18}
-          textAnchor="middle"
+          x={textX}
+          y={cy + (isMax ? lane.max : lane.min)}
+          textAnchor={textAnchor}
           fontSize={10}
           fontWeight={800}
           fill={color}
+          stroke="#fff"
+          strokeWidth={3}
+          paintOrder="stroke"
           className="select-none"
         >
           {formatNumber(value)}
