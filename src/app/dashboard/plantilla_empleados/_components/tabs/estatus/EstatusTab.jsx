@@ -643,6 +643,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
             onClose={() => setSelectedUaForModal(null)}
             onSliceClick={(nivel, estatus) => setSelectedLevelEstatus({ nivel, estatus, ua: selectedUaForModal })}
             handleExportExcel={handleExportExcel}
+            isExporting={isExporting}
           />
         )}
       </AnimatePresence>
@@ -744,11 +745,10 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
 
 // ─── UaDetailsModal ──────────────────────────────────────────────────────────
 
-function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, handleExportExcel }) {
+function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, handleExportExcel, isExporting }) {
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
 
   useEscapeToClose(true, onClose);
 
@@ -875,6 +875,7 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
                 `Reporte_Plantilla_${uaName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
               );
               setIsLevelModalOpen(false);
+              onClose();
             }}
             isExporting={isExporting}
           />
