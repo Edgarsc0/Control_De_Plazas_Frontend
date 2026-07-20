@@ -917,15 +917,6 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
               </div>
             )}
 
-            {/* V-06 QA: los motivos con "*" vienen así del catálogo oficial de RH
-                (texto crudo, sin descripción propia en BD) — se aclara el origen
-                del asterisco para que no quede sin explicación visible. */}
-            {pieSlices.some((s) => String(s.motivo || "").includes("*")) && (
-              <p className="w-full text-[10px] font-semibold text-slate-400 dark:text-slate-500 -mt-3">
-                * Motivo tal cual aparece en el catálogo oficial de RH.
-              </p>
-            )}
-
             {/* Line chart (Historial de Bajas) */}
             {lineChartData && (
               <div ref={chartContainerRef} className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col justify-between select-none">
@@ -1109,6 +1100,17 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             )}
           </div>
         </Zoom>
+
+        {/* V-06 QA: los motivos con "*" vienen así del catálogo oficial de RH
+            (texto crudo, sin descripción propia en BD) — se aclara el origen
+            del asterisco para que no quede sin explicación visible. Va fuera
+            del flex-row de las tarjetas: un hijo w-full ahí forzaba a las
+            demás tarjetas (flex-1) a colapsar su ancho. */}
+        {pieSlices.some((s) => String(s.motivo || "").includes("*")) && (
+          <p className="w-full text-[10px] font-semibold text-slate-400 dark:text-slate-500 mb-6 -mt-2">
+            * Motivo tal cual aparece en el catálogo oficial de RH.
+          </p>
+        )}
       </div>
 
       <div className="w-full flex items-start justify-center">
