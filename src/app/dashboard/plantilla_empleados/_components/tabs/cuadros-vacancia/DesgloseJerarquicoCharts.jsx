@@ -268,9 +268,9 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
             </div>
             <div className="w-full flex-1" style={{ minHeight: '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={chart1Data} 
-                  margin={{ top: 20, right: 15, left: -15, bottom: 10 }} 
+                <BarChart
+                  data={chart1Data}
+                  margin={{ top: 34, right: 15, left: -15, bottom: 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -288,6 +288,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                   />
                   <YAxis
                     allowDecimals={false}
+                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
@@ -383,7 +384,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2Data}
-                  margin={{ top: 20, right: 15, left: -15, bottom: chart2Data.length > 6 ? 50 : 10 }}
+                  margin={{ top: 34, right: 15, left: -15, bottom: chart2Data.length > 6 ? 50 : 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -408,6 +409,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                   />
                   <YAxis
                     allowDecimals={false}
+                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}

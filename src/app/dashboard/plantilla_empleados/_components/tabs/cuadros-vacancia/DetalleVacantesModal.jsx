@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { X, ChevronDown, ChevronUp, Settings2, Filter } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, Settings2, Filter, Check } from 'lucide-react';
 import { useEscapeToClose } from '../../../_hooks/useEscapeToClose';
 import ColumnFilterDropdown from '../../shared/ColumnFilterDropdown';
 import { useColumnFilters } from '../../../_hooks/useColumnFilters';
@@ -11,6 +11,8 @@ import {
   matchesTextCondition,
   finalizeFilterDropdownValues,
   defaultGetCellValue,
+  CONDITION_OPTIONS,
+  CONDITION_SHORTHANDS,
 } from '@/utils/columnFilters';
 
 // El modal ya usa z-[9999999] (debe quedar por encima de otros portales de la
@@ -65,6 +67,16 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
   );
   const [showColMenu, setShowColMenu] = useState(false);
 
+  // Filtros rápidos de texto por columna (input + condición bajo el header),
+  // igual que la fila de filtros de DataTable.jsx pero para esta tabla del modal.
+  const [textFilters, setTextFilters] = useState({});
+  const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
+  const [conditionDropdownRect, setConditionDropdownRect] = useState(null);
+  const closeConditionDropdown = () => {
+    setActiveConditionDropdown(null);
+    setConditionDropdownRect(null);
+  };
+
   const filters = useColumnFilters();
   const {
     columnFilters, setColumnFilters,
@@ -80,16 +92,17 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
   // Nueva consulta (otro cuadro clicado) mientras el modal ya estaba abierto:
   // los filtros de columna de la consulta anterior no deben heredarse.
   useEffect(() => {
-    if (isOpen) resetFilters();
+    if (isOpen) { resetFilters(); setTextFilters({}); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, title]);
 
   const filteredRows = useMemo(
-    () => applyColumnFilters(rows, { columnFilters, getCellValue: defaultGetCellValue }),
-    [rows, columnFilters]
+    () => applyColumnFilters(rows, { columnFilters, textFilters, getCellValue: defaultGetCellValue }),
+    [rows, columnFilters, textFilters]
   );
 
-  const hasActiveFilters = Object.keys(columnFilters).length > 0;
+  const hasActiveFilters = Object.keys(columnFilters).length > 0 || Object.values(textFilters).some((f) => f?.value);
+  const hasActiveTextFilters = Object.values(textFilters).some((f) => f?.value);
 
   const sorted = useMemo(() => {
     return [...filteredRows].sort((a, b) => {
@@ -182,7 +195,7 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
               <button
-                onClick={() => setColumnFilters({})}
+                onClick={() => { setColumnFilters({}); setTextFilters({}); }}
                 className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-wider text-white transition-colors"
                 title="Limpiar filtros de columna"
               >
@@ -275,6 +288,88 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
                     </div>
                   </th>
                 ))}
+              </tr>
+              <tr>
+                <th className="bg-[#0c1c30] border border-[#bc955c]/40 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setTextFilters({})}
+                    disabled={!hasActiveTextFilters}
+                    title="Limpiar filtros de texto"
+                    className="size-full flex items-center justify-center py-0.5 hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-0 cursor-pointer"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </th>
+                {activeCols.map((col) => {
+                  const filterObj = textFilters[col.key] || { value: '', condition: 'contains' };
+                  const condition = filterObj.condition || 'contains';
+                  const symbol = CONDITION_SHORTHANDS[condition] || '*';
+                  return (
+                    <th key={`textfilter-${col.key}`} className="bg-[#0c1c30] border border-[#bc955c]/40 p-1">
+                      <div className="relative flex items-center w-full">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeConditionDropdown === col.key) {
+                              closeConditionDropdown();
+                            } else {
+                              setConditionDropdownRect(e.currentTarget.getBoundingClientRect());
+                              setActiveConditionDropdown(col.key);
+                            }
+                          }}
+                          title={`Condición: ${CONDITION_OPTIONS.find((o) => o.key === condition)?.label || 'Contiene'}`}
+                          className="absolute left-1 z-10 size-4 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/15 rounded text-white text-[8px] font-black cursor-pointer select-none transition-colors"
+                        >
+                          {symbol}
+                        </button>
+                        <input
+                          type="text"
+                          value={filterObj.value || ''}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTextFilters((prev) => {
+                              const next = { ...prev };
+                              if (val === '') delete next[col.key];
+                              else next[col.key] = { value: val, condition };
+                              return next;
+                            });
+                          }}
+                          placeholder="Filtrar..."
+                          className="w-full bg-white/10 hover:bg-white/20 focus:bg-white/30 text-white text-[10px] font-bold placeholder-white/30 rounded-md py-1 pl-6 pr-2 outline-none transition-all border border-white/5 focus:border-[#bc955c]/50"
+                        />
+                        {activeConditionDropdown === col.key && conditionDropdownRect && typeof document !== 'undefined' && createPortal(
+                          <>
+                            <div className="fixed inset-0 z-[10000000] bg-transparent" onClick={(e) => { e.stopPropagation(); closeConditionDropdown(); }} />
+                            <div
+                              className="fixed z-[10000001] w-36 bg-slate-900 border border-slate-700/80 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 text-left text-slate-200"
+                              style={{ top: conditionDropdownRect.bottom + 4, left: conditionDropdownRect.left }}
+                            >
+                              {CONDITION_OPTIONS.map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTextFilters((prev) => ({ ...prev, [col.key]: { value: filterObj.value, condition: item.key } }));
+                                    closeConditionDropdown();
+                                  }}
+                                  className={`px-2 py-1 text-[9px] font-bold rounded-lg text-left transition-colors cursor-pointer w-full flex items-center justify-between ${condition === item.key ? 'bg-[#bc955c] text-slate-950' : 'hover:bg-white/10'}`}
+                                >
+                                  <span>{item.label}</span>
+                                  {condition === item.key && <Check className="size-2.5" />}
+                                </button>
+                              ))}
+                            </div>
+                          </>,
+                          document.body
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
