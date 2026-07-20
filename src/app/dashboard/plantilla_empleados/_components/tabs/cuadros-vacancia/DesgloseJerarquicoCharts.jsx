@@ -43,6 +43,25 @@ const FAMILY_COLORS = {
   "Sin Nivel":  { main: '#94a3b8', shades: ['#64748b','#718096','#94a3b8','#a0aec0','#b0bec5','#c0ccd0','#d0d8dc','#e0e4e8'] },
 };
 
+/* ── Desglose por tipo de plaza (Eventuales / Evt. Nueva Creación / Permanentes),
+   igual clasificación que "Detalle de Vacantes" (DetalleVacantesTablas.jsx) ── */
+const classifyPos = (pos) => {
+  const p = (pos || '').trim();
+  if (p.startsWith('103')) return 'permanente';
+  if (p.startsWith('2026')) return 'nuevaCreacion';
+  return 'eventual';
+};
+
+const SEGMENT_META = {
+  eventual: { label: 'Eventuales', color: '#2e5890' },
+  nuevaCreacion: { label: 'Eventuales Nueva Creación', color: '#bc955c' },
+  permanente: { label: 'Permanentes', color: '#621f32' },
+};
+
+// P's, D's, S's, A's: 3 divisiones. Operativos y K's: 2 (nueva creación se suma a eventuales).
+const THREE_WAY_FAMILIES = new Set(["P's", "D's", "S's", "A's"]);
+const TWO_WAY_FAMILIES = new Set(["Operativos", "K's"]);
+
 /* ── Tooltip premium ── */
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
@@ -152,9 +171,44 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
   const familyData = useMemo(() => {
     if (!data || data.length === 0) return [];
     const counts = {};
-    data.forEach(item => { const p = getPrefix(item.Nivel); counts[p] = (counts[p] || 0) + 1; });
+    data.forEach(item => {
+      const p = getPrefix(item.Nivel);
+      if (!counts[p]) counts[p] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+      counts[p][classifyPos(item['Posición'])] += 1;
+    });
+
     return Object.entries(counts)
-      .map(([name, count]) => ({ name, Vacantes: count }))
+      .map(([name, c]) => {
+        const total = c.eventual + c.nuevaCreacion + c.permanente;
+
+        let rawSegments = null;
+        if (THREE_WAY_FAMILIES.has(name)) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual },
+            { type: 'nuevaCreacion', value: c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        } else if (TWO_WAY_FAMILIES.has(name)) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual + c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        }
+
+        // Mayor cantidad hasta abajo (primero en el stack), menor hasta arriba.
+        const segments = rawSegments
+          ? [...rawSegments]
+              .sort((a, b) => b.value - a.value)
+              .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
+          : null;
+
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
+        if (segments) {
+          segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
+          row.segments = segments;
+        }
+        return row;
+      })
       .sort((a, b) => b.Vacantes - a.Vacantes);
   }, [data, getPrefix]);
 
@@ -227,6 +281,61 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
 
   const chart2Data = drillFamily ? drillData : familyData;
   const palette = drillFamily ? (FAMILY_COLORS[drillFamily] || FAMILY_COLORS["Sin Nivel"]) : null;
+
+  // Tooltip de la gráfica 2: si la barra está segmentada (Eventuales / Evt. Nueva
+  // Creación / Permanentes), muestra el desglose; si no, cae al tooltip genérico.
+  const Chart2Tooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const row = payload[0].payload;
+    if (!row.segments) return <CustomTooltip active={active} payload={payload} label={label} />;
+
+    return (
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+        <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
+          {label}
+        </p>
+        <div className="space-y-1.5">
+          {row.segments.map((s, i) => (
+            <div key={i} className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${s.color}, ${s.color}dd)`, boxShadow: `0 2px 4px ${s.color}30` }}
+                />
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">{s.label}</span>
+              </div>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(s.value)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 font-black">
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">Total</span>
+          <span className="text-xs text-[#621f32] dark:text-[#bc955c]">{formatNumber(row.Vacantes)}</span>
+        </div>
+      </div>
+    );
+  };
+
+  // Etiqueta del total sobre el stack completo (se ancla en el segmento más
+  // alto, pero muestra la suma de los 2-3 segmentos, no el valor propio de ese segmento).
+  const StackTotalLabel = (props) => {
+    const { x, y, width, index } = props;
+    const total = chart2Data[index]?.Vacantes ?? 0;
+    if (!total || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 10}
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={800}
+        fill="currentColor"
+        className="text-[#621f32] dark:text-[#bc955c] select-none pointer-events-none"
+      >
+        {formatNumber(total)}
+      </text>
+    );
+  };
 
   return (
     <div className="w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -415,7 +524,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                     tickLine={false}
                     width={45}
                   />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   {drillFamily ? (
                     <Bar
                       dataKey="Vacantes"
@@ -441,30 +550,79 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                       ))}
                     </Bar>
                   ) : (
-                    <Bar
-                      dataKey="Vacantes"
-                      shape={<GradientBar />}
-                      background={{ fill: 'transparent', cursor: 'pointer' }}
-                      onClick={handleFamilyBarClick}
-                      style={{ cursor: 'pointer' }}
-                      isAnimationActive={!forExport}
-                      animationBegin={200}
-                      animationDuration={1400}
-                      animationEasing="ease-out"
-                    >
-                      <LabelList
-                        dataKey="Vacantes"
-                        position="top"
-                        fill="currentColor"
-                        className="text-[#621f32] dark:text-[#bc955c]"
-                        style={{ fontSize: '11px', fontWeight: 800 }}
-                        offset={10}
-                      />
-                    </Bar>
+                    <>
+                      {/* Barra dividida por tipo de plaza. Cada categoría acomoda sus
+                          propios segmentos de mayor (abajo) a menor (arriba); las
+                          familias sin desglose (p.ej. "Sin Nivel") caen todas en seg0. */}
+                      <Bar
+                        dataKey="seg0"
+                        stackId="familia"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleFamilyBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={200}
+                        animationDuration={1400}
+                        animationEasing="ease-out"
+                      >
+                        {chart2Data.map((entry, idx) => (
+                          <Cell
+                            key={idx}
+                            fill={entry.segments ? entry.segments[0].color : GRADIENT_PAIRS[idx % GRADIENT_PAIRS.length][0]}
+                          />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg1"
+                        stackId="familia"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleFamilyBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={200}
+                        animationDuration={1400}
+                        animationEasing="ease-out"
+                      >
+                        {chart2Data.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg2"
+                        stackId="familia"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleFamilyBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={200}
+                        animationDuration={1400}
+                        animationEasing="ease-out"
+                      >
+                        <LabelList dataKey="seg2" content={<StackTotalLabel />} />
+                        {chart2Data.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                    </>
                   )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
+
+            {/* Leyenda del desglose por tipo de plaza (solo nivel superficial) */}
+            {!drillFamily && (
+              <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
+                {Object.values(SEGMENT_META).map((s) => (
+                  <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
+                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+                    {s.label}
+                  </div>
+                ))}
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                  (P's, D's, S's, A's: 3 divisiones · Operativos y K's: Eventuales + Permanentes)
+                </span>
+              </div>
+            )}
           </div>
 
         </div>

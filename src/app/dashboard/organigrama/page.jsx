@@ -854,7 +854,10 @@ function OrganigramaContent() {
   // parentsMap/flatList (recorrido completo) en cada toggle.
   const visibleNodes = useMemo(
     () => computeVisibleNodes(organigramaData, expandedNodes, previewOrder),
-    [organigramaData, expandedNodes, previewOrder]
+    // renderTick: fuerza recalcular tras mutar organigramaData en sitio
+    // (handleDeleteNode/handleReorderDrop/handleCreateChild) sin cambiar la
+    // referencia del objeto — igual que allNodes/parentsMap/flatList arriba.
+    [organigramaData, expandedNodes, previewOrder, renderTick]
   );
 
   // ── Agrupado por carril, en el orden fijo de LANE_CONFIG, cada uno ordenado
