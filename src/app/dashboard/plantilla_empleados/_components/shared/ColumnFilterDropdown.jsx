@@ -59,6 +59,7 @@ function highlightMatch(text, needle) {
  * @param {() => void} props.onApply - Aplica el filtro de la columna.
  * @param {() => void} props.onClear - Limpia el filtro de la columna.
  * @param {() => void} props.onClose - Cierra el dropdown.
+ * @param {string} [props.zIndexClass] - Clase de z-index del contenedor (stacking context de fondo+panel). Override para usarlo dentro de modales con z-index propio más alto que el z-[60] por defecto.
  * @returns {JSX.Element}
  */
 export default function ColumnFilterDropdown({
@@ -81,6 +82,7 @@ export default function ColumnFilterDropdown({
   allDateLeafValues = null,
   dimBackdrop = true,
   renderValueLabel = null,
+  zIndexClass = "z-[60]",
 }) {
   const {
     filterDropdownTab, setFilterDropdownTab,
@@ -190,7 +192,7 @@ export default function ColumnFilterDropdown({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div key="filter-dropdown" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div key="filter-dropdown" className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4`}>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className={`fixed inset-0 ${dimBackdrop ? "bg-black/40 backdrop-blur-sm" : ""}`} />
           <motion.div
             ref={panelRef}

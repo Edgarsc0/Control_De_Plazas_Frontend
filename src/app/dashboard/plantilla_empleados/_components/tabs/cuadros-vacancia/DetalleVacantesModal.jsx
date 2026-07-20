@@ -1,7 +1,23 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
+import { X, ChevronDown, ChevronUp, Settings2, Filter } from 'lucide-react';
 import { useEscapeToClose } from '../../../_hooks/useEscapeToClose';
+import ColumnFilterDropdown from '../../shared/ColumnFilterDropdown';
+import { useColumnFilters } from '../../../_hooks/useColumnFilters';
+import {
+  applyColumnFilters,
+  getUniqueColumnValues,
+  matchesTextCondition,
+  finalizeFilterDropdownValues,
+  defaultGetCellValue,
+} from '@/utils/columnFilters';
+
+// El modal ya usa z-[9999999] (debe quedar por encima de otros portales de la
+// misma pantalla, p.ej. los dropdowns año/qna de CuadrosVacanciaTab a z-9999).
+// ColumnFilterDropdown trae z-[60] por defecto, así que sin este override
+// quedaría oculto detrás del propio modal.
+const FILTER_DROPDOWN_Z_INDEX_CLASS = 'z-[10000000]';
 
 const ALL_COLUMNS = [
   { key: 'Posición', label: 'Posición', default: true },
@@ -49,13 +65,85 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
   );
   const [showColMenu, setShowColMenu] = useState(false);
 
+  const filters = useColumnFilters();
+  const {
+    columnFilters, setColumnFilters,
+    activeFilterDropdown, setActiveFilterDropdown,
+    filterDropdownTab, setFilterDropdownTab,
+    tempSelectedValues, setTempSelectedValues,
+    setFilterSearchText,
+    filterSearchCondition,
+    debouncedFilterSearchText,
+    resetFilters,
+  } = filters;
+
+  // Nueva consulta (otro cuadro clicado) mientras el modal ya estaba abierto:
+  // los filtros de columna de la consulta anterior no deben heredarse.
+  useEffect(() => {
+    if (isOpen) resetFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, title]);
+
+  const filteredRows = useMemo(
+    () => applyColumnFilters(rows, { columnFilters, getCellValue: defaultGetCellValue }),
+    [rows, columnFilters]
+  );
+
+  const hasActiveFilters = Object.keys(columnFilters).length > 0;
+
   const sorted = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       const va = (a[sortKey] || '').toString();
       const vb = (b[sortKey] || '').toString();
       return sortAsc ? va.localeCompare(vb, undefined, { numeric: true }) : vb.localeCompare(va, undefined, { numeric: true });
     });
-  }, [rows, sortKey, sortAsc]);
+  }, [filteredRows, sortKey, sortAsc]);
+
+  const openFilterDropdown = (colKey) => {
+    if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
+    setActiveFilterDropdown(colKey);
+    setFilterDropdownTab('todos');
+    setFilterSearchText('');
+    const allValues = [...new Set(rows.map((row) => defaultGetCellValue(row, colKey)))];
+    setTempSelectedValues(columnFilters[colKey] || allValues);
+  };
+
+  const applyColumnFilter = (colKey) => {
+    const totalUnique = getUniqueColumnValues(rows, colKey, defaultGetCellValue).map((v) => v.value);
+    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+      setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+    } else {
+      setColumnFilters((prev) => ({ ...prev, [colKey]: tempSelectedValues }));
+    }
+    setActiveFilterDropdown(null);
+  };
+
+  const clearColumnFilter = (colKey) => {
+    setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+    setActiveFilterDropdown(null);
+  };
+
+  const dropdownUniqueValues = useMemo(() => {
+    if (!activeFilterDropdown) return [];
+    return getUniqueColumnValues(rows, activeFilterDropdown, defaultGetCellValue);
+  }, [activeFilterDropdown, rows]);
+
+  const filterDropdownValues = useMemo(() => {
+    if (!activeFilterDropdown) {
+      return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
+    }
+    let baseUniqueValues = dropdownUniqueValues;
+    if (filterDropdownTab === 'actuales') {
+      baseUniqueValues = getUniqueColumnValues(filteredRows, activeFilterDropdown, defaultGetCellValue);
+    }
+    const filteredVals = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
+    return finalizeFilterDropdownValues({
+      baseUniqueValues,
+      filtered: filteredVals,
+      tempSelectedValues,
+      committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+    });
+  }, [activeFilterDropdown, dropdownUniqueValues, filterDropdownTab, filteredRows, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortAsc(!sortAsc);
@@ -88,10 +176,19 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
           <div>
             <h3 className="text-lg font-bold text-white">{title}</h3>
             <p className="text-xs text-[#bc955c] font-medium mt-0.5">
-              {rows.length} posiciones encontradas
+              {hasActiveFilters ? `${sorted.length} de ${rows.length} posiciones encontradas` : `${rows.length} posiciones encontradas`}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <button
+                onClick={() => setColumnFilters({})}
+                className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-wider text-white transition-colors"
+                title="Limpiar filtros de columna"
+              >
+                Limpiar filtros
+              </button>
+            )}
             {/* Columnas */}
             <div className="relative">
               <button
@@ -167,6 +264,14 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
                           ? <ChevronUp className="size-3" />
                           : <ChevronDown className="size-3" />
                       )}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openFilterDropdown(col.key); }}
+                        title="Filtrar columna"
+                        className={`p-0.5 rounded transition-colors ${columnFilters[col.key]?.length ? 'text-[#bc955c]' : 'text-white/50 hover:text-white'}`}
+                      >
+                        <Filter className="size-3" />
+                      </button>
                     </div>
                   </th>
                 ))}
@@ -210,6 +315,25 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {activeFilterDropdown && (
+          <ColumnFilterDropdown
+            open={!!activeFilterDropdown}
+            columnKey={activeFilterDropdown}
+            columnLabel={ALL_COLUMNS.find((c) => c.key === activeFilterDropdown)?.label}
+            isDate={false}
+            data={rows}
+            getCellValue={defaultGetCellValue}
+            filters={filters}
+            dropdownValues={filterDropdownValues}
+            onApply={() => applyColumnFilter(activeFilterDropdown)}
+            onClear={() => clearColumnFilter(activeFilterDropdown)}
+            onClose={() => setActiveFilterDropdown(null)}
+            zIndexClass={FILTER_DROPDOWN_Z_INDEX_CLASS}
+          />
+        )}
+      </AnimatePresence>
     </div>,
     document.body
   );

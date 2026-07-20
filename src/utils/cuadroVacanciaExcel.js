@@ -161,22 +161,6 @@ function sumHCell(sn, col, startRow, len) {
   return { formula: `=IF(SUM(${range})=0,0,HYPERLINK("#'${sn}'!A${DDS}",SUM(${range})))` };
 }
 
-// Auto-ajusta el ancho de cada columna al contenido real (texto plano; las celdas
-// con fórmula/hyperlink no se miden — conservan su ancho base fijado en columns[]).
-function autoFitColumns(ws, colCount, minW = 10, maxW = 55) {
-  for (let ci = 1; ci <= colCount; ci++) {
-    const col = ws.getColumn(ci);
-    let maxLen = 0;
-    col.eachCell({ includeEmpty: false }, cell => {
-      const v = cell.value;
-      if (v == null || typeof v === 'object') return;
-      const len = String(v).length;
-      if (len > maxLen) maxLen = len;
-    });
-    if (maxLen > 0) col.width = Math.min(Math.max(maxLen + 3, minW), maxW);
-  }
-}
-
 // ── Det_ sheet builder ────────────────────────────────────────────────────────
 // Returns { sheetName, rowMap, levels, dataLen }
 // rowMap[nivel][tipo] = first 1-based row for that nivel+tipo in the sheet
@@ -234,7 +218,6 @@ function buildDetSheet(wb, sheetName, title, positions) {
     });
   });
 
-  autoFitColumns(ws, DET_COLS.length);
   return { sheetName, rowMap, levels, dataLen: enriched.length };
 }
 
@@ -284,7 +267,6 @@ function buildGlobalDetSheet(wb, sheetName, title, vacantesPositions, ocupadasPo
     });
   });
 
-  autoFitColumns(ws, GLOBAL_COLS.length);
   return { sheetName, dataLen: enriched.length };
 }
 
@@ -365,8 +347,6 @@ function addObservacionesSheet(wb, obs) {
   addSection('Contratación Base (SAT_BSE)',                     obs.baseRows);
   addSection('Órgano Interno de Control',                        obs.oicRows);
   addSection('Titulares de Aduanas (Administradores de Aduana)', obs.titularRows);
-
-  autoFitColumns(ws, numDet);
 }
 
 // ── Resumen sheet ─────────────────────────────────────────────────────────────
@@ -517,8 +497,6 @@ function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
       totRow.getCell(ci).font = { ...totRow.getCell(ci).font, underline: true };
     }
   });
-
-  autoFitColumns(ws, 11, 12, 45);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
