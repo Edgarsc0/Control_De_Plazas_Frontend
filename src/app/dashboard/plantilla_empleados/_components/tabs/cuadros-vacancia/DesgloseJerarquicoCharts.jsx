@@ -130,21 +130,6 @@ const GradientBar = (props) => {
   );
 };
 
-/* ── Custom bar shape para drill-down ── */
-const DrillBar = ({ x, y, width, height, fill }) => {
-  const radius = 8;
-  if (!Number.isFinite(x) || !Number.isFinite(height) || height <= 0) return null;
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height} fill={fill} rx={radius} ry={radius} />
-      <rect
-        x={x + 2} y={y + 1} width={width - 4} height={Math.min(height * 0.35, 20)}
-        fill="rgba(255,255,255,0.18)" rx={radius - 1} ry={radius - 1}
-      />
-    </g>
-  );
-};
-
 /* ── Componente principal ── */
 export default function DesgloseJerarquicoCharts({ data = [], forExport = false }) {
   const [drillFamily, setDrillFamily] = useState(null);
@@ -218,11 +203,48 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
     data.forEach(item => {
       if (getPrefix(item.Nivel) === drillFamily) {
         const exact = (item.Nivel || "Vacío").trim();
-        counts[exact] = (counts[exact] || 0) + 1;
+        if (!counts[exact]) counts[exact] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+        counts[exact][classifyPos(item['Posición'])] += 1;
       }
     });
+
+    // Mismo criterio de división por nivel que el cuadro de vacancia
+    // (DetalleVacantesTablas.jsx): P's/D's/S's/A's → 3 divisiones,
+    // Operativos/K's → 2 (nueva creación se suma a eventuales).
+    const isThreeWay = THREE_WAY_FAMILIES.has(drillFamily);
+    const isTwoWay = TWO_WAY_FAMILIES.has(drillFamily);
+
     return Object.entries(counts)
-      .map(([name, count]) => ({ name, Vacantes: count }))
+      .map(([name, c]) => {
+        const total = c.eventual + c.nuevaCreacion + c.permanente;
+
+        let rawSegments = null;
+        if (isThreeWay) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual },
+            { type: 'nuevaCreacion', value: c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        } else if (isTwoWay) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual + c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        }
+
+        const segments = rawSegments
+          ? [...rawSegments]
+              .sort((a, b) => b.value - a.value)
+              .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
+          : null;
+
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
+        if (segments) {
+          segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
+          row.segments = segments;
+        }
+        return row;
+      })
       .sort((a, b) => b.Vacantes - a.Vacantes);
   }, [data, drillFamily, getPrefix]);
 
@@ -538,29 +560,61 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                   />
                   <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   {drillFamily ? (
-                    <Bar
-                      dataKey="Vacantes"
-                      shape={<DrillBar />}
-                      background={{ fill: 'transparent', cursor: 'pointer' }}
-                      onClick={handleDrillBarClick}
-                      style={{ cursor: 'pointer' }}
-                      isAnimationActive={!forExport}
-                      animationBegin={100}
-                      animationDuration={1000}
-                      animationEasing="ease-out"
-                    >
-                      <LabelList
-                        dataKey="Vacantes"
-                        position="top"
-                        fill="currentColor"
-                        className="text-[#621f32] dark:text-[#bc955c]"
-                        style={{ fontSize: '11px', fontWeight: 800 }}
-                        offset={10}
-                      />
-                      {chart2Data.map((entry, idx) => (
-                        <Cell key={idx} fill={palette.shades[idx % palette.shades.length]} />
-                      ))}
-                    </Bar>
+                    <>
+                      {/* Misma división por tipo de plaza que el nivel de familia:
+                          Eventuales / Evt. Nueva Creación / Permanentes según el
+                          cuadro de vacancia del nivel (fallback a color plano si
+                          el nivel no tiene desglose, p.ej. "Sin Nivel"). */}
+                      <Bar
+                        dataKey="seg0"
+                        stackId="nivel"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleDrillBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={100}
+                        animationDuration={1000}
+                        animationEasing="ease-out"
+                      >
+                        <LabelList dataKey="seg0" content={renderFamilyStackLabel} />
+                        {chart2Data.map((entry, idx) => (
+                          <Cell
+                            key={idx}
+                            fill={entry.segments ? entry.segments[0].color : palette.shades[idx % palette.shades.length]}
+                          />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg1"
+                        stackId="nivel"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleDrillBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={100}
+                        animationDuration={1000}
+                        animationEasing="ease-out"
+                      >
+                        {chart2Data.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg2"
+                        stackId="nivel"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleDrillBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={100}
+                        animationDuration={1000}
+                        animationEasing="ease-out"
+                      >
+                        {chart2Data.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                    </>
                   ) : (
                     <>
                       {/* Barra dividida por tipo de plaza. Cada categoría acomoda sus
@@ -621,8 +675,8 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
               </ResponsiveContainer>
             </div>
 
-            {/* Leyenda del desglose por tipo de plaza (solo nivel superficial) */}
-            {!drillFamily && (
+            {/* Leyenda del desglose por tipo de plaza (nivel superficial y drill-down) */}
+            {chart2Data.some(row => row.segments) && (
               <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
                 {Object.values(SEGMENT_META).map((s) => (
                   <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
