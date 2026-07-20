@@ -96,23 +96,33 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     };
   }, [actualRow]);
 
+  // Datos filtrados por año/quincena seleccionados (Año + Qna.). Se calcula
+  // aquí arriba porque tanto la tabla como la gráfica histórica dependen de
+  // él y así responden juntas a la misma selección de periodo.
+  const filteredData = useMemo(() => {
+    return sortedDescData.filter(row => {
+      const rowYear = getYear(row.fecha);
+      const rowQna = formatDate(row.fecha);
+      const passYear = selectedYears.length === 0 || selectedYears.includes(rowYear);
+      const passQna = selectedQnas.length === 0 || selectedQnas.includes(rowQna);
+      return passYear && passQna;
+    });
+  }, [sortedDescData, selectedYears, selectedQnas]);
+
   const historicoChartData = useMemo(() => {
-    return [...cuadrosData]
+    return [...filteredData]
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
       .map(row => ({
         fecha: row.fecha,
-        // V-03 QA: eje X numérico por timestamp (no categórico) para que el
-        // espacio entre puntos refleje el tiempo real transcurrido — antes
-        // "01/Ene/2025 → 01/Ene/2026" ocupaba el mismo ancho que dos quincenas
-        // consecutivas.
-        ts: new Date(row.fecha).getTime(),
+        // Eje X categórico: cada dato (quincena) ocupa el mismo ancho sin
+        // importar cuánto tiempo real haya entre una fecha y la siguiente.
         label: formatDate(row.fecha),
         ocupadas_permanente: row.ocupadas_permanente || 0,
         ocupadas_eventual: row.ocupadas_eventual || 0,
         vacantes_permanente: row.vacantes_permanente || 0,
         vacantes_eventual: row.vacantes_eventual || 0,
       }));
-  }, [cuadrosData]);
+  }, [filteredData]);
 
   const HISTORICO_SERIES = [
     { key: 'ocupadas_permanente', name: 'Permanentes Ocupadas', color: '#10243e' },
@@ -141,10 +151,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   // serie dentro del grupo para separarlas incluso cuando el punto extremo coincide
   // en el mismo índice de fecha.
   const HISTORICO_LABEL_LANE = {
-    ocupadas_permanente: { max: -11, min: 18 },
-    ocupadas_eventual: { max: -26, min: 33 },
-    vacantes_permanente: { max: -11, min: 18 },
-    vacantes_eventual: { max: -26, min: 33 },
+    ocupadas_permanente: { max: -16, min: 24 },
+    ocupadas_eventual: { max: -31, min: 39 },
+    vacantes_permanente: { max: -16, min: 24 },
+    vacantes_eventual: { max: -31, min: 39 },
   };
 
   const renderHistoricoDot = (key, color) => (dotProps) => {
@@ -167,20 +177,23 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
     return (
       <g key={`dot-${key}-${index}`}>
-        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
+        {/* Halo estático (sin animación: la gráfica se exporta a PNG/PDF y una
+            animación CSS quedaría congelada a medio ciclo en la captura). */}
+        <circle cx={cx} cy={cy} r={11} fill={color} fillOpacity={0.16} />
+        <circle cx={cx} cy={cy} r={7} fill={color} stroke="#fff" strokeWidth={2.5} />
         <text
           x={textX}
           y={cy + (isMax ? lane.max : lane.min)}
           textAnchor={textAnchor}
-          fontSize={10}
-          fontWeight={800}
+          fontSize={11}
+          fontWeight={900}
           fill={color}
           stroke="#fff"
-          strokeWidth={3}
+          strokeWidth={3.5}
           paintOrder="stroke"
           className="select-none"
         >
-          {formatNumber(value)}
+          {isMax ? '▲ ' : '▼ '}{formatNumber(value)}
         </text>
       </g>
     );
@@ -196,6 +209,21 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
   }, []);
+
+  // Ticks explícitos: con muchas quincenas mostrar todas las etiquetas las
+  // encimaría, así que se eligen N repartidas por índice (siempre incluyendo
+  // la primera y la última).
+  const historicoTicks = useMemo(() => {
+    const n = historicoChartData.length;
+    if (n === 0) return [];
+    const desiredCount = Math.min(n, isCompactChart ? 4 : 7);
+    if (desiredCount <= 1) return [historicoChartData[0].label];
+    const idxs = new Set();
+    for (let i = 0; i < desiredCount; i++) {
+      idxs.add(Math.round((i * (n - 1)) / (desiredCount - 1)));
+    }
+    return [...idxs].sort((a, b) => a - b).map(i => historicoChartData[i].label);
+  }, [historicoChartData, isCompactChart]);
 
   const HistoricoTooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
@@ -295,6 +323,24 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     setSelectedQnas(next);
   };
 
+  // Botones explícitos "Marcar Todas"/"Limpiar" por nodo (año o mes) del
+  // árbol de quincenas, a diferencia de los toggle* de arriba que alternan
+  // según si el nodo ya está completo o no.
+  const markQnaGroup = (qnas) => {
+    const current = selectedQnas.length === 0 ? uniqueQnas : selectedQnas.filter(x => x !== '__NONE__');
+    let next = [...new Set([...current, ...qnas])];
+    if (next.length === uniqueQnas.length) next = [];
+    setSelectedQnas(next);
+  };
+
+  const clearQnaGroup = (qnas) => {
+    const current = selectedQnas.length === 0 ? uniqueQnas : selectedQnas.filter(x => x !== '__NONE__');
+    let next = current.filter(d => !qnas.includes(d));
+    if (next.length === uniqueQnas.length) next = [];
+    if (next.length === 0 && current.length > 0) next = ['__NONE__'];
+    setSelectedQnas(next);
+  };
+
   const selectAllYears = () => setSelectedYears([]);
   const unselectAllYears = () => setSelectedYears(['__NONE__']);
   const selectAllQnas = () => setSelectedQnas([]);
@@ -328,17 +374,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     });
     return tree;
   }, [sortedDescData]);
-
-  // Filtered data based on selected filters
-  const filteredData = useMemo(() => {
-    return sortedDescData.filter(row => {
-      const rowYear = getYear(row.fecha);
-      const rowQna = formatDate(row.fecha);
-      const passYear = selectedYears.length === 0 || selectedYears.includes(rowYear);
-      const passQna = selectedQnas.length === 0 || selectedQnas.includes(rowQna);
-      return passYear && passQna;
-    });
-  }, [sortedDescData, selectedYears, selectedQnas]);
 
   // Calculate rowspans for Año using the FILTERED data
   const yearSpans = useMemo(() => {
@@ -1293,18 +1328,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     VACANTES
                   </span>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={historicoChartData} margin={{ top: 10, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
+                    <LineChart data={historicoChartData} margin={{ top: isCompactChart ? 28 : 40, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.6} className="text-slate-350 dark:text-slate-600" />
                       <XAxis
-                        dataKey="ts"
-                        type="number"
-                        scale="time"
-                        domain={['dataMin', 'dataMax']}
-                        tickFormatter={(ts) => formatDate(new Date(ts).toISOString().slice(0, 10))}
+                        dataKey="label"
+                        type="category"
+                        ticks={historicoTicks}
                         tick={{ fontSize: isCompactChart ? 8 : 10, fontWeight: 700 }}
                         stroke="currentColor"
                         className="text-slate-400 dark:text-slate-500"
-                        interval="preserveStartEnd"
                       />
                       <YAxis
                         tick={{ fontSize: isCompactChart ? 9 : 10, fontWeight: 700 }}
@@ -1315,7 +1347,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                       />
                       <Tooltip
                         content={<HistoricoTooltip />}
-                        labelFormatter={(ts) => formatDate(new Date(ts).toISOString().slice(0, 10))}
                         cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }}
                       />
                       <Legend
@@ -1390,11 +1421,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             )}
           </div>
           <div className="max-h-48 overflow-y-auto custom-scrollbar">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => selectedYears.length === 0 ? unselectAllYears() : selectAllYears()}>
-              <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedYears.length === 0 ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : selectedYears.length > 0 && selectedYears[0] !== '__NONE__' ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                {selectedYears.length === 0 ? <Check className="size-3" /> : selectedYears.length > 0 && selectedYears[0] !== '__NONE__' ? <Minus className="size-3" /> : null}
-              </div>
-              <span className="font-extrabold text-[11px] text-[#10243e] dark:text-[#bc955c] uppercase tracking-wider">(Seleccionar todo)</span>
+            <div className="flex gap-2 px-3 py-2 border-b border-slate-100 dark:border-slate-850">
+              <button onClick={selectAllYears} className="flex-1 text-[9px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Marcar Todas</button>
+              <button onClick={unselectAllYears} className="flex-1 text-[9px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Limpiar</button>
             </div>
             {uniqueYears.map(year => (
               <div key={year} onClick={() => toggleYear(year)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
@@ -1423,11 +1452,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             )}
           </div>
           <div className="max-h-60 overflow-y-auto custom-scrollbar">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 dark:border-slate-855 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" onClick={() => selectedQnas.length === 0 ? unselectAllQnas() : selectAllQnas()}>
-              <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedQnas.length === 0 ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : selectedQnas.length > 0 && selectedQnas[0] !== '__NONE__' ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                {selectedQnas.length === 0 ? <Check className="size-3" /> : selectedQnas.length > 0 && selectedQnas[0] !== '__NONE__' ? <Minus className="size-3" /> : null}
-              </div>
-              <span className="font-extrabold text-[11px] text-[#10243e] dark:text-[#bc955c] uppercase tracking-wider">(Seleccionar todo)</span>
+            <div className="flex gap-2 px-3 py-2 border-b border-slate-100 dark:border-slate-855">
+              <button onClick={selectAllQnas} className="flex-1 text-[9px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Marcar Todas</button>
+              <button onClick={unselectAllQnas} className="flex-1 text-[9px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Limpiar</button>
             </div>
             {Object.entries(qnaTree).map(([treeYear, months]) => {
               const yearDays = Object.values(months).flat();
@@ -1437,7 +1464,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
               return (
                 <div key={treeYear} className="mb-1">
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/40 sticky top-0 z-10 border-y border-slate-100 dark:border-slate-800/60">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/40 sticky top-0 z-10 border-y border-slate-100 dark:border-slate-800/60 group">
                     <button onClick={() => toggleExpand(treeYear)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer">
                       {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
                     </button>
@@ -1446,6 +1473,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                         {isYearChecked ? <Check className="size-3" /> : isYearIndeterminate ? <Minus className="size-3" /> : null}
                       </div>
                       <span className="font-black text-xs text-slate-700 dark:text-slate-200">{treeYear}</span>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); markQnaGroup(yearDays); }} title="Marcar todo el año" className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Todas</button>
+                      <button onClick={(e) => { e.stopPropagation(); clearQnaGroup(yearDays); }} title="Limpiar todo el año" className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Limpiar</button>
                     </div>
                   </div>
 
@@ -1457,7 +1488,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
                     return (
                       <div key={monthKey} className="ml-3 border-l border-slate-150 dark:border-slate-800">
-                        <div className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-855/50">
+                        <div className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-855/50 group">
                           <button onClick={() => toggleExpand(monthKey)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 cursor-pointer">
                             {isMonthExpanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
                           </button>
@@ -1466,6 +1497,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                               {isMonthChecked ? <Check className="size-3" /> : isMonthIndeterminate ? <Minus className="size-3" /> : null}
                             </div>
                             <span className="font-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">{month}</span>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); markQnaGroup(days); }} title="Marcar todo el mes" className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Todas</button>
+                            <button onClick={(e) => { e.stopPropagation(); clearQnaGroup(days); }} title="Limpiar todo el mes" className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Limpiar</button>
                           </div>
                         </div>
 
