@@ -22,6 +22,19 @@ const GRADIENT_PAIRS = [
   ['#2e5890', '#4479be'],
 ];
 
+/* ── Abreviaciones para el eje X de "Vacantes por Nivel Jerárquico" ── */
+const NJ_ABBR = {
+  '0': 'Tit. ANAM',
+  '1': 'DG',
+  '2': 'Dir. Central',
+  '3': 'Director',
+  '4': 'Subdirector',
+  '5': 'Jefe Depto.',
+  '6': 'Enlace',
+  '7': 'Op. Cfza.',
+  '8': 'Op. Bse.',
+};
+
 const FAMILY_COLORS = {
   "K's":        { main: '#10243e', shades: ['#10243e','#162d4d','#1d3a62','#254879','#2e5890','#3868a7','#4479be','#518bd5'] },
   "A's":        { main: '#bc955c', shades: ['#8a6d3e','#9b7b47','#ac8a50','#bc955c','#c4a06b','#ccab7a','#d4b78a','#dcc29a'] },
@@ -126,7 +139,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
       njCounts[nj] = (njCounts[nj] || 0) + 1;
     });
     return Object.keys(njCounts)
-      .map(nj => ({ name: `NJ ${nj}`, sortKey: parseInt(nj) || 0, Vacantes: njCounts[nj] }))
+      .map(nj => ({ name: NJ_ABBR[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Vacantes: njCounts[nj] }))
       .sort((a, b) => a.sortKey - b.sortKey);
   }, [data]);
 
@@ -183,7 +196,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
 
   const handleNJBarClick = useCallback((barData) => {
     if (!barData || !barData.name) return;
-    const njValue = barData.name.replace('NJ ', '');
+    const njValue = barData.nj ?? barData.name.replace('NJ ', '');
     const filtered = data.filter(item => {
       const raw = (item.NJ ?? '').toString().trim();
       const nj = raw === '' ? 'Sin NJ' : raw;

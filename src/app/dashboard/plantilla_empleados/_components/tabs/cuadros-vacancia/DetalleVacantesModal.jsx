@@ -316,24 +316,31 @@ export default function DetalleVacantesModal({ isOpen, onClose, rows = [], title
         </div>
       </div>
 
-      <AnimatePresence>
-        {activeFilterDropdown && (
-          <ColumnFilterDropdown
-            open={!!activeFilterDropdown}
-            columnKey={activeFilterDropdown}
-            columnLabel={ALL_COLUMNS.find((c) => c.key === activeFilterDropdown)?.label}
-            isDate={false}
-            data={rows}
-            getCellValue={defaultGetCellValue}
-            filters={filters}
-            dropdownValues={filterDropdownValues}
-            onApply={() => applyColumnFilter(activeFilterDropdown)}
-            onClear={() => clearColumnFilter(activeFilterDropdown)}
-            onClose={() => setActiveFilterDropdown(null)}
-            zIndexClass={FILTER_DROPDOWN_Z_INDEX_CLASS}
-          />
-        )}
-      </AnimatePresence>
+      {/* stopPropagation: aunque ColumnFilterDropdown haga su propio createPortal
+          a document.body, los eventos de click burbujean por el árbol de React
+          (no el del DOM), así que sin esto cualquier click dentro del dropdown
+          (backdrop, Aplicar, Limpiar, X) llegaría al onClick={onClose} del
+          wrapper de arriba y cerraría también este modal de detalle. */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <AnimatePresence>
+          {activeFilterDropdown && (
+            <ColumnFilterDropdown
+              open={!!activeFilterDropdown}
+              columnKey={activeFilterDropdown}
+              columnLabel={ALL_COLUMNS.find((c) => c.key === activeFilterDropdown)?.label}
+              isDate={false}
+              data={rows}
+              getCellValue={defaultGetCellValue}
+              filters={filters}
+              dropdownValues={filterDropdownValues}
+              onApply={() => applyColumnFilter(activeFilterDropdown)}
+              onClear={() => clearColumnFilter(activeFilterDropdown)}
+              onClose={() => setActiveFilterDropdown(null)}
+              zIndexClass={FILTER_DROPDOWN_Z_INDEX_CLASS}
+            />
+          )}
+        </AnimatePresence>
+      </div>
     </div>,
     document.body
   );
