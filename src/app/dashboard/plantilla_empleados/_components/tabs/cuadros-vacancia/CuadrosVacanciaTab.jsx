@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Zoom } from "react-awesome-reveal";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, useXAxisScale, usePlotArea } from "recharts";
 import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp, TrendingUp } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
@@ -123,6 +123,108 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         vacantes_eventual: row.vacantes_eventual || 0,
       }));
   }, [filteredData]);
+
+  // Franjas de fondo: agrupa puntos consecutivos que caen en el mismo mes
+  // calendario y les asigna un color distinto (ciclando la paleta) para que
+  // cada mes se distinga visualmente en la gráfica histórica.
+  const MONTH_BAND_COLORS = ['#10243e', '#bc955c', '#621f32', '#2e5890', '#3b6ba8', '#8c2d4a', '#4a7c59', '#7c4a8c'];
+
+  const historicoMonthBands = useMemo(() => {
+    const bands = [];
+    historicoChartData.forEach(d => {
+      const monthKey = d.fecha.slice(0, 7); // YYYY-MM
+      const last = bands[bands.length - 1];
+      if (last && last.monthKey === monthKey) {
+        last.x2 = d.label;
+      } else {
+        bands.push({ monthKey, x1: d.label, x2: d.label });
+      }
+    });
+    return bands.map((b, i) => ({ ...b, color: MONTH_BAND_COLORS[i % MONTH_BAND_COLORS.length] }));
+  }, [historicoChartData]);
+
+  // ReferenceArea con x1===x2 (mes de un solo registro) renderiza ancho 0 en
+  // el eje categórico (point scale, sin bandwidth), así que las franjas se
+  // dibujan a mano con el scale real del eje X (hooks de recharts v3) para
+  // poder darle un ancho mínimo visible a esos meses de un solo punto.
+  const MonthBandsLayer = () => {
+    const scale = useXAxisScale();
+    const plotArea = usePlotArea();
+    if (!scale || !plotArea || historicoMonthBands.length === 0) return null;
+
+    const step = historicoChartData.length > 1
+      ? Math.abs(scale(historicoChartData[1].label) - scale(historicoChartData[0].label))
+      : plotArea.width;
+    const minWidth = Math.max(6, step * 0.4);
+    const halfStep = step / 2;
+
+    return (
+      <g>
+        {historicoMonthBands.map((b, i) => {
+          const x1px = scale(b.x1);
+          const x2px = scale(b.x2);
+          const isSingle = b.x1 === b.x2;
+          // Puntos son categóricos (point scale): cada uno se ancla en su centro,
+          // así que hay que extender medio paso a cada lado para cubrir todo su ancho,
+          // no solo el tramo centro-a-centro entre el primer y el último punto del mes.
+          const width = isSingle ? minWidth : Math.abs(x2px - x1px) + step;
+          const left = isSingle ? x1px - width / 2 : Math.min(x1px, x2px) - halfStep;
+          if (!Number.isFinite(left) || !Number.isFinite(width)) return null;
+
+          // Etiqueta "Mes Año" centrada en la franja, solo si el ancho la
+          // acomoda completa (estimación de ancho por caracter a fontSize 10).
+          const [yearStr, monthStr] = b.monthKey.split('-');
+          const monthLabel = new Date(Number(yearStr), Number(monthStr) - 1, 1)
+            .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+          const labelText = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+          const estimatedTextWidth = labelText.length * 5.6 + 10;
+          const showLabel = width >= estimatedTextWidth;
+
+          return (
+            <g key={b.monthKey}>
+              <rect
+                x={left}
+                y={plotArea.y}
+                width={width}
+                height={plotArea.height}
+                fill={b.color}
+                fillOpacity={0.22}
+              />
+              {/* Frontera entre meses: línea vertical en el borde izquierdo de cada
+                  franja (salvo la primera, que coincide con el borde del área). */}
+              {i > 0 && (
+                <line
+                  x1={left}
+                  x2={left}
+                  y1={plotArea.y}
+                  y2={plotArea.y + plotArea.height}
+                  stroke={b.color}
+                  strokeOpacity={0.55}
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              )}
+              {showLabel && (
+                <text
+                  x={left + width / 2}
+                  y={plotArea.y + plotArea.height / 2 - 16}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={10}
+                  fontWeight={900}
+                  fill={b.color}
+                  fillOpacity={0.85}
+                  className="select-none pointer-events-none"
+                >
+                  {labelText}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
+    );
+  };
 
   const HISTORICO_SERIES = [
     { key: 'ocupadas_permanente', name: 'Permanentes Ocupadas', color: '#10243e' },
@@ -1330,6 +1432,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={historicoChartData} margin={{ top: isCompactChart ? 28 : 40, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.6} className="text-slate-350 dark:text-slate-600" />
+                      <MonthBandsLayer />
                       <XAxis
                         dataKey="label"
                         type="category"

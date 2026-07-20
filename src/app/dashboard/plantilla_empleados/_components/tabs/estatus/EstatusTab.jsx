@@ -337,7 +337,7 @@ function SortToggle({ mode, onChange }) {
 /** Solo el segmento visible más externo (el que "cierra" la barra) se redondea del lado abierto; el resto queda recto para que el apilado se lea como un bloque continuo. */
 const makeUaSegmentShape = (statusKey) => (props) => {
   const { x, y, width, height, payload, fill } = props;
-  if (height <= 0 || width <= 0) return null;
+  if (!Number.isFinite(x) || !Number.isFinite(width) || !Number.isFinite(height) || height <= 0 || width <= 0) return null;
   const lastKey = [...STATUS_ORDER].reverse().find((k) => (payload?.[k] || 0) > 0);
   if (statusKey !== lastKey) {
     return <rect x={x} y={y} width={width} height={height} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;

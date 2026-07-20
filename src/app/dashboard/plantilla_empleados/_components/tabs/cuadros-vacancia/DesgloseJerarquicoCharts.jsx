@@ -73,7 +73,7 @@ const GradientBar = (props) => {
   const id = `barGrad-${index}`;
   const radius = 8;
 
-  if (height <= 0) return null;
+  if (!Number.isFinite(x) || !Number.isFinite(height) || height <= 0) return null;
 
   return (
     <g>
@@ -101,7 +101,7 @@ const GradientBar = (props) => {
 /* ── Custom bar shape para drill-down ── */
 const DrillBar = ({ x, y, width, height, fill }) => {
   const radius = 8;
-  if (height <= 0) return null;
+  if (!Number.isFinite(x) || !Number.isFinite(height) || height <= 0) return null;
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} fill={fill} rx={radius} ry={radius} />
