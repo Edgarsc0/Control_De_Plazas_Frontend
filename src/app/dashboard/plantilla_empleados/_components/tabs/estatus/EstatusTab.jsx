@@ -13,7 +13,10 @@ import {
   ChevronsRight,
   FileSpreadsheet,
   Filter,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { motion, AnimatePresence } from "motion/react";
 import EmployeesModal from "../../shared/EmployeesModal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -32,6 +35,8 @@ const STATUS_COLORS = {
   Licencia: "#8b5cf6",
   "Licencia Médica": "#10b981",
 };
+
+const STATUS_ORDER = ["Activo", "Vacante", "Suspendido", "Licencia", "Licencia Médica"];
 
 const mapEstadoNomina = (val) => {
   if (!val || val.trim() === "") return "Vacante";
@@ -298,6 +303,79 @@ function PaginationControls({ page, totalPages, onPageChange, itemLabel }) {
   );
 }
 
+// ─── SortToggle ───────────────────────────────────────────────────────────────
+
+function SortToggle({ mode, onChange }) {
+  return (
+    <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 rounded-xl p-1 gap-1 shrink-0">
+      <button
+        onClick={() => onChange("alpha")}
+        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+          mode === "alpha"
+            ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm"
+            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        }`}
+      >
+        A-Z
+      </button>
+      <button
+        onClick={() => onChange("plazas")}
+        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+          mode === "plazas"
+            ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm"
+            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        }`}
+      >
+        Más plazas
+      </button>
+    </div>
+  );
+}
+
+// ─── UA stacked bar (plazas por UA, dividido por estatus de nómina) ──────────
+
+/** Solo el segmento visible más externo (el que "cierra" la barra) se redondea del lado abierto; el resto queda recto para que el apilado se lea como un bloque continuo. */
+const makeUaSegmentShape = (statusKey) => (props) => {
+  const { x, y, width, height, payload, fill } = props;
+  if (height <= 0 || width <= 0) return null;
+  const lastKey = [...STATUS_ORDER].reverse().find((k) => (payload?.[k] || 0) > 0);
+  if (statusKey !== lastKey) {
+    return <rect x={x} y={y} width={width} height={height} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;
+  }
+  const r = 4;
+  const w = Math.max(width, r);
+  const d = `M ${x} ${y} H ${x + w - r} Q ${x + w} ${y} ${x + w} ${y + r} V ${y + height - r} Q ${x + w} ${y + height} ${x + w - r} ${y + height} H ${x} Z`;
+  return <path d={d} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;
+};
+
+function UaStackedTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider truncate max-w-[220px]" title={label}>
+        {label}
+      </p>
+      <div className="space-y-1.5">
+        {STATUS_ORDER.filter((s) => (row[s] || 0) > 0).map((s) => (
+          <div key={s} className="flex justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: STATUS_COLORS[s] }} />
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{s}</span>
+            </div>
+            <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(row[s])}</span>
+          </div>
+        ))}
+        <div className="flex justify-between items-center gap-4 pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">Total</span>
+          <span className="text-xs font-black text-[#621f32] dark:text-[#bc955c]">{formatNumber(row.total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── EstatusTab ───────────────────────────────────────────────────────────────
 
 export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua: {} }, activeSubTab, detalle = [] }) {
@@ -307,6 +385,9 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
   const [uasPageSize, setUasPageSize] = useState(8);
   const [uaSearchQuery, setUaSearchQuery] = useState("");
   const [levelSearchQuery, setLevelSearchQuery] = useState("");
+  const [levelSortMode, setLevelSortMode] = useState("alpha"); // 'alpha' | 'plazas'
+  const [uaSortMode, setUaSortMode] = useState("alpha"); // 'alpha' | 'plazas'
+  const [uaBarDirection, setUaBarDirection] = useState("desc"); // 'desc' | 'asc', para la gráfica de barras apiladas
   const [selectedUaForModal, setSelectedUaForModal] = useState(null);
   const [selectedLevelEstatus, setSelectedLevelEstatus] = useState(null);
 
@@ -380,6 +461,27 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
     return sortLevels(Object.keys(porNivelGrouped));
   }, [porNivelGrouped]);
 
+  // Total de plazas por nivel/UA, para el modo de orden "Más plazas".
+  const levelTotals = useMemo(() => {
+    const totals = {};
+    Object.entries(porNivelGrouped).forEach(([level, data]) => {
+      totals[level] = data.reduce((sum, item) => sum + item.value, 0);
+    });
+    return totals;
+  }, [porNivelGrouped]);
+
+  const uaTotals = useMemo(() => {
+    const totals = {};
+    Object.entries(estatusPorNivelUa?.por_ua || {}).forEach(([ua, levelsData]) => {
+      let total = 0;
+      Object.values(levelsData || {}).forEach((statusCounts) => {
+        Object.values(statusCounts || {}).forEach((v) => { total += v; });
+      });
+      totals[ua] = total;
+    });
+    return totals;
+  }, [estatusPorNivelUa]);
+
   const handleOpenUaDownloadModal = () => {
     setSelectedUas(new Set(uasList));
     setIsGlobalDownloadModalOpen(true);
@@ -396,8 +498,11 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
       const q = normalizeForSearch(levelSearchQuery);
       list = list.filter(l => normalizeForSearch(l).includes(q));
     }
+    if (levelSortMode === "plazas") {
+      list = [...list].sort((a, b) => (levelTotals[b] || 0) - (levelTotals[a] || 0));
+    }
     return list;
-  }, [porNivelGrouped, levelSearchQuery]);
+  }, [porNivelGrouped, levelSearchQuery, levelSortMode, levelTotals]);
 
   const totalLevelsPages = Math.ceil(filteredLevelsList.length / levelsPageSize) || 1;
   const paginatedLevelsList = useMemo(() => {
@@ -409,15 +514,41 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
     if (levelsPage > totalLevelsPages) setLevelsPage(totalLevelsPages);
   }, [filteredLevelsList.length, levelsPageSize, totalLevelsPages, levelsPage]);
 
-  useEffect(() => { setLevelsPage(1); }, [levelSearchQuery]);
+  useEffect(() => { setLevelsPage(1); }, [levelSearchQuery, levelSortMode]);
 
   // Filtered UAs
   const filteredUas = useMemo(() => {
-    const uas = sortLevels(Object.keys(estatusPorNivelUa?.por_ua || {}));
-    if (!uaSearchQuery.trim()) return uas;
-    const query = normalizeForSearch(uaSearchQuery);
-    return uas.filter((ua) => normalizeForSearch(ua).includes(query));
-  }, [estatusPorNivelUa, uaSearchQuery]);
+    let uas = sortLevels(Object.keys(estatusPorNivelUa?.por_ua || {}));
+    if (uaSearchQuery.trim()) {
+      const query = normalizeForSearch(uaSearchQuery);
+      uas = uas.filter((ua) => normalizeForSearch(ua).includes(query));
+    }
+    if (uaSortMode === "plazas") {
+      uas = [...uas].sort((a, b) => (uaTotals[b] || 0) - (uaTotals[a] || 0));
+    }
+    return uas;
+  }, [estatusPorNivelUa, uaSearchQuery, uaSortMode, uaTotals]);
+
+  // Datos para la gráfica de barras apiladas: una barra por UA (búsqueda
+  // aplicada, sin paginar), dividida por estatus de nómina y ordenada por
+  // total de plazas según uaBarDirection.
+  const uaBarChartData = useMemo(() => {
+    const rows = filteredUas.map((ua) => {
+      const levelsData = estatusPorNivelUa?.por_ua?.[ua] || {};
+      const row = { name: ua, total: 0 };
+      STATUS_ORDER.forEach((s) => { row[s] = 0; });
+      Object.values(levelsData).forEach((statusCounts) => {
+        Object.entries(statusCounts || {}).forEach(([code, val]) => {
+          const label = mapEstadoNomina(code);
+          row[label] = (row[label] || 0) + val;
+          row.total += val;
+        });
+      });
+      return row;
+    }).filter((r) => r.total > 0);
+    rows.sort((a, b) => (uaBarDirection === "desc" ? b.total - a.total : a.total - b.total));
+    return rows;
+  }, [filteredUas, estatusPorNivelUa, uaBarDirection]);
 
   const totalUasPages = Math.ceil(filteredUas.length / uasPageSize) || 1;
   const paginatedUasList = useMemo(() => {
@@ -429,7 +560,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
     if (uasPage > totalUasPages) setUasPage(totalUasPages);
   }, [filteredUas.length, uasPageSize, totalUasPages, uasPage]);
 
-  useEffect(() => { setUasPage(1); }, [uaSearchQuery]);
+  useEffect(() => { setUasPage(1); }, [uaSearchQuery, uaSortMode]);
 
   return (
     <div className="w-full max-w-screen-xl mx-auto mt-2 flex flex-col gap-8 px-4">
@@ -459,6 +590,8 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
               >
                 Descargar Excel
               </button>
+
+              <SortToggle mode={levelSortMode} onChange={setLevelSortMode} />
 
               <div className="relative w-full sm:w-72 flex items-center pr-3 pl-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] focus-within:ring-2 focus-within:ring-[#621f32]/10 dark:focus-within:ring-[#bc955c]/10 rounded-2xl transition-all duration-300 shadow-sm">
                 <Search className="text-slate-400 dark:text-slate-500 size-4 mr-2.5 flex-shrink-0" />
@@ -555,6 +688,8 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
                 Descargar Excel
               </button>
 
+              <SortToggle mode={uaSortMode} onChange={setUaSortMode} />
+
               <div className="relative w-full sm:w-72 flex items-center pr-3 pl-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] focus-within:ring-2 focus-within:ring-[#621f32]/10 dark:focus-within:ring-[#bc955c]/10 rounded-2xl transition-all duration-300 shadow-sm">
                 <Search className="text-slate-400 dark:text-slate-500 size-4 mr-2.5 flex-shrink-0" />
                 <input
@@ -572,6 +707,70 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
               </div>
             </div>
           </div>
+
+          {/* Gráfica de barras apiladas: plazas por UA, divididas por estatus de nómina */}
+          {uaBarChartData.length > 0 && (
+            <div className="mb-8 pb-8 border-b border-slate-200/30 dark:border-slate-800/30">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                  <h4 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+                    Plazas por Unidad Administrativa
+                  </h4>
+                  <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
+                    Ordenado por total de plazas · dividido por estatus de nómina
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="hidden md:flex items-center gap-3 flex-wrap">
+                    {STATUS_ORDER.map((status) => (
+                      <div key={status} className="flex items-center gap-1.5">
+                        <span className="size-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[status] }} />
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{status}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 rounded-xl p-1 gap-1 shrink-0">
+                    <button
+                      onClick={() => setUaBarDirection("desc")}
+                      title="Mayor a menor"
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${uaBarDirection === "desc" ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
+                    >
+                      <ArrowDownWideNarrow className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setUaBarDirection("asc")}
+                      title="Menor a mayor"
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${uaBarDirection === "asc" ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
+                    >
+                      <ArrowUpNarrowWide className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="max-h-[520px] overflow-y-auto custom-scrollbar pr-2">
+                <ResponsiveContainer width="100%" height={Math.max(240, uaBarChartData.length * 30)}>
+                  <BarChart data={uaBarChartData} layout="vertical" margin={{ top: 4, right: 40, left: 4, bottom: 4 }} barCategoryGap={6}>
+                    <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={170}
+                      interval={0}
+                      tick={{ fontSize: 9, fill: "#64748b", fontWeight: 700 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => (v.length > 24 ? v.slice(0, 24) + "…" : v)}
+                    />
+                    <RechartsTooltip content={<UaStackedTooltip />} cursor={{ fill: "rgba(98,31,50,0.04)" }} />
+                    {STATUS_ORDER.map((status) => (
+                      <Bar key={status} dataKey={status} stackId="estatus" fill={STATUS_COLORS[status]} barSize={16} shape={makeUaSegmentShape(status)} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {/* Pagination - UAs */}
           {filteredUas.length > 0 && (
