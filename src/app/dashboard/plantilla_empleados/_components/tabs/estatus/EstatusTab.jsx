@@ -12,6 +12,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   FileSpreadsheet,
+  Filter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import EmployeesModal from "../../shared/EmployeesModal";
@@ -755,15 +756,80 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
   const allLevels = useMemo(() => sortLevels(Object.keys(levelsData)), [levelsData]);
   const [selectedLevels, setSelectedLevels] = useState(new Set());
 
-  // Initialize selectedLevels when component mounts/receives data
+  // Niveles visibles en el grid de donuts (filtro independiente de la selección de descarga)
+  const [visibleLevels, setVisibleLevels] = useState(new Set());
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterButtonRef = useRef(null);
+  const filterDropdownRef = useRef(null);
+  const [filterDropdownPos, setFilterDropdownPos] = useState(null);
+
+  // Initialize selectedLevels/visibleLevels when component mounts/receives data
   useEffect(() => {
     setSelectedLevels(new Set(allLevels));
+    setVisibleLevels(new Set(allLevels));
   }, [allLevels]);
 
   useEffect(() => { setMounted(true); }, []);
 
-  const levels = allLevels.filter((level) => normalizeForSearch(level).includes(normalizeForSearch(searchQuery)));
-  
+  // Dropdown se portalea a document.body (position: fixed) para no quedar
+  // recortado por el overflow-hidden del contenedor del modal cuando este
+  // es más bajo que el contenido del propio dropdown.
+  useEffect(() => {
+    if (!isFilterOpen) return;
+
+    const updatePosition = () => {
+      const rect = filterButtonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setFilterDropdownPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isFilterOpen]);
+
+  useEffect(() => {
+    if (!isFilterOpen) return;
+    const handleClickOutside = (e) => {
+      if (
+        filterButtonRef.current && !filterButtonRef.current.contains(e.target) &&
+        filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)
+      ) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isFilterOpen]);
+
+  const toggleVisibleLevel = (lvl) => {
+    setVisibleLevels((prev) => {
+      const next = new Set(prev);
+      if (next.has(lvl)) next.delete(lvl);
+      else next.add(lvl);
+      return next;
+    });
+  };
+
+  const handleToggleAllVisibleLevels = () => {
+    if (visibleLevels.size === allLevels.length) {
+      setVisibleLevels(new Set());
+    } else {
+      setVisibleLevels(new Set(allLevels));
+    }
+  };
+
+  const levels = allLevels.filter(
+    (level) => normalizeForSearch(level).includes(normalizeForSearch(searchQuery)) && visibleLevels.has(level)
+  );
+
   const totalPositions = Object.values(levelsData).reduce((total, statusCounts) => {
     return total + Object.values(statusCounts || {}).reduce((sum, count) => sum + count, 0);
   }, 0);
@@ -795,6 +861,63 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
             >
               Exportar Excel
             </button>
+
+            <div className="relative flex-shrink-0">
+              <button
+                ref={filterButtonRef}
+                onClick={() => setIsFilterOpen((o) => !o)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm cursor-pointer"
+              >
+                <Filter className="size-3.5" />
+                Niveles ({visibleLevels.size}/{allLevels.length})
+              </button>
+
+              {mounted && createPortal(
+                <AnimatePresence>
+                  {isFilterOpen && filterDropdownPos && (
+                    <motion.div
+                      ref={filterDropdownRef}
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      style={{ position: "fixed", top: filterDropdownPos.top, right: filterDropdownPos.right }}
+                      className="w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-[130] p-3 flex flex-col gap-2"
+                    >
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mostrar niveles</span>
+                        <button
+                          onClick={handleToggleAllVisibleLevels}
+                          className="text-[10px] font-black text-[#621f32] dark:text-[#bc955c] hover:underline cursor-pointer"
+                        >
+                          {visibleLevels.size === allLevels.length ? "Ninguno" : "Todos"}
+                        </button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto flex flex-col gap-0.5">
+                        {allLevels.map((lvl) => (
+                          <label
+                            key={lvl}
+                            className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors"
+                          >
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase truncate pr-2">{lvl}</span>
+                            <input
+                              type="checkbox"
+                              checked={visibleLevels.has(lvl)}
+                              onChange={() => toggleVisibleLevel(lvl)}
+                              className="size-4 rounded border-gray-300 dark:border-slate-700 text-[#621f32] focus:ring-[#621f32]/20 cursor-pointer flex-shrink-0"
+                            />
+                          </label>
+                        ))}
+                        {allLevels.length === 0 && (
+                          <div className="text-center py-4 text-[11px] font-bold text-slate-400">Sin niveles.</div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>,
+                document.body
+              )}
+            </div>
 
             <div className="relative hidden sm:flex items-center pr-3 pl-4 py-2 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] focus-within:ring-2 focus-within:ring-[#621f32]/10 dark:focus-within:ring-[#bc955c]/10 rounded-xl transition-all duration-300 shadow-sm w-64">
               <Search className="text-slate-400 dark:text-slate-500 size-4 mr-2.5 flex-shrink-0" />
@@ -853,7 +976,12 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
               const mappedData = getMappedEstatusData(levelsData[level]);
               return <LevelDonutChart key={level} levelName={level} data={mappedData} onSliceClick={(estatus) => onSliceClick(level, estatus)} />;
             })}
-            {levels.length === 0 && (
+            {levels.length === 0 && allLevels.length > 0 && (
+              <div className="col-span-full py-12 text-center text-slate-400 font-bold">
+                No hay niveles que coincidan con el filtro o la búsqueda.
+              </div>
+            )}
+            {allLevels.length === 0 && (
               <div className="col-span-full py-12 text-center text-slate-400 font-bold">No hay niveles registrados para esta UA.</div>
             )}
           </div>
