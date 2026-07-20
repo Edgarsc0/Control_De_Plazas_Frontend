@@ -1422,7 +1422,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   No hay datos históricos disponibles
                 </div>
               ) : (
-                <div data-pdf-chart className={`w-full relative pl-4 sm:pl-5 ${(isGeneratingPdf || isGeneratingWord) ? 'h-[650px]' : 'h-[320px] sm:h-[380px]'}`}>
+                <div data-pdf-chart className="w-full relative pl-4 sm:pl-5 h-[650px]">
                   <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-500 select-none">
                     OCUPADAS
                   </span>
