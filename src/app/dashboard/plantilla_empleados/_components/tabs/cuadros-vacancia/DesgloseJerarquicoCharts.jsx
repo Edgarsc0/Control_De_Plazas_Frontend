@@ -202,10 +202,11 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
               .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
           : null;
 
-        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0, topSeg: 0 };
         if (segments) {
           segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
           row.segments = segments;
+          row.topSeg = segments.length - 1;
         }
         return row;
       })
@@ -318,9 +319,14 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
 
   // Etiqueta del total sobre el stack completo (se ancla en el segmento más
   // alto, pero muestra la suma de los 2-3 segmentos, no el valor propio de ese segmento).
-  const StackTotalLabel = (props) => {
+  // Familias de 2 divisiones (Operativos, K's) rematan en seg1, no en seg2 (que
+  // siempre vale 0 para ellas): por eso hay que anclar la etiqueta al segmento
+  // que realmente es el tope de cada fila, no siempre al mismo dataKey.
+  const makeStackTotalLabel = (segIdx) => (props) => {
     const { x, y, width, index } = props;
-    const total = chart2Data[index]?.Vacantes ?? 0;
+    const row = chart2Data[index];
+    if (!row || row.topSeg !== segIdx) return null;
+    const total = row.Vacantes ?? 0;
     if (!total || !Number.isFinite(x) || !Number.isFinite(y)) return null;
     return (
       <text
@@ -565,6 +571,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
+                        <LabelList dataKey="seg0" content={makeStackTotalLabel(0)} />
                         {chart2Data.map((entry, idx) => (
                           <Cell
                             key={idx}
@@ -583,6 +590,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
+                        <LabelList dataKey="seg1" content={makeStackTotalLabel(1)} />
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
                         ))}
@@ -598,7 +606,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg2" content={<StackTotalLabel />} />
+                        <LabelList dataKey="seg2" content={makeStackTotalLabel(2)} />
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
                         ))}
