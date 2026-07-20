@@ -202,11 +202,10 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
               .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
           : null;
 
-        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0, topSeg: 0 };
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
         if (segments) {
           segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
           row.segments = segments;
-          row.topSeg = segments.length - 1;
         }
         return row;
       })
@@ -317,21 +316,28 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
     );
   };
 
-  // Etiqueta del total sobre el stack completo (se ancla en el segmento más
-  // alto, pero muestra la suma de los 2-3 segmentos, no el valor propio de ese segmento).
-  // Familias de 2 divisiones (Operativos, K's) rematan en seg1, no en seg2 (que
-  // siempre vale 0 para ellas): por eso hay que anclar la etiqueta al segmento
-  // que realmente es el tope de cada fila, no siempre al mismo dataKey.
-  const makeStackTotalLabel = (segIdx) => (props) => {
-    const { x, y, width, index } = props;
+  // Etiqueta del total sobre el stack completo. Se ancla siempre en seg0 (el
+  // segmento más grande, garantizado > 0 en toda fila con total > 0) en vez
+  // del segmento "tope" visual: Recharts elimina del array interno cualquier
+  // segmento con height === 0 (ver Bar.js `computeBarRectangles`), lo que
+  // desalinea los índices que llegan a LabelList y hacía que el total de una
+  // familia se dibujara sobre la barra vecina (p.ej. Operativos/K's, cuyo
+  // segmento menor suele ser 0). Con seg0 como ancla ese filtrado nunca ocurre,
+  // y la posición Y del tope real del stack se deriva por escala proporcional.
+  const renderFamilyStackLabel = (props) => {
+    const { x, y, width, height, index } = props;
     const row = chart2Data[index];
-    if (!row || row.topSeg !== segIdx) return null;
+    if (!row) return null;
     const total = row.Vacantes ?? 0;
-    if (!total || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (!total || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height)) return null;
+    const seg0 = row.seg0 || 0;
+    const rest = (row.seg1 || 0) + (row.seg2 || 0);
+    const pixelsPerUnit = seg0 > 0 ? height / seg0 : 0;
+    const topY = y - rest * pixelsPerUnit;
     return (
       <text
         x={x + width / 2}
-        y={y - 10}
+        y={topY - 10}
         textAnchor="middle"
         fontSize={11}
         fontWeight={800}
@@ -571,7 +577,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg0" content={makeStackTotalLabel(0)} />
+                        <LabelList dataKey="seg0" content={renderFamilyStackLabel} />
                         {chart2Data.map((entry, idx) => (
                           <Cell
                             key={idx}
@@ -590,7 +596,6 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg1" content={makeStackTotalLabel(1)} />
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
                         ))}
@@ -606,7 +611,6 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg2" content={makeStackTotalLabel(2)} />
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
                         ))}

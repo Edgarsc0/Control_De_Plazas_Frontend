@@ -310,14 +310,11 @@ function drawOrganigramaCardPdf(pdf, node, leftPx, topPx, X, Y, T, lane) {
   const bodyY = dividerY + T(16);
   const sinPlaza = !node.num_posicion_gerente || node.num_posicion_gerente === "(en blanco)";
   const plazaInactiva = !sinPlaza && (!node.ocupante || !node.ocupante.activa);
-  const vacante = !sinPlaza && !plazaInactiva && node.ocupante?.vacante;
+  // Sin plaza titular asignada ⇒ se asume vacante (igual que una plaza
+  // activa sin ocupante).
+  const vacante = sinPlaza || (!plazaInactiva && node.ocupante?.vacante);
 
-  if (sinPlaza) {
-    pdf.setFont("helvetica", "italic");
-    pdf.setFontSize(fs(8.5));
-    pdf.setTextColor(148, 163, 184); // slate-400
-    pdf.text("Sin plaza titular", cx, bodyY, { align: "center" });
-  } else if (plazaInactiva) {
+  if (plazaInactiva) {
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(fs(8.5));
     pdf.setTextColor(190, 18, 60); // rose-700
@@ -573,8 +570,9 @@ function OrganigramaContent() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isSearching, setIsSearching] = useState(false);
   const [highlightedNodeId, setHighlightedNodeId] = useState(null);
-  // ── Filtro "Departamentos vacantes": destaca todas las plazas titulares
-  // vacantes del árbol actual y permite recorrerlas una por una con < >.
+  // ── Filtro "Departamentos vacantes": destaca todos los departamentos
+  // vacantes del árbol actual (plaza titular vacante o sin plaza titular
+  // asignada) y permite recorrerlos uno por uno con < >.
   const [vacantesFiltroActivo, setVacantesFiltroActivo] = useState(false);
   const [vacanteFocusIndex, setVacanteFocusIndex] = useState(0);
   // ── Reordenar hermanos por drag-and-drop (mismo padre, ver handleReorderDrop) ─
@@ -840,10 +838,15 @@ function OrganigramaContent() {
     // ya que organigramaData mantiene su referencia para no reiniciar la vista.
   }, [organigramaData, renderTick]);
 
-  // ── Departamentos con plaza titular vacante (activa pero sin ocupante) en
-  // el árbol actualmente cargado, en orden DFS — base del filtro "Vacantes".
+  // ── Departamentos vacantes en el árbol actualmente cargado, en orden DFS
+  // — base del filtro "Vacantes". Un departamento se considera vacante si su
+  // plaza titular está activa pero sin ocupante, o si no tiene plaza titular
+  // asignada en absoluto (se asume vacante hasta que se alinee una).
   const vacantesList = useMemo(
-    () => flatList.filter(n => n.ocupante && n.ocupante.activa && n.ocupante.vacante),
+    () => flatList.filter(n => {
+      const sinPlaza = !n.num_posicion_gerente || n.num_posicion_gerente === "(en blanco)";
+      return sinPlaza || !!(n.ocupante && n.ocupante.activa && n.ocupante.vacante);
+    }),
     [flatList]
   );
   const vacantesSet = useMemo(() => new Set(vacantesList.map(v => v.departamento)), [vacantesList]);
@@ -1658,7 +1661,7 @@ function OrganigramaContent() {
             </p>
             <div className="w-8 h-px bg-slate-150 dark:bg-slate-800" />
             {!node.num_posicion_gerente || node.num_posicion_gerente === "(en blanco)" ? (
-              <p className="text-[9.5px] text-slate-350 dark:text-slate-600 italic">Sin plaza titular</p>
+              <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">Departamento vacante</p>
             ) : !node.ocupante || !node.ocupante.activa ? (
               <p className="text-[9.5px] text-rose-700 dark:text-rose-400 font-semibold">Plaza inactiva</p>
             ) : node.ocupante.vacante ? (
@@ -1878,7 +1881,14 @@ function OrganigramaContent() {
             )}
           </div>
         ) : !posicion || posicion === "(en blanco)" ? (
-          <p className="text-slate-400 dark:text-slate-500">Sin plaza asignada.</p>
+          fieldKey === "titular" ? (
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-2.5 rounded-xl text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+              <div>Sin plaza titular asignada. Departamento vacante (se asume así hasta que se alinee una plaza).</div>
+            </div>
+          ) : (
+            <p className="text-slate-400 dark:text-slate-500">Sin plaza asignada.</p>
+          )
         ) : loading ? (
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -2157,7 +2167,7 @@ function OrganigramaContent() {
         <button
           onClick={handleToggleVacantesFiltro}
           disabled={!vacantesFiltroActivo && vacantesList.length === 0}
-          title={vacantesFiltroActivo ? "Cerrar filtro de vacantes" : "Destacar departamentos con plaza titular vacante"}
+          title={vacantesFiltroActivo ? "Cerrar filtro de vacantes" : "Destacar departamentos vacantes (sin plaza titular o con plaza titular vacante)"}
           className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
             vacantesFiltroActivo
               ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20"
