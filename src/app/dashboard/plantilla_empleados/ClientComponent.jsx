@@ -32,6 +32,7 @@ import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacan
 import CatalogosEstructuraTab from "./_components/tabs/catalogos-estructura/CatalogosEstructuraTab";
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-estructura/catalogosConfig";
 import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
+import { VacantesService } from "@/services/vacantes.service";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
@@ -114,9 +115,24 @@ export default function PlantillaEmpleadosDetalle({
       setRemoteUpdatesCount((c) => c + 1);
     }
   }, [updateDetalleCell, email]);
+  // Al reconectar el SSE (el backend corta el stream cada pocos minutos, ver
+  // SSE_MAX_LIFETIME_SECONDS) puede haberse perdido algún cell_update de otro
+  // usuario durante el hueco de reconexión — este canal no tiene fallback por
+  // BD como el de ZAFIRO, así que se resincroniza pidiendo la tabla completa.
+  const resyncDetalleFromServer = useCallback(async () => {
+    try {
+      const response = await VacantesService.getEmpleadosCompletosActivosDetalle();
+      if (response.ok) {
+        const fresh = await response.json();
+        setDetalleData(fresh || []);
+      }
+    } catch (err) {
+      console.error("Error al resincronizar detalle tras reconexión SSE:", err);
+    }
+  }, []);
   // Refleja en vivo las ediciones de celda de otros usuarios (SSE dedicado,
   // ver useCeldaUpdatesRealtime) reusando el mismo reducer que la edición local.
-  useCeldaUpdatesRealtime(handleRemoteCellUpdate);
+  useCeldaUpdatesRealtime(handleRemoteCellUpdate, resyncDetalleFromServer);
   const clearRemoteUpdatesCount = useCallback(() => setRemoteUpdatesCount(0), []);
   // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
   // parpadeo) — el backend igual exige el permiso real en cada endpoint.

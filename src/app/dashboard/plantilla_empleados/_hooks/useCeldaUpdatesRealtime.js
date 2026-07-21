@@ -10,10 +10,12 @@ import { PERMISSIONS } from "@/config/permissions";
 // plantilla.views.CeldaUpdatesSSEView / plantilla.celda_override.notificar_cambio_celda).
 // Independiente del EventSource de ZafiroUpdatesContext (última actualización
 // de ZAFIRO) — no lo toca ni depende de él.
-export function useCeldaUpdatesRealtime(onCellUpdate) {
+export function useCeldaUpdatesRealtime(onCellUpdate, onReconnect) {
   const { hasPermission } = useAuth();
   const onCellUpdateRef = useRef(onCellUpdate);
   onCellUpdateRef.current = onCellUpdate;
+  const onReconnectRef = useRef(onReconnect);
+  onReconnectRef.current = onReconnect;
 
   useEffect(() => {
     if (!hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE)) return;
@@ -32,6 +34,13 @@ export function useCeldaUpdatesRealtime(onCellUpdate) {
     let retryDelay = 5000;
     const MAX_RETRY_DELAY = 60000;
     let active = true;
+    // El backend corta el stream cada pocos minutos (ver SSE_MAX_LIFETIME_SECONDS
+    // en ZafiroSSEView/CeldaUpdatesSSEView) para no agotar conexiones MySQL; en
+    // el hueco de reconexión (backoff) se pueden perder eventos cell_update de
+    // otros usuarios, ya que este canal no tiene fallback por BD como el de
+    // ZAFIRO. Por eso, en cada reconexión (no en la primera, que ya parte de
+    // datos frescos del server) se pide un refetch completo para resincronizar.
+    let hasConnectedBefore = false;
 
     const connect = () => {
       if (!active) return;
@@ -39,6 +48,10 @@ export function useCeldaUpdatesRealtime(onCellUpdate) {
 
       eventSource.onopen = () => {
         retryDelay = 5000;
+        if (hasConnectedBefore) {
+          onReconnectRef.current?.();
+        }
+        hasConnectedBefore = true;
       };
 
       eventSource.onmessage = (event) => {
