@@ -341,12 +341,12 @@ const makeUaSegmentShapeVertical = (statusKey) => (props) => {
   if (!Number.isFinite(x) || !Number.isFinite(width) || !Number.isFinite(height) || height <= 0 || width <= 0) return null;
   const lastKey = [...STATUS_ORDER].reverse().find((k) => (payload?.[k] || 0) > 0);
   if (statusKey !== lastKey) {
-    return <rect x={x} y={y} width={width} height={height} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;
+    return <rect x={x} y={y} width={width} height={height} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} style={{ cursor: "pointer" }} />;
   }
   const r = 4;
   const h = Math.max(height, r);
   const d = `M ${x} ${y + h} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + width - r} Q ${x + width} ${y} ${x + width} ${y + r} V ${y + h} Z`;
-  return <path d={d} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;
+  return <path d={d} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} style={{ cursor: "pointer" }} />;
 };
 
 /** Tick truncado (con "…" y <title> para el nombre completo en hover) para
@@ -426,6 +426,16 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
 
   // Ref for aborting Excel exports
   const abortControllerRef = useRef(null);
+
+  // Ref al bloque "Desglose por Unidad Administrativa (UA)", para hacer scroll
+  // automático cuando se da clic en una barra de la gráfica apilada de arriba.
+  const uaDesgloseRef = useRef(null);
+
+  const handleUaBarClick = (uaName) => {
+    if (!uaName) return;
+    setUaSearchQuery(uaName);
+    uaDesgloseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const handleExportExcel = async (exportFn, defaultFilename) => {
     // Cancel any ongoing export first
@@ -755,14 +765,14 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
               </div>
               <div className="overflow-x-auto custom-scrollbar pb-3">
                 <div style={{ width: Math.max(760, uaBarChartData.length * 76) }}>
-                  <ResponsiveContainer width="100%" height={520}>
-                    <BarChart data={uaBarChartData} margin={{ top: 20, right: 20, left: 4, bottom: 110 }} barCategoryGap={12}>
+                  <ResponsiveContainer width="100%" height={440}>
+                    <BarChart data={uaBarChartData} margin={{ top: 20, right: 20, left: 4, bottom: 40 }} barCategoryGap={12}>
                       <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                       <XAxis
                         type="category"
                         dataKey="name"
                         interval={0}
-                        height={130}
+                        height={90}
                         tick={<TruncatedUaTick />}
                         axisLine={false}
                         tickLine={false}
@@ -770,7 +780,15 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
                       <YAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }} axisLine={false} tickLine={false} />
                       <RechartsTooltip content={<UaStackedTooltip />} cursor={{ fill: "rgba(98,31,50,0.04)" }} />
                       {STATUS_ORDER.map((status) => (
-                        <Bar key={status} dataKey={status} stackId="estatus" fill={STATUS_COLORS[status]} barSize={32} shape={makeUaSegmentShapeVertical(status)} />
+                        <Bar
+                          key={status}
+                          dataKey={status}
+                          stackId="estatus"
+                          fill={STATUS_COLORS[status]}
+                          barSize={32}
+                          shape={makeUaSegmentShapeVertical(status)}
+                          onClick={(data) => handleUaBarClick(data?.name)}
+                        />
                       ))}
                     </BarChart>
                   </ResponsiveContainer>
@@ -784,7 +802,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
           )}
         </div>
 
-        <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/80 shadow-xl p-8 mb-10">
+        <div ref={uaDesgloseRef} className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/80 shadow-xl p-8 mb-10 scroll-mt-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-200/50 dark:border-slate-800/80 pb-4">
             <div className="flex items-center gap-3.5">
               <div className="p-2.5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] text-white rounded-2xl shadow-md">

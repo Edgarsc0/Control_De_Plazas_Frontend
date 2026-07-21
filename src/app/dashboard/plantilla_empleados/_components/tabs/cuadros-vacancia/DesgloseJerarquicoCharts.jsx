@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 import { Layers, ChevronLeft, TrendingUp } from 'lucide-react';
 import DetalleVacantesModal from './DetalleVacantesModal';
@@ -53,9 +53,9 @@ const classifyPos = (pos) => {
 };
 
 const SEGMENT_META = {
-  eventual: { label: 'Eventuales', color: '#2e5890' },
-  nuevaCreacion: { label: 'Eventuales Nueva Creación', color: '#bc955c' },
-  permanente: { label: 'Permanentes', color: '#621f32' },
+  permanente: { label: 'Vacantes Permanentes', color: '#621f32' },
+  eventual: { label: 'Vacantes Eventuales', color: '#2e5890' },
+  nuevaCreacion: { label: 'Vacantes Eventuales Nueva Creación', color: '#bc955c' },
 };
 
 // P's, D's, S's, A's: 3 divisiones. Operativos y K's: 2 (nueva creación se suma a eventuales).
@@ -131,8 +131,25 @@ const GradientBar = (props) => {
 };
 
 /* ── Componente principal ── */
-export default function DesgloseJerarquicoCharts({ data = [], forExport = false }) {
+const OCUPADAS_COLOR = '#2f855a';
+
+export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false }) {
   const [drillFamily, setDrillFamily] = useState(null);
+
+  // Ancho del contenedor de la gráfica 1: con 9 categorías en poco espacio
+  // "Subdirector" se corta/encima con su vecino, así que por debajo de un
+  // ancho por barra mínimo se usa la abreviación corta "Sub".
+  const chart1ContainerRef = useRef(null);
+  const [chart1Width, setChart1Width] = useState(0);
+  useEffect(() => {
+    const el = chart1ContainerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(entries => {
+      setChart1Width(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const chart1Data = useMemo(() => {
     if (!data || data.length === 0) return [];
@@ -142,16 +159,30 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
       const nj = raw === '' ? 'Sin NJ' : raw;
       njCounts[nj] = (njCounts[nj] || 0) + 1;
     });
+    const isNarrow = chart1Width > 0 && (chart1Width / 9) < 70;
+    const abbr = { ...NJ_ABBR, '4': isNarrow ? 'Sub' : 'Subdirector' };
     return Object.keys(njCounts)
-      .map(nj => ({ name: NJ_ABBR[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Vacantes: njCounts[nj] }))
+      .map(nj => ({ name: abbr[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Vacantes: njCounts[nj] }))
       .sort((a, b) => a.sortKey - b.sortKey);
-  }, [data]);
+  }, [data, chart1Width]);
 
   const getPrefix = useCallback((nivel) => {
     if (!nivel) return "Sin Nivel";
     const c = nivel.trim().charAt(0).toUpperCase();
     return /[A-Z]/.test(c) ? `${c}'s` : "Operativos";
   }, []);
+
+  // Conteo de posiciones ocupadas por familia (mismo criterio getPrefix que
+  // familyData), para la gráfica "Posiciones Totales". Solo a nivel familia
+  // por ahora — el drill-down por nivel exacto queda pendiente.
+  const ocupadasPorFamilia = useMemo(() => {
+    const counts = {};
+    (ocupadosData || []).forEach(item => {
+      const p = getPrefix(item.Nivel);
+      counts[p] = (counts[p] || 0) + 1;
+    });
+    return counts;
+  }, [ocupadosData, getPrefix]);
 
   const familyData = useMemo(() => {
     if (!data || data.length === 0) return [];
@@ -165,6 +196,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
     return Object.entries(counts)
       .map(([name, c]) => {
         const total = c.eventual + c.nuevaCreacion + c.permanente;
+        const ocupadas = ocupadasPorFamilia[name] || 0;
 
         let rawSegments = null;
         if (THREE_WAY_FAMILIES.has(name)) {
@@ -187,7 +219,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
               .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
           : null;
 
-        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0, ocupadas, total: total + ocupadas };
         if (segments) {
           segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
           row.segments = segments;
@@ -195,7 +227,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
         return row;
       })
       .sort((a, b) => b.Vacantes - a.Vacantes);
-  }, [data, getPrefix]);
+  }, [data, getPrefix, ocupadasPorFamilia]);
 
   const drillData = useMemo(() => {
     if (!drillFamily || !data || data.length === 0) return [];
@@ -304,6 +336,12 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
   const chart2Data = drillFamily ? drillData : familyData;
   const palette = drillFamily ? (FAMILY_COLORS[drillFamily] || FAMILY_COLORS["Sin Nivel"]) : null;
 
+  // Posiciones Totales ordena por total de posiciones (vacantes + ocupadas),
+  // no solo por vacantes como familyData — la familia con más posiciones va primero.
+  const chart3Data = useMemo(() => {
+    return [...familyData].sort((a, b) => b.total - a.total);
+  }, [familyData]);
+
   // Tooltip de la gráfica 2: si la barra está segmentada (Eventuales / Evt. Nueva
   // Creación / Permanentes), muestra el desglose; si no, cae al tooltip genérico.
   const Chart2Tooltip = ({ active, payload, label }) => {
@@ -338,6 +376,47 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
     );
   };
 
+  // Tooltip de la gráfica 3 (Posiciones Totales): igual que Chart2Tooltip pero
+  // siempre incluye la fila de Ocupadas y el gran total (vacantes + ocupadas).
+  const Chart3Tooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const row = payload[0].payload;
+    if (!row.segments) return <CustomTooltip active={active} payload={payload} label={label} />;
+
+    return (
+      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+        <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
+          {label}
+        </p>
+        <div className="space-y-1.5">
+          {row.segments.map((s, i) => (
+            <div key={i} className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${s.color}, ${s.color}dd)`, boxShadow: `0 2px 4px ${s.color}30` }}
+                />
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">{s.label}</span>
+              </div>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(s.value)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: OCUPADAS_COLOR }} />
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Ocupadas</span>
+            </div>
+            <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(row.ocupadas)}</span>
+          </div>
+        </div>
+        <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 font-black">
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">Total Plazas</span>
+          <span className="text-xs text-[#621f32] dark:text-[#bc955c]">{formatNumber(row.total)}</span>
+        </div>
+      </div>
+    );
+  };
+
   // Etiqueta del total sobre el stack completo. Se ancla siempre en seg0 (el
   // segmento más grande, garantizado > 0 en toda fila con total > 0) en vez
   // del segmento "tope" visual: Recharts elimina del array interno cualquier
@@ -346,11 +425,11 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
   // familia se dibujara sobre la barra vecina (p.ej. Operativos/K's, cuyo
   // segmento menor suele ser 0). Con seg0 como ancla ese filtrado nunca ocurre,
   // y la posición Y del tope real del stack se deriva por escala proporcional.
-  const renderFamilyStackLabel = (props) => {
+  const makeStackTotalLabel = (dataset, getTotal) => (props) => {
     const { x, y, width, height, index } = props;
-    const row = chart2Data[index];
+    const row = dataset[index];
     if (!row) return null;
-    const total = row.Vacantes ?? 0;
+    const total = getTotal(row) ?? 0;
     if (!total || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height)) return null;
     const seg0 = row.seg0 || 0;
     const rest = (row.seg1 || 0) + (row.seg2 || 0);
@@ -370,6 +449,9 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
       </text>
     );
   };
+
+  const renderChart2Label = makeStackTotalLabel(chart2Data, row => row.Vacantes);
+  const renderChart3Label = makeStackTotalLabel(chart3Data, row => row.total);
 
   return (
     <div className="w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -397,10 +479,10 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 relative z-10">
 
           {/* ── Gráfica 1: NJ ── */}
-          <div data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+          <div ref={chart1ContainerRef} data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
             <div className="mb-6">
               <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
                 Vacantes por Nivel Jerárquico
@@ -576,7 +658,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1000}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg0" content={renderFamilyStackLabel} />
+                        <LabelList dataKey="seg0" content={renderChart2Label} />
                         {chart2Data.map((entry, idx) => (
                           <Cell
                             key={idx}
@@ -631,7 +713,7 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg0" content={renderFamilyStackLabel} />
+                        <LabelList dataKey="seg0" content={renderChart2Label} />
                         {chart2Data.map((entry, idx) => (
                           <Cell
                             key={idx}
@@ -689,6 +771,109 @@ export default function DesgloseJerarquicoCharts({ data = [], forExport = false 
                 </span>
               </div>
             )}
+          </div>
+
+          {/* ── Gráfica 3: Posiciones Totales ── */}
+          <div data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+            <div className="mb-6">
+              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                Posiciones Totales
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+                Posiciones totales por familia de nivel
+              </p>
+            </div>
+            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chart3Data}
+                  margin={{ top: 34, right: 15, left: -15, bottom: 10 }}
+                  barCategoryGap="20%"
+                >
+                  <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={45}
+                  />
+                  <Tooltip content={<Chart3Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  <Bar
+                    dataKey="ocupadas"
+                    stackId="familia"
+                    fill={OCUPADAS_COLOR}
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  />
+                  <Bar
+                    dataKey="seg0"
+                    stackId="familia"
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  >
+                    <LabelList dataKey="seg0" content={renderChart3Label} />
+                    {chart3Data.map((entry, idx) => (
+                      <Cell
+                        key={idx}
+                        fill={entry.segments ? entry.segments[0].color : GRADIENT_PAIRS[idx % GRADIENT_PAIRS.length][0]}
+                      />
+                    ))}
+                  </Bar>
+                  <Bar
+                    dataKey="seg1"
+                    stackId="familia"
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  >
+                    {chart3Data.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
+                    ))}
+                  </Bar>
+                  <Bar
+                    dataKey="seg2"
+                    stackId="familia"
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  >
+                    {chart3Data.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
+                <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: OCUPADAS_COLOR }} />
+                Ocupadas
+              </div>
+              {Object.values(SEGMENT_META).map((s) => (
+                <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+                  {s.label}
+                </div>
+              ))}
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                (P's, D's, S's, A's: 3 divisiones · Operativos y K's: Eventuales + Permanentes)
+              </span>
+            </div>
           </div>
 
         </div>

@@ -681,7 +681,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       // PÁGINAS 2+: Gráficas (una por página, grandes)
       // ════════════════════════════════════════════════
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular'];
+      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Posiciones Totales'];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
           pdf.addPage();
@@ -990,7 +990,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular'];
+      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Posiciones Totales'];
       const chartImages = [];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
@@ -1501,7 +1501,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
         <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section data-pdf-charts>
           <Zoom triggerOnce>
-            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
+            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
           </Zoom>
         </div>
 
