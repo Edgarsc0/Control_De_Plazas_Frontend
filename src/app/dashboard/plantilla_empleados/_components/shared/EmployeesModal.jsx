@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import { VacantesService } from "@/services/vacantes.service";
 import {
@@ -469,6 +469,12 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
     const [showColumnsModal, setShowColumnsModal] = useState(false);
     const [selectedEmployeeRecord, setSelectedEmployeeRecord] = useState(null);
 
+    // Altura dinámica: la tabla mide su propio contenido (header + filas) y el
+    // contenedor adopta esa altura, topada por max-h-[55vh] (el máximo actual).
+    // Con pocos registros el modal se ve más chico; con muchos, hace scroll interno.
+    const tableContainerRef = useRef(null);
+    const [tableHeight, setTableHeight] = useState(null);
+
     const { selectedCell, setSelectedCell } = useCellSelection();
     const filters = useColumnFilters();
     const {
@@ -619,6 +625,18 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
         setCurrentPage(1);
     }, [columnFilters, textFilters, pageSize, sortConfig.key, sortConfig.direction]);
 
+    // El contenedor de DataTable es flex-1: se estira al alto del padre, así que su
+    // scrollHeight refleja ese alto estirado, no el contenido real. Medimos el
+    // <table> mismo (su alto es intrínseco al contenido, no se estira con flexbox).
+    // +18px cubre el mb-4 y el borde del contenedor que la medición no incluye.
+    useLayoutEffect(() => {
+        const el = tableContainerRef.current;
+        if (!el) return;
+        const table = el.querySelector("table");
+        if (!table) return;
+        setTableHeight(table.getBoundingClientRect().height + 18);
+    }, [paginatedData, loading]);
+
     const getColumnLetter = useCallback((index) => {
         let temp = index, letter = "";
         while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
@@ -715,6 +733,9 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
                 open={open}
                 onClose={() => onOpenChange(false)}
                 size="xl"
+                resizable
+                minWidth={640}
+                maxWidth={1800}
                 icon={LayoutGrid}
                 eyebrow="Listado"
                 title="Listado de Empleados"
@@ -780,8 +801,12 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
                         </div>
                     ) : (
                         <>
-                            <div className="flex flex-col h-[55vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800">
+                            <div
+                                className="flex flex-col max-h-[55vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
+                                style={{ height: tableHeight ? `${tableHeight}px` : "55vh" }}
+                            >
                                 <DataTable
+                                    containerRef={tableContainerRef}
                                     fillHeight
                                     fillWidth
                                     onScroll={() => {}}

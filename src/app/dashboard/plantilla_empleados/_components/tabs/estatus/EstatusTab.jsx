@@ -334,8 +334,9 @@ function SortToggle({ mode, onChange }) {
 
 // ─── UA stacked bar (plazas por UA, dividido por estatus de nómina) ──────────
 
-/** Solo el segmento visible más externo (el que "cierra" la barra) se redondea del lado abierto; el resto queda recto para que el apilado se lea como un bloque continuo. */
-const makeUaSegmentShape = (statusKey) => (props) => {
+/** Igual que makeUaSegmentShape pero para barras verticales: el segmento que "cierra"
+ * la columna (el de arriba) redondea sus esquinas superiores. */
+const makeUaSegmentShapeVertical = (statusKey) => (props) => {
   const { x, y, width, height, payload, fill } = props;
   if (!Number.isFinite(x) || !Number.isFinite(width) || !Number.isFinite(height) || height <= 0 || width <= 0) return null;
   const lastKey = [...STATUS_ORDER].reverse().find((k) => (payload?.[k] || 0) > 0);
@@ -343,18 +344,43 @@ const makeUaSegmentShape = (statusKey) => (props) => {
     return <rect x={x} y={y} width={width} height={height} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;
   }
   const r = 4;
-  const w = Math.max(width, r);
-  const d = `M ${x} ${y} H ${x + w - r} Q ${x + w} ${y} ${x + w} ${y + r} V ${y + height - r} Q ${x + w} ${y + height} ${x + w - r} ${y + height} H ${x} Z`;
+  const h = Math.max(height, r);
+  const d = `M ${x} ${y + h} V ${y + r} Q ${x} ${y} ${x + r} ${y} H ${x + width - r} Q ${x + width} ${y} ${x + width} ${y + r} V ${y + h} Z`;
   return <path d={d} fill={fill} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />;
 };
+
+/** Tick truncado (con "…" y <title> para el nombre completo en hover) para
+ * evitar que nombres largos de UA desborden el eje X de la gráfica de barras. */
+function TruncatedUaTick({ x, y, payload }) {
+  const MAX_CHARS = 18;
+  const value = payload?.value ?? "";
+  const truncated = value.length > MAX_CHARS ? `${value.slice(0, MAX_CHARS - 1)}…` : value;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <title>{value}</title>
+      <text
+        x={0}
+        y={0}
+        dy={10}
+        textAnchor="end"
+        transform="rotate(-45)"
+        fontSize={10}
+        fontWeight={700}
+        fill="#64748b"
+      >
+        {truncated}
+      </text>
+    </g>
+  );
+}
 
 function UaStackedTooltip({ active, payload, label }) {
   if (!active || !payload || !payload.length) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
-      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider truncate max-w-[220px]" title={label}>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px] max-w-[320px]">
+      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider break-words">
         {label}
       </p>
       <div className="space-y-1.5">
@@ -663,6 +689,101 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
         </div>
       ) : (
         // ── UAs ──
+        <>
+        <div className="bg-gradient-to-br from-white/70 to-[#621f32]/[0.03] dark:from-slate-900/70 dark:to-[#621f32]/[0.08] backdrop-blur-md rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/80 shadow-2xl shadow-[#621f32]/5 p-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-200/50 dark:border-slate-800/80 pb-4">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] text-white rounded-2xl shadow-md">
+                <Users className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
+                  Plazas por Unidad Administrativa
+                </h3>
+                <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
+                  Total de plazas por UA, dividido por estatus de nómina.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full md:w-auto">
+              <div className="relative w-full sm:w-72 flex items-center pr-3 pl-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] focus-within:ring-2 focus-within:ring-[#621f32]/10 dark:focus-within:ring-[#bc955c]/10 rounded-2xl transition-all duration-300 shadow-sm">
+                <Search className="text-slate-400 dark:text-slate-500 size-4 mr-2.5 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={uaSearchQuery}
+                  onChange={(e) => setUaSearchQuery(e.target.value)}
+                  placeholder="Buscar Unidad Administrativa..."
+                  className="bg-transparent text-slate-800 dark:text-slate-100 text-xs font-bold placeholder-slate-400 dark:placeholder-slate-500 w-full outline-none"
+                />
+                {uaSearchQuery && (
+                  <button onClick={() => setUaSearchQuery("")} className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-200 cursor-pointer flex-shrink-0 ml-1.5">
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {uaBarChartData.length > 0 ? (
+            <>
+              <div className="flex items-center gap-4 flex-wrap justify-between mb-6">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {STATUS_ORDER.map((status) => (
+                    <div key={status} className="flex items-center gap-1.5">
+                      <span className="size-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[status] }} />
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{status}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 rounded-xl p-1 gap-1 shrink-0">
+                  <button
+                    onClick={() => setUaBarDirection("desc")}
+                    title="Mayor a menor"
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${uaBarDirection === "desc" ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
+                  >
+                    <ArrowDownWideNarrow className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setUaBarDirection("asc")}
+                    title="Menor a mayor"
+                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${uaBarDirection === "asc" ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
+                  >
+                    <ArrowUpNarrowWide className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto custom-scrollbar pb-3">
+                <div style={{ width: Math.max(760, uaBarChartData.length * 76) }}>
+                  <ResponsiveContainer width="100%" height={520}>
+                    <BarChart data={uaBarChartData} margin={{ top: 20, right: 20, left: 4, bottom: 110 }} barCategoryGap={12}>
+                      <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
+                      <XAxis
+                        type="category"
+                        dataKey="name"
+                        interval={0}
+                        height={130}
+                        tick={<TruncatedUaTick />}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }} axisLine={false} tickLine={false} />
+                      <RechartsTooltip content={<UaStackedTooltip />} cursor={{ fill: "rgba(98,31,50,0.04)" }} />
+                      {STATUS_ORDER.map((status) => (
+                        <Bar key={status} dataKey={status} stackId="estatus" fill={STATUS_COLORS[status]} barSize={32} shape={makeUaSegmentShapeVertical(status)} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="py-16 text-center text-slate-400 dark:text-slate-500 font-bold">
+              No se encontraron unidades administrativas que coincidan con la búsqueda.
+            </div>
+          )}
+        </div>
+
         <div className="bg-white/40 dark:bg-slate-900/40 backdrop-blur-md rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/80 shadow-xl p-8 mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-200/50 dark:border-slate-800/80 pb-4">
             <div className="flex items-center gap-3.5">
@@ -707,70 +828,6 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
               </div>
             </div>
           </div>
-
-          {/* Gráfica de barras apiladas: plazas por UA, divididas por estatus de nómina */}
-          {uaBarChartData.length > 0 && (
-            <div className="mb-8 pb-8 border-b border-slate-200/30 dark:border-slate-800/30">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <div>
-                  <h4 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide">
-                    Plazas por Unidad Administrativa
-                  </h4>
-                  <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
-                    Ordenado por total de plazas · dividido por estatus de nómina
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <div className="hidden md:flex items-center gap-3 flex-wrap">
-                    {STATUS_ORDER.map((status) => (
-                      <div key={status} className="flex items-center gap-1.5">
-                        <span className="size-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[status] }} />
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{status}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 rounded-xl p-1 gap-1 shrink-0">
-                    <button
-                      onClick={() => setUaBarDirection("desc")}
-                      title="Mayor a menor"
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${uaBarDirection === "desc" ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
-                    >
-                      <ArrowDownWideNarrow className="size-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setUaBarDirection("asc")}
-                      title="Menor a mayor"
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${uaBarDirection === "asc" ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
-                    >
-                      <ArrowUpNarrowWide className="size-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="max-h-[520px] overflow-y-auto custom-scrollbar pr-2">
-                <ResponsiveContainer width="100%" height={Math.max(240, uaBarChartData.length * 30)}>
-                  <BarChart data={uaBarChartData} layout="vertical" margin={{ top: 4, right: 40, left: 4, bottom: 4 }} barCategoryGap={6}>
-                    <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={170}
-                      interval={0}
-                      tick={{ fontSize: 9, fill: "#64748b", fontWeight: 700 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => (v.length > 24 ? v.slice(0, 24) + "…" : v)}
-                    />
-                    <RechartsTooltip content={<UaStackedTooltip />} cursor={{ fill: "rgba(98,31,50,0.04)" }} />
-                    {STATUS_ORDER.map((status) => (
-                      <Bar key={status} dataKey={status} stackId="estatus" fill={STATUS_COLORS[status]} barSize={16} shape={makeUaSegmentShape(status)} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
 
           {/* Pagination - UAs */}
           {filteredUas.length > 0 && (
@@ -832,6 +889,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
             )}
           </div>
         </div>
+        </>
       )}
 
       <AnimatePresence>

@@ -12,6 +12,10 @@ const SIZE_CLASSES = {
   xl: "sm:max-w-6xl",
 };
 
+// Ancho base en px por tamaño (equivalente a los max-w-* de Tailwind) — punto de
+// partida cuando el modal es resizable, ya que ahí el ancho se controla inline.
+const SIZE_PX = { sm: 448, md: 672, lg: 896, xl: 1152 };
+
 /**
  * Shell único para todos los modals de detalle del sistema (ver
  * eje_central_front/AUDITORIA_MODALS_DETALLE.md). Un solo componente = un solo
@@ -28,6 +32,9 @@ export default function ModalShell({
   subtitle,
   footer,
   children,
+  resizable = false,
+  minWidth = 520,
+  maxWidth = 1600,
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -38,6 +45,34 @@ export default function ModalShell({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Ancho custom solo aplica si resizable; se reinicia al tamaño base cada vez
+  // que el modal se abre.
+  const [customWidth, setCustomWidth] = useState(null);
+  useEffect(() => {
+    if (open) setCustomWidth(null);
+  }, [open]);
+
+  const handleResizeStart = (e, side) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = customWidth ?? SIZE_PX[size] ?? 672;
+    const onMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      // El panel está centrado (flex justify-center): mover un solo borde en
+      // `deltaX` px requiere crecer el ancho el doble, si no el borde arrastrado
+      // sigue al cursor a mitad de velocidad.
+      const factor = side === "right" ? 1 : -1;
+      const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + factor * 2 * deltaX));
+      setCustomWidth(newWidth);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   if (!mounted) return null;
 
@@ -64,8 +99,21 @@ export default function ModalShell({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full ${SIZE_CLASSES[size]} max-h-[92vh] sm:max-h-[85vh] flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`}
+            className={`relative w-full ${!resizable ? SIZE_CLASSES[size] : ""} max-h-[92vh] sm:max-h-[85vh] flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`}
+            style={resizable ? { width: customWidth ?? SIZE_PX[size] ?? 672, maxWidth: "95vw" } : undefined}
           >
+            {resizable && (
+              <>
+                <div
+                  onMouseDown={(e) => handleResizeStart(e, "left")}
+                  className="hidden sm:block absolute inset-y-0 left-0 w-2 cursor-col-resize z-20 hover:bg-[#bc955c]/40 transition-colors"
+                />
+                <div
+                  onMouseDown={(e) => handleResizeStart(e, "right")}
+                  className="hidden sm:block absolute inset-y-0 right-0 w-2 cursor-col-resize z-20 hover:bg-[#bc955c]/40 transition-colors"
+                />
+              </>
+            )}
             {/* Franja "folio" — firma visual única y constante de todo modal del sistema */}
             <div className="h-1.5 w-full shrink-0 bg-gradient-to-r from-[#bc955c] via-[#621f32] to-[#bc955c]" />
 
