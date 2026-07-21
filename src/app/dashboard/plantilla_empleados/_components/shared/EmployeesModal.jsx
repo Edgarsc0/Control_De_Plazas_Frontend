@@ -10,7 +10,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, ChevronLeft, ChevronRight, Search, Columns3, Stamp, LayoutGrid } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid } from "lucide-react";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import DataTable from "./DataTable";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
@@ -456,14 +456,29 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
 
 
 // --- COMPONENTE PRINCIPAL ---
-export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua }) {
+// `categoryTabs`: [{ key, label, estatus }] opcional — cuando se pasa, el modal
+// reemplaza el Pill de estatus fijo por pestañas internas; cada pestaña dispara
+// su propio fetch usando su `estatus` (p.ej. las 6 categorías de "Ocupadas vs
+// Vacantes por familia de nivel": Ocup. Permanentes / Ocup. Eventuales /
+// Ocup. Event. N.C. / Vac. Eventuales / Vac. Permanentes / Vac. Event. N.C.).
+// Sin `categoryTabs`, se comporta como antes.
+export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null }) {
+    const isCategoryMode = Array.isArray(categoryTabs) && categoryTabs.length > 0;
+    const [activeCategoryIdx, setActiveCategoryIdx] = useState(0);
+    const effectiveEstatus = isCategoryMode ? categoryTabs[activeCategoryIdx]?.estatus : estatus;
+
+    // Reset de pestaña solo al abrir/cerrar el modal — no en cada cambio de
+    // categoría (eso recrearía effectiveEstatus y, si viviera en el mismo
+    // efecto que dispara el fetch, se pisaría a sí mismo de vuelta a la 0).
+    useEffect(() => {
+        if (open) setActiveCategoryIdx(0);
+    }, [open]);
+
     const [rowData, setRowData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(50);
 
     const [visibleKeys, setVisibleKeys] = useState(DEFAULT_COLUMN_KEYS);
     const [showColumnsModal, setShowColumnsModal] = useState(false);
@@ -517,11 +532,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
     })), [visibleKeys, columnWidths]);
 
     const fetchData = useCallback(async () => {
-        if (!nivel || !estatus) return;
+        if (!nivel || !effectiveEstatus) return;
         setLoading(true);
         setError(null);
         try {
-            const response = await VacantesService.getEmpleadosPorNivelYEstatus(nivel, estatus);
+            const response = await VacantesService.getEmpleadosPorNivelYEstatus(nivel, effectiveEstatus);
             const data = await response.json();
             if (response.ok) {
                 let results = data.resultados || [];
@@ -549,14 +564,13 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
         } finally {
             setLoading(false);
         }
-    }, [nivel, estatus, ua]);
+    }, [nivel, effectiveEstatus, ua]);
 
     useEffect(() => {
         if (open) {
             fetchData();
             resetFilters();
             setSortConfig({ key: null, direction: 'asc' });
-            setCurrentPage(1);
         } else {
             setRowData([]);
             setActiveFilterDropdown(null);
@@ -615,27 +629,20 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
         });
     }, [rowData, columnFilters, textFilters, sortConfig]);
 
-    const totalPages = Math.max(1, Math.ceil(processedData.length / pageSize));
-    const paginatedData = useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return processedData.slice(start, start + pageSize);
-    }, [processedData, currentPage, pageSize]);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [columnFilters, textFilters, pageSize, sortConfig.key, sortConfig.direction]);
-
     // El contenedor de DataTable es flex-1: se estira al alto del padre, así que su
     // scrollHeight refleja ese alto estirado, no el contenido real. Medimos el
     // <table> mismo (su alto es intrínseco al contenido, no se estira con flexbox).
     // +18px cubre el mb-4 y el borde del contenedor que la medición no incluye.
+    // Sin paginación: el backend ya entrega todo el listado de una vez, así que
+    // aquí solo se muestra completo (el contenedor hace scroll interno, topado
+    // por max-h-[55vh], en vez de partir los resultados en páginas).
     useLayoutEffect(() => {
         const el = tableContainerRef.current;
         if (!el) return;
         const table = el.querySelector("table");
         if (!table) return;
         setTableHeight(table.getBoundingClientRect().height + 18);
-    }, [paginatedData, loading]);
+    }, [processedData, loading]);
 
     const getColumnLetter = useCallback((index) => {
         let temp = index, letter = "";
@@ -746,20 +753,31 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                             <Pill tone="guinda">Nivel {nivel ?? "—"}</Pill>
-                            <Pill tone="dorado">{estatus ?? "—"}</Pill>
+                            {isCategoryMode ? (
+                                <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                    {categoryTabs.map((tab, i) => (
+                                        <button
+                                            key={tab.key}
+                                            onClick={() => setActiveCategoryIdx(i)}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black whitespace-nowrap transition-all cursor-pointer ${
+                                                activeCategoryIdx === i
+                                                    ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950'
+                                                    : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'
+                                            }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <Pill tone="dorado">{estatus ?? "—"}</Pill>
+                            )}
                             {ua && <Pill tone="slate">{ua}</Pill>}
                             <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
                                 {loading ? "···" : processedData.length.toLocaleString()} registros
                             </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
-                                {[20, 50, 100, 500].map((size) => (
-                                    <button key={size} onClick={() => setPageSize(size)} className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${pageSize === size ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950' : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'}`}>
-                                        {size}
-                                    </button>
-                                ))}
-                            </div>
                             <button
                                 onClick={() => setShowColumnsModal(true)}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[11px] font-bold hover:border-[#bc955c]/50 hover:text-[#621f32] dark:hover:text-[#bc955c] transition-all cursor-pointer"
@@ -800,63 +818,48 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
                             </button>
                         </div>
                     ) : (
-                        <>
-                            <div
-                                className="flex flex-col max-h-[55vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
-                                style={{ height: tableHeight ? `${tableHeight}px` : "55vh" }}
-                            >
-                                <DataTable
-                                    containerRef={tableContainerRef}
-                                    fillHeight
-                                    fillWidth
-                                    onScroll={() => {}}
-                                    columns={columns}
-                                    columnFilters={columnFilters}
-                                    textFilters={textFilters}
-                                    setTextFilters={setTextFilters}
-                                    activeConditionDropdown={activeConditionDropdown}
-                                    setActiveConditionDropdown={setActiveConditionDropdown}
-                                    selectedCell={selectedCell}
-                                    onSelectCell={setSelectedCell}
-                                    onCellContextMenu={() => {}}
-                                    onShowRecord={(row) => setSelectedEmployeeRecord(row)}
-                                    sortConfig={sortConfig}
-                                    onSort={handleSort}
-                                    onOpenFilter={openFilterDropdown}
-                                    onResizeStart={handleResizeStart}
-                                    getColumnLetter={getColumnLetter}
-                                    isMonoColumn={isMonoColumn}
-                                    isPending={false}
-                                    isLoading={loading}
-                                    loadingVariant="skeleton"
-                                    loadingMessage="Consultando base de datos..."
-                                    data={paginatedData}
-                                    startIndex={0}
-                                    endIndex={paginatedData.length}
-                                    totalCount={paginatedData.length}
-                                    rowHeight={37}
-                                    getRowId={(row, i) => row.id_empleado ?? i}
-                                    renderCell={renderCell}
-                                />
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2 shrink-0">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Página</span>
-                                <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#621f32] dark:hover:text-[#bc955c] disabled:opacity-20 transition-all cursor-pointer">
-                                        <ChevronLeft className="size-4" />
-                                    </button>
-                                    <div className="flex items-baseline gap-1 px-1">
-                                        <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c]">{currentPage}</span>
-                                        <span className="text-[10px] font-black text-slate-400 uppercase">de</span>
-                                        <span className="text-sm font-black text-slate-500 dark:text-slate-400">{totalPages}</span>
-                                    </div>
-                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#621f32] dark:hover:text-[#bc955c] disabled:opacity-20 transition-all cursor-pointer">
-                                        <ChevronRight className="size-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </>
+                        <div
+                            className="flex flex-col max-h-[55vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
+                            style={{ height: tableHeight ? `${tableHeight}px` : "55vh" }}
+                        >
+                            <DataTable
+                                containerRef={tableContainerRef}
+                                fillHeight
+                                fillWidth
+                                onScroll={() => {}}
+                                columns={columns}
+                                columnFilters={columnFilters}
+                                textFilters={textFilters}
+                                setTextFilters={setTextFilters}
+                                activeConditionDropdown={activeConditionDropdown}
+                                setActiveConditionDropdown={setActiveConditionDropdown}
+                                selectedCell={selectedCell}
+                                onSelectCell={setSelectedCell}
+                                onCellContextMenu={() => {}}
+                                onShowRecord={(row) => setSelectedEmployeeRecord(row)}
+                                sortConfig={sortConfig}
+                                onSort={handleSort}
+                                onOpenFilter={openFilterDropdown}
+                                onResizeStart={handleResizeStart}
+                                getColumnLetter={getColumnLetter}
+                                isMonoColumn={isMonoColumn}
+                                isPending={false}
+                                isLoading={loading}
+                                loadingVariant="skeleton"
+                                loadingMessage="Consultando base de datos..."
+                                data={processedData}
+                                startIndex={0}
+                                endIndex={processedData.length}
+                                totalCount={processedData.length}
+                                rowHeight={37}
+                                getRowId={(row, i) => {
+                                    const idEmp = (row.id_empleado ?? '').toString().trim();
+                                    const pos = (row.posicion ?? '').toString().trim();
+                                    return idEmp || (pos ? `${pos}-${i}` : i);
+                                }}
+                                renderCell={renderCell}
+                            />
+                        </div>
                     )}
                 </div>
             </ModalShell>
@@ -875,6 +878,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua 
                         onApply={() => applyColumnFilter(activeFilterDropdown)}
                         onClear={() => clearColumnFilter(activeFilterDropdown)}
                         onClose={() => setActiveFilterDropdown(null)}
+                        zIndexClass="z-[1100]"
                     />
                 )}
             </AnimatePresence>

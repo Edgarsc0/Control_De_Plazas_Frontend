@@ -1,7 +1,25 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
+import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 import { Layers, ChevronLeft, TrendingUp } from 'lucide-react';
 import DetalleVacantesModal from './DetalleVacantesModal';
+import EmployeesModal from '../../shared/EmployeesModal';
+
+// Pestañas del modal de detalle al hacer clic en un nivel dentro de una familia
+// en "Ocupadas vs Vacantes por familia de nivel" (gráfica 3, segundo nivel de
+// profundidad). Mismas reglas de partida presupuestal que usa el backend en
+// EmpleadosPorNivelYEstatusView: Ocupadas Permanentes = estado_nomina != ' ' +
+// posición 103% + partida 11301; Ocupadas Eventuales = estado_nomina != ' ' +
+// partida 12201 sin posición 2026%; Ocupadas Eventuales Nueva Creación =
+// estado_nomina != ' ' + partida 12201 + posición 2026%. Vacantes: mismas
+// reglas de partida/posición pero con estado_nomina = ' '.
+const VACANCIA_CATEGORY_TABS = [
+  { key: 'ocup_permanente', label: 'Ocup. Permanentes', estatus: 'Ocupadas Permanentes' },
+  { key: 'ocup_eventual', label: 'Ocup. Eventuales', estatus: 'Ocupadas Eventuales' },
+  { key: 'ocup_eventual_nc', label: 'Ocup. Event. N.C.', estatus: 'Ocupadas Eventuales Nueva Creación' },
+  { key: 'vac_eventual', label: 'Vac. Eventuales', estatus: 'Vacantes Eventuales' },
+  { key: 'vac_permanente', label: 'Vac. Permanentes', estatus: 'Vacantes Permanentes' },
+  { key: 'vac_eventual_nc', label: 'Vac. Event. N.C.', estatus: 'Vacantes Eventuales Nueva Creación' },
+];
 
 const formatNumber = (num) => {
   if (num === null || num === undefined) return "0";
@@ -36,11 +54,11 @@ const NJ_ABBR = {
 };
 
 const FAMILY_COLORS = {
-  "K's":        { main: '#10243e', shades: ['#10243e','#162d4d','#1d3a62','#254879','#2e5890','#3868a7','#4479be','#518bd5'] },
-  "A's":        { main: '#bc955c', shades: ['#8a6d3e','#9b7b47','#ac8a50','#bc955c','#c4a06b','#ccab7a','#d4b78a','#dcc29a'] },
-  "P's":        { main: '#621f32', shades: ['#4a1726','#5a1d2e','#621f32','#7a2740','#8c2d4a','#9e3454','#b03c5f','#c2446a'] },
-  "Operativos":  { main: '#7a2740', shades: ['#5a1d2e','#6e2238','#7a2740','#8c2d4a','#9e3454','#b03c5f','#c2446a','#d44d76'] },
-  "Sin Nivel":  { main: '#94a3b8', shades: ['#64748b','#718096','#94a3b8','#a0aec0','#b0bec5','#c0ccd0','#d0d8dc','#e0e4e8'] },
+  "K's": { main: '#10243e', shades: ['#10243e', '#162d4d', '#1d3a62', '#254879', '#2e5890', '#3868a7', '#4479be', '#518bd5'] },
+  "A's": { main: '#bc955c', shades: ['#8a6d3e', '#9b7b47', '#ac8a50', '#bc955c', '#c4a06b', '#ccab7a', '#d4b78a', '#dcc29a'] },
+  "P's": { main: '#621f32', shades: ['#4a1726', '#5a1d2e', '#621f32', '#7a2740', '#8c2d4a', '#9e3454', '#b03c5f', '#c2446a'] },
+  "Operativos": { main: '#7a2740', shades: ['#5a1d2e', '#6e2238', '#7a2740', '#8c2d4a', '#9e3454', '#b03c5f', '#c2446a', '#d44d76'] },
+  "Sin Nivel": { main: '#94a3b8', shades: ['#64748b', '#718096', '#94a3b8', '#a0aec0', '#b0bec5', '#c0ccd0', '#d0d8dc', '#e0e4e8'] },
 };
 
 /* ── Desglose por tipo de plaza (Eventuales / Evt. Nueva Creación / Permanentes),
@@ -52,27 +70,89 @@ const classifyPos = (pos) => {
   return 'eventual';
 };
 
+// Desglose de OCUPADAS por tipo de plaza: mismas reglas de partida que usa el
+// backend en EmpleadosPorNivelYEstatusView, pero para estado_nomina != ' '.
+// Permanentes = posición 103% + partida 11301; Eventuales Nueva Creación =
+// posición 2026% + partida 12201; Eventuales = partida 12201 sin 2026%.
+// Todo registro ocupado cae en 11301 o 12201 (verificado contra la BD), así
+// que no hace falta categoría "otras".
+const classifyOcupada = (item) => {
+  const pos = (item['Posición'] || '').trim();
+  const partida = (item['Partida'] || '').trim();
+  if (pos.startsWith('103') && partida === '11301') return 'permanente';
+  if (partida === '12201' && pos.startsWith('2026')) return 'nuevaCreacion';
+  return 'eventual';
+};
+
 const SEGMENT_META = {
   permanente: { label: 'Vacantes Permanentes', color: '#621f32' },
   eventual: { label: 'Vacantes Eventuales', color: '#2e5890' },
   nuevaCreacion: { label: 'Vacantes Eventuales Nueva Creación', color: '#bc955c' },
 };
 
+// Colores de las Ocupadas (variantes de verde), separados de los de Vacantes
+// para que las 3 divisiones se distingan a simple vista dentro de la barra.
+const OCUPADA_SEGMENT_META = {
+  permanente: { label: 'Ocupadas Permanentes', color: '#2f855a' },
+  eventual: { label: 'Ocupadas Eventuales', color: '#57b788' },
+  nuevaCreacion: { label: 'Ocupadas Eventuales Nueva Creación', color: '#9fd9bb' },
+};
+
 // P's, D's, S's, A's: 3 divisiones. Operativos y K's: 2 (nueva creación se suma a eventuales).
 const THREE_WAY_FAMILIES = new Set(["P's", "D's", "S's", "A's"]);
 const TWO_WAY_FAMILIES = new Set(["Operativos", "K's"]);
 
+// Construye los segmentos (mayor a menor) de un conteo {eventual, nuevaCreacion,
+// permanente} según la familia sea de 3 o 2 divisiones. `null` si la familia
+// no aplica (p.ej. "Sin Nivel"), igual que el criterio ya usado para vacantes.
+const buildTypeSegments = (counts, familyName, metaMap) => {
+  const isThreeWay = THREE_WAY_FAMILIES.has(familyName);
+  const isTwoWay = TWO_WAY_FAMILIES.has(familyName);
+  let rawSegments = null;
+  if (isThreeWay) {
+    rawSegments = [
+      { type: 'eventual', value: counts.eventual },
+      { type: 'nuevaCreacion', value: counts.nuevaCreacion },
+      { type: 'permanente', value: counts.permanente },
+    ];
+  } else if (isTwoWay) {
+    rawSegments = [
+      { type: 'eventual', value: counts.eventual + counts.nuevaCreacion },
+      { type: 'permanente', value: counts.permanente },
+    ];
+  }
+  if (!rawSegments) return null;
+  return [...rawSegments]
+    .sort((a, b) => b.value - a.value)
+    .map(s => ({ ...metaMap[s.type], type: s.type, value: s.value }));
+};
+
+// Igual que buildTypeSegments pero para Ocupadas: siempre devuelve al menos un
+// segmento (fallback a un único bloque "Ocupadas" en familias sin desglose de
+// 2/3 vías), para que el Cell/tooltip no tengan que distinguir el caso null.
+const buildOcupadaSegments = (counts, familyName) => {
+  const segments = buildTypeSegments(counts, familyName, OCUPADA_SEGMENT_META);
+  if (segments) return segments;
+  const total = counts.eventual + counts.nuevaCreacion + counts.permanente;
+  return [{ label: 'Ocupadas', color: OCUPADAS_COLOR, type: 'total', value: total }];
+};
+
 /* ── Tooltip premium ── */
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
-  const total = payload.reduce((sum, p) => sum + (p.value || 0), 0);
+  // Excluye el <Line> invisible que sostiene la etiqueta de total (dataKey es
+  // una función, nunca un string real de serie) para que no aparezca como
+  // fila fantasma en el tooltip genérico.
+  const visiblePayload = payload.filter(p => typeof p.dataKey !== 'function');
+  if (!visiblePayload.length) return null;
+  const total = visiblePayload.reduce((sum, p) => sum + (p.value || 0), 0);
   return (
     <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[170px]">
       <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
         {label}
       </p>
       <div className="space-y-1.5">
-        {payload.map((p, i) => (
+        {visiblePayload.map((p, i) => (
           <div key={i} className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <span
@@ -88,7 +168,7 @@ const CustomTooltip = ({ active, payload, label }) => {
           </div>
         ))}
       </div>
-      {payload.length > 1 && (
+      {visiblePayload.length > 1 && (
         <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 font-black">
           <span className="text-[11px] text-slate-400 dark:text-slate-500">Total</span>
           <span className="text-xs text-[#621f32] dark:text-[#bc955c]">{formatNumber(total)}</span>
@@ -135,6 +215,7 @@ const OCUPADAS_COLOR = '#2f855a';
 
 export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false }) {
   const [drillFamily, setDrillFamily] = useState(null);
+  const [drillFamily3, setDrillFamily3] = useState(null);
 
   // Ancho del contenedor de la gráfica 1: con 9 categorías en poco espacio
   // "Subdirector" se corta/encima con su vecino, así que por debajo de un
@@ -172,14 +253,16 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     return /[A-Z]/.test(c) ? `${c}'s` : "Operativos";
   }, []);
 
-  // Conteo de posiciones ocupadas por familia (mismo criterio getPrefix que
-  // familyData), para la gráfica "Posiciones Totales". Solo a nivel familia
-  // por ahora — el drill-down por nivel exacto queda pendiente.
-  const ocupadasPorFamilia = useMemo(() => {
+  // Conteo de posiciones ocupadas por familia, desglosado por tipo de plaza
+  // (mismo criterio getPrefix que familyData), para la gráfica "Posiciones
+  // Totales". classifyOcupada ya asume ocupadosData filtrado a estado_nomina
+  // != ' ' (así viene desde el backend).
+  const ocupadaCountsPorFamilia = useMemo(() => {
     const counts = {};
     (ocupadosData || []).forEach(item => {
       const p = getPrefix(item.Nivel);
-      counts[p] = (counts[p] || 0) + 1;
+      if (!counts[p]) counts[p] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+      counts[p][classifyOcupada(item)] += 1;
     });
     return counts;
   }, [ocupadosData, getPrefix]);
@@ -196,7 +279,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     return Object.entries(counts)
       .map(([name, c]) => {
         const total = c.eventual + c.nuevaCreacion + c.permanente;
-        const ocupadas = ocupadasPorFamilia[name] || 0;
+        const ocupCounts = ocupadaCountsPorFamilia[name] || { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+        const ocupadas = ocupCounts.eventual + ocupCounts.nuevaCreacion + ocupCounts.permanente;
 
         let rawSegments = null;
         if (THREE_WAY_FAMILIES.has(name)) {
@@ -215,11 +299,14 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         // Mayor cantidad hasta abajo (primero en el stack), menor hasta arriba.
         const segments = rawSegments
           ? [...rawSegments]
-              .sort((a, b) => b.value - a.value)
-              .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
+            .sort((a, b) => b.value - a.value)
+            .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
           : null;
 
-        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0, ocupadas, total: total + ocupadas };
+        const ocupSegments = buildOcupadaSegments(ocupCounts, name);
+
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0, ocupadas, total: total + ocupadas, ocupSeg0: 0, ocupSeg1: 0, ocupSeg2: 0, ocupSegments };
+        ocupSegments.forEach((s, i) => { row[`ocupSeg${i}`] = s.value; });
         if (segments) {
           segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
           row.segments = segments;
@@ -227,7 +314,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         return row;
       })
       .sort((a, b) => b.Vacantes - a.Vacantes);
-  }, [data, getPrefix, ocupadasPorFamilia]);
+  }, [data, getPrefix, ocupadaCountsPorFamilia]);
 
   const drillData = useMemo(() => {
     if (!drillFamily || !data || data.length === 0) return [];
@@ -266,8 +353,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
         const segments = rawSegments
           ? [...rawSegments]
-              .sort((a, b) => b.value - a.value)
-              .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
+            .sort((a, b) => b.value - a.value)
+            .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
           : null;
 
         const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
@@ -279,6 +366,88 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       })
       .sort((a, b) => b.Vacantes - a.Vacantes);
   }, [data, drillFamily, getPrefix]);
+
+  // Ocupadas por nivel exacto (P11, P12, ...), desglosado por tipo de plaza,
+  // para el drill-down de "Posiciones Totales" — mismo criterio que
+  // ocupadaCountsPorFamilia pero sin agrupar por familia.
+  const ocupadaCountsPorNivelExacto = useMemo(() => {
+    const counts = {};
+    (ocupadosData || []).forEach(item => {
+      const exact = (item.Nivel || 'Vacío').trim();
+      if (!counts[exact]) counts[exact] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+      counts[exact][classifyOcupada(item)] += 1;
+    });
+    return counts;
+  }, [ocupadosData]);
+
+  // Drill-down de "Posiciones Totales": misma familia que el usuario eligió,
+  // pero desglosada por nivel exacto y con Ocupadas vs Vacantes (mismo
+  // criterio de división que "Vacantes por Nivel Tabular" / DetalleVacantesTablas.jsx).
+  // A diferencia de drillData, aquí también se incluyen niveles con 0 vacantes
+  // (100% ocupados) tomándolos de ocupadosData, porque "Vacantes por Nivel
+  // Tabular" no los muestra al no tener filas en `data`.
+  const drillData3 = useMemo(() => {
+    if (!drillFamily3) return [];
+    const counts = {};
+    const ensure = (nivel) => {
+      if (!counts[nivel]) counts[nivel] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+      return counts[nivel];
+    };
+    (data || []).forEach(item => {
+      if (getPrefix(item.Nivel) === drillFamily3) {
+        const exact = (item.Nivel || 'Vacío').trim();
+        ensure(exact)[classifyPos(item['Posición'])] += 1;
+      }
+    });
+    (ocupadosData || []).forEach(item => {
+      if (getPrefix(item.Nivel) === drillFamily3) {
+        ensure((item.Nivel || 'Vacío').trim());
+      }
+    });
+
+    const isThreeWay = THREE_WAY_FAMILIES.has(drillFamily3);
+    const isTwoWay = TWO_WAY_FAMILIES.has(drillFamily3);
+
+    return Object.entries(counts)
+      .map(([name, c]) => {
+        const vacantesTotal = c.eventual + c.nuevaCreacion + c.permanente;
+        const ocupCounts = ocupadaCountsPorNivelExacto[name] || { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+        const ocupadas = ocupCounts.eventual + ocupCounts.nuevaCreacion + ocupCounts.permanente;
+
+        let rawSegments = null;
+        if (isThreeWay) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual },
+            { type: 'nuevaCreacion', value: c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        } else if (isTwoWay) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual + c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        }
+
+        const segments = rawSegments
+          ? [...rawSegments]
+            .sort((a, b) => b.value - a.value)
+            .map(s => ({ ...SEGMENT_META[s.type], type: s.type, value: s.value }))
+          : null;
+
+        // drillFamily3 (no `name`, que es el nivel exacto) decide si aplican
+        // 3 o 2 divisiones — mismo criterio de familia que el resto del bloque.
+        const ocupSegments = buildOcupadaSegments(ocupCounts, drillFamily3);
+
+        const row = { name, Vacantes: vacantesTotal, seg0: vacantesTotal, seg1: 0, seg2: 0, ocupadas, total: vacantesTotal + ocupadas, ocupSeg0: 0, ocupSeg1: 0, ocupSeg2: 0, ocupSegments };
+        ocupSegments.forEach((s, i) => { row[`ocupSeg${i}`] = s.value; });
+        if (segments) {
+          segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
+          row.segments = segments;
+        }
+        return row;
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [data, ocupadosData, drillFamily3, getPrefix, ocupadaCountsPorNivelExacto]);
 
   const totalVacantes = data ? data.length : 0;
 
@@ -336,11 +505,34 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   const chart2Data = drillFamily ? drillData : familyData;
   const palette = drillFamily ? (FAMILY_COLORS[drillFamily] || FAMILY_COLORS["Sin Nivel"]) : null;
 
+  const handleFamily3BarClick = useCallback((barData) => {
+    if (!barData || !barData.name) return;
+    setDrillFamily3(barData.name);
+  }, []);
+
+  // Nivel dentro de "Ocupadas vs Vacantes por familia de nivel": a diferencia
+  // de handleDrillBarClick (gráfica 2, solo vacantes), aquí se abre el
+  // EmployeesModal con las 4 pestañas de categoría (Ocupadas + 3 tipos de
+  // vacante) para ese nivel exacto.
+  const [employeesModalOpen, setEmployeesModalOpen] = useState(false);
+  const [employeesModalNivel, setEmployeesModalNivel] = useState(null);
+
+  const handleDrill3BarClick = useCallback((barData) => {
+    if (!barData || !barData.name) return;
+    // El backend espera "SIN NIVEL" (no "Vacío", que es solo la etiqueta de UI)
+    // para el grupo de posiciones sin nivel asignado.
+    const nivelParam = barData.name === 'Vacío' ? 'SIN NIVEL' : barData.name;
+    setEmployeesModalNivel(nivelParam);
+    setEmployeesModalOpen(true);
+  }, []);
+
   // Posiciones Totales ordena por total de posiciones (vacantes + ocupadas),
-  // no solo por vacantes como familyData — la familia con más posiciones va primero.
+  // no solo por vacantes como familyData — la familia con más posiciones va
+  // primero. Si hay drill activo, muestra el desglose por nivel exacto.
   const chart3Data = useMemo(() => {
+    if (drillFamily3) return drillData3;
     return [...familyData].sort((a, b) => b.total - a.total);
-  }, [familyData]);
+  }, [familyData, drillFamily3, drillData3]);
 
   // Tooltip de la gráfica 2: si la barra está segmentada (Eventuales / Evt. Nueva
   // Creación / Permanentes), muestra el desglose; si no, cae al tooltip genérico.
@@ -377,11 +569,15 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   };
 
   // Tooltip de la gráfica 3 (Posiciones Totales): igual que Chart2Tooltip pero
-  // siempre incluye la fila de Ocupadas y el gran total (vacantes + ocupadas).
+  // siempre incluye el desglose de Ocupadas (Eventuales / Permanentes / Evt.
+  // Nueva Creación) y el gran total (vacantes + ocupadas). ocupSegments
+  // siempre viene poblado en chart3Data, así que nunca cae al tooltip genérico.
   const Chart3Tooltip = ({ active, payload, label }) => {
     if (!active || !payload || !payload.length) return null;
     const row = payload[0].payload;
-    if (!row.segments) return <CustomTooltip active={active} payload={payload} label={label} />;
+    if (!row.ocupSegments) return <CustomTooltip active={active} payload={payload} label={label} />;
+
+    const vacanteRows = row.segments || (row.Vacantes ? [{ label: 'Vacantes', color: '#621f32', value: row.Vacantes }] : []);
 
     return (
       <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
@@ -389,8 +585,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
           {label}
         </p>
         <div className="space-y-1.5">
-          {row.segments.map((s, i) => (
-            <div key={i} className="flex justify-between items-center gap-4">
+          {row.ocupSegments.map((s, i) => (
+            <div key={`o-${i}`} className="flex justify-between items-center gap-4">
               <div className="flex items-center gap-2">
                 <span
                   className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
@@ -401,13 +597,18 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(s.value)}</span>
             </div>
           ))}
-          <div className="flex justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: OCUPADAS_COLOR }} />
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Ocupadas</span>
+          {vacanteRows.map((s, i) => (
+            <div key={`v-${i}`} className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${s.color}, ${s.color}dd)`, boxShadow: `0 2px 4px ${s.color}30` }}
+                />
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">{s.label}</span>
+              </div>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(s.value)}</span>
             </div>
-            <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(row.ocupadas)}</span>
-          </div>
+          ))}
         </div>
         <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 font-black">
           <span className="text-[11px] text-slate-400 dark:text-slate-500">Total Plazas</span>
@@ -417,41 +618,34 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     );
   };
 
-  // Etiqueta del total sobre el stack completo. Se ancla siempre en seg0 (el
-  // segmento más grande, garantizado > 0 en toda fila con total > 0) en vez
-  // del segmento "tope" visual: Recharts elimina del array interno cualquier
-  // segmento con height === 0 (ver Bar.js `computeBarRectangles`), lo que
-  // desalinea los índices que llegan a LabelList y hacía que el total de una
-  // familia se dibujara sobre la barra vecina (p.ej. Operativos/K's, cuyo
-  // segmento menor suele ser 0). Con seg0 como ancla ese filtrado nunca ocurre,
-  // y la posición Y del tope real del stack se deriva por escala proporcional.
-  const makeStackTotalLabel = (dataset, getTotal) => (props) => {
-    const { x, y, width, height, index } = props;
-    const row = dataset[index];
-    if (!row) return null;
-    const total = getTotal(row) ?? 0;
-    if (!total || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height)) return null;
-    const seg0 = row.seg0 || 0;
-    const rest = (row.seg1 || 0) + (row.seg2 || 0);
-    const pixelsPerUnit = seg0 > 0 ? height / seg0 : 0;
-    const topY = y - rest * pixelsPerUnit;
+  // Etiqueta del total sobre el stack completo. NO se ancla en ningún Bar
+  // individual (seg0, ocupSeg0, ...): Recharts elimina del array interno de
+  // CADA Bar cualquier segmento con height === 0 (ver Bar.js
+  // `computeBarRectangles`), lo que desalinea el `index` que le llega a
+  // LabelList en cuanto una fila anterior tiene ese dataKey en 0 (el total
+  // terminaba dibujado sobre la barra vecina) — y `payload` tampoco sirve de
+  // respaldo porque se filtra en el camino (svgPropertiesAndEvents solo deja
+  // pasar atributos SVG válidos). Se evita todo eso con un <Line> invisible
+  // superpuesto cuyo valor es el total exacto: Recharts solo descarta puntos
+  // de Line cuando el valor es null/undefined, nunca por ser 0, así que el
+  // índice nunca se desalinea y no hace falta reconstruir el tope del stack.
+  const renderTotalLabel = (props) => {
+    const { x, y, value } = props;
+    if (!value || !Number.isFinite(x) || !Number.isFinite(y)) return null;
     return (
       <text
-        x={x + width / 2}
-        y={topY - 10}
+        x={x}
+        y={y - 10}
         textAnchor="middle"
         fontSize={11}
         fontWeight={800}
         fill="currentColor"
         className="text-[#621f32] dark:text-[#bc955c] select-none pointer-events-none"
       >
-        {formatNumber(total)}
+        {formatNumber(value)}
       </text>
     );
   };
-
-  const renderChart2Label = makeStackTotalLabel(chart2Data, row => row.Vacantes);
-  const renderChart3Label = makeStackTotalLabel(chart3Data, row => row.total);
 
   return (
     <div className="w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -561,8 +755,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   { id: '7', name: 'Operativo de Confianza' },
                   { id: '8', name: 'Operativo de Base' },
                 ].map((item) => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     onClick={() => handleNJBarClick({ name: `NJ ${item.id}` })}
                     className="flex items-center gap-2.5 text-[11px] text-slate-700 dark:text-slate-350 bg-slate-50/80 dark:bg-slate-800/40 px-3 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/80 hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/10 hover:border-[#bc955c]/30 dark:hover:border-[#bc955c]/30 hover:scale-[1.02] active:scale-95 duration-200 transition-all cursor-pointer shadow-sm"
                   >
@@ -658,7 +852,6 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         animationDuration={1000}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg0" content={renderChart2Label} />
                         {chart2Data.map((entry, idx) => (
                           <Cell
                             key={idx}
@@ -713,7 +906,6 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         animationDuration={1400}
                         animationEasing="ease-out"
                       >
-                        <LabelList dataKey="seg0" content={renderChart2Label} />
                         {chart2Data.map((entry, idx) => (
                           <Cell
                             key={idx}
@@ -753,6 +945,18 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                       </Bar>
                     </>
                   )}
+                  {/* Line invisible: solo sostiene la etiqueta de total sobre el
+                      tope real del stack (ver comentario de renderTotalLabel). */}
+                  <Line
+                    dataKey={row => row.Vacantes}
+                    stroke="none"
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={false}
+                    legendType="none"
+                  >
+                    <LabelList dataKey={row => row.Vacantes} content={renderTotalLabel} />
+                  </Line>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -776,19 +980,46 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
           {/* ── Gráfica 3: Posiciones Totales ── */}
           <div data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
             <div className="mb-6">
-              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
-                Posiciones Totales
-              </h4>
+              {drillFamily3 ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setDrillFamily3(null)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 transition-all font-semibold text-xs group"
+                  >
+                    <ChevronLeft className="size-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                    Regresar
+                  </button>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                    Niveles {drillFamily3}
+                  </span>
+                </div>
+              ) : (
+                <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                  Ocupadas vs Vacantes por familia de nivel
+                </h4>
+              )}
               <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
-                Posiciones totales por familia de nivel
+                {drillFamily3
+                  ? `${drillData3.length} niveles en ${drillFamily3} · Ocupadas vs Vacantes`
+                  : 'Posiciones totales por familia de nivel (vacantes + ocupadas) · Clic para explorar'}
               </p>
             </div>
             <div className="w-full flex-1" style={{ minHeight: '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart3Data}
-                  margin={{ top: 34, right: 15, left: -15, bottom: 10 }}
+                  margin={{ top: 34, right: 15, left: -15, bottom: chart3Data.length > 6 ? 50 : 10 }}
                   barCategoryGap="20%"
+                  onClick={(state) => {
+                    if (state && state.activePayload && state.activePayload.length > 0) {
+                      if (drillFamily3) {
+                        handleDrill3BarClick(state.activePayload[0].payload);
+                      } else {
+                        handleFamily3BarClick(state.activePayload[0].payload);
+                      }
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                   <XAxis
@@ -796,6 +1027,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    interval={0}
+                    angle={chart3Data.length > 6 ? -40 : 0}
+                    textAnchor={chart3Data.length > 6 ? 'end' : 'middle'}
                   />
                   <YAxis
                     allowDecimals={false}
@@ -806,24 +1040,62 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     width={45}
                   />
                   <Tooltip content={<Chart3Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  {/* Ocupadas dividida en Eventuales / Permanentes / Evt. Nueva Creación
+                      (mayor cantidad hasta abajo, igual criterio que las vacantes). */}
                   <Bar
-                    dataKey="ocupadas"
+                    dataKey="ocupSeg0"
                     stackId="familia"
-                    fill={OCUPADAS_COLOR}
-                    isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
-                  />
-                  <Bar
-                    dataKey="seg0"
-                    stackId="familia"
+                    background={{ fill: 'transparent', cursor: 'pointer' }}
+                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={200}
                     animationDuration={1400}
                     animationEasing="ease-out"
                   >
-                    <LabelList dataKey="seg0" content={renderChart3Label} />
+                    {chart3Data.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.ocupSegments[0].color} />
+                    ))}
+                  </Bar>
+                  <Bar
+                    dataKey="ocupSeg1"
+                    stackId="familia"
+                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    style={{ cursor: 'pointer' }}
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  >
+                    {chart3Data.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.ocupSegments[1] ? entry.ocupSegments[1].color : 'transparent'} />
+                    ))}
+                  </Bar>
+                  <Bar
+                    dataKey="ocupSeg2"
+                    stackId="familia"
+                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    style={{ cursor: 'pointer' }}
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  >
+                    {chart3Data.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.ocupSegments[2] ? entry.ocupSegments[2].color : 'transparent'} />
+                    ))}
+                  </Bar>
+                  <Bar
+                    dataKey="seg0"
+                    stackId="familia"
+                    background={{ fill: 'transparent', cursor: 'pointer' }}
+                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    style={{ cursor: 'pointer' }}
+                    isAnimationActive={!forExport}
+                    animationBegin={200}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
+                  >
                     {chart3Data.map((entry, idx) => (
                       <Cell
                         key={idx}
@@ -834,6 +1106,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <Bar
                     dataKey="seg1"
                     stackId="familia"
+                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={200}
                     animationDuration={1400}
@@ -846,6 +1120,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <Bar
                     dataKey="seg2"
                     stackId="familia"
+                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={200}
                     animationDuration={1400}
@@ -855,15 +1131,29 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                       <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
                     ))}
                   </Bar>
+                  {/* Line invisible: solo sostiene la etiqueta de total sobre el
+                      tope real del stack (ver comentario de renderTotalLabel). */}
+                  <Line
+                    dataKey={row => row.total}
+                    stroke="none"
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={false}
+                    legendType="none"
+                  >
+                    <LabelList dataKey={row => row.total} content={renderTotalLabel} />
+                  </Line>
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
-                <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: OCUPADAS_COLOR }} />
-                Ocupadas
-              </div>
+              {Object.values(OCUPADA_SEGMENT_META).map((s) => (
+                <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+                  {s.label}
+                </div>
+              ))}
               {Object.values(SEGMENT_META).map((s) => (
                 <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
                   <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
@@ -885,6 +1175,14 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         onClose={() => setModalOpen(false)}
         rows={modalRows}
         title={modalTitle}
+      />
+
+      {/* Modal de detalle por nivel (Ocupadas vs Vacantes por familia de nivel) */}
+      <EmployeesModal
+        open={employeesModalOpen}
+        onOpenChange={setEmployeesModalOpen}
+        nivel={employeesModalNivel}
+        categoryTabs={VACANCIA_CATEGORY_TABS}
       />
     </div>
   );
