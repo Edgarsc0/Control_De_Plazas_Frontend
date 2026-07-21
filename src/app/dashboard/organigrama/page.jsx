@@ -849,7 +849,6 @@ function OrganigramaContent() {
     }),
     [flatList]
   );
-  const vacantesSet = useMemo(() => new Set(vacantesList.map(v => v.departamento)), [vacantesList]);
 
   // ── Nodos visibles según expandedNodes (colapsar oculta toda la rama) ──────
   // Separado del memo estructural de arriba porque depende de expandedNodes,
@@ -1521,7 +1520,7 @@ function OrganigramaContent() {
     setExpandedNodes(prev => ({ ...prev, ...toExpand }));
     setHighlightedNodeId(target.departamento);
     setTimeout(() => {
-      document.getElementById(`node-${target.departamento}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById(`node-${target.departamento}`)?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
     }, 150);
   };
 
@@ -1584,9 +1583,6 @@ function OrganigramaContent() {
     const hasChildren  = node.subordinados?.length > 0;
     const isSelected   = selectedNode?.departamento === node.departamento;
     const isHighlighted = highlightedNodeId === node.departamento;
-    // Todos los vacantes se destacan mientras el filtro está activo; el
-    // isHighlighted (ámbar más fuerte) marca cuál es el "actual" del recorrido.
-    const isVacanteMarked = vacantesFiltroActivo && !isHighlighted && vacantesSet.has(node.departamento);
     const { Icon, badgeColor, iconBg } = getLaneForLevel(node.nivel_direccion);
 
     const isDragOver = dragOverCode === node.departamento;
@@ -1595,8 +1591,6 @@ function OrganigramaContent() {
       ? "border-rose-500 dark:border-rose-500 ring-2 ring-rose-400/40 scale-[1.02]"
       : isHighlighted
       ? "border-amber-400 dark:border-amber-700 ring-2 ring-amber-400/20 shadow-lg shadow-amber-500/5 scale-[1.02]"
-      : isVacanteMarked
-      ? "border-amber-300 dark:border-amber-800 ring-2 ring-amber-300/30 shadow-sm shadow-amber-500/5"
       : isSelected
       ? "border-rose-800 dark:border-rose-950 shadow-md shadow-rose-800/5 ring-1 ring-rose-800/30"
       : "border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 shadow-sm hover:translate-y-[-2px]";
