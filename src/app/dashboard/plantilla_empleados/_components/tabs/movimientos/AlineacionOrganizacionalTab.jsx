@@ -11,6 +11,8 @@ import {
   Layers, Users, GitCompareArrows, ListFilter, Check,
 } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
+import { addExcelLetterhead } from "@/utils/excelLetterhead";
+import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import DataTable from "../../shared/DataTable";
 import ColumnsModal from "../../shared/ColumnsModal";
@@ -61,10 +63,10 @@ const getColumnLetter = (index) => {
 
 const noop = () => {};
 
-const formatFechaCorta = (iso) => {
+const formatFechaLarga = (iso) => {
   if (!iso) return "";
-  const [, m, d] = iso.split("-");
-  return `${d}/${m}`;
+  const [y, m, d] = iso.split("-");
+  return `${d} / ${m} / ${y}`;
 };
 
 // Tooltip del mini-histórico dentro de la tarjeta "Alineación General"
@@ -74,7 +76,7 @@ const HistoricoAlineacionTooltip = ({ active, payload }) => {
   const p = payload[0].payload;
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-xl">
-      <p className="text-[9px] font-black uppercase text-slate-500">{formatFechaCorta(p.fecha)}</p>
+      <p className="text-[9px] font-black uppercase text-slate-500">{formatFechaLarga(p.fecha)}</p>
       <p className="text-sm font-black text-[#621f32] dark:text-[#bc955c]">{p.porcentaje_alineacion_general}%</p>
     </div>
   );
@@ -100,6 +102,19 @@ const isExcludeCondition = (cond) => cond?.startsWith("not_");
 export default function AlineacionOrganizacionalTab({ isPending, startTransition, cardRef }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Indicador "en vivo" e histórico se cachean/calculan en el backend hasta
+  // por 10 min (ver ALINEACION_CACHE_TTL) y este tab solo los pedía una vez
+  // al montar/cambiar filtros: si el usuario deja la pestaña abierta y corre
+  // una importación ZAFIRO, ambos quedaban desincronizados. Al llegar la
+  // notificación SSE real (no "init"/"ping") de que ZAFIRO ya terminó, se
+  // fuerza a refetch tanto el indicador como el histórico.
+  const { subscribe } = useZafiroUpdates();
+  const [zafiroTick, setZafiroTick] = useState(0);
+  useEffect(() => {
+    const unsubscribe = subscribe(() => setZafiroTick((t) => t + 1));
+    return unsubscribe;
+  }, [subscribe]);
 
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [data, setData] = useState([]);
@@ -233,7 +248,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
       .catch((err) => { if (err.name !== "AbortError") console.error("Error cargando alineación organizacional:", err); })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
     return () => ctrl.abort();
-  }, [page, pageSize, buildBaseParams]);
+  }, [page, pageSize, buildBaseParams, zafiroTick]);
 
   // Histórico diario del % de Alineación General (independiente de filtros/página;
   // lo actualiza la tarea Celery `importar_zafiro` cada vez que corre, ver
@@ -245,7 +260,21 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
       .then((resData) => setHistoricoAlineacion(resData.results || []))
       .catch((err) => { if (err.name !== "AbortError") console.error("Error cargando histórico de alineación:", err); });
     return () => ctrl.abort();
-  }, []);
+  }, [zafiroTick]);
+
+  // Dominio ajustado a la variación real de los datos (no al rango 0-100 fijo):
+  // así los cambios diarios pequeños (p.ej. 93.4 → 93.7) sí se aprecian en la mini-gráfica.
+  const historicoDomain = useMemo(() => {
+    const valores = historicoAlineacion
+      .map((h) => h.porcentaje_alineacion_general)
+      .filter((v) => v !== null && v !== undefined);
+    if (!valores.length) return [0, 100];
+    const min = Math.min(...valores);
+    const max = Math.max(...valores);
+    const rango = max - min;
+    const padding = rango > 0 ? rango * 0.15 : 0.5;
+    return [Math.max(0, min - padding), Math.min(100, max + padding)];
+  }, [historicoAlineacion]);
 
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
@@ -560,7 +589,14 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
       const worksheet = workbook.addWorksheet("Alineación Organizacional");
 
       const visibleCols = columns.filter((c) => c.visible);
-      worksheet.columns = visibleCols.map((c) => ({ header: c.group ? `${c.group} (${c.label})` : c.label, key: c.key, width: 24 }));
+      worksheet.columns = visibleCols.map((c) => ({ key: c.key, width: 24 }));
+
+      const off = addExcelLetterhead(workbook, worksheet, visibleCols.length);
+      const headerRowNum = off + 1;
+      const headerRow = worksheet.getRow(headerRowNum);
+      visibleCols.forEach((c, i) => {
+        headerRow.getCell(i + 1).value = c.group ? `${c.group} (${c.label})` : c.label;
+      });
 
       allData.forEach((row) => {
         const rowData = {};
@@ -587,7 +623,6 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
         });
       });
 
-      const headerRow = worksheet.getRow(1);
       headerRow.height = 24;
       headerRow.eachCell((cell) => {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2B4C7E" } };
@@ -645,7 +680,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
                             <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <YAxis hide domain={[(dataMin) => Math.max(0, Math.floor(dataMin) - 5), 100]} />
+                        <YAxis hide domain={historicoDomain} />
                         <RechartsTooltip content={<HistoricoAlineacionTooltip />} cursor={{ stroke: "#ffffff", strokeOpacity: 0.35 }} />
                         <Area
                           type="monotone"

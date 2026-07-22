@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
+import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
@@ -707,10 +708,16 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
       // Define columns
       worksheet.columns = visibleCols.map(col => ({
-        header: col.label,
         key: col.key,
         width: 15
       }));
+
+      const off = addExcelLetterhead(workbook, worksheet, visibleCols.length);
+      const headerRowNum = off + 1;
+
+      // Header row (fila fija tras el membretado)
+      const headerRow = worksheet.getRow(headerRowNum);
+      visibleCols.forEach((col, i) => { headerRow.getCell(i + 1).value = col.label; });
 
       // Add rows
       filteredSortedData.forEach(row => {
@@ -722,7 +729,6 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       });
 
       // Header styling
-      const headerRow = worksheet.getRow(1);
       headerRow.height = 24;
       headerRow.eachCell(cell => {
         cell.fill = {
@@ -747,7 +753,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
       // Data rows styling
       worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // skip header
+        if (rowNumber <= headerRowNum) return; // skip membretado + header
         row.height = 20;
         const isZebra = rowNumber % 2 === 0;
 
@@ -779,10 +785,12 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         });
       });
 
-      // Auto-fit columns
+      // Auto-fit columns (el membretado, filas 1..off, se ignora: son celdas
+      // combinadas cuyo texto largo inflaría el ancho de todas las columnas)
       worksheet.columns.forEach(column => {
         let maxLen = 0;
-        column.eachCell({ includeEmpty: true }, cell => {
+        column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+          if (rowNumber <= off) return;
           const val = cell.value ? String(cell.value) : "";
           maxLen = Math.max(maxLen, val.length);
         });

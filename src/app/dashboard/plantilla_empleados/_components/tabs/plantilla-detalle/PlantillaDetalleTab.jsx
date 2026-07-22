@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
+import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
@@ -664,7 +665,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Cadena_Mando_Descendente");
-    worksheet.columns = [
+    const CADENA_COLS = [
       { header: "Profundidad", key: "profundidad", width: 12 },
       { header: "Posición", key: "posicion", width: 16 },
       { header: "Nombre", key: "nombre", width: 35 },
@@ -682,6 +683,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       { header: "Jefe Directo (Posición)", key: "jefe", width: 20 },
       { header: "Subordinados en rama", key: "rama", width: 18 },
     ];
+    worksheet.columns = CADENA_COLS.map(({ key, width }) => ({ key, width }));
+    const cadenaOff = addExcelLetterhead(workbook, worksheet, CADENA_COLS.length);
+    const cadenaHeaderRowNum = cadenaOff + 1;
+    const cadenaHeaderRow = worksheet.getRow(cadenaHeaderRowNum);
+    CADENA_COLS.forEach((c, i) => { cadenaHeaderRow.getCell(i + 1).value = c.header; });
     const flatten = (node) => {
       const deptoInfo = getDeptoInfo(deptoCatalog, node.Id_Departamento);
       worksheet.addRow({
@@ -705,17 +711,21 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       node.children.forEach(flatten);
     };
     flatten(cadenaDisplayRoot);
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    headerRow.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
+    cadenaHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cadenaHeaderRow.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
 
     // Hoja Resumen: totales + distribución de niveles (directos/indirectos).
     if (cadenaStats) {
       const resumenSheet = workbook.addWorksheet("Resumen");
-      resumenSheet.columns = [
+      const RESUMEN_COLS = [
         { header: "Concepto", key: "concepto", width: 32 },
         { header: "Valor", key: "valor", width: 18 },
       ];
+      resumenSheet.columns = RESUMEN_COLS.map(({ key, width }) => ({ key, width }));
+      const resOff = addExcelLetterhead(workbook, resumenSheet, RESUMEN_COLS.length);
+      const resHeaderRowNum = resOff + 1;
+      const resHeaderRow0 = resumenSheet.getRow(resHeaderRowNum);
+      RESUMEN_COLS.forEach((c, i) => { resHeaderRow0.getCell(i + 1).value = c.header; });
       [
         ["Posición raíz", cadenaDisplayRoot.Posicion],
         ["Nombre raíz", cadenaDisplayRoot.Empleado || "(Vacante)"],
@@ -745,9 +755,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           row.getCell(3).value = ind;
           row.getCell(4).value = dir + ind;
         });
-      const resumenHeaderRow = resumenSheet.getRow(1);
-      resumenHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      resumenHeaderRow.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
+      resHeaderRow0.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      resHeaderRow0.eachCell(cell => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } }; });
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -1579,10 +1588,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
       // Define columns
       worksheet.columns = visibleCols.map(col => ({
-        header: col.label,
         key: col.key,
         width: 15
       }));
+
+      const off = addExcelLetterhead(workbook, worksheet, visibleCols.length);
+      const headerRowNum = off + 1;
+      const headerRow = worksheet.getRow(headerRowNum);
+      visibleCols.forEach((col, i) => { headerRow.getCell(i + 1).value = col.label; });
 
       // Add rows
       filteredSortedData.forEach(row => {
@@ -1594,7 +1607,6 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       });
 
       // Header styling
-      const headerRow = worksheet.getRow(1);
       headerRow.height = 24;
       headerRow.eachCell(cell => {
         cell.fill = {
@@ -1619,7 +1631,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
       // Data rows styling
       worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; // skip header
+        if (rowNumber <= headerRowNum) return; // skip membretado + header
         row.height = 20;
         const isZebra = rowNumber % 2 === 0;
 
@@ -1651,10 +1663,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         });
       });
 
-      // Auto-fit columns
+      // Auto-fit columns (se ignora el membretado: son celdas combinadas con
+      // texto largo que inflaría el ancho de todas las columnas)
       worksheet.columns.forEach(column => {
         let maxLen = 0;
-        column.eachCell({ includeEmpty: true }, cell => {
+        column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+          if (rowNumber <= off) return;
           const val = cell.value ? String(cell.value) : "";
           maxLen = Math.max(maxLen, val.length);
         });

@@ -574,6 +574,28 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     const tableContainerRef = useRef(null);
     const [tableHeight, setTableHeight] = useState(null);
 
+    // Virtualización por ventana de scroll (mismo patrón que MovimientosTab):
+    // con datasets de miles de filas (cuadros de ocupación), renderizar cada
+    // <tr> real vuelve el modal perceptiblemente lento (miles de nodos DOM +
+    // listeners). DataTable ya soporta esto vía startIndex/endIndex — antes
+    // este modal se los pasaba fijos (0..length), desactivando la ventana.
+    // `viewportHeight` se mide con ResizeObserver porque, a diferencia de
+    // MovimientosTab, este contenedor no tiene alto fijo: depende del propio
+    // contenido (topado por max-h-[70vh]) y del modal (resizable en ancho).
+    const rowHeight = 37;
+    const [scrollTop, setScrollTop] = useState(0);
+    const [viewportHeight, setViewportHeight] = useState(700);
+    useEffect(() => {
+        const el = tableContainerRef.current;
+        if (!el || typeof ResizeObserver === "undefined") return;
+        const ro = new ResizeObserver((entries) => {
+            const h = entries[0]?.contentRect?.height;
+            if (h) setViewportHeight(h);
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [open]);
+
     const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
     const filters = useColumnFilters();
     const {
@@ -592,6 +614,15 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
 
     // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
     useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, sortConfig.key, sortConfig.direction]);
+
+    // La ventana virtualizada es posicional (scrollTop / rowHeight): si el
+    // dataset filtrado encoge, un scrollTop heredado del dataset anterior
+    // puede quedar fuera de rango y renderizar una ventana vacía. Se resetea
+    // el estado y el scroll real del contenedor en el mismo evento.
+    useEffect(() => {
+        setScrollTop(0);
+        if (tableContainerRef.current) tableContainerRef.current.scrollTop = 0;
+    }, [columnFilters, textFilters, sortConfig.key, sortConfig.direction]);
 
     const [columnWidths, setColumnWidths] = useState(() => {
         const widths = {};
@@ -676,6 +707,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             }
             resetFilters();
             setSortConfig({ key: null, direction: 'asc' });
+            setScrollTop(0);
         } else {
             setRowData([]);
             setActiveFilterDropdown(null);
@@ -743,6 +775,14 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             return 0;
         });
     }, [rowData, columnFilters, textFilters, sortConfig]);
+
+    // Ventana de filas realmente montadas en el DOM (ver `viewportHeight` más
+    // arriba). Los `<tr>` spacer de DataTable rellenan el resto del alto, así
+    // que la medición de abajo (altura real de la tabla) sigue reflejando el
+    // total de `processedData`, no sólo lo que está virtualizado.
+    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
+    const endIndex = Math.min(processedData.length, Math.floor((scrollTop + viewportHeight) / rowHeight) + 15);
+    const windowedData = useMemo(() => processedData.slice(startIndex, endIndex), [processedData, startIndex, endIndex]);
 
     // El contenedor de DataTable es flex-1: se estira al alto del padre, así que su
     // scrollHeight refleja ese alto estirado, no el contenido real. Medimos el
@@ -971,7 +1011,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                                 fillWidth
                                 edgeToEdge
                                 stickyColumnKeys={["posicion"]}
-                                onScroll={() => {}}
+                                onScroll={setScrollTop}
                                 columns={columns}
                                 columnFilters={columnFilters}
                                 textFilters={textFilters}
@@ -992,11 +1032,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                                 isLoading={loading}
                                 loadingVariant="skeleton"
                                 loadingMessage="Consultando base de datos..."
-                                data={processedData}
-                                startIndex={0}
-                                endIndex={processedData.length}
+                                data={windowedData}
+                                startIndex={startIndex}
+                                endIndex={endIndex}
                                 totalCount={processedData.length}
-                                rowHeight={37}
+                                rowHeight={rowHeight}
                                 getRowId={(row, i) => {
                                     const idEmp = (row.id_empleado ?? '').toString().trim();
                                     const pos = (row.posicion ?? '').toString().trim();

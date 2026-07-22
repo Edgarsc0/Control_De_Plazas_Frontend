@@ -1,3 +1,5 @@
+import { addExcelLetterhead } from './excelLetterhead';
+
 // ARGB color constants — guinda/azul/dorado son los colores institucionales de
 // ANAM (mismos que usa la app en pantalla); el resto son tonos slate a juego.
 const C = {
@@ -13,13 +15,16 @@ const C = {
 
 const TIPO = { E: 'Eventual', NC: 'Nueva Creación', P: 'Permanente' };
 const FONT = 'Calibri';
-const DDS  = 3;      // Det_ Data Start row (row1=title, row2=headers, row3+=data)
-const DMAX = 30000;  // upper bound for COUNTIFS range — must exceed max rows in any Det_/Detalle Global sheet
+
+// Layout de cada hoja de detalle: fila1 = volver al Resumen, fila3 = título,
+// fila5 = encabezados, fila6+ = datos.
+const DATA_START_ROW = 6;
 
 const DET_COLS = [
   { key: '_tipo',                   label: 'Tipo Vacante',           width: 14 },
   { key: 'Nivel',                   label: 'Nivel',                  width: 10 },
   { key: 'Posición',                label: 'Número de Posición',     width: 18 },
+  { key: 'Fecha Vacancia',          label: 'Fecha de Vacancia',      width: 16 },
   { key: 'Nombre Puesto Funcional', label: 'Puesto Funcional',       width: 42 },
   { key: 'Unidad de Negocio',       label: 'Unidad de Negocio',      width: 36 },
   { key: 'nombre_ua',               label: 'Unidad Administrativa',  width: 30 },
@@ -46,6 +51,9 @@ const GLOBAL_COLS = [
   { key: 'CURP',        label: 'CURP',          width: 20 },
 ];
 
+const TYPE_BG    = { [TIPO.P]: 'FFE8F5E9', [TIPO.NC]: 'FFFCE4EC', [TIPO.E]: 'FFF3E5F5' };
+const ESTATUS_BG = { Ocupada: 'FFE8F5E9', Vacante: 'FFFCE4EC' };
+
 const fmt = (n) => (n == null ? 0 : Number(n));
 
 function classifyTipo(posicion) {
@@ -53,47 +61,6 @@ function classifyTipo(posicion) {
   if (p.startsWith('103'))  return TIPO.P;
   if (p.startsWith('2026')) return TIPO.NC;
   return TIPO.E;
-}
-
-// ── COUNTIFS helpers ──────────────────────────────────────────────────────────
-function tipoRng(sn)  { return `'${sn}'!$A$${DDS}:$A$${DMAX}`; }
-function nivelRng(sn) { return `'${sn}'!$B$${DDS}:$B$${DMAX}`; }
-
-function cntNT(sn, nivel, tipo) {
-  return `COUNTIFS(${nivelRng(sn)},"${nivel}",${tipoRng(sn)},"${tipo}")`;
-}
-function cntNEvt(sn, nivel) {
-  return `${cntNT(sn, nivel, TIPO.E)}+${cntNT(sn, nivel, TIPO.NC)}`;
-}
-function cntNAll(sn, nivel) {
-  return `COUNTIFS(${nivelRng(sn)},"${nivel}")`;
-}
-// ── COUNTIFS helpers for the combined "Detalle Global" sheet (col A=Estatus, B=Tipo) ──
-function estatusRng(sn) { return `'${sn}'!$A$${DDS}:$A$${DMAX}`; }
-function tipoRngG(sn)   { return `'${sn}'!$B$${DDS}:$B$${DMAX}`; }
-
-function cntGEstatusTipo(sn, estatus, tipo) {
-  return `COUNTIFS(${estatusRng(sn)},"${estatus}",${tipoRngG(sn)},"${tipo}")`;
-}
-function cntGEstatusEvt(sn, estatus) {
-  return `${cntGEstatusTipo(sn, estatus, TIPO.E)}+${cntGEstatusTipo(sn, estatus, TIPO.NC)}`;
-}
-function cntGEstatus(sn, estatus) {
-  return `COUNTIFS(${estatusRng(sn)},"${estatus}")`;
-}
-function cntGTipo(sn, tipo) {
-  return `COUNTIFS(${tipoRngG(sn)},"${tipo}")`;
-}
-function cntGEvtTotal(sn) {
-  return `${cntGTipo(sn, TIPO.E)}+${cntGTipo(sn, TIPO.NC)}`;
-}
-function cntGAll(sn) {
-  return `${cntGEstatus(sn, 'Ocupada')}+${cntGEstatus(sn, 'Vacante')}`;
-}
-
-// Dynamic cell: shows count; if > 0 is also a hyperlink to the Det_ sheet row
-function hCell(cntExpr, sn, targetRow) {
-  return { formula: `=IF(${cntExpr}=0,0,HYPERLINK("#'${sn}'!A${targetRow}",${cntExpr}))` };
 }
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
@@ -153,121 +120,77 @@ function styleTotalRow(row) {
   });
 }
 
-// Dynamic total cell: SUM of the level rows, wrapped as a HYPERLINK to the first
-// data row of the Det_ sheet so clicking the total jumps to that level's detail.
-function sumHCell(sn, col, startRow, len) {
-  if (len === 0) return 0;
-  const range = `${col}${startRow}:${col}${startRow + len - 1}`;
-  return { formula: `=IF(SUM(${range})=0,0,HYPERLINK("#'${sn}'!A${DDS}",SUM(${range})))` };
-}
+// ── Hoja de detalle dedicada ──────────────────────────────────────────────────
+// Cada "detalle" (una celda del Resumen) recibe su propia hoja completa con solo
+// las posiciones que le corresponden — nunca comparte hoja ni rango con otra
+// celda — para que el hipervínculo siempre aterrice exactamente en su contenido
+// (a diferencia del esquema anterior de COUNTIFS+HYPERLINK sobre una hoja
+// compartida, donde todas las celdas de un grupo apuntaban al mismo primer
+// renglón sin importar el filtro real).
+function createDetailSheet(wb, ctx, { title, positions, columns, leftAlignCols = [], resumenCoordinate }) {
+  ctx.counter += 1;
+  const sheetName = `Det_${ctx.counter}`;
+  const ws = wb.addWorksheet(sheetName);
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: DATA_START_ROW - 1 }];
+  ws.columns = columns.map(c => ({ key: c.key, width: c.width }));
 
-// ── Det_ sheet builder ────────────────────────────────────────────────────────
-// Returns { sheetName, rowMap, levels, dataLen }
-// rowMap[nivel][tipo] = first 1-based row for that nivel+tipo in the sheet
-// rowMap[nivel].total = first 1-based row for any row of that nivel
-function buildDetSheet(wb, sheetName, title, positions) {
-  const enriched = positions.map(pos => ({
-    ...pos,
-    _tipo: classifyTipo(pos['Posición'] || ''),
-  }));
+  const backCell = ws.getCell(1, 1);
+  // HYPERLINK() en vez de cell.value={text,hyperlink}: exceljs escribe los enlaces
+  // internos con una relación r:id apuntando a TargetMode="External" cuyo Target
+  // es el propio texto "#'Hoja'!A1" (no una URL) — Excel no puede resolverlo y
+  // marca "Referencia no válida" en TODOS los enlaces. La fórmula HYPERLINK()
+  // no depende de relaciones externas, así que el salto interno funciona bien.
+  backCell.value = { formula: `HYPERLINK("#'Resumen'!${resumenCoordinate}","← Volver al Resumen")`, result: '← Volver al Resumen' };
+  backCell.font = { size: 9, name: FONT, color: { argb: C.BLUE_LNK }, underline: true, italic: true };
 
-  enriched.sort((a, b) => {
+  styleTitle(ws, 3, title, columns.length);
+
+  const hRow = ws.getRow(5);
+  columns.forEach((c, i) => { hRow.getCell(i + 1).value = c.label; });
+  styleHeader(hRow);
+
+  const colorKey = columns[0].key; // '_tipo' en DET_COLS, '_estatus' en GLOBAL_COLS
+  const colorMap = colorKey === '_estatus' ? ESTATUS_BG : TYPE_BG;
+
+  const sorted = [...positions].sort((a, b) => {
     const na = (a.Nivel || '').trim();
     const nb = (b.Nivel || '').trim();
     const nc = na.localeCompare(nb, 'es', { numeric: true });
     if (nc !== 0) return nc;
-    return a._tipo.localeCompare(b._tipo);
+    return (a['Posición'] || '').localeCompare(b['Posición'] || '', 'es', { numeric: true });
   });
 
-  const rowMap = {};
-  enriched.forEach((pos, idx) => {
-    const nivel = (pos.Nivel || '').trim();
-    const tipo  = pos._tipo;
-    const r = DDS + idx;
-    if (!rowMap[nivel]) rowMap[nivel] = {};
-    if (rowMap[nivel].total === undefined) rowMap[nivel].total = r;
-    if (rowMap[nivel][tipo] === undefined) rowMap[nivel][tipo] = r;
-  });
+  sorted.forEach((pos, idx) => {
+    const rowNum = DATA_START_ROW + idx;
+    const row = ws.getRow(rowNum);
+    columns.forEach((c, ci) => { row.getCell(ci + 1).value = pos[c.key] ?? ''; });
+    styleDataRow(row, idx);
 
-  const levels = Object.keys(rowMap).sort((a, b) =>
-    a.localeCompare(b, 'es', { numeric: true })
-  );
+    const bg = colorMap[pos[colorKey]] || C.GRIS;
+    row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+    row.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
 
-  const ws = wb.addWorksheet(sheetName);
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
-  ws.columns = DET_COLS.map(c => ({ key: c.key, width: c.width }));
-
-  styleTitle(ws, 1, title, DET_COLS.length);
-  const hRow = ws.addRow(DET_COLS.map(c => c.label));
-  styleHeader(hRow);
-
-  const TYPE_BG = {
-    [TIPO.P]:  'FFE8F5E9',
-    [TIPO.NC]: 'FFFCE4EC',
-    [TIPO.E]:  'FFF3E5F5',
-  };
-
-  enriched.forEach((pos, idx) => {
-    const vals = DET_COLS.map(c => pos[c.key] ?? '');
-    const dr = ws.addRow(vals);
-    styleDataRow(dr, idx);
-    dr.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TYPE_BG[pos._tipo] || C.GRIS } };
-    dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
-    [4, 5, 6, 9].forEach(ci => {
-      dr.getCell(ci).alignment = { vertical: 'middle', horizontal: 'left' };
+    leftAlignCols.forEach(ci => {
+      row.getCell(ci).alignment = { vertical: 'middle', horizontal: 'left' };
     });
   });
 
-  return { sheetName, rowMap, levels, dataLen: enriched.length };
+  return sheetName;
 }
 
-// ── Detalle Global builder (Ocupadas + Vacantes combinadas) ────────────────────
-// Returns { sheetName, dataLen }
-function buildGlobalDetSheet(wb, sheetName, title, vacantesPositions, ocupadasPositions) {
-  const enriched = [
-    ...ocupadasPositions.map(pos => ({
-      ...pos,
-      _estatus: 'Ocupada',
-      _tipo: classifyTipo(pos['Posición'] || ''),
-    })),
-    ...vacantesPositions.map(pos => ({
-      ...pos,
-      _estatus: 'Vacante',
-      _tipo: classifyTipo(pos['Posición'] || ''),
-    })),
-  ];
-
-  enriched.sort((a, b) => {
-    if (a._estatus !== b._estatus) return a._estatus.localeCompare(b._estatus);
-    const na = (a.Nivel || '').trim();
-    const nb = (b.Nivel || '').trim();
-    const nc = na.localeCompare(nb, 'es', { numeric: true });
-    if (nc !== 0) return nc;
-    return a._tipo.localeCompare(b._tipo);
-  });
-
-  const ws = wb.addWorksheet(sheetName);
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
-  ws.columns = GLOBAL_COLS.map(c => ({ key: c.key, width: c.width }));
-
-  styleTitle(ws, 1, title, GLOBAL_COLS.length, C.AZUL);
-  const hRow = ws.addRow(GLOBAL_COLS.map(c => c.label));
-  styleHeader(hRow);
-
-  const ESTATUS_BG = { Ocupada: 'FFE8F5E9', Vacante: 'FFFCE4EC' };
-
-  enriched.forEach((pos, idx) => {
-    const vals = GLOBAL_COLS.map(c => pos[c.key] ?? '');
-    const dr = ws.addRow(vals);
-    styleDataRow(dr, idx);
-    dr.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ESTATUS_BG[pos._estatus] || C.GRIS } };
-    dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
-    [5, 6, 7, 10, 19].forEach(ci => {
-      dr.getCell(ci).alignment = { vertical: 'middle', horizontal: 'left' };
-    });
-  });
-
-  return { sheetName, dataLen: enriched.length };
+// Escribe el conteo en `cell`; si hay al menos una posición, crea la hoja de
+// detalle dedicada y convierte la celda en hipervínculo hacia ella.
+function fillLinkedCell(wb, ctx, cell, positions, sheetOpts, fontWhenLinked) {
+  const count = positions.length;
+  if (count > 0) {
+    const resumenCoordinate = cell.address;
+    const sheetName = createDetailSheet(wb, ctx, { ...sheetOpts, positions, resumenCoordinate });
+    cell.value = { formula: `HYPERLINK("#'${sheetName}'!A1","${count}")`, result: count };
+    cell.font = { ...cell.font, ...(fontWhenLinked || { color: { argb: C.BLUE_LNK }, underline: true }) };
+  } else {
+    cell.value = 0;
+  }
+  return count;
 }
 
 // ── Observaciones ─────────────────────────────────────────────────────────────
@@ -289,7 +212,6 @@ function buildObservaciones(desgloseData) {
 
 function addObservacionesSheet(wb, obs) {
   const ws = wb.addWorksheet('Observaciones');
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 4 }];
 
   const detailCols = [
     { key: 'Posición',                label: 'Número de Posición',     width: 18 },
@@ -308,7 +230,10 @@ function addObservacionesSheet(wb, obs) {
 
   ws.columns = detailCols.map(c => ({ key: c.key, width: c.width }));
 
-  styleTitle(ws, 1, 'OBSERVACIONES VACANCIA', numDet, C.AZUL);
+  const off = addExcelLetterhead(wb, ws, numDet);
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: off + 4 }];
+
+  styleTitle(ws, off + 1, 'OBSERVACIONES VACANCIA', numDet, C.AZUL);
 
   const shRow = ws.addRow(['Categoría', 'Total']);
   styleHeader(shRow);
@@ -349,10 +274,33 @@ function addObservacionesSheet(wb, obs) {
   addSection('Titulares de Aduanas (Administradores de Aduana)', obs.titularRows);
 }
 
+// Divide un conjunto de posiciones (ya con `_tipo` calculado) en los sub-conteos
+// que muestra cada tabla por nivel — colapsando Eventual+Nueva Creación en una
+// sola columna cuando el grupo no distingue Nueva Creación (hasNvaCr=false).
+function tipoSubsets(positions, hasNvaCr) {
+  if (hasNvaCr) {
+    return {
+      cols: ['Eventuales', 'Eventuales Nueva Creación', 'Permanentes', 'Total'],
+      subsets: [
+        positions.filter(p => p._tipo === TIPO.E),
+        positions.filter(p => p._tipo === TIPO.NC),
+        positions.filter(p => p._tipo === TIPO.P),
+        positions,
+      ],
+    };
+  }
+  return {
+    cols: ['Eventuales (incluye Nueva Creación)', 'Permanentes', 'Total'],
+    subsets: [
+      positions.filter(p => p._tipo === TIPO.E || p._tipo === TIPO.NC),
+      positions.filter(p => p._tipo === TIPO.P),
+      positions,
+    ],
+  };
+}
+
 // ── Resumen sheet ─────────────────────────────────────────────────────────────
-// detSheets: array of { sheetName, rowMap, levels, hasNvaCr, title, dataLen }
-function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+function fillResumenSheet(wb, ctx, ws, cuadrosData, desgloseData, ocupadosData) {
   ws.columns = [
     { key: 'a', width: 14 },
     { key: 'b', width: 28 },
@@ -367,16 +315,22 @@ function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
     { key: 'k', width: 12 },
   ];
 
-  // ── Sección I: Cuadro histórico ───────────────────────────────────────────
-  styleTitle(ws, 1, 'I. CUADRO DE VACANCIA — HISTÓRICO DE OCUPACIÓN', 11);
+  const off = addExcelLetterhead(wb, ws, 11);
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: off + 3 }];
 
-  ws.mergeCells(2, 1, 2, 11);
-  const note = ws.getCell(2, 1);
-  note.value = '★  Fila "Actual" calcula en tiempo real desde la hoja Detalle Global. Todas sus celdas son dinámicas y clicables (saltan al detalle). Resto de filas = datos históricos estáticos.';
+  const enrichedVac = desgloseData.map(pos => ({ ...pos, _tipo: classifyTipo(pos['Posición'] || '') }));
+  const enrichedOcu = ocupadosData.map(pos => ({ ...pos, _tipo: classifyTipo(pos['Posición'] || '') }));
+
+  // ── Sección I: Cuadro histórico ───────────────────────────────────────────
+  styleTitle(ws, off + 1, 'I. CUADRO DE VACANCIA — HISTÓRICO DE OCUPACIÓN', 11);
+
+  ws.mergeCells(off + 2, 1, off + 2, 11);
+  const note = ws.getCell(off + 2, 1);
+  note.value = '★  Los valores subrayados son hipervínculos: cada uno abre su propia hoja de detalle con las posiciones exactas de esa categoría (nunca comparten hoja con otra celda). La fila "Actual" refleja el momento de generación de este reporte.';
   note.font  = { italic: true, size: 9, color: { argb: 'FF78350F' }, name: FONT };
   note.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
   note.alignment = { vertical: 'middle', horizontal: 'left' };
-  ws.getRow(2).height = 20;
+  ws.getRow(off + 2).height = 20;
 
   const hRow = ws.addRow([
     'Año', 'Fecha',
@@ -386,27 +340,19 @@ function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
   ]);
   styleHeader(hRow);
 
-  const sorted    = [...cuadrosData].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  const liveR     = 4;
-  const gsn       = globalSheetName;
+  const sorted = [...cuadrosData].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-  const live = ws.addRow([
-    new Date().getFullYear(),
-    'Actual (tiempo real)',
-    hCell(cntGEstatusTipo(gsn, 'Ocupada', TIPO.P), gsn, DDS),
-    hCell(cntGEstatusEvt(gsn, 'Ocupada'),          gsn, DDS),
-    hCell(cntGEstatus(gsn, 'Ocupada'),              gsn, DDS),
-    hCell(cntGEstatusTipo(gsn, 'Vacante', TIPO.P), gsn, DDS),
-    hCell(cntGEstatusEvt(gsn, 'Vacante'),           gsn, DDS),
-    hCell(cntGEstatus(gsn, 'Vacante'),               gsn, DDS),
-    hCell(cntGTipo(gsn, TIPO.P),                     gsn, DDS),
-    hCell(cntGEvtTotal(gsn),                         gsn, DDS),
-    hCell(cntGAll(gsn),                              gsn, DDS),
-  ]);
+  const combinedGlobal = [
+    ...enrichedOcu.map(p => ({ ...p, _estatus: 'Ocupada' })),
+    ...enrichedVac.map(p => ({ ...p, _estatus: 'Vacante' })),
+  ];
+
+  const live = ws.addRow(['Actual', 'Actual (al momento de generar el reporte)', 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  live.getCell(1).value = new Date().getFullYear();
   live.height = 24;
   live.eachCell((cell, ci) => {
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.DORADO_BG } };
-    cell.font  = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL }, underline: ci >= 3 };
+    cell.font  = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
     cell.alignment = { vertical: 'middle', horizontal: ci === 2 ? 'left' : 'center' };
     cell.border = {
       top:    { style: 'medium', color: { argb: C.DORADO } },
@@ -414,6 +360,26 @@ function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
       left:   { style: 'thin',   color: { argb: C.DORADO } },
       right:  { style: 'thin',   color: { argb: C.DORADO } },
     };
+  });
+
+  const globalCellDefs = [
+    { col: 3,  label: 'Ocupadas Permanente',                                   subset: combinedGlobal.filter(p => p._estatus === 'Ocupada' && p._tipo === TIPO.P) },
+    { col: 4,  label: 'Ocupadas Eventual (incluye Nueva Creación)',             subset: combinedGlobal.filter(p => p._estatus === 'Ocupada' && (p._tipo === TIPO.E || p._tipo === TIPO.NC)) },
+    { col: 5,  label: 'Total Ocupadas',                                        subset: combinedGlobal.filter(p => p._estatus === 'Ocupada') },
+    { col: 6,  label: 'Vacantes Permanente',                                   subset: combinedGlobal.filter(p => p._estatus === 'Vacante' && p._tipo === TIPO.P) },
+    { col: 7,  label: 'Vacantes Eventual (incluye Nueva Creación)',            subset: combinedGlobal.filter(p => p._estatus === 'Vacante' && (p._tipo === TIPO.E || p._tipo === TIPO.NC)) },
+    { col: 8,  label: 'Total Vacantes',                                        subset: combinedGlobal.filter(p => p._estatus === 'Vacante') },
+    { col: 9,  label: 'Total Permanente (Ocupadas + Vacantes)',                subset: combinedGlobal.filter(p => p._tipo === TIPO.P) },
+    { col: 10, label: 'Total Eventual (Ocupadas + Vacantes, incl. Nva. Cr.)',  subset: combinedGlobal.filter(p => p._tipo === TIPO.E || p._tipo === TIPO.NC) },
+    { col: 11, label: 'Total General (Ocupadas + Vacantes)',                   subset: combinedGlobal },
+  ];
+
+  globalCellDefs.forEach(({ col, label, subset }) => {
+    fillLinkedCell(wb, ctx, live.getCell(col), subset, {
+      title: `Detalle — ${label}`,
+      columns: GLOBAL_COLS,
+      leftAlignCols: [6, 7, 8, 11, 20],
+    });
   });
 
   const fmtDate = (d) => {
@@ -440,14 +406,28 @@ function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
     });
   });
 
-  // ── Sección II: Tablas por nivel con COUNTIFS + HYPERLINK ─────────────────
+  // ── Sección II: Tablas por nivel, cada celda con su propia hoja de detalle ──
   ws.addRow([]);
   const sec2Row = ws.addRow(['II. CUADROS DE VACANCIA POR NIVEL']);
   styleTitle(ws, sec2Row.number, 'II. CUADROS DE VACANCIA POR NIVEL', 11, C.AZUL);
 
-  detSheets.forEach(({ sheetName: sn, rowMap, levels, hasNvaCr, title, dataLen }) => {
-    ws.addRow([]);
+  const groups = [
+    { title: 'Posiciones Vacantes — Niveles Operativos', filter: i => /^\d/.test((i.Nivel || '').trim()), hasNvaCr: false },
+    { title: 'Posiciones Vacantes — Nivel K',            filter: i => /^K/i.test((i.Nivel || '').trim()), hasNvaCr: false },
+    { title: 'Posiciones Vacantes — Niveles P',          filter: i => /^P/i.test((i.Nivel || '').trim()), hasNvaCr: true  },
+    { title: 'Posiciones Vacantes — Nivel S',            filter: i => /^S/i.test((i.Nivel || '').trim()), hasNvaCr: true  },
+    { title: 'Posiciones Vacantes — Nivel A',            filter: i => /^A/i.test((i.Nivel || '').trim()), hasNvaCr: true  },
+    { title: 'Posiciones Vacantes — Nivel D',            filter: i => /^D/i.test((i.Nivel || '').trim()), hasNvaCr: true  },
+  ];
 
+  groups.forEach(({ title, filter, hasNvaCr }) => {
+    const positions = enrichedVac.filter(filter);
+    if (positions.length === 0) return;
+
+    const levels = [...new Set(positions.map(p => (p.Nivel || '').trim()))]
+      .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+
+    ws.addRow([]);
     const subTRow = ws.addRow([title]);
     const numCols = hasNvaCr ? 5 : 4;
     styleTitle(ws, subTRow.number, title, numCols, C.GUINDA);
@@ -458,44 +438,36 @@ function fillResumenSheet(ws, cuadrosData, detSheets, globalSheetName) {
     const hRowN = ws.addRow(headers);
     styleHeader(hRowN);
 
-    const dataStart = ws.rowCount + 1;
-
     levels.forEach((nivel, idx) => {
-      const rm  = rowMap[nivel] || {};
-      const fb  = rm.total || DDS;
+      const levelPositions = positions.filter(p => (p.Nivel || '').trim() === nivel);
+      const { cols: tipoLabels, subsets } = tipoSubsets(levelPositions, hasNvaCr);
 
-      const vals = hasNvaCr
-        ? [
-            nivel,
-            hCell(cntNT(sn, nivel, TIPO.E),  sn, rm[TIPO.E]  ?? fb),
-            hCell(cntNT(sn, nivel, TIPO.NC), sn, rm[TIPO.NC] ?? fb),
-            hCell(cntNT(sn, nivel, TIPO.P),  sn, rm[TIPO.P]  ?? fb),
-            hCell(cntNAll(sn, nivel),         sn, rm.total    ?? fb),
-          ]
-        : [
-            nivel,
-            hCell(cntNEvt(sn, nivel),        sn, rm[TIPO.E]  ?? fb),
-            hCell(cntNT(sn, nivel, TIPO.P),  sn, rm[TIPO.P]  ?? fb),
-            hCell(cntNAll(sn, nivel),         sn, rm.total    ?? fb),
-          ];
-
-      const dr = ws.addRow(vals);
+      const dr = ws.addRow([nivel, ...subsets.map(() => 0)]);
       styleDataRow(dr, idx);
       dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
       dr.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
-      for (let ci = 2; ci <= numCols; ci++) {
-        dr.getCell(ci).font = { size: 10, name: FONT, color: { argb: C.BLUE_LNK }, underline: true };
-      }
+
+      subsets.forEach((subset, si) => {
+        fillLinkedCell(wb, ctx, dr.getCell(si + 2), subset, {
+          title: `${title} — Nivel ${nivel} — ${tipoLabels[si]}`,
+          columns: DET_COLS,
+          leftAlignCols: [5, 6, 7, 10],
+        });
+      });
     });
 
-    const colLetters = hasNvaCr ? ['B', 'C', 'D', 'E'] : ['B', 'C', 'D'];
-    const totVals = ['Total', ...colLetters.map(col => sumHCell(sn, col, dataStart, levels.length))];
-    const totRow = ws.addRow(totVals);
+    const { cols: totLabels, subsets: totSubsets } = tipoSubsets(positions, hasNvaCr);
+    const totRow = ws.addRow(['Total', ...totSubsets.map(() => 0)]);
     styleTotalRow(totRow);
     totRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
-    for (let ci = 2; ci <= numCols; ci++) {
-      totRow.getCell(ci).font = { ...totRow.getCell(ci).font, underline: true };
-    }
+
+    totSubsets.forEach((subset, si) => {
+      fillLinkedCell(wb, ctx, totRow.getCell(si + 2), subset, {
+        title: `${title} — TOTAL — ${totLabels[si]}`,
+        columns: DET_COLS,
+        leftAlignCols: [5, 6, 7, 10],
+      }, { underline: true });
+    });
   });
 }
 
@@ -505,34 +477,17 @@ export async function generateCuadroVacanciaExcel(cuadrosData, desgloseData, ocu
   const wb = new ExcelJS.Workbook();
   wb.creator = 'EjeCentral — ANAM';
   wb.created = new Date();
-  wb.calcProperties.fullCalcOnLoad = true;
 
-  // Resumen must be tab #1 — add empty, fill after Det_ sheets are built
+  // Resumen debe quedar como hoja #1 — se agrega vacía y se llena después,
+  // aunque ahora las hojas de detalle se crean "al vuelo" mientras se llena
+  // (cada celda con conteo > 0 agrega su propia hoja justo en ese momento).
   const wsResumen = wb.addWorksheet('Resumen');
+  const ctx = { counter: 0 };
 
-  const groups = [
-    { sn: 'Det_Operativos', title: 'Posiciones Vacantes — Niveles Operativos', filter: i => /^\d/.test((i.Nivel || '').trim()),  hasNvaCr: false },
-    { sn: 'Det_K',          title: 'Posiciones Vacantes — Nivel K',            filter: i => /^K/i.test((i.Nivel || '').trim()),  hasNvaCr: false },
-    { sn: 'Det_P',          title: 'Posiciones Vacantes — Niveles P',          filter: i => /^P/i.test((i.Nivel || '').trim()),  hasNvaCr: true  },
-    { sn: 'Det_S',          title: 'Posiciones Vacantes — Nivel S',            filter: i => /^S/i.test((i.Nivel || '').trim()),  hasNvaCr: true  },
-    { sn: 'Det_A',          title: 'Posiciones Vacantes — Nivel A',            filter: i => /^A/i.test((i.Nivel || '').trim()),  hasNvaCr: true  },
-    { sn: 'Det_D',          title: 'Posiciones Vacantes — Nivel D',            filter: i => /^D/i.test((i.Nivel || '').trim()),  hasNvaCr: true  },
-  ];
-
-  const detSheets = groups.map(({ sn, title, filter, hasNvaCr }) => {
-    const positions = desgloseData.filter(filter);
-    const result    = buildDetSheet(wb, sn, title, positions);
-    return { ...result, hasNvaCr, title };
-  });
-
-  const globalSheet = buildGlobalDetSheet(
-    wb, 'Detalle Global', 'Detalle Global — Ocupadas y Vacantes', desgloseData, ocupadosData
-  );
+  fillResumenSheet(wb, ctx, wsResumen, cuadrosData, desgloseData, ocupadosData);
 
   const obs = buildObservaciones(desgloseData);
   addObservacionesSheet(wb, obs);
-
-  fillResumenSheet(wsResumen, cuadrosData, detSheets, globalSheet.sheetName);
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { addExcelLetterhead } from "./excelLetterhead";
 
 // Helper to map status abbreviation to friendly name
 const mapEstadoNomina = (val) => {
@@ -87,8 +88,11 @@ export async function exportUasToExcel(selectedUas, estatusPorNivelUa, employees
     summaryRight: false,
   };
 
-  worksheet.columns = DETAIL_COLUMNS;
-  styleHeaderRow(worksheet.getRow(1));
+  worksheet.columns = DETAIL_COLUMNS.map(({ key, width }) => ({ key, width }));
+  const off = addExcelLetterhead(workbook, worksheet, DETAIL_COLUMNS.length);
+  const headerRow = worksheet.getRow(off + 1);
+  DETAIL_COLUMNS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+  styleHeaderRow(headerRow);
 
   selectedUas.forEach(ua => {
     const levelsData = estatusPorNivelUa.por_ua[ua] || {};
@@ -227,8 +231,11 @@ export async function exportSingleUaToExcel(uaName, selectedLevels, levelsData, 
     summaryRight: false,
   };
 
-  worksheet.columns = DETAIL_COLUMNS;
-  styleHeaderRow(worksheet.getRow(1));
+  worksheet.columns = DETAIL_COLUMNS.map(({ key, width }) => ({ key, width }));
+  const off = addExcelLetterhead(workbook, worksheet, DETAIL_COLUMNS.length);
+  const headerRow = worksheet.getRow(off + 1);
+  DETAIL_COLUMNS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+  styleHeaderRow(headerRow);
 
   // Add UA general summary row first
   let totalSelectedUaRows = 0;

@@ -989,6 +989,37 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                 </BarChart>
               </ResponsiveContainer>
             </div>
+
+            {/* Guía de Niveles Jerárquicos */}
+            <div className="mt-6 pt-5 border-t border-[#bc955c]/10">
+              <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                Guía de Niveles Jerárquicos
+              </h5>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { id: '0', name: 'Titular ANAM' },
+                  { id: '1', name: 'Director General' },
+                  { id: '2', name: 'Director Central' },
+                  { id: '3', name: 'Director' },
+                  { id: '4', name: 'Subdirector' },
+                  { id: '5', name: 'Jefe de departamento' },
+                  { id: '6', name: 'Enlace' },
+                  { id: '7', name: 'Operativo de Confianza' },
+                  { id: '8', name: 'Operativo de Base' },
+                ].map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleNJOcupBarClick({ name: `NJ ${item.id}` })}
+                    className="flex items-center gap-2.5 text-[11px] text-slate-700 dark:text-slate-350 bg-slate-50/80 dark:bg-slate-800/40 px-3 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/80 hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/10 hover:border-[#bc955c]/30 dark:hover:border-[#bc955c]/30 hover:scale-[1.02] active:scale-95 duration-200 transition-all cursor-pointer shadow-sm"
+                  >
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-[#10243e] dark:bg-[#bc955c]/10 text-white dark:text-[#bc955c] text-[10px] font-extrabold flex-shrink-0 shadow-sm">
+                      {item.id}
+                    </span>
+                    <span className="font-semibold truncate">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* ── Gráfica 2: Familia con Drill-Down ── */}

@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
+import { addExcelLetterhead } from '@/utils/excelLetterhead';
 import {
     Calculator, ChevronUp, ChevronDown, CheckCircle2, XCircle, Info,
     Landmark, FileText, ClipboardList, CalendarDays, Layers, TrendingUp,
@@ -399,24 +400,26 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         const thinBorder = { style: 'thin', color: { argb: 'FFE5E7EB' } };
         const allBorders = { top: thinBorder, left: thinBorder, bottom: thinBorder, right: thinBorder };
 
-        const styleTitleBand = (ws, colSpan, title, subtitle) => {
-            ws.mergeCells(1, 1, 1, colSpan);
-            ws.mergeCells(2, 1, 2, colSpan);
-            const titleCell = ws.getCell(1, 1);
+        const styleTitleBand = (ws, off, colSpan, title, subtitle) => {
+            const r1 = off + 1;
+            const r2 = off + 2;
+            ws.mergeCells(r1, 1, r1, colSpan);
+            ws.mergeCells(r2, 1, r2, colSpan);
+            const titleCell = ws.getCell(r1, 1);
             titleCell.value = title;
             titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: WHITE } };
             titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-            ws.getRow(1).height = 30;
+            ws.getRow(r1).height = 30;
 
-            const subtitleCell = ws.getCell(2, 1);
+            const subtitleCell = ws.getCell(r2, 1);
             subtitleCell.value = subtitle;
             subtitleCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: AMBER } };
             subtitleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-            ws.getRow(2).height = 20;
+            ws.getRow(r2).height = 20;
 
-            for (let r = 1; r <= 2; r++) {
+            for (let r = r1; r <= r2; r++) {
                 for (let c = 1; c <= colSpan; c++) {
-                    ws.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r === 1 ? MAROON_DARK : MAROON } };
+                    ws.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r === r1 ? MAROON_DARK : MAROON } };
                 }
             }
         };
@@ -447,7 +450,8 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
             { width: 14 }, { width: 46 }, { width: 20 }, { width: 20 }, { width: 20 },
         ];
 
-        styleTitleBand(ws1, 5, 'REPORTE DE VALUACIÓN PRESUPUESTARIA', `FUMP 2025 · Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'} · Generado el ${now}`);
+        const off1 = addExcelLetterhead(wb, ws1, 5);
+        styleTitleBand(ws1, off1, 5, 'REPORTE DE VALUACIÓN PRESUPUESTARIA', `FUMP 2025 · Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'} · Generado el ${now}`);
         ws1.addRow([]);
 
         const headerRow1 = ws1.addRow(['PARTIDA', 'CONCEPTO', `PERÍODO (${meses}m)`, 'ANUAL (12m)', 'COMPLEMENTO']);
@@ -472,7 +476,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         totalRow1.getCell(5).numFmt = moneyFmt;
         styleTotalRow(totalRow1, 2);
 
-        ws1.getRow(4).alignment = { vertical: 'middle', horizontal: 'center' };
+        headerRow1.alignment = { vertical: 'middle', horizontal: 'center' };
 
         // ── HOJA 2: Desglose Analítico ────────────────────────────────
         const ws2 = wb.addWorksheet('Desglose Analítico', { views: [{ showGridLines: false }] });
@@ -481,7 +485,8 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
             { width: 18 }, { width: 20 }, { width: 18 }, { width: 22 }, { width: 20 },
         ];
 
-        styleTitleBand(ws2, 9, 'DESGLOSE ANALÍTICO POR NIVEL', `Detalle individualizado por plaza seleccionada · Base PECEN · ${now}`);
+        const off2 = addExcelLetterhead(wb, ws2, 9);
+        styleTitleBand(ws2, off2, 9, 'DESGLOSE ANALÍTICO POR NIVEL', `Detalle individualizado por plaza seleccionada · Base PECEN · ${now}`);
         ws2.addRow([]);
 
         const headerRow2 = ws2.addRow(['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO PERÍODO', 'COMP. GAR.', 'COMP. GAR. PERÍODO', 'TOTAL NIVEL']);
@@ -530,7 +535,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         });
         quincenaRow2.height = 24;
 
-        ws1.getRow(4).alignment = { vertical: 'middle', horizontal: 'left' };
+        headerRow1.alignment = { vertical: 'middle', horizontal: 'left' };
         [ws1, ws2].forEach(ws => { ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }; });
 
         const buffer = await wb.xlsx.writeBuffer();

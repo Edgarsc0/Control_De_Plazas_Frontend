@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
@@ -155,7 +156,15 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
 
   const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0);
 
-  return (
+  // Portado a `document.body`: si no, un ancestro con `transform` (p.ej. un
+  // motion.div de framer-motion en la página o el propio modal) crea un
+  // stacking context que atrapa el z-index del menú por debajo del portal de
+  // ModalShell — el mismo problema que ya resolvía el dropdown de condición
+  // de DataTable. Sin portal, el menú "no se abre" (queda pintado detrás del
+  // modal) al usarse dentro de un modal como EmployeesModal.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[9998]" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
       {contextMenu.rect && (
@@ -224,6 +233,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
           )}
         </motion.div>
       </AnimatePresence>
-    </>
+    </>,
+    document.body
   );
 }

@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
+import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
 import PosicionTimelineModal from "../../modals/PosicionTimelineModal";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
@@ -920,10 +921,14 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
       const visibleCols = columns.filter((c) => c.visible);
       worksheet.columns = visibleCols.map((c) => ({
-        header: c.label,
         key: c.key,
         width: 15,
       }));
+
+      const off = addExcelLetterhead(workbook, worksheet, visibleCols.length);
+      const headerRowNum = off + 1;
+      const headerRow = worksheet.getRow(headerRowNum);
+      visibleCols.forEach((c, i) => { headerRow.getCell(i + 1).value = c.label; });
 
       allData.forEach((row) => {
         const rowData = {};
@@ -941,7 +946,6 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         });
       });
 
-      const headerRow = worksheet.getRow(1);
       headerRow.height = 24;
       headerRow.eachCell((cell) => {
         cell.fill = {
@@ -966,7 +970,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
       worksheet.columns.forEach((column) => {
         let maxLength = 0;
-        column.eachCell({ includeEmpty: true }, (cell) => {
+        column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+          if (rowNumber <= off) return;
           const cellValue = cell.value ? cell.value.toString() : "";
           if (cellValue.length > maxLength) {
             maxLength = cellValue.length;
@@ -1205,6 +1210,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       rs.getColumn(2).width = 16;
       rs.getColumn(3).width = 14;
       rs.getColumn(4).width = 26;
+
+      // Membretado institucional solo en Resumen (hoja de entrada) — las hojas de
+      // detalle ("Año YYYY", por acción) no lo llevan porque sus hipervínculos
+      // ("#'hoja'!A2") y autoFilter asumen encabezado fijo en la fila 1.
+      addExcelLetterhead(workbook, rs, 4);
 
       // Helpers de estilo Resumen
       const secTitle = (text) => {

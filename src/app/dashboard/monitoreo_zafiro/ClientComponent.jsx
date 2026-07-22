@@ -527,7 +527,7 @@ export default function ClientComponent() {
                   />
                   <Tooltip content={<DuracionTooltip />} cursor={{ stroke: '#621f32', strokeWidth: 1, strokeDasharray: '4 4' }} />
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="duracion_promedio_segundos"
                     stroke="#621f32"
                     strokeWidth={2.5}
