@@ -14,15 +14,30 @@ const DETALLE_VACANTES_COLUMN_KEYS = [
   'tipo_de_contratacion', 'sindicato', 'entidad_federativa', 'smb', 'smn',
 ];
 
+// Ocupación: mismo whitelist que Vacancia + identidad de empleado, que sí
+// trae ocupadosJerarquicoData (Id Empleado/Nombres/RFC/CURP) a diferencia de
+// desgloseJerarquicoData (solo describe plazas, nunca personas).
+const DETALLE_OCUPACION_COLUMN_KEYS = ['id_empleado', 'nombres', 'rfc', 'curp', ...DETALLE_VACANTES_COLUMN_KEYS];
+const DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS = ['id_empleado', 'nombres', 'rfc', 'curp', 'posicion', 'nivel', 'nombre_puesto_funcional'];
+
 function formatNumber(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-const TABLAS_ORDER = [
-  { prefix: 'P', label: 'Vacancia de enlaces P' },
-  { prefix: 'A', label: 'Vacancia del nivel A' },
-  { prefix: 'S', label: 'Vacancia del nivel S' },
-  { prefix: 'D', label: 'Vacancia del nivel D' },
+// Orden pedido en pantalla: J, K, A, S, D, P y Operativos. `wide: true` = 2
+// vías (Eventuales combinado + Permanentes, tabla VacanciaTableK), igual que
+// hoy K y Operativos; `wide: false` = 3 vías (Eventuales/Evt. Nueva
+// Creación/Permanentes, VacanciaTable), igual que hoy P/A/S/D. J se trata
+// como 3 vías (supuesto — ver plan; no hay forma de confirmarlo desde el
+// query de referencia de niveles).
+const LEVELS_ORDER = [
+  { key: 'J', vacLabel: 'Vacancia del nivel J', ocupLabel: 'Ocupación del nivel J', wide: false },
+  { key: 'K', vacLabel: 'Vacancia del nivel K', ocupLabel: 'Ocupación del nivel K', wide: true },
+  { key: 'A', vacLabel: 'Vacancia del nivel A', ocupLabel: 'Ocupación del nivel A', wide: false },
+  { key: 'S', vacLabel: 'Vacancia del nivel S', ocupLabel: 'Ocupación del nivel S', wide: false },
+  { key: 'D', vacLabel: 'Vacancia del nivel D', ocupLabel: 'Ocupación del nivel D', wide: false },
+  { key: 'P', vacLabel: 'Vacancia de enlaces P', ocupLabel: 'Ocupación de enlaces P', wide: false },
+  { key: 'OPERATIVOS', vacLabel: 'Vacancia de niveles Operativos', ocupLabel: 'Ocupación de niveles Operativos', wide: true },
 ];
 
 function classifyPos(pos) {
@@ -77,6 +92,13 @@ function buildNumericTableData(data) {
   return Object.values(byNivel)
     .map(row => ({ ...row, total: row.eventuales + row.nuevaCreacion + row.permanentes }))
     .sort((a, b) => a.nivel.localeCompare(b.nivel, undefined, { numeric: true }));
+}
+
+// Centraliza el `if` de "Operativos usa buildNumericTableData, el resto usa
+// buildTableData(prefix)" para poder llamarlo una vez por dataset (Vacancia/
+// Ocupación) por cada nivel de LEVELS_ORDER sin duplicar la rama.
+function getTableData(sourceData, levelKey) {
+  return levelKey === 'OPERATIVOS' ? buildNumericTableData(sourceData) : buildTableData(sourceData, levelKey);
 }
 
 function calcTotal(tableData) {
@@ -217,32 +239,32 @@ function VacanciaTable({ tableData, totalRow, label, onCellClick }) {
   );
 }
 
-export default function DetalleVacantesTablas({ data = [] }) {
+export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalRows, setModalRows] = useState([]);
   const [modalTitle, setModalTitle] = useState('');
+  // Whitelist/keys por defecto del modal — varían según se haya abierto desde
+  // una tabla de Vacancia o de Ocupación (esta última sí trae identidad de
+  // empleado, ver DETALLE_OCUPACION_COLUMN_KEYS).
+  const [modalColumnKeys, setModalColumnKeys] = useState(DETALLE_VACANTES_COLUMN_KEYS);
+  const [modalDefaultColumnKeys, setModalDefaultColumnKeys] = useState(null);
 
-  const tables = useMemo(() => {
-    return TABLAS_ORDER.map(({ prefix, label }) => {
-      const tableData = buildTableData(data, prefix);
-      const totalRow = calcTotal(tableData);
-      return { prefix, label, tableData, totalRow };
+  // Por cada nivel de LEVELS_ORDER, arma la tabla de Vacancia (data) y su
+  // equivalente de Ocupación (ocupadosData) — mismos helpers de siempre
+  // (buildTableData/buildNumericTableData/calcTotal), solo variando la fuente.
+  const levelRows = useMemo(() => {
+    return LEVELS_ORDER.map(lvl => {
+      const vacTableData = getTableData(data, lvl.key);
+      const ocupTableData = getTableData(ocupadosData, lvl.key);
+      return {
+        ...lvl,
+        vacTableData,
+        vacTotalRow: calcTotal(vacTableData),
+        ocupTableData,
+        ocupTotalRow: calcTotal(ocupTableData),
+      };
     });
-  }, [data]);
-
-  const operativosTable = useMemo(() => {
-    const tableData = buildNumericTableData(data);
-    const totalRow = calcTotal(tableData);
-    return { tableData, totalRow };
-  }, [data]);
-
-  const kTable = useMemo(() => {
-    const tableData = buildTableData(data, 'K');
-    const totalRow = calcTotal(tableData);
-    return { tableData, totalRow };
-  }, [data]);
-
-  const activeTables = tables.filter(t => t.tableData.length > 0);
+  }, [data, ocupadosData]);
 
   // Observaciones Vacancia
   const observaciones = useMemo(() => {
@@ -265,28 +287,21 @@ export default function DetalleVacantesTablas({ data = [] }) {
     return { base, oic, titulares, total: totalSet.size };
   }, [data]);
 
-  const handleCellClick = useCallback((nivel, type, tableLabel) => {
-    // Determine which prefix group this table belongs to
-    const prefixMap = {
-      'Vacancia de enlaces P': 'P',
-      'Vacancia del nivel A': 'A',
-      'Vacancia del nivel S': 'S',
-      'Vacancia del nivel D': 'D',
-      'Vacancia del nivel K': 'K',
-      'Vacancia de niveles Operativos': '__NUMERIC__',
-    };
-    const tablePrefix = prefixMap[tableLabel] || '';
-
-    const filtered = data.filter(item => {
+  // `sourceData`/`levelKey` reemplazan al viejo `prefixMap` (que matcheaba por
+  // texto de label): ahora se compara directo contra la key del nivel, ya
+  // disponible en el loop de render (más robusto, sirve igual para Vacancia
+  // que para Ocupación con solo cambiar `sourceData`/`columnKeys`).
+  const openDetailModal = useCallback((sourceData, levelKey, nivel, type, tableLabel, columnKeys, defaultColumnKeys) => {
+    const filtered = sourceData.filter(item => {
       const n = (item.Nivel || '').trim();
 
       // Filter by nivel
       if (nivel === '__ALL__') {
         // Match all niveles in this table's group
-        if (tablePrefix === '__NUMERIC__') {
+        if (levelKey === 'OPERATIVOS') {
           if (!/^\d/.test(n)) return false;
-        } else if (tablePrefix) {
-          if (!n.toUpperCase().startsWith(tablePrefix)) return false;
+        } else if (levelKey) {
+          if (!n.toUpperCase().startsWith(levelKey)) return false;
         }
       } else {
         if (n !== nivel) return false;
@@ -306,8 +321,10 @@ export default function DetalleVacantesTablas({ data = [] }) {
     const nivelLabel = nivel === '__ALL__' ? 'Total' : nivel;
     setModalTitle(`${tableLabel} — ${nivelLabel} — ${typeLabels[type] || type}`);
     setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
+    setModalColumnKeys(columnKeys);
+    setModalDefaultColumnKeys(defaultColumnKeys || null);
     setModalOpen(true);
-  }, [data]);
+  }, []);
 
   if (!data || data.length === 0) return null;
 
@@ -333,31 +350,36 @@ export default function DetalleVacantesTablas({ data = [] }) {
           </div>
         </div>
 
-        {/* 2 columnas continuas: Operativos+P+S | K+A+D */}
-        <div className="flex flex-col lg:flex-row gap-8 relative z-10">
-          {/* Columna izquierda: Operativos, P, S */}
-          <div className="flex-1 flex flex-col gap-8">
-            {operativosTable.tableData.length > 0 && (
-              <VacanciaTableK
-                tableData={operativosTable.tableData}
-                totalRow={operativosTable.totalRow}
-                label="Vacancia de niveles Operativos"
-                data={data}
-                onCellClick={handleCellClick}
-              />
-            )}
-            {activeTables.filter(t => t.prefix === 'P' || t.prefix === 'S').map(t => (
-              <VacanciaTable
-                key={t.prefix}
-                tableData={t.tableData}
-                totalRow={t.totalRow}
-                label={t.label}
-                onCellClick={handleCellClick}
-              />
-            ))}
+        {/* Vacancia (izquierda) | Ocupación (derecha), una fila por nivel para
+            que ambas tablas queden alineadas — orden J, K, A, S, D, P,
+            Operativos, seguido de Observaciones (solo Vacancia). */}
+        <div className="flex flex-col gap-8 relative z-10">
+          {levelRows.map(lvl => {
+            if (lvl.vacTableData.length === 0 && lvl.ocupTableData.length === 0) return null;
+            const Comp = lvl.wide ? VacanciaTableK : VacanciaTable;
+            return (
+              <div key={lvl.key} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Comp
+                  tableData={lvl.vacTableData}
+                  totalRow={lvl.vacTotalRow}
+                  label={lvl.vacLabel}
+                  data={data}
+                  onCellClick={(nivel, type, tableLabel) => openDetailModal(data, lvl.key, nivel, type, tableLabel, DETALLE_VACANTES_COLUMN_KEYS, null)}
+                />
+                <Comp
+                  tableData={lvl.ocupTableData}
+                  totalRow={lvl.ocupTotalRow}
+                  label={lvl.ocupLabel}
+                  data={ocupadosData}
+                  onCellClick={(nivel, type, tableLabel) => openDetailModal(ocupadosData, lvl.key, nivel, type, tableLabel, DETALLE_OCUPACION_COLUMN_KEYS, DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS)}
+                />
+              </div>
+            );
+          })}
 
-            {/* Observaciones Vacancia */}
-            {observaciones.total > 0 && (
+          {/* Observaciones Vacancia — sin equivalente de Ocupación */}
+          {observaciones.total > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="flex flex-col">
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
                   <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
@@ -382,6 +404,8 @@ export default function DetalleVacantesTablas({ data = [] }) {
                                 const rows = data.filter(i => (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE');
                                 setModalTitle('Observaciones Vacancia — Contratación Base');
                                 setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                setModalDefaultColumnKeys(null);
                                 setModalOpen(true);
                               }}
                             />
@@ -396,6 +420,8 @@ export default function DetalleVacantesTablas({ data = [] }) {
                                 const rows = data.filter(i => (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control');
                                 setModalTitle('Observaciones Vacancia — Órgano Interno de Control');
                                 setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                setModalDefaultColumnKeys(null);
                                 setModalOpen(true);
                               }}
                             />
@@ -410,6 +436,8 @@ export default function DetalleVacantesTablas({ data = [] }) {
                                 const rows = data.filter(i => (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA'));
                                 setModalTitle('Observaciones Vacancia — Titulares de Aduanas');
                                 setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                setModalDefaultColumnKeys(null);
                                 setModalOpen(true);
                               }}
                             />
@@ -427,6 +455,8 @@ export default function DetalleVacantesTablas({ data = [] }) {
                                 );
                                 setModalTitle('Observaciones Vacancia — Total');
                                 setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                setModalDefaultColumnKeys(null);
                                 setModalOpen(true);
                               }}
                               className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
@@ -440,41 +470,21 @@ export default function DetalleVacantesTablas({ data = [] }) {
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-          {/* Columna derecha: K, A, D */}
-          <div className="flex-1 flex flex-col gap-8">
-            {kTable.tableData.length > 0 && (
-              <VacanciaTableK
-                tableData={kTable.tableData}
-                totalRow={kTable.totalRow}
-                label="Vacancia del nivel K"
-                data={data}
-                onCellClick={handleCellClick}
-              />
-            )}
-            {activeTables.filter(t => t.prefix === 'A' || t.prefix === 'D').map(t => (
-              <VacanciaTable
-                key={t.prefix}
-                tableData={t.tableData}
-                totalRow={t.totalRow}
-                label={t.label}
-                onCellClick={handleCellClick}
-              />
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Modal de detalle — modo local de EmployeesModal: filas ya filtradas
-          en cliente desde `data`, no vienen de un fetch nivel+estatus (incluye
+          en cliente desde `data`/`ocupadosData`, no vienen de un fetch nivel+estatus (incluye
           los filtros de Observaciones Vacancia, que ni siquiera son por nivel). */}
       <EmployeesModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         rows={modalRows}
         title={modalTitle}
-        restrictColumnsTo={DETALLE_VACANTES_COLUMN_KEYS}
+        restrictColumnsTo={modalColumnKeys}
+        defaultColumnKeys={modalDefaultColumnKeys}
       />
     </div>
   );

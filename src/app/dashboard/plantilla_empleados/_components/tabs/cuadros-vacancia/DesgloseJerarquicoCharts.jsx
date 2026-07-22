@@ -102,8 +102,10 @@ const OCUPADA_SEGMENT_META = {
   nuevaCreacion: { label: 'Ocupadas Eventuales Nueva Creación', color: '#9fd9bb' },
 };
 
-// P's, D's, S's, A's: 3 divisiones. Operativos y K's: 2 (nueva creación se suma a eventuales).
-const THREE_WAY_FAMILIES = new Set(["P's", "D's", "S's", "A's"]);
+// P's, D's, S's, A's, J's: 3 divisiones. Operativos y K's: 2 (nueva creación
+// se suma a eventuales). J's se trata igual que P/D/S/A (supuesto — no hay
+// forma de confirmarlo desde el query de referencia de niveles).
+const THREE_WAY_FAMILIES = new Set(["P's", "D's", "S's", "A's", "J's"]);
 const TWO_WAY_FAMILIES = new Set(["Operativos", "K's"]);
 
 // Construye los segmentos (mayor a menor) de un conteo {eventual, nuevaCreacion,
@@ -220,6 +222,7 @@ const OCUPADAS_COLOR = '#2f855a';
 export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false }) {
   const [drillFamily, setDrillFamily] = useState(null);
   const [drillFamily3, setDrillFamily3] = useState(null);
+  const [drillFamilyOcup, setDrillFamilyOcup] = useState(null);
 
   // Ancho del contenedor de la gráfica 1: con 9 categorías en poco espacio
   // "Subdirector" se corta/encima con su vecino, así que por debajo de un
@@ -250,6 +253,37 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       .map(nj => ({ name: abbr[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Vacantes: njCounts[nj] }))
       .sort((a, b) => a.sortKey - b.sortKey);
   }, [data, chart1Width]);
+
+  // ── Gráfica "Ocupación por Nivel Jerárquico" — espejo de chart1Data pero
+  // sobre ocupadosData. Barra plana (sin desglose de tipo de plaza), igual
+  // que su contraparte de vacantes. Ref/ancho propios para el mismo truco de
+  // abreviar "Subdirector" en espacios angostos.
+  const chart1bContainerRef = useRef(null);
+  const [chart1bWidth, setChart1bWidth] = useState(0);
+  useEffect(() => {
+    const el = chart1bContainerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(entries => {
+      setChart1bWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const chart1bData = useMemo(() => {
+    if (!ocupadosData || ocupadosData.length === 0) return [];
+    const njCounts = {};
+    ocupadosData.forEach(item => {
+      const raw = (item.NJ ?? '').toString().trim();
+      const nj = raw === '' ? 'Sin NJ' : raw;
+      njCounts[nj] = (njCounts[nj] || 0) + 1;
+    });
+    const isNarrow = chart1bWidth > 0 && (chart1bWidth / 9) < 70;
+    const abbr = { ...NJ_ABBR, '4': isNarrow ? 'Sub' : 'Subdirector' };
+    return Object.keys(njCounts)
+      .map(nj => ({ name: abbr[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Ocupadas: njCounts[nj] }))
+      .sort((a, b) => a.sortKey - b.sortKey);
+  }, [ocupadosData, chart1bWidth]);
 
   const getPrefix = useCallback((nivel) => {
     if (!nivel) return "Sin Nivel";
@@ -320,6 +354,24 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       .sort((a, b) => b.Vacantes - a.Vacantes);
   }, [data, getPrefix, ocupadaCountsPorFamilia]);
 
+  // Proyección de familyData para la gráfica "Ocupación por Nivel Tabular"
+  // (nivel familia): reutiliza ocupSeg0/1/2 y ocupSegments ya calculados ahí
+  // (mismo criterio de 2/3 vías que la gráfica 3), renombrados a las keys
+  // Vacantes/seg0../segments para poder reusar el mismo bloque de <Bar> que
+  // la gráfica 2 sin duplicar el render.
+  const ocupFamilyChartData = useMemo(() => {
+    return [...familyData]
+      .map(row => ({
+        name: row.name,
+        Vacantes: row.ocupadas,
+        seg0: row.ocupSeg0,
+        seg1: row.ocupSeg1,
+        seg2: row.ocupSeg2,
+        segments: row.ocupSegments,
+      }))
+      .sort((a, b) => b.Vacantes - a.Vacantes);
+  }, [familyData]);
+
   const drillData = useMemo(() => {
     if (!drillFamily || !data || data.length === 0) return [];
     const counts = {};
@@ -370,6 +422,57 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       })
       .sort((a, b) => b.Vacantes - a.Vacantes);
   }, [data, drillFamily, getPrefix]);
+
+  // Drill-down de "Ocupación por Nivel Tabular": calcado de drillData pero
+  // sobre ocupadosData, clasificando con classifyOcupada (no classifyPos) y
+  // coloreando con OCUPADA_SEGMENT_META (no SEGMENT_META).
+  const drillDataOcupTabular = useMemo(() => {
+    if (!drillFamilyOcup || !ocupadosData || ocupadosData.length === 0) return [];
+    const counts = {};
+    ocupadosData.forEach(item => {
+      if (getPrefix(item.Nivel) === drillFamilyOcup) {
+        const exact = (item.Nivel || "Vacío").trim();
+        if (!counts[exact]) counts[exact] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
+        counts[exact][classifyOcupada(item)] += 1;
+      }
+    });
+
+    const isThreeWay = THREE_WAY_FAMILIES.has(drillFamilyOcup);
+    const isTwoWay = TWO_WAY_FAMILIES.has(drillFamilyOcup);
+
+    return Object.entries(counts)
+      .map(([name, c]) => {
+        const total = c.eventual + c.nuevaCreacion + c.permanente;
+
+        let rawSegments = null;
+        if (isThreeWay) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual },
+            { type: 'nuevaCreacion', value: c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        } else if (isTwoWay) {
+          rawSegments = [
+            { type: 'eventual', value: c.eventual + c.nuevaCreacion },
+            { type: 'permanente', value: c.permanente },
+          ];
+        }
+
+        const segments = rawSegments
+          ? [...rawSegments]
+            .sort((a, b) => b.value - a.value)
+            .map(s => ({ ...OCUPADA_SEGMENT_META[s.type], type: s.type, value: s.value }))
+          : null;
+
+        const row = { name, Vacantes: total, seg0: total, seg1: 0, seg2: 0 };
+        if (segments) {
+          segments.forEach((s, i) => { row[`seg${i}`] = s.value; });
+          row.segments = segments;
+        }
+        return row;
+      })
+      .sort((a, b) => b.Vacantes - a.Vacantes);
+  }, [ocupadosData, drillFamilyOcup, getPrefix]);
 
   // Ocupadas por nivel exacto (P11, P12, ...), desglosado por tipo de plaza,
   // para el drill-down de "Posiciones Totales" — mismo criterio que
@@ -471,9 +574,16 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   };
 
   // ── Modal de detalle ──
+  // `modalDefaultCols`: las gráficas de Ocupación filtran ocupadosData, que sí
+  // trae identidad de empleado (Id Empleado/Nombres/RFC/CURP) — ese caso pasa
+  // esas columnas por delante; las de vacantes se quedan con el default de
+  // EmployeesModal (null).
   const [modalOpen, setModalOpen] = useState(false);
   const [modalRows, setModalRows] = useState([]);
   const [modalTitle, setModalTitle] = useState('');
+  const [modalDefaultCols, setModalDefaultCols] = useState(null);
+
+  const OCUP_DEFAULT_COLUMN_KEYS = ['id_empleado', 'nombres', 'rfc', 'curp', 'posicion', 'nivel'];
 
   const handleNJBarClick = useCallback((barData) => {
     if (!barData || !barData.name) return;
@@ -485,6 +595,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     });
     setModalTitle(`Vacantes — NJ ${njValue}`);
     setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
+    setModalDefaultCols(null);
     setModalOpen(true);
   }, [data]);
 
@@ -497,6 +608,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     });
     setModalTitle(`Vacantes — Nivel ${nivelName}`);
     setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
+    setModalDefaultCols(null);
     setModalOpen(true);
   }, [data]);
 
@@ -508,6 +620,41 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
   const chart2Data = drillFamily ? drillData : familyData;
   const palette = drillFamily ? (FAMILY_COLORS[drillFamily] || FAMILY_COLORS["Sin Nivel"]) : null;
+
+  // ── Handlers de "Ocupación por Nivel Jerárquico" y "Ocupación por Nivel
+  // Tabular" — mismo patrón que sus contrapartes de vacantes, pero filtrando
+  // ocupadosData en vez de data.
+  const handleNJOcupBarClick = useCallback((barData) => {
+    if (!barData || !barData.name) return;
+    const njValue = barData.nj ?? barData.name.replace('NJ ', '');
+    const filtered = (ocupadosData || []).filter(item => {
+      const raw = (item.NJ ?? '').toString().trim();
+      const nj = raw === '' ? 'Sin NJ' : raw;
+      return nj === njValue;
+    });
+    setModalTitle(`Ocupadas — NJ ${njValue}`);
+    setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
+    setModalDefaultCols(OCUP_DEFAULT_COLUMN_KEYS);
+    setModalOpen(true);
+  }, [ocupadosData]);
+
+  const handleFamilyOcupBarClick = useCallback((barData) => {
+    if (!barData || !barData.name) return;
+    setDrillFamilyOcup(barData.name);
+  }, []);
+
+  const handleDrillOcupBarClick = useCallback((barData) => {
+    if (!barData || !barData.name) return;
+    const nivelName = barData.name;
+    const filtered = (ocupadosData || []).filter(item => (item.Nivel || '').trim() === nivelName);
+    setModalTitle(`Ocupadas — Nivel ${nivelName}`);
+    setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
+    setModalDefaultCols(OCUP_DEFAULT_COLUMN_KEYS);
+    setModalOpen(true);
+  }, [ocupadosData]);
+
+  const chart2bData = drillFamilyOcup ? drillDataOcupTabular : ocupFamilyChartData;
+  const paletteOcup = drillFamilyOcup ? (FAMILY_COLORS[drillFamilyOcup] || FAMILY_COLORS["Sin Nivel"]) : null;
 
   const handleFamily3BarClick = useCallback((barData) => {
     if (!barData || !barData.name) return;
@@ -677,10 +824,10 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-2 gap-6 sm:gap-8 relative z-10">
 
-          {/* ── Gráfica 1: NJ ── */}
-          <div ref={chart1ContainerRef} data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+          {/* ── Gráfica 1: Vacantes por Nivel Jerárquico (fila 1, col 1) ── */}
+          <div ref={chart1ContainerRef} data-pdf-chart className="lg:col-start-1 lg:row-start-1 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
             <div className="mb-6">
               <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
                 Vacantes por Nivel Jerárquico
@@ -779,8 +926,73 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
             </div>
           </div>
 
+          {/* ── Gráfica NJ-Ocupación: Ocupación por Nivel Jerárquico (fila 1, col 2) ── */}
+          <div ref={chart1bContainerRef} data-pdf-chart className="lg:col-start-2 lg:row-start-1 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+            <div className="mb-6">
+              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                Ocupación por Nivel Jerárquico
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+                Distribución por NJ
+              </p>
+            </div>
+            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chart1bData}
+                  margin={{ top: 34, right: 15, left: -15, bottom: 10 }}
+                  barCategoryGap="20%"
+                  onClick={(state) => {
+                    if (state && state.activePayload && state.activePayload.length > 0) {
+                      handleNJOcupBarClick(state.activePayload[0].payload);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={45}
+                  />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  <Bar
+                    dataKey="Ocupadas"
+                    shape={<GradientBar />}
+                    background={{ fill: 'transparent', cursor: 'pointer' }}
+                    onClick={handleNJOcupBarClick}
+                    style={{ cursor: 'pointer' }}
+                    isAnimationActive={!forExport}
+                    animationBegin={80}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
+                  />
+                  <Line
+                    dataKey={row => row.Ocupadas}
+                    stroke="none"
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={false}
+                    legendType="none"
+                  >
+                    <LabelList dataKey={row => row.Ocupadas} content={renderTotalLabel} />
+                  </Line>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           {/* ── Gráfica 2: Familia con Drill-Down ── */}
-          <div data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+          <div data-pdf-chart className="lg:col-start-1 lg:row-start-2 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 {drillFamily ? (
@@ -986,8 +1198,206 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
             )}
           </div>
 
-          {/* ── Gráfica 3: Posiciones Totales ── */}
-          <div data-pdf-chart className="bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+          {/* ── Gráfica Tabular-Ocupación: Ocupación por Nivel Tabular (fila 2, col 2) ── */}
+          <div data-pdf-chart className="lg:col-start-2 lg:row-start-2 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                {drillFamilyOcup ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setDrillFamilyOcup(null)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 transition-all font-semibold text-xs group"
+                    >
+                      <ChevronLeft className="size-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                      Regresar
+                    </button>
+                    <span className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                      Niveles {drillFamilyOcup}
+                    </span>
+                  </div>
+                ) : (
+                  <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                    Ocupación por Nivel Tabular
+                  </h4>
+                )}
+                <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+                  {drillFamilyOcup
+                    ? `${drillDataOcupTabular.length} niveles en ${drillFamilyOcup}`
+                    : 'Clic en una barra para explorar'}
+                </p>
+              </div>
+            </div>
+            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chart2bData}
+                  margin={{ top: 34, right: 15, left: -15, bottom: chart2bData.length > 6 ? 50 : 10 }}
+                  barCategoryGap="20%"
+                  onClick={(state) => {
+                    if (state && state.activePayload && state.activePayload.length > 0) {
+                      if (drillFamilyOcup) {
+                        handleDrillOcupBarClick(state.activePayload[0].payload);
+                      } else {
+                        handleFamilyOcupBarClick(state.activePayload[0].payload);
+                      }
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    angle={chart2bData.length > 6 ? -40 : 0}
+                    textAnchor={chart2bData.length > 6 ? 'end' : 'middle'}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={45}
+                  />
+                  <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  {drillFamilyOcup ? (
+                    <>
+                      <Bar
+                        dataKey="seg0"
+                        stackId="nivel"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleDrillOcupBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={80}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
+                      >
+                        {chart2bData.map((entry, idx) => (
+                          <Cell
+                            key={idx}
+                            fill={entry.segments ? entry.segments[0].color : paletteOcup.shades[idx % paletteOcup.shades.length]}
+                          />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg1"
+                        stackId="nivel"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleDrillOcupBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={140}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
+                      >
+                        {chart2bData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg2"
+                        stackId="nivel"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleDrillOcupBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={200}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
+                      >
+                        {chart2bData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                    </>
+                  ) : (
+                    <>
+                      <Bar
+                        dataKey="seg0"
+                        stackId="familia"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleFamilyOcupBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={80}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
+                      >
+                        {chart2bData.map((entry, idx) => (
+                          <Cell
+                            key={idx}
+                            fill={entry.segments ? entry.segments[0].color : GRADIENT_PAIRS[idx % GRADIENT_PAIRS.length][0]}
+                          />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg1"
+                        stackId="familia"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleFamilyOcupBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={140}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
+                      >
+                        {chart2bData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                      <Bar
+                        dataKey="seg2"
+                        stackId="familia"
+                        background={{ fill: 'transparent', cursor: 'pointer' }}
+                        onClick={handleFamilyOcupBarClick}
+                        style={{ cursor: 'pointer' }}
+                        isAnimationActive={!forExport}
+                        animationBegin={200}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
+                      >
+                        {chart2bData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
+                        ))}
+                      </Bar>
+                    </>
+                  )}
+                  <Line
+                    dataKey={row => row.Vacantes}
+                    stroke="none"
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={false}
+                    legendType="none"
+                  >
+                    <LabelList dataKey={row => row.Vacantes} content={renderTotalLabel} />
+                  </Line>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Leyenda del desglose por tipo de plaza (Ocupadas) */}
+            {chart2bData.some(row => row.segments) && (
+              <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
+                {Object.values(OCUPADA_SEGMENT_META).map((s) => (
+                  <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
+                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+                    {s.label}
+                  </div>
+                ))}
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                  (P's, D's, S's, A's, J's: 3 divisiones · Operativos y K's: Eventuales + Permanentes)
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* ── Gráfica 3: Posiciones Totales (fila 1-2, col 3) ── */}
+          <div data-pdf-chart className="lg:col-start-3 lg:row-start-1 lg:row-span-2 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
             <div className="mb-6">
               {drillFamily3 ? (
                 <div className="flex items-center gap-2">
@@ -1178,14 +1588,16 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         </div>
       </div>
 
-      {/* Modal de detalle (NJ y drill-down por nivel exacto de "Vacantes por
-          Nivel Tabular") — modo local de EmployeesModal: filas ya filtradas
-          en cliente desde `data`, no vienen de un fetch nivel+estatus. */}
+      {/* Modal de detalle (NJ y drill-down por nivel exacto de "Vacantes"/
+          "Ocupación" por Nivel Jerárquico y Nivel Tabular) — modo local de
+          EmployeesModal: filas ya filtradas en cliente desde `data`/
+          `ocupadosData`, no vienen de un fetch nivel+estatus. */}
       <EmployeesModal
         open={modalOpen}
         onOpenChange={setModalOpen}
         rows={modalRows}
         title={modalTitle}
+        defaultColumnKeys={modalDefaultCols}
       />
 
       {/* Modal de detalle por nivel (Ocupadas vs Vacantes por familia de nivel) */}

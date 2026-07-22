@@ -164,7 +164,7 @@ function buildDetailTable(label, data) {
   ];
 }
 
-export async function generateCuadroVacanciaWord({ filteredData = [], desgloseJerarquicoData = [], chartImages = [], lastUpdateText = '' }) {
+export async function generateCuadroVacanciaWord({ filteredData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], chartImages = [], lastUpdateText = '' }) {
   const children = [];
 
   // ═══════════════════ Título ═══════════════════
@@ -237,20 +237,53 @@ export async function generateCuadroVacanciaWord({ filteredData = [], desgloseJe
   const kData = buildLevelRows(desgloseJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith('K'));
 
   [
-    { label: 'Vacancia de niveles Operativos', data: operativosData },
     { label: 'Vacancia del nivel K', data: kData },
+    { label: 'Vacancia de niveles Operativos', data: operativosData },
   ].filter(t => t.data.tableRows.length > 0).forEach(t => {
     children.push(...buildShortTable(t.label, t.data));
   });
 
   const prefixes = [
-    { prefix: 'P', label: 'Vacancia de enlaces P' },
-    { prefix: 'D', label: 'Vacancia del nivel D' },
+    { prefix: 'J', label: 'Vacancia del nivel J' },
     { prefix: 'A', label: 'Vacancia del nivel A' },
     { prefix: 'S', label: 'Vacancia del nivel S' },
+    { prefix: 'D', label: 'Vacancia del nivel D' },
+    { prefix: 'P', label: 'Vacancia de enlaces P' },
   ];
   prefixes.forEach(({ prefix, label }) => {
     const data = buildLevelRows(desgloseJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith(prefix));
+    if (data.tableRows.length > 0) {
+      children.push(...buildDetailTable(label, data));
+    }
+  });
+
+  // ═══════════════════ Detalle de ocupación por nivel ═══════════════════
+  // Mismo patrón que Vacancia, sobre ocupadosJerarquicoData.
+  children.push(new Paragraph({ children: [new PageBreak()] }));
+  children.push(sectionTitle('Detalle de Ocupación por Nivel', AZUL));
+
+  const operativosDataOcup = buildLevelRows(ocupadosJerarquicoData, item => {
+    const nivel = (item.Nivel || '').trim();
+    return nivel.length > 0 && /^\d/.test(nivel);
+  });
+  const kDataOcup = buildLevelRows(ocupadosJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith('K'));
+
+  [
+    { label: 'Ocupación del nivel K', data: kDataOcup },
+    { label: 'Ocupación de niveles Operativos', data: operativosDataOcup },
+  ].filter(t => t.data.tableRows.length > 0).forEach(t => {
+    children.push(...buildShortTable(t.label, t.data));
+  });
+
+  const prefixesOcup = [
+    { prefix: 'J', label: 'Ocupación del nivel J' },
+    { prefix: 'A', label: 'Ocupación del nivel A' },
+    { prefix: 'S', label: 'Ocupación del nivel S' },
+    { prefix: 'D', label: 'Ocupación del nivel D' },
+    { prefix: 'P', label: 'Ocupación de enlaces P' },
+  ];
+  prefixesOcup.forEach(({ prefix, label }) => {
+    const data = buildLevelRows(ocupadosJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith(prefix));
     if (data.tableRows.length > 0) {
       children.push(...buildDetailTable(label, data));
     }

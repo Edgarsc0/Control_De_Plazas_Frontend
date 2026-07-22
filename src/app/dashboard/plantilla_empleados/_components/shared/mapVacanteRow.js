@@ -5,6 +5,13 @@
 // `rows`) no mostraría nada porque las claves no calzan.
 export function mapVacanteRowToEmployeeRow(item) {
     return {
+        // Solo poblados cuando `item` viene de ocupadosJerarquicoData (trae
+        // identidad de empleado); en filas de vacantes quedan undefined y el
+        // modal los pinta como "—".
+        id_empleado: item["Id Empleado"],
+        nombres: item["Nombres"],
+        rfc: item["RFC"],
+        curp: item["CURP"],
         posicion: item["Posición"],
         nivel: item["Nivel"],
         nombre_puesto_funcional: item["Nombre Puesto Funcional"],

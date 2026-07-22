@@ -681,7 +681,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       // PÁGINAS 2+: Gráficas (una por página, grandes)
       // ════════════════════════════════════════════════
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Posiciones Totales'];
+      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
           pdf.addPage();
@@ -720,9 +720,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         return c;
       };
 
-      // ── Helper: build table rows for a prefix ──
-      const buildPdfRows = (filterFn) => {
-        const rows = (desgloseJerarquicoData || []).filter(filterFn);
+      // ── Helper: build table rows for a prefix, sobre cualquier dataset
+      // (desgloseJerarquicoData para Vacancia, ocupadosJerarquicoData para
+      // Ocupación) ──
+      const buildPdfRows = (sourceData, filterFn) => {
+        const rows = (sourceData || []).filter(filterFn);
         const byNivel = {};
         rows.forEach(item => {
           const nivel = (item.Nivel || '').trim();
@@ -741,29 +743,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         return { tableRows, totals };
       };
 
-      // ════════════════════════════════════════════════
-      // PÁGINA 3: Operativos + K (4 columnas, sin Nueva Creación)
-      // ════════════════════════════════════════════════
-      const operativosData = buildPdfRows(item => {
-        const nivel = (item.Nivel || '').trim();
-        return nivel.length > 0 && /^\d/.test(nivel);
-      });
-      const kData = buildPdfRows(item => {
-        const nivel = (item.Nivel || '').trim();
-        return nivel.toUpperCase().startsWith('K');
-      });
-
-      const shortTables = [
-        { label: 'Vacancia de niveles Operativos', ...operativosData },
-        { label: 'Vacancia del nivel K', ...kData },
-      ].filter(t => t.tableRows.length > 0);
-
-      if (shortTables.length > 0) {
+      // ── Helper: renderiza una página de "shortTables" (4 columnas, Operativos/K,
+      // sin Nueva Creación) — reutilizado para Vacancia y Ocupación ──
+      const renderShortTablesPage = (pageTitlePrefix, tables) => {
+        if (tables.length === 0) return;
         pdf.addPage();
-        drawPageHeader('Detalle de Vacantes — ' + shortTables.map(t => t.label).join('  |  '));
+        drawPageHeader(`${pageTitlePrefix} — ` + tables.map(t => t.label).join('  |  '));
         let startY = 24;
 
-        shortTables.forEach(t => {
+        tables.forEach(t => {
           pdf.setFont('helvetica', 'bold');
           pdf.setFontSize(10);
           pdf.setTextColor(...guinda);
@@ -807,87 +795,114 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 
           startY = pdf.lastAutoTable.finalY + 12;
         });
-      }
+      };
+
+      // ── Helper: renderiza N páginas de "detailTables" (5 columnas, incluye
+      // Evt. Nueva Creación, 2 tablas por página) — reutilizado para Vacancia
+      // y Ocupación ──
+      const renderDetailTablesPages = (pageTitlePrefix, tables) => {
+        for (let i = 0; i < tables.length; i += 2) {
+          pdf.addPage();
+          const tablesOnPage = tables.slice(i, i + 2);
+          const pageTitle = tablesOnPage.map(t => t.label).join('  |  ');
+          drawPageHeader(`${pageTitlePrefix} — ${pageTitle}`);
+
+          let startY = 24;
+
+          tablesOnPage.forEach((t) => {
+            // Subtítulo de tabla
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
+            pdf.setTextColor(...guinda);
+            pdf.text(t.label, margin, startY + 5);
+            startY += 8;
+
+            const head = [['Nivel', 'Eventuales', 'Evt. Nueva Creación', 'Permanentes', 'Total']];
+            const body = t.tableRows.map(r => [
+              r.nivel,
+              r.evt > 0 ? formatNumber(r.evt) : '—',
+              r.nc > 0 ? formatNumber(r.nc) : '—',
+              r.perm > 0 ? formatNumber(r.perm) : '—',
+              formatNumber(r.total),
+            ]);
+            // Total row
+            body.push([
+              'TOTAL',
+              formatNumber(t.totals.evt),
+              formatNumber(t.totals.nc),
+              formatNumber(t.totals.perm),
+              formatNumber(t.totals.total),
+            ]);
+
+            autoTable(pdf, {
+              startY,
+              head,
+              body,
+              ...tableStyles,
+              columnStyles: {
+                4: { fontStyle: 'bold', fillColor: [230, 235, 242] },
+              },
+              margin: { left: margin, right: margin },
+              didParseCell: (data) => {
+                // Style the total row
+                if (data.row.index === body.length - 1 && data.section === 'body') {
+                  data.cell.styles.fillColor = azulMarino;
+                  data.cell.styles.textColor = blanco;
+                  data.cell.styles.fontStyle = 'bold';
+                }
+                // Dashes in very light gray
+                if (data.section === 'body' && data.cell.raw === '—') {
+                  data.cell.styles.textColor = [210, 210, 215];
+                }
+              },
+            });
+
+            startY = pdf.lastAutoTable.finalY + 12;
+          });
+        }
+      };
 
       // ════════════════════════════════════════════════
-      // PÁGINAS 4+: Tablas de detalle P, D, A, S (5 columnas)
+      // Detalle de Vacantes: Operativos + K (4 col.), luego J/A/S/D/P (5 col.)
       // ════════════════════════════════════════════════
-      const prefixes = [
-        { prefix: 'P', label: 'Vacancia de enlaces P' },
-        { prefix: 'D', label: 'Vacancia del nivel D' },
+      const shortTablesVac = [
+        { label: 'Vacancia del nivel K', ...buildPdfRows(desgloseJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith('K')) },
+        { label: 'Vacancia de niveles Operativos', ...buildPdfRows(desgloseJerarquicoData, item => { const nivel = (item.Nivel || '').trim(); return nivel.length > 0 && /^\d/.test(nivel); }) },
+      ].filter(t => t.tableRows.length > 0);
+      renderShortTablesPage('Detalle de Vacantes', shortTablesVac);
+
+      const prefixesVac = [
+        { prefix: 'J', label: 'Vacancia del nivel J' },
         { prefix: 'A', label: 'Vacancia del nivel A' },
         { prefix: 'S', label: 'Vacancia del nivel S' },
+        { prefix: 'D', label: 'Vacancia del nivel D' },
+        { prefix: 'P', label: 'Vacancia de enlaces P' },
       ];
+      const detailTablesVac = prefixesVac
+        .map(({ prefix, label }) => ({ label, ...buildPdfRows(desgloseJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith(prefix)) }))
+        .filter(t => t.tableRows.length > 0);
+      renderDetailTablesPages('Detalle de Vacantes', detailTablesVac);
 
-      // Build all detail tables data
-      const detailTables = prefixes.map(({ prefix, label }) => {
-        const result = buildPdfRows(item => {
-          const nivel = (item.Nivel || '').trim();
-          return nivel.toUpperCase().startsWith(prefix);
-        });
-        return { label, ...result };
-      }).filter(t => t.tableRows.length > 0);
+      // ════════════════════════════════════════════════
+      // Detalle de Ocupación: mismo patrón, sobre ocupadosJerarquicoData
+      // ════════════════════════════════════════════════
+      const shortTablesOcup = [
+        { label: 'Ocupación del nivel K', ...buildPdfRows(ocupadosJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith('K')) },
+        { label: 'Ocupación de niveles Operativos', ...buildPdfRows(ocupadosJerarquicoData, item => { const nivel = (item.Nivel || '').trim(); return nivel.length > 0 && /^\d/.test(nivel); }) },
+      ].filter(t => t.tableRows.length > 0);
+      renderShortTablesPage('Detalle de Ocupación', shortTablesOcup);
 
-      // Render 2 tables per page
-      for (let i = 0; i < detailTables.length; i += 2) {
-        pdf.addPage();
-        const tablesOnPage = detailTables.slice(i, i + 2);
-        const pageTitle = tablesOnPage.map(t => t.label).join('  |  ');
-        drawPageHeader(`Detalle de Vacantes — ${pageTitle}`);
-
-        let startY = 24;
-
-        tablesOnPage.forEach((t, idx) => {
-          // Subtítulo de tabla
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(10);
-          pdf.setTextColor(...guinda);
-          pdf.text(t.label, margin, startY + 5);
-          startY += 8;
-
-          const head = [['Nivel', 'Eventuales', 'Evt. Nueva Creación', 'Permanentes', 'Total']];
-          const body = t.tableRows.map(r => [
-            r.nivel,
-            r.evt > 0 ? formatNumber(r.evt) : '—',
-            r.nc > 0 ? formatNumber(r.nc) : '—',
-            r.perm > 0 ? formatNumber(r.perm) : '—',
-            formatNumber(r.total),
-          ]);
-          // Total row
-          body.push([
-            'TOTAL',
-            formatNumber(t.totals.evt),
-            formatNumber(t.totals.nc),
-            formatNumber(t.totals.perm),
-            formatNumber(t.totals.total),
-          ]);
-
-          autoTable(pdf, {
-            startY,
-            head,
-            body,
-            ...tableStyles,
-            columnStyles: {
-              4: { fontStyle: 'bold', fillColor: [230, 235, 242] },
-            },
-            margin: { left: margin, right: margin },
-            didParseCell: (data) => {
-              // Style the total row
-              if (data.row.index === body.length - 1 && data.section === 'body') {
-                data.cell.styles.fillColor = azulMarino;
-                data.cell.styles.textColor = blanco;
-                data.cell.styles.fontStyle = 'bold';
-              }
-              // Dashes in very light gray
-              if (data.section === 'body' && data.cell.raw === '—') {
-                data.cell.styles.textColor = [210, 210, 215];
-              }
-            },
-          });
-
-          startY = pdf.lastAutoTable.finalY + 12;
-        });
-      }
+      const prefixesOcup = [
+        { prefix: 'J', label: 'Ocupación del nivel J' },
+        { prefix: 'A', label: 'Ocupación del nivel A' },
+        { prefix: 'S', label: 'Ocupación del nivel S' },
+        { prefix: 'D', label: 'Ocupación del nivel D' },
+        { prefix: 'P', label: 'Ocupación de enlaces P' },
+      ];
+      const detailTablesOcup = prefixesOcup
+        .map(({ prefix, label }) => ({ label, ...buildPdfRows(ocupadosJerarquicoData, item => (item.Nivel || '').trim().toUpperCase().startsWith(prefix)) }))
+        .filter(t => t.tableRows.length > 0);
+      renderDetailTablesPages('Detalle de Ocupación', detailTablesOcup);
 
       // ── Calcular Observaciones Vacancia ──
       let obsBase = 0, obsOic = 0, obsTitulares = 0;
@@ -990,7 +1005,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Posiciones Totales'];
+      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
       const chartImages = [];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
@@ -1006,6 +1021,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       await generateCuadroVacanciaWord({
         filteredData,
         desgloseJerarquicoData,
+        ocupadosJerarquicoData,
         chartImages,
         lastUpdateText,
       });
@@ -1506,7 +1522,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         </div>
 
         <div data-pdf-section>
-          <DetalleVacantesTablas data={desgloseJerarquicoData} />
+          <DetalleVacantesTablas data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} />
         </div>
       </div>
 
