@@ -32,6 +32,7 @@ const TableRow = memo(function TableRow({
   row,
   actualRowIdx,
   visible,
+  stickyMeta,
   rowNumberOffset,
   isRowSelected,
   selectedColIdx,
@@ -51,10 +52,8 @@ const TableRow = memo(function TableRow({
           ? renderRowAction({ row, actualRowIdx, isSelected: isRowSelected })
           : <button onClick={(e) => { e.stopPropagation(); onShowRecord(row); }} className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:text-slate-500 dark:hover:text-[#bc955c] transition-colors cursor-pointer" title="Ver expediente detallado"><Eye className="size-4" /></button>}
       </td>
-      {visible.map((col, colIdx, arr) => {
-        const isSticky = colIdx < 2;
-        let leftOffset = 95;
-        if (colIdx === 1) leftOffset = 95 + arr[0].width;
+      {visible.map((col, colIdx) => {
+        const { isSticky, leftOffset } = stickyMeta[colIdx];
         const value = row[col.key];
         const isSelected = isRowSelected && colIdx === selectedColIdx;
         const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
@@ -156,12 +155,32 @@ function DataTable({
   centerTable = false,
   fillWidth = false,
   fillHeight = false,
+  edgeToEdge = false,
+  stickyColumnKeys = null,
   enableKeyboardNav = false,
   onEscape,
 }) {
   const visible = useMemo(() => columns.filter(c => c.visible), [columns]);
   const colSpan = visible.length + 2;
   const columnsWidth = 95 + visible.reduce((sum, col) => sum + col.width, 0);
+
+  // Metadata de columnas "congeladas" (sticky), calculada una sola vez y
+  // reutilizada por el header, la fila de filtros, el skeleton y el body — antes
+  // cada uno recalculaba `isSticky`/`leftOffset` a mano asumiendo siempre las
+  // primeras 2 columnas. Con `stickyColumnKeys` un consumidor puede fijar
+  // cualquier subconjunto (ej. sólo "posicion"); sin la prop, cae al default
+  // histórico (las 2 primeras columnas visibles).
+  const stickyMeta = useMemo(() => {
+    let offset = 95;
+    let contiguous = true;
+    return visible.map((col, idx) => {
+      const isSticky = stickyColumnKeys ? stickyColumnKeys.includes(col.key) : idx < 2;
+      const meta = { isSticky, leftOffset: offset };
+      if (isSticky && contiguous) offset += col.width;
+      else contiguous = false;
+      return meta;
+    });
+  }, [visible, stickyColumnKeys]);
 
   // Dropdown de condición de filtro: se porta a `document.body` (posicionado por
   // el rect del botón) para no quedar recortado por el `overflow-auto` de la
@@ -264,7 +283,7 @@ function DataTable({
   const onRowClick = onRowClickProp ?? fallbackOnRowClick;
 
   return (
-    <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className="overflow-auto relative flex-1 mx-2 lg:mx-6 mb-4 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner" style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
+    <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
       <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
       <table className={`text-left text-gray-500 border-collapse ${centerTable && !fillWidth ? "mx-auto" : ""}`} style={{ tableLayout: "fixed", width: fillWidth ? "100%" : columnsWidth, minWidth: columnsWidth }}>
         <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{visible.map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
@@ -284,9 +303,7 @@ function DataTable({
                   }
                   const index = run.startIndex;
                   const col = visible[index];
-                  const isSticky = index < 2;
-                  let leftOffset = 95;
-                  if (index === 1) leftOffset = 95 + visible[0].width;
+                  const { isSticky, leftOffset } = stickyMeta[index];
                   const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
                   const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
                   const filterTitle = columnFilters[col.key]?.length > 0
@@ -365,10 +382,8 @@ function DataTable({
           <tr>
             <th className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
             <th className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-500">{rowActionHeaderLabel}</span></th>
-            {visible.map((col, index, arr) => {
-              const isSticky = index < 2;
-              let leftOffset = 95;
-              if (index === 1) leftOffset = 95 + arr[0].width;
+            {visible.map((col, index) => {
+              const { isSticky, leftOffset } = stickyMeta[index];
               const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
               const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200");
               const filterTitle = columnFilters[col.key]?.length > 0
@@ -411,12 +426,10 @@ function DataTable({
               </button>
             </th>
             <th className="sticky left-[50px] z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35"></th>
-            {visible.map((col, colIdx, arr) => {
+            {visible.map((col, colIdx) => {
               const filterObj = textFilters[col.key] || { value: "", condition: isMonoColumn(col.key) ? "starts_with" : "contains" };
               const condition = filterObj.condition || (isMonoColumn(col.key) ? "starts_with" : "contains");
-              const isSticky = colIdx < 2;
-              let leftOffset = 95;
-              if (colIdx === 1) leftOffset = 95 + arr[0].width;
+              const { isSticky, leftOffset } = stickyMeta[colIdx];
               const symbol = CONDITION_SYMBOLS[condition] || "*";
 
               return (
@@ -495,10 +508,8 @@ function DataTable({
                 <tr key={`skeleton-row-${rIdx}`} className="h-[37px] bg-white dark:bg-slate-950">
                   <td className="sticky left-0 z-25 text-center border-r h-[37px] px-4 align-middle bg-white dark:bg-slate-950"><div className="h-3 w-4 bg-slate-200 dark:bg-slate-800 rounded mx-auto animate-pulse" /></td>
                   <td className="sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 bg-white dark:bg-slate-950"><div className="size-5 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto animate-pulse" /></td>
-                  {visible.map((col, colIdx, arr) => {
-                    const isSticky = colIdx < 2;
-                    let leftOffset = 95;
-                    if (colIdx === 1) leftOffset = 95 + arr[0].width;
+                  {visible.map((col, colIdx) => {
+                    const { isSticky, leftOffset } = stickyMeta[colIdx];
                     const widthClass = colIdx % 3 === 0 ? "w-5/6" : colIdx % 3 === 1 ? "w-2/3" : "w-3/4";
                     return (<td key={`skeleton-td-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}} className="px-4 border-r h-[37px] align-middle bg-white dark:bg-slate-950 shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]"><div className={`h-3 ${widthClass} bg-slate-200 dark:bg-slate-800 rounded animate-pulse`} /></td>);
                   })}
@@ -552,6 +563,7 @@ function DataTable({
                     row={row}
                     actualRowIdx={actualRowIdx}
                     visible={visible}
+                    stickyMeta={stickyMeta}
                     rowNumberOffset={rowNumberOffset}
                     isRowSelected={rowSelected}
                     selectedColIdx={selectedColIdx}

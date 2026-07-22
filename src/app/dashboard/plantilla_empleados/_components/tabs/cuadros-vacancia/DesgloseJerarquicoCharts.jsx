@@ -1,8 +1,8 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 import { Layers, ChevronLeft, TrendingUp } from 'lucide-react';
-import DetalleVacantesModal from './DetalleVacantesModal';
 import EmployeesModal from '../../shared/EmployeesModal';
+import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
 
 // Pestañas del modal de detalle al hacer clic en un nivel dentro de una familia
 // en "Ocupadas vs Vacantes por familia de nivel" (gráfica 3, segundo nivel de
@@ -39,6 +39,10 @@ const GRADIENT_PAIRS = [
   ['#1d3a62', '#2a5494'],
   ['#2e5890', '#4479be'],
 ];
+
+// Curva "expo-out": arranque rápido y desaceleración suave y larga al final,
+// sin rebote. Se ve más fluida/premium que el 'ease-out' por defecto de Recharts.
+const MODERN_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
 
 /* ── Abreviaciones para el eje X de "Vacantes por Nivel Jerárquico" ── */
 const NJ_ABBR = {
@@ -147,7 +151,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!visiblePayload.length) return null;
   const total = visiblePayload.reduce((sum, p) => sum + (p.value || 0), 0);
   return (
-    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[170px]">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[170px]">
       <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
         {label}
       </p>
@@ -480,7 +484,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       return nj === njValue;
     });
     setModalTitle(`Vacantes — NJ ${njValue}`);
-    setModalRows(filtered);
+    setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
     setModalOpen(true);
   }, [data]);
 
@@ -492,7 +496,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       return nivel === nivelName;
     });
     setModalTitle(`Vacantes — Nivel ${nivelName}`);
-    setModalRows(filtered);
+    setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
     setModalOpen(true);
   }, [data]);
 
@@ -542,7 +546,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     if (!row.segments) return <CustomTooltip active={active} payload={payload} label={label} />;
 
     return (
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
         <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
           {label}
         </p>
@@ -580,7 +584,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     const vacanteRows = row.segments || (row.Vacantes ? [{ label: 'Vacantes', color: '#621f32', value: row.Vacantes }] : []);
 
     return (
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
         <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
           {label}
         </p>
@@ -721,19 +725,24 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     onClick={handleNJBarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationBegin={80}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
+                  />
+                  {/* Line invisible: sostiene el label de valor fuera del <Bar> para que
+                      no se oculte durante su animación de entrada (ver renderTotalLabel).
+                      dataKey como función (no "Vacantes") para que CustomTooltip la excluya
+                      del payload visible, igual que en las gráficas 2 y 3. */}
+                  <Line
+                    dataKey={row => row.Vacantes}
+                    stroke="none"
+                    dot={false}
+                    activeDot={false}
+                    isAnimationActive={false}
+                    legendType="none"
                   >
-                    <LabelList
-                      dataKey="Vacantes"
-                      position="top"
-                      fill="currentColor"
-                      className="text-[#621f32] dark:text-[#bc955c]"
-                      style={{ fontSize: '11px', fontWeight: 800 }}
-                      offset={10}
-                    />
-                  </Bar>
+                    <LabelList dataKey={row => row.Vacantes} content={renderTotalLabel} />
+                  </Line>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -848,9 +857,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         onClick={handleDrillBarClick}
                         style={{ cursor: 'pointer' }}
                         isAnimationActive={!forExport}
-                        animationBegin={100}
-                        animationDuration={1000}
-                        animationEasing="ease-out"
+                        animationBegin={80}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
                       >
                         {chart2Data.map((entry, idx) => (
                           <Cell
@@ -866,9 +875,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         onClick={handleDrillBarClick}
                         style={{ cursor: 'pointer' }}
                         isAnimationActive={!forExport}
-                        animationBegin={100}
-                        animationDuration={1000}
-                        animationEasing="ease-out"
+                        animationBegin={140}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
                       >
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
@@ -881,9 +890,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         onClick={handleDrillBarClick}
                         style={{ cursor: 'pointer' }}
                         isAnimationActive={!forExport}
-                        animationBegin={100}
-                        animationDuration={1000}
-                        animationEasing="ease-out"
+                        animationBegin={200}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
                       >
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
@@ -902,9 +911,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         onClick={handleFamilyBarClick}
                         style={{ cursor: 'pointer' }}
                         isAnimationActive={!forExport}
-                        animationBegin={200}
-                        animationDuration={1400}
-                        animationEasing="ease-out"
+                        animationBegin={80}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
                       >
                         {chart2Data.map((entry, idx) => (
                           <Cell
@@ -920,9 +929,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         onClick={handleFamilyBarClick}
                         style={{ cursor: 'pointer' }}
                         isAnimationActive={!forExport}
-                        animationBegin={200}
-                        animationDuration={1400}
-                        animationEasing="ease-out"
+                        animationBegin={140}
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
                       >
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
@@ -936,8 +945,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                         style={{ cursor: 'pointer' }}
                         isAnimationActive={!forExport}
                         animationBegin={200}
-                        animationDuration={1400}
-                        animationEasing="ease-out"
+                        animationDuration={900}
+                        animationEasing={MODERN_EASING}
                       >
                         {chart2Data.map((entry, idx) => (
                           <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
@@ -1049,9 +1058,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationBegin={80}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
                   >
                     {chart3Data.map((entry, idx) => (
                       <Cell key={idx} fill={entry.ocupSegments[0].color} />
@@ -1063,9 +1072,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationBegin={140}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
                   >
                     {chart3Data.map((entry, idx) => (
                       <Cell key={idx} fill={entry.ocupSegments[1] ? entry.ocupSegments[1].color : 'transparent'} />
@@ -1078,8 +1087,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
                   >
                     {chart3Data.map((entry, idx) => (
                       <Cell key={idx} fill={entry.ocupSegments[2] ? entry.ocupSegments[2].color : 'transparent'} />
@@ -1092,9 +1101,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationBegin={260}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
                   >
                     {chart3Data.map((entry, idx) => (
                       <Cell
@@ -1109,9 +1118,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationBegin={320}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
                   >
                     {chart3Data.map((entry, idx) => (
                       <Cell key={idx} fill={entry.segments?.[1] ? entry.segments[1].color : 'transparent'} />
@@ -1123,9 +1132,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
-                    animationBegin={200}
-                    animationDuration={1400}
-                    animationEasing="ease-out"
+                    animationBegin={380}
+                    animationDuration={900}
+                    animationEasing={MODERN_EASING}
                   >
                     {chart3Data.map((entry, idx) => (
                       <Cell key={idx} fill={entry.segments?.[2] ? entry.segments[2].color : 'transparent'} />
@@ -1169,10 +1178,12 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         </div>
       </div>
 
-      {/* Modal de detalle */}
-      <DetalleVacantesModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+      {/* Modal de detalle (NJ y drill-down por nivel exacto de "Vacantes por
+          Nivel Tabular") — modo local de EmployeesModal: filas ya filtradas
+          en cliente desde `data`, no vienen de un fetch nivel+estatus. */}
+      <EmployeesModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
         rows={modalRows}
         title={modalTitle}
       />

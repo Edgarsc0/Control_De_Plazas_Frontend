@@ -56,7 +56,7 @@ export default function ModalShell({
   const handleResizeStart = (e, side) => {
     e.preventDefault();
     const startX = e.clientX;
-    const startWidth = customWidth ?? SIZE_PX[size] ?? 672;
+    const startWidth = customWidth ?? maxWidth ?? SIZE_PX[size] ?? 672;
     const onMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
       // El panel está centrado (flex justify-center): mover un solo borde en
@@ -100,7 +100,7 @@ export default function ModalShell({
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className={`relative w-full ${!resizable ? SIZE_CLASSES[size] : ""} max-h-[92vh] sm:max-h-[85vh] flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`}
-            style={resizable ? { width: customWidth ?? SIZE_PX[size] ?? 672, maxWidth: "95vw" } : undefined}
+            style={resizable ? { width: customWidth ?? maxWidth ?? SIZE_PX[size] ?? 672, maxWidth: "95vw" } : undefined}
           >
             {resizable && (
               <>

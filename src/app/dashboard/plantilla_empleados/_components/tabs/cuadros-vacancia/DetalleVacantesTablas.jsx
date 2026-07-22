@@ -1,6 +1,18 @@
 import { useMemo, useState, useCallback } from 'react';
 import { TableProperties } from 'lucide-react';
-import DetalleVacantesModal from './DetalleVacantesModal';
+import EmployeesModal from '../../shared/EmployeesModal';
+import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
+
+// Whitelist del selector "Columnas" de EmployeesModal — debe reflejar 1:1 las
+// claves que mapVacanteRowToEmployeeRow produce (a su vez, las columnas que
+// trae el SELECT de DesgloseJerarquicoView en el backend). Si el back agrega
+// un campo nuevo al query, se debe sumar aquí también.
+const DETALLE_VACANTES_COLUMN_KEYS = [
+  'posicion', 'nivel', 'nombre_puesto_funcional', 'unidad_de_negocio',
+  'unidad_administrativa', 'cd_ua', 'id_departamento', 'departamento', 'nj',
+  'nombre_nj', 'cd_un', 'codigo_presupuestal', 'escala', 'partida',
+  'tipo_de_contratacion', 'sindicato', 'entidad_federativa', 'smb', 'smn',
+];
 
 function formatNumber(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -293,7 +305,7 @@ export default function DetalleVacantesTablas({ data = [] }) {
     const typeLabels = { total: 'Todas', eventual: 'Eventuales', nuevaCreacion: 'Evt. Nueva Creación', permanente: 'Permanentes' };
     const nivelLabel = nivel === '__ALL__' ? 'Total' : nivel;
     setModalTitle(`${tableLabel} — ${nivelLabel} — ${typeLabels[type] || type}`);
-    setModalRows(filtered);
+    setModalRows(filtered.map(mapVacanteRowToEmployeeRow));
     setModalOpen(true);
   }, [data]);
 
@@ -369,7 +381,7 @@ export default function DetalleVacantesTablas({ data = [] }) {
                               onClick={() => {
                                 const rows = data.filter(i => (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE');
                                 setModalTitle('Observaciones Vacancia — Contratación Base');
-                                setModalRows(rows);
+                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
                                 setModalOpen(true);
                               }}
                             />
@@ -383,7 +395,7 @@ export default function DetalleVacantesTablas({ data = [] }) {
                               onClick={() => {
                                 const rows = data.filter(i => (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control');
                                 setModalTitle('Observaciones Vacancia — Órgano Interno de Control');
-                                setModalRows(rows);
+                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
                                 setModalOpen(true);
                               }}
                             />
@@ -397,7 +409,7 @@ export default function DetalleVacantesTablas({ data = [] }) {
                               onClick={() => {
                                 const rows = data.filter(i => (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA'));
                                 setModalTitle('Observaciones Vacancia — Titulares de Aduanas');
-                                setModalRows(rows);
+                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
                                 setModalOpen(true);
                               }}
                             />
@@ -414,7 +426,7 @@ export default function DetalleVacantesTablas({ data = [] }) {
                                   (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA')
                                 );
                                 setModalTitle('Observaciones Vacancia — Total');
-                                setModalRows(rows);
+                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
                                 setModalOpen(true);
                               }}
                               className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
@@ -454,12 +466,15 @@ export default function DetalleVacantesTablas({ data = [] }) {
         </div>
       </div>
 
-      {/* Modal de detalle */}
-      <DetalleVacantesModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+      {/* Modal de detalle — modo local de EmployeesModal: filas ya filtradas
+          en cliente desde `data`, no vienen de un fetch nivel+estatus (incluye
+          los filtros de Observaciones Vacancia, que ni siquiera son por nivel). */}
+      <EmployeesModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
         rows={modalRows}
         title={modalTitle}
+        restrictColumnsTo={DETALLE_VACANTES_COLUMN_KEYS}
       />
     </div>
   );

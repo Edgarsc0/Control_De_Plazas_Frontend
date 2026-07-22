@@ -12,6 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { X, Search, Columns3, Stamp, LayoutGrid } from "lucide-react";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import DataTable from "./DataTable";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
 import { useColumnFilters } from "../../_hooks/useColumnFilters";
@@ -97,6 +104,7 @@ const ALL_AVAILABLE_COLUMNS = [
   { key: "cd_ua", label: "CD UA", category: "Otros" },
   { key: "cd_pto_funcional", label: "CD PTO FUNCIONAL", category: "Otros" },
   { key: "id_departamento", label: "ID DEPARTAMENTO", category: "Otros" },
+  { key: "nombre_nj", label: "NOMBRE NJ", category: "Otros" },
 ];
 
 const DEFAULT_COLUMN_KEYS = [
@@ -109,6 +117,19 @@ const DEFAULT_COLUMN_KEYS = [
   "unidad_administrativa",
   "nombre_puesto_funcional",
   "fecha_de_ingreso"
+];
+
+// Columnas por defecto en modo local (`rows` precargados desde
+// desgloseJerarquicoData): ese dataset describe plazas, no empleados —
+// no trae rfc/curp/nombres/fecha_de_ingreso — así que el set por defecto
+// de arriba se vería casi vacío. Replica los defaults de la extinta
+// DetalleVacantesModal.
+const LOCAL_MODE_DEFAULT_COLUMN_KEYS = [
+  "posicion",
+  "nivel",
+  "nombre_puesto_funcional",
+  "unidad_de_negocio",
+  "unidad_administrativa",
 ];
 
 const isMonoColumn = (key) => {
@@ -147,7 +168,11 @@ const LetterheadBar = () => (
 );
 
 // --- COMPONENTE SELECTOR DE COLUMNAS (MODAL CENTRADO) ---
-const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) => {
+// `availableColumns`: universo de columnas ofrecidas — por defecto todas
+// (ALL_AVAILABLE_COLUMNS); en modo restringido (ver `restrictColumnsTo` en
+// EmployeesModal) solo las que la fuente de datos realmente trae, para no
+// listar campos que siempre saldrían vacíos.
+const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys, availableColumns = ALL_AVAILABLE_COLUMNS, defaultKeys = DEFAULT_COLUMN_KEYS }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [tempVisibleKeys, setTempVisibleKeys] = useState(visibleKeys);
 
@@ -161,7 +186,7 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
     const groupedColumns = useMemo(() => {
         const groups = {};
         const normalizedQuery = normalizeForSearch(searchQuery);
-        ALL_AVAILABLE_COLUMNS.forEach(col => {
+        availableColumns.forEach(col => {
             if (normalizedQuery && !normalizeForSearch(col.label).includes(normalizedQuery) && !normalizeForSearch(col.key).includes(normalizedQuery)) {
                 return;
             }
@@ -169,7 +194,7 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
             groups[col.category].push(col);
         });
         return groups;
-    }, [searchQuery]);
+    }, [searchQuery, availableColumns]);
 
     const toggleColumn = (key) => {
         setTempVisibleKeys(prev => {
@@ -182,9 +207,9 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
         });
     };
 
-    const handleSelectDefault = () => setTempVisibleKeys(DEFAULT_COLUMN_KEYS);
-    const handleClearAll = () => setTempVisibleKeys(["id_empleado"]);
-    const handleSelectAll = () => setTempVisibleKeys(ALL_AVAILABLE_COLUMNS.map(col => col.key));
+    const handleSelectDefault = () => setTempVisibleKeys(defaultKeys);
+    const handleClearAll = () => setTempVisibleKeys([availableColumns[0]?.key].filter(Boolean));
+    const handleSelectAll = () => setTempVisibleKeys(availableColumns.map(col => col.key));
     const handleConfirm = () => {
         setVisibleKeys(tempVisibleKeys);
         onClose();
@@ -289,7 +314,7 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys }) 
 
                         <div className="pt-5 flex justify-between items-center shrink-0 mt-2">
                             <span className="text-sm font-bold text-slate-400 dark:text-slate-500">
-                                {tempVisibleKeys.length} / {ALL_AVAILABLE_COLUMNS.length} Columnas
+                                {tempVisibleKeys.length} / {availableColumns.length} Columnas
                             </span>
                             <div className="flex gap-3">
                                 <button onClick={onClose} className="px-6 py-2.5 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 rounded-full text-xs font-black uppercase tracking-wider hover:bg-slate-100 dark:hover:bg-slate-800 border border-[#621f32]/10 transition-all cursor-pointer">
@@ -462,10 +487,62 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
 // Vacantes por familia de nivel": Ocup. Permanentes / Ocup. Eventuales /
 // Ocup. Event. N.C. / Vac. Eventuales / Vac. Permanentes / Vac. Event. N.C.).
 // Sin `categoryTabs`, se comporta como antes.
-export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null }) {
+// `rows` + `title`: modo local — cuando `rows` viene poblado (array, aunque
+// esté vacío), el modal muestra esos registros directamente en vez de hacer
+// fetch por nivel/estatus contra VacantesService. Pensado para datasets ya
+// cargados en el padre (p.ej. desgloseJerarquicoData filtrado client-side)
+// que no mapean 1:1 a un solo nivel+estatus, como agrupaciones por NJ o los
+// filtros de "Observaciones Vacancia". `title` reemplaza los Pills de
+// nivel/estatus por un único Pill descriptivo.
+// `restrictColumnsTo`: whitelist de keys — cuando se pasa, el botón
+// "Columnas" (y el expediente) solo ofrece esos campos, en vez del
+// universo completo de ALL_AVAILABLE_COLUMNS. Pensado para datasets que no
+// traen todos los campos de empleado (p.ej. desglose_jerarquico, que es de
+// plazas): sin esto, el selector listaría columnas que siempre salen vacías.
+export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null, rows = null, title = null, defaultColumnKeys = null, restrictColumnsTo = null }) {
+    const isLocalMode = Array.isArray(rows);
     const isCategoryMode = Array.isArray(categoryTabs) && categoryTabs.length > 0;
     const [activeCategoryIdx, setActiveCategoryIdx] = useState(0);
     const effectiveEstatus = isCategoryMode ? categoryTabs[activeCategoryIdx]?.estatus : estatus;
+
+    // Descompone `categoryTabs` en dos dimensiones (tipo: "Ocupadas"/"Vacantes" +
+    // modalidad: "Permanentes"/"Eventuales"/"Eventuales Nueva Creación") a partir
+    // de la primera palabra de `estatus`. Sólo se activa si el set forma una
+    // rejilla completa tipo x modalidad (hoy: 2 x 3 = 6); si no calza, se cae al
+    // listado de pestañas plano como respaldo.
+    const categoryMatrix = useMemo(() => {
+        if (!isCategoryMode) return null;
+        const tipos = [];
+        const modalidades = [];
+        const map = {};
+        categoryTabs.forEach((tab, idx) => {
+            const estatusValue = tab.estatus || "";
+            const spaceIdx = estatusValue.indexOf(" ");
+            if (spaceIdx === -1) return;
+            const tipo = estatusValue.slice(0, spaceIdx);
+            const modalidad = estatusValue.slice(spaceIdx + 1);
+            if (!tipos.includes(tipo)) tipos.push(tipo);
+            if (!modalidades.includes(modalidad)) modalidades.push(modalidad);
+            map[`${tipo}|${modalidad}`] = idx;
+        });
+        const isFullGrid = tipos.length * modalidades.length === categoryTabs.length
+            && tipos.every(t => modalidades.every(m => map[`${t}|${m}`] !== undefined));
+        return isFullGrid ? { tipos, modalidades, map } : null;
+    }, [isCategoryMode, categoryTabs]);
+
+    const currentEstatusValue = isCategoryMode ? (categoryTabs[activeCategoryIdx]?.estatus || "") : "";
+    const currentSpaceIdx = currentEstatusValue.indexOf(" ");
+    const currentTipo = categoryMatrix && currentSpaceIdx !== -1 ? currentEstatusValue.slice(0, currentSpaceIdx) : null;
+    const currentModalidad = categoryMatrix && currentSpaceIdx !== -1 ? currentEstatusValue.slice(currentSpaceIdx + 1) : null;
+
+    const handleTipoChange = (tipo) => {
+        const idx = categoryMatrix?.map[`${tipo}|${currentModalidad}`];
+        if (idx !== undefined) setActiveCategoryIdx(idx);
+    };
+    const handleModalidadChange = (modalidad) => {
+        const idx = categoryMatrix?.map[`${currentTipo}|${modalidad}`];
+        if (idx !== undefined) setActiveCategoryIdx(idx);
+    };
 
     // Reset de pestaña solo al abrir/cerrar el modal — no en cada cambio de
     // categoría (eso recrearía effectiveEstatus y, si viviera en el mismo
@@ -480,12 +557,12 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
 
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-    const [visibleKeys, setVisibleKeys] = useState(DEFAULT_COLUMN_KEYS);
+    const [visibleKeys, setVisibleKeys] = useState(defaultColumnKeys || (isLocalMode ? LOCAL_MODE_DEFAULT_COLUMN_KEYS : DEFAULT_COLUMN_KEYS));
     const [showColumnsModal, setShowColumnsModal] = useState(false);
     const [selectedEmployeeRecord, setSelectedEmployeeRecord] = useState(null);
 
     // Altura dinámica: la tabla mide su propio contenido (header + filas) y el
-    // contenedor adopta esa altura, topada por max-h-[55vh] (el máximo actual).
+    // contenedor adopta esa altura, topada por max-h-[70vh] (el máximo actual).
     // Con pocos registros el modal se ve más chico; con muchos, hace scroll interno.
     const tableContainerRef = useRef(null);
     const [tableHeight, setTableHeight] = useState(null);
@@ -524,14 +601,29 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         return widths;
     });
 
-    const columns = useMemo(() => ALL_AVAILABLE_COLUMNS.map(col => ({
+    const availableColumns = useMemo(() => {
+        if (!restrictColumnsTo) return ALL_AVAILABLE_COLUMNS;
+        return ALL_AVAILABLE_COLUMNS.filter(col => restrictColumnsTo.includes(col.key));
+    }, [restrictColumnsTo]);
+
+    // "Posición" es la única columna congelada (sticky) de este modal — se
+    // adelanta al frente del listado para que quede pegada justo después de las
+    // columnas fijas (#, VER); el resto conserva su orden de ALL_AVAILABLE_COLUMNS.
+    const orderedColumns = useMemo(() => {
+        const posicionCol = availableColumns.find(col => col.key === "posicion");
+        const rest = availableColumns.filter(col => col.key !== "posicion");
+        return posicionCol ? [posicionCol, ...rest] : availableColumns;
+    }, [availableColumns]);
+
+    const columns = useMemo(() => orderedColumns.map(col => ({
         key: col.key,
         label: col.label,
         width: columnWidths[col.key] || 175,
         visible: visibleKeys.includes(col.key),
-    })), [visibleKeys, columnWidths]);
+    })), [orderedColumns, visibleKeys, columnWidths]);
 
     const fetchData = useCallback(async () => {
+        if (isLocalMode) return;
         if (!nivel || !effectiveEstatus) return;
         setLoading(true);
         setError(null);
@@ -564,11 +656,17 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         } finally {
             setLoading(false);
         }
-    }, [nivel, effectiveEstatus, ua]);
+    }, [isLocalMode, nivel, effectiveEstatus, ua]);
 
     useEffect(() => {
         if (open) {
-            fetchData();
+            if (isLocalMode) {
+                setRowData(rows);
+                setLoading(false);
+                setError(null);
+            } else {
+                fetchData();
+            }
             resetFilters();
             setSortConfig({ key: null, direction: 'asc' });
         } else {
@@ -578,7 +676,16 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             setSelectedEmployeeRecord(null);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, fetchData]);
+    }, [open, fetchData, isLocalMode, rows]);
+
+    // Columnas visibles por defecto: se recalculan solo al abrir (no en cada
+    // cambio de `rows` dentro de una misma sesión abierta) para que no se
+    // pisen las columnas que el usuario ya eligió al pasar de una consulta a
+    // otra sin cerrar el modal — mismo criterio que activeCategoryIdx arriba.
+    useEffect(() => {
+        if (open) setVisibleKeys(defaultColumnKeys || (isLocalMode ? LOCAL_MODE_DEFAULT_COLUMN_KEYS : DEFAULT_COLUMN_KEYS));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const handleResizeStart = (e, index, direction = 'right') => {
         e.preventDefault();
@@ -635,7 +742,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     // +18px cubre el mb-4 y el borde del contenedor que la medición no incluye.
     // Sin paginación: el backend ya entrega todo el listado de una vez, así que
     // aquí solo se muestra completo (el contenedor hace scroll interno, topado
-    // por max-h-[55vh], en vez de partir los resultados en páginas).
+    // por max-h-[70vh], en vez de partir los resultados en páginas).
     useLayoutEffect(() => {
         const el = tableContainerRef.current;
         if (!el) return;
@@ -744,33 +851,62 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 minWidth={640}
                 maxWidth={1800}
                 icon={LayoutGrid}
-                eyebrow="Listado"
-                title="Listado de Empleados"
-                subtitle="Exploración y filtrado de capital humano"
+                eyebrow={isLocalMode ? "Detalle" : "Listado"}
+                title={isLocalMode ? (title || "Detalle de Vacantes") : "Listado de Empleados"}
+                subtitle={isLocalMode ? "Consulta detallada del cuadro de vacancia" : "Exploración y filtrado de capital humano"}
             >
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                     {/* Barra de contexto + acciones */}
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
-                            <Pill tone="guinda">Nivel {nivel ?? "—"}</Pill>
-                            {isCategoryMode ? (
-                                <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
-                                    {categoryTabs.map((tab, i) => (
-                                        <button
-                                            key={tab.key}
-                                            onClick={() => setActiveCategoryIdx(i)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black whitespace-nowrap transition-all cursor-pointer ${
-                                                activeCategoryIdx === i
-                                                    ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950'
-                                                    : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'
-                                            }`}
-                                        >
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
+                            {!isLocalMode && <Pill tone="guinda">Nivel {nivel ?? "—"}</Pill>}
+                            {!isLocalMode && isCategoryMode ? (
+                                categoryMatrix ? (
+                                    <div className="flex items-center gap-2">
+                                        <Select value={currentTipo ?? undefined} onValueChange={handleTipoChange}>
+                                            <SelectTrigger className="h-8 w-[128px] rounded-lg border-[#621f32]/20 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black uppercase text-[#621f32] dark:text-[#bc955c] cursor-pointer">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="z-[1100]">
+                                                {categoryMatrix.tipos.map(tipo => (
+                                                    <SelectItem key={tipo} value={tipo} className="text-[11px] font-bold uppercase">
+                                                        {tipo}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Select value={currentModalidad ?? undefined} onValueChange={handleModalidadChange}>
+                                            <SelectTrigger className="h-8 w-[180px] rounded-lg border-[#621f32]/20 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black uppercase text-[#621f32] dark:text-[#bc955c] cursor-pointer">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="z-[1100]">
+                                                {categoryMatrix.modalidades.map(modalidad => (
+                                                    <SelectItem key={modalidad} value={modalidad} className="text-[11px] font-bold uppercase">
+                                                        {modalidad}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                                        {categoryTabs.map((tab, i) => (
+                                            <button
+                                                key={tab.key}
+                                                onClick={() => setActiveCategoryIdx(i)}
+                                                className={`px-3 py-1.5 rounded-lg text-[11px] font-black whitespace-nowrap transition-all cursor-pointer ${
+                                                    activeCategoryIdx === i
+                                                        ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950'
+                                                        : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'
+                                                }`}
+                                            >
+                                                {tab.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )
                             ) : (
-                                <Pill tone="dorado">{estatus ?? "—"}</Pill>
+                                !isLocalMode && <Pill tone="dorado">{estatus ?? "—"}</Pill>
                             )}
                             {ua && <Pill tone="slate">{ua}</Pill>}
                             <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
@@ -819,13 +955,15 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                         </div>
                     ) : (
                         <div
-                            className="flex flex-col max-h-[55vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
-                            style={{ height: tableHeight ? `${tableHeight}px` : "55vh" }}
+                            className="flex flex-col max-h-[70vh] rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800"
+                            style={{ height: tableHeight ? `${tableHeight}px` : "70vh" }}
                         >
                             <DataTable
                                 containerRef={tableContainerRef}
                                 fillHeight
                                 fillWidth
+                                edgeToEdge
+                                stickyColumnKeys={["posicion"]}
                                 onScroll={() => {}}
                                 columns={columns}
                                 columnFilters={columnFilters}
@@ -888,9 +1026,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 onClose={() => setShowColumnsModal(false)}
                 visibleKeys={visibleKeys}
                 setVisibleKeys={setVisibleKeys}
+                availableColumns={availableColumns}
+                defaultKeys={defaultColumnKeys || (isLocalMode ? LOCAL_MODE_DEFAULT_COLUMN_KEYS : DEFAULT_COLUMN_KEYS)}
             />
 
-            <EmployeeRecordModal isOpen={!!selectedEmployeeRecord} onClose={() => setSelectedEmployeeRecord(null)} record={selectedEmployeeRecord} />
+            <EmployeeRecordModal isOpen={!!selectedEmployeeRecord} onClose={() => setSelectedEmployeeRecord(null)} record={selectedEmployeeRecord} columns={restrictColumnsTo ? availableColumns : null} />
         </>
     );
 }
