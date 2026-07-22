@@ -30,8 +30,10 @@ export default function ModalShell({
   eyebrow,
   title,
   subtitle,
+  headerExtra,
   footer,
   children,
+  bodyClassName = "p-5 sm:p-7",
   resizable = false,
   minWidth = 520,
   maxWidth = 1600,
@@ -140,15 +142,18 @@ export default function ModalShell({
                   )}
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="shrink-0 p-2 sm:p-2.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-              >
-                <X className="size-4.5 sm:size-5" />
-              </button>
+              <div className="flex items-start gap-3 shrink-0">
+                {headerExtra}
+                <button
+                  onClick={onClose}
+                  className="shrink-0 p-2 sm:p-2.5 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                >
+                  <X className="size-4.5 sm:size-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 sm:p-7 bg-white dark:bg-slate-950">
+            <div className={`flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-950 ${bodyClassName}`}>
               {children}
             </div>
 
@@ -190,7 +195,7 @@ export function SectionLabel({ children }) {
   );
 }
 
-export function Pill({ children, tone = "guinda" }) {
+export function Pill({ children, tone = "guinda", className = "" }) {
   const tones = {
     guinda: "bg-[#621f32]/8 text-[#621f32] border-[#621f32]/15 dark:bg-[#621f32]/20 dark:text-[#f0d9b8] dark:border-[#621f32]/40",
     dorado: "bg-[#bc955c]/15 text-[#7a5a30] border-[#bc955c]/30 dark:bg-[#bc955c]/15 dark:text-[#e3c793] dark:border-[#bc955c]/30",
@@ -200,7 +205,7 @@ export function Pill({ children, tone = "guinda" }) {
     slate: "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${tones[tone]}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${tones[tone]} ${className}`}>
       {children}
     </span>
   );

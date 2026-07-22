@@ -130,6 +130,8 @@ const LOCAL_MODE_DEFAULT_COLUMN_KEYS = [
   "nombre_puesto_funcional",
   "unidad_de_negocio",
   "unidad_administrativa",
+  "smb",
+  "smn",
 ];
 
 const isMonoColumn = (key) => {
@@ -841,6 +843,75 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         );
     };
 
+    const headerExtra = (
+        <div className="flex flex-wrap items-center justify-end gap-2 max-w-[560px]">
+            {!isLocalMode && <Pill tone="guinda">Nivel {nivel ?? "—"}</Pill>}
+            {!isLocalMode && isCategoryMode ? (
+                categoryMatrix ? (
+                    <div className="flex items-center gap-2">
+                        <Select value={currentTipo ?? undefined} onValueChange={handleTipoChange}>
+                            <SelectTrigger className="h-8 w-[128px] rounded-lg border-[#621f32]/20 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black uppercase text-[#621f32] dark:text-[#bc955c] cursor-pointer">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="z-[1100]">
+                                {categoryMatrix.tipos.map(tipo => (
+                                    <SelectItem key={tipo} value={tipo} className="text-[11px] font-bold uppercase">
+                                        {tipo}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={currentModalidad ?? undefined} onValueChange={handleModalidadChange}>
+                            <SelectTrigger className="h-8 w-[180px] rounded-lg border-[#621f32]/20 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black uppercase text-[#621f32] dark:text-[#bc955c] cursor-pointer">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="z-[1100]">
+                                {categoryMatrix.modalidades.map(modalidad => (
+                                    <SelectItem key={modalidad} value={modalidad} className="text-[11px] font-bold uppercase">
+                                        {modalidad}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                ) : (
+                    <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+                        {categoryTabs.map((tab, i) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveCategoryIdx(i)}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-black whitespace-nowrap transition-all cursor-pointer ${
+                                    activeCategoryIdx === i
+                                        ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950'
+                                        : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                )
+            ) : (
+                !isLocalMode && <Pill tone="dorado">{estatus ?? "—"}</Pill>
+            )}
+            {ua && <Pill tone="slate">{ua}</Pill>}
+            <Pill tone="guinda" className="font-black text-[11px] px-3 py-1.5">
+                {loading ? "···" : processedData.length.toLocaleString()} registros
+            </Pill>
+            <button
+                onClick={() => setShowColumnsModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[11px] font-bold hover:border-[#bc955c]/50 hover:text-[#621f32] dark:hover:text-[#bc955c] transition-all cursor-pointer"
+            >
+                <Columns3 className="size-3.5" /> Columnas
+            </button>
+            {hasActiveFilters && (
+                <button onClick={clearAllFilters} className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-200/40 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-[11px] font-black uppercase cursor-pointer">
+                    <X className="size-3.5" /> Limpiar filtros
+                </button>
+            )}
+        </div>
+    );
+
     return (
         <>
             <ModalShell
@@ -854,80 +925,10 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 eyebrow={isLocalMode ? "Detalle" : "Listado"}
                 title={isLocalMode ? (title || "Detalle de Vacantes") : "Listado de Empleados"}
                 subtitle={isLocalMode ? "Consulta detallada del cuadro de vacancia" : "Exploración y filtrado de capital humano"}
+                headerExtra={headerExtra}
+                bodyClassName="p-3 sm:p-4"
             >
-                <div className="flex flex-col gap-3">
-                    {/* Barra de contexto + acciones */}
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {!isLocalMode && <Pill tone="guinda">Nivel {nivel ?? "—"}</Pill>}
-                            {!isLocalMode && isCategoryMode ? (
-                                categoryMatrix ? (
-                                    <div className="flex items-center gap-2">
-                                        <Select value={currentTipo ?? undefined} onValueChange={handleTipoChange}>
-                                            <SelectTrigger className="h-8 w-[128px] rounded-lg border-[#621f32]/20 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black uppercase text-[#621f32] dark:text-[#bc955c] cursor-pointer">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="z-[1100]">
-                                                {categoryMatrix.tipos.map(tipo => (
-                                                    <SelectItem key={tipo} value={tipo} className="text-[11px] font-bold uppercase">
-                                                        {tipo}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <Select value={currentModalidad ?? undefined} onValueChange={handleModalidadChange}>
-                                            <SelectTrigger className="h-8 w-[180px] rounded-lg border-[#621f32]/20 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-black uppercase text-[#621f32] dark:text-[#bc955c] cursor-pointer">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="z-[1100]">
-                                                {categoryMatrix.modalidades.map(modalidad => (
-                                                    <SelectItem key={modalidad} value={modalidad} className="text-[11px] font-bold uppercase">
-                                                        {modalidad}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
-                                        {categoryTabs.map((tab, i) => (
-                                            <button
-                                                key={tab.key}
-                                                onClick={() => setActiveCategoryIdx(i)}
-                                                className={`px-3 py-1.5 rounded-lg text-[11px] font-black whitespace-nowrap transition-all cursor-pointer ${
-                                                    activeCategoryIdx === i
-                                                        ? 'bg-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:text-slate-950'
-                                                        : 'text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]'
-                                                }`}
-                                            >
-                                                {tab.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )
-                            ) : (
-                                !isLocalMode && <Pill tone="dorado">{estatus ?? "—"}</Pill>
-                            )}
-                            {ua && <Pill tone="slate">{ua}</Pill>}
-                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                                {loading ? "···" : processedData.length.toLocaleString()} registros
-                            </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                onClick={() => setShowColumnsModal(true)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[11px] font-bold hover:border-[#bc955c]/50 hover:text-[#621f32] dark:hover:text-[#bc955c] transition-all cursor-pointer"
-                            >
-                                <Columns3 className="size-3.5" /> Columnas
-                            </button>
-                            {hasActiveFilters && (
-                                <button onClick={clearAllFilters} className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-200/40 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-[11px] font-black uppercase cursor-pointer">
-                                    <X className="size-3.5" /> Limpiar filtros
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
+                <div className="flex flex-col gap-2">
                     {/* Chips de filtros activos */}
                     {hasActiveFilters && (
                         <div className="flex flex-wrap items-center gap-2">
