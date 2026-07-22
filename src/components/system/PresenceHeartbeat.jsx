@@ -43,7 +43,17 @@ export default function PresenceHeartbeat() {
     const tabIdRef = useRef(null);
 
     const activeSubtab = activeConfig?.tabs?.find((t) => t.id === activeConfig.activeTab);
-    const subtabLabel = activeSubtab?.label || null;
+    // Algunos tabs tienen su propia barra de sub-tabs (subtabConfigs, ver
+    // PageTabsContext) que la heartbeat original no leía: sólo llegaba al
+    // nivel de tab ("Plantilla detalle"), no al de sub-tab dentro de él
+    // ("Catálogos y Estructura › Niveles Jerárquicos por Plaza").
+    const subtabGroup = activeConfig?.subtabConfigs?.[activeConfig?.activeTab];
+    const subSubtabLabel = subtabGroup?.options?.find((o) => o.id === subtabGroup.active)?.label || null;
+    const subtabLabel = activeSubtab?.label
+        ? subSubtabLabel
+            ? `${activeSubtab.label} › ${subSubtabLabel}`
+            : activeSubtab.label
+        : null;
 
     useEffect(() => {
         if (!isAuthenticated) return undefined;

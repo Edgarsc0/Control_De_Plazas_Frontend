@@ -63,11 +63,26 @@ export default function ValuacionPresupuestaria({
         startTransition(() => setActiveTab(id));
     }, [startTransition]);
 
+    // Se registra aquí (no más abajo) para que el detector de presencia
+    // (PresenceHeartbeat) también vea el sub-tab activo dentro de "Parámetros".
+    const subtabConfigs = useMemo(() => ({
+        parametros: {
+            options: [
+                { id: 'catalogo', label: 'Catálogo Plazas', icon: Layers },
+                { id: 'conceptos', label: 'Conceptos Pres.', icon: FileText },
+                { id: 'constantes', label: 'Constantes', icon: Variable },
+            ],
+            active: activeParamTab,
+            setActive: setActiveParamTab,
+        },
+    }), [activeParamTab]);
+
     useRegisterPageTabs({
         tabs: visibleTabs,
         activeTab,
         onSelect: handleSelectTab,
         title: 'Valuación Presupuestaria',
+        subtabConfigs,
     });
 
     const handleNavigateToSimulador = (asunto) => {
@@ -91,18 +106,6 @@ export default function ValuacionPresupuestaria({
     };
 
     if (loading) return <LoadingOverlay isLoading />;
-
-    const subtabConfigs = {
-        parametros: {
-            options: [
-                { id: 'catalogo', label: 'Catálogo Plazas', icon: Layers },
-                { id: 'conceptos', label: 'Conceptos Pres.', icon: FileText },
-                { id: 'constantes', label: 'Constantes', icon: Variable },
-            ],
-            active: activeParamTab,
-            setActive: setActiveParamTab,
-        },
-    };
 
     return (
         <div
