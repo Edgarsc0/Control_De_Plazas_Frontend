@@ -6,9 +6,10 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck, Eye,
-  Calendar, Hash, User, Info, AlertTriangle, MousePointerClick, Loader2,
+  Calendar, Hash, User, Info, AlertTriangle, MousePointerClick, Loader2, Copy, Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/useToast";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import HistoryDataTable from "@/components/ui/HistoryDataTable";
@@ -665,6 +666,33 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [activeModalTab, setActiveModalTab] = useState('timeline');
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
+  const [copiedPorIndex, setCopiedPorIndex] = useState(null);
+  const { toast } = useToast();
+
+  // navigator.clipboard requiere secure context (HTTPS o localhost);
+  // en el servidor por IP/HTTP plano no existe, cae a execCommand.
+  const copyPor = async (text, index) => {
+    const value = text || '';
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedPorIndex(index);
+      toast.success('Se ha copiado al portapapeles!');
+      setTimeout(() => setCopiedPorIndex(null), 1200);
+    } catch {
+      toast.error('No se pudo copiar al portapapeles.');
+    }
+  };
 
   const [isVacanciaModalOpen, setIsVacanciaModalOpen] = useState(false);
   const [vacanciaRowId, setVacanciaRowId] = useState(null);
@@ -2099,9 +2127,19 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                                 </div>
                               )}
 
-                              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 text-xs">
+                              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 text-xs flex items-center gap-2">
                                 <span className="font-bold text-slate-500 dark:text-slate-400">Movimiento realizado por: </span>
                                 <span className="font-semibold text-slate-700 dark:text-slate-300">{row.por || '-'}</span>
+                                {row.por && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); copyPor(row.por, index); }}
+                                    title="Copiar valor"
+                                    className="p-1 rounded-md text-slate-400 hover:text-[#621f32] hover:bg-[#621f32]/10 dark:hover:text-[#bc955c] dark:hover:bg-[#bc955c]/10 transition-colors"
+                                  >
+                                    {copiedPorIndex === index ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </motion.div>

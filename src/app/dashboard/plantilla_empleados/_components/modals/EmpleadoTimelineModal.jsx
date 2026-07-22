@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Calendar, Activity, Loader2, ArrowUpRight, MapPin, Search } from "lucide-react";
+import { X, Calendar, Activity, Loader2, ArrowUpRight, MapPin, Search, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Note: using framer-motion as it seems imported differently sometimes, I'll use "motion/react" if it was "motion/react" in the tab
 import { VacantesService } from "@/services/vacantes.service";
 import { normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
+import { useToast } from "@/hooks/useToast";
 
 // 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
@@ -118,8 +119,35 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline"); // "timeline" | "table"
   const [searchQuery, setSearchQuery] = useState("");
+  const [copiedPorIndex, setCopiedPorIndex] = useState(null);
+  const { toast } = useToast();
 
   useEscapeToClose(open, () => onOpenChange(false));
+
+  // navigator.clipboard requiere secure context (HTTPS o localhost);
+  // en el servidor por IP/HTTP plano no existe, cae a execCommand.
+  const copyPor = async (text, idx) => {
+    const value = text || "";
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopiedPorIndex(idx);
+      toast.success("Se ha copiado al portapapeles!");
+      setTimeout(() => setCopiedPorIndex(null), 1200);
+    } catch {
+      toast.error("No se pudo copiar al portapapeles.");
+    }
+  };
 
   const filteredData = data.filter(row => {
     if (!searchQuery) return true;
@@ -315,9 +343,19 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
                       return null;
                     })()}
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 text-xs">
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 text-xs flex items-center gap-2">
                       <span className="font-bold text-slate-500 dark:text-slate-400">Movimiento realizado por: </span>
                       <span className="font-semibold text-slate-700 dark:text-slate-300">{mov.por || '-'}</span>
+                      {mov.por && (
+                        <button
+                          type="button"
+                          onClick={() => copyPor(mov.por, idx)}
+                          title="Copiar valor"
+                          className="p-1 rounded-md text-slate-400 hover:text-[#621f32] hover:bg-[#621f32]/10 dark:hover:text-[#bc955c] dark:hover:bg-[#bc955c]/10 transition-colors"
+                        >
+                          {copiedPorIndex === idx ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
