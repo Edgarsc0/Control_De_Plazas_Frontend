@@ -17,6 +17,13 @@ export function mapVacanteRowToEmployeeRow(item) {
         curp: item["CURP"],
         posicion: item["Posición"],
         nivel: item["Nivel"],
+        // Solo poblados cuando `item` viene de desgloseJerarquicoData (vacantes):
+        // DesgloseJerarquicoOcupadosView no hace este JOIN porque una plaza
+        // ocupada no tiene fecha de vacancia. `mov_pos_id` es el id del renglón
+        // de MOV_POS que consume VacantesService.getMovPosVacanciaDetalle para
+        // abrir el detalle completo (ver columna "Fecha de Vacancia" en EmployeesModal).
+        fecha_vacancia: item["Fecha Vacancia"],
+        mov_pos_id: item["mov_pos_id"],
         fecha_de_ingreso: item["Fecha de ingreso"],
         estado_nomina: item["Estado Nómina"],
         nombre_puesto_funcional: item["Nombre Puesto Funcional"],

@@ -14,8 +14,10 @@ const DETALLE_VACANTES_COLUMN_KEYS = ALL_COLUMN_KEYS;
 
 // Ocupación: mismo universo que Vacancia — ambos endpoints ya devuelven todas
 // las columnas (incluida identidad de empleado, que en filas de vacantes
-// simplemente queda vacía porque no hay persona asignada a la plaza).
-const DETALLE_OCUPACION_COLUMN_KEYS = ALL_COLUMN_KEYS;
+// simplemente queda vacía porque no hay persona asignada a la plaza) — salvo
+// "fecha_vacancia", que sólo el JOIN de DesgloseJerarquicoView (vacantes)
+// trae; una plaza ocupada no tiene fecha de vacancia.
+const DETALLE_OCUPACION_COLUMN_KEYS = ALL_COLUMN_KEYS.filter(k => k !== 'fecha_vacancia');
 const DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS = ['id_empleado', 'nombres', 'rfc', 'curp', 'posicion', 'nivel', 'nombre_puesto_funcional'];
 
 function formatNumber(n) {

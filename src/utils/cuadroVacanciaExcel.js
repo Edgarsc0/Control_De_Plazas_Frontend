@@ -1,16 +1,17 @@
 import { addExcelLetterhead } from './excelLetterhead';
 
-// ARGB color constants — guinda/azul/dorado son los colores institucionales de
-// ANAM (mismos que usa la app en pantalla); el resto son tonos slate a juego.
+// ARGB color constants — un solo color fuerte (guinda, el mismo del membrete
+// institucional) para toda jerarquía visual; dorado queda solo como acento
+// fino (bordes, resaltados tenues), nunca como fill de bloque.
 const C = {
-  GUINDA:    'FF621F32',
-  AZUL:      'FF10243E',
-  DORADO:    'FFBC955C',
-  BLANCO:    'FFFFFFFF',
-  GRIS:      'FFF8FAFC',  // slate-50 — fila alterna
-  DORADO_BG: 'FFFBEEDC',  // tinte dorado tenue — resalta la fila "Actual"
-  TEXTO:     'FF334155',  // slate-700 — texto de celda
-  BLUE_LNK:  'FF1D4ED8',
+  GUINDA:      'FF621F32',  // color institucional fuerte — headers, títulos, totales
+  GUINDA_OSC:  'FF3D131F',  // guinda oscurecido — jerarquía de títulos de sección (I./II./III.)
+  GUINDA_LINK: 'FF8C2F49',  // guinda medio — hipervínculos (misma familia, no azul)
+  DORADO:      'FFBC955C',  // acento — solo bordes y resaltados sutiles
+  BLANCO:      'FFFFFFFF',
+  GRIS:        'FFF8FAFC',  // slate-50 — fila alterna
+  DORADO_BG:   'FFFBEEDC',  // tinte dorado tenue — resalta la fila "Actual"
+  TEXTO:       'FF334155',  // slate-700 — texto de celda
 };
 
 const TIPO = { E: 'Eventual', NC: 'Nueva Creación', P: 'Permanente' };
@@ -51,9 +52,6 @@ const GLOBAL_COLS = [
   { key: 'CURP',        label: 'CURP',          width: 20 },
 ];
 
-const TYPE_BG    = { [TIPO.P]: 'FFE8F5E9', [TIPO.NC]: 'FFFCE4EC', [TIPO.E]: 'FFF3E5F5' };
-const ESTATUS_BG = { Ocupada: 'FFE8F5E9', Vacante: 'FFFCE4EC' };
-
 const fmt = (n) => (n == null ? 0 : Number(n));
 
 function classifyTipo(posicion) {
@@ -83,7 +81,7 @@ function styleHeader(row) {
   row.height = 30;
   row.eachCell(cell => {
     cell.font  = { bold: true, color: { argb: C.BLANCO }, size: 10, name: FONT };
-    cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.AZUL } };
+    cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.GUINDA } };
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     cell.border = {
       top:    { style: 'thin', color: { argb: C.DORADO } },
@@ -108,7 +106,7 @@ function styleDataRow(row, idx) {
 function styleTotalRow(row) {
   row.height = 24;
   row.eachCell(cell => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.AZUL } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.GUINDA } };
     cell.font = { bold: true, color: { argb: C.BLANCO }, size: 10, name: FONT };
     cell.alignment = { vertical: 'middle', horizontal: 'center' };
     cell.border = {
@@ -141,16 +139,13 @@ function createDetailSheet(wb, ctx, { title, positions, columns, leftAlignCols =
   // marca "Referencia no válida" en TODOS los enlaces. La fórmula HYPERLINK()
   // no depende de relaciones externas, así que el salto interno funciona bien.
   backCell.value = { formula: `HYPERLINK("#'Resumen'!${resumenCoordinate}","← Volver al Resumen")`, result: '← Volver al Resumen' };
-  backCell.font = { size: 9, name: FONT, color: { argb: C.BLUE_LNK }, underline: true, italic: true };
+  backCell.font = { size: 9, name: FONT, color: { argb: C.GUINDA_LINK }, underline: true, italic: true };
 
   styleTitle(ws, 3, title, columns.length);
 
   const hRow = ws.getRow(5);
   columns.forEach((c, i) => { hRow.getCell(i + 1).value = c.label; });
   styleHeader(hRow);
-
-  const colorKey = columns[0].key; // '_tipo' en DET_COLS, '_estatus' en GLOBAL_COLS
-  const colorMap = colorKey === '_estatus' ? ESTATUS_BG : TYPE_BG;
 
   const sorted = [...positions].sort((a, b) => {
     const na = (a.Nivel || '').trim();
@@ -166,9 +161,7 @@ function createDetailSheet(wb, ctx, { title, positions, columns, leftAlignCols =
     columns.forEach((c, ci) => { row.getCell(ci + 1).value = pos[c.key] ?? ''; });
     styleDataRow(row, idx);
 
-    const bg = colorMap[pos[colorKey]] || C.GRIS;
-    row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-    row.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
+    row.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.GUINDA } };
 
     leftAlignCols.forEach(ci => {
       row.getCell(ci).alignment = { vertical: 'middle', horizontal: 'left' };
@@ -186,7 +179,7 @@ function fillLinkedCell(wb, ctx, cell, positions, sheetOpts, fontWhenLinked) {
     const resumenCoordinate = cell.address;
     const sheetName = createDetailSheet(wb, ctx, { ...sheetOpts, positions, resumenCoordinate });
     cell.value = { formula: `HYPERLINK("#'${sheetName}'!A1","${count}")`, result: count };
-    cell.font = { ...cell.font, ...(fontWhenLinked || { color: { argb: C.BLUE_LNK }, underline: true }) };
+    cell.font = { ...cell.font, ...(fontWhenLinked || { color: { argb: C.GUINDA_LINK }, underline: true }) };
   } else {
     cell.value = 0;
   }
@@ -233,7 +226,7 @@ function addObservacionesSheet(wb, obs) {
   const off = addExcelLetterhead(wb, ws, numDet);
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: off + 4 }];
 
-  styleTitle(ws, off + 1, 'OBSERVACIONES VACANCIA', numDet, C.AZUL);
+  styleTitle(ws, off + 1, 'OBSERVACIONES VACANCIA', numDet, C.GUINDA_OSC);
 
   const shRow = ws.addRow(['Categoría', 'Total']);
   styleHeader(shRow);
@@ -352,7 +345,7 @@ function fillResumenSheet(wb, ctx, ws, cuadrosData, desgloseData, ocupadosData) 
   live.height = 24;
   live.eachCell((cell, ci) => {
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.DORADO_BG } };
-    cell.font  = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
+    cell.font  = { bold: true, size: 10, name: FONT, color: { argb: C.GUINDA } };
     cell.alignment = { vertical: 'middle', horizontal: ci === 2 ? 'left' : 'center' };
     cell.border = {
       top:    { style: 'medium', color: { argb: C.DORADO } },
@@ -409,7 +402,7 @@ function fillResumenSheet(wb, ctx, ws, cuadrosData, desgloseData, ocupadosData) 
   // ── Sección II: Tablas por nivel, cada celda con su propia hoja de detalle ──
   ws.addRow([]);
   const sec2Row = ws.addRow(['II. CUADROS DE VACANCIA POR NIVEL']);
-  styleTitle(ws, sec2Row.number, 'II. CUADROS DE VACANCIA POR NIVEL', 11, C.AZUL);
+  styleTitle(ws, sec2Row.number, 'II. CUADROS DE VACANCIA POR NIVEL', 11, C.GUINDA_OSC);
 
   const groups = [
     { title: 'Posiciones Vacantes — Niveles Operativos', filter: i => /^\d/.test((i.Nivel || '').trim()), hasNvaCr: false },
@@ -444,7 +437,7 @@ function fillResumenSheet(wb, ctx, ws, cuadrosData, desgloseData, ocupadosData) 
 
       const dr = ws.addRow([nivel, ...subsets.map(() => 0)]);
       styleDataRow(dr, idx);
-      dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.AZUL } };
+      dr.getCell(1).font = { bold: true, size: 10, name: FONT, color: { argb: C.GUINDA } };
       dr.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
 
       subsets.forEach((subset, si) => {
@@ -469,6 +462,48 @@ function fillResumenSheet(wb, ctx, ws, cuadrosData, desgloseData, ocupadosData) 
       }, { underline: true });
     });
   });
+
+  // ── Sección III: Observaciones Vacancia ───────────────────────────────────
+  ws.addRow([]);
+  const sec3Row = ws.addRow(['III. OBSERVACIONES VACANCIA']);
+  styleTitle(ws, sec3Row.number, 'III. OBSERVACIONES VACANCIA', 11, C.GUINDA_OSC);
+
+  const obsGroups = [
+    { label: 'Contratación Base (SAT_BSE)', subset: enrichedVac.filter(p => (p['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE') },
+    { label: 'Órgano Interno de Control',   subset: enrichedVac.filter(p => (p['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control') },
+    { label: 'Titulares de Aduanas',        subset: enrichedVac.filter(p => (p['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA')) },
+  ];
+  const obsTotalIdx = new Set();
+  enrichedVac.forEach((p, idx) => {
+    const isBase    = (p['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE';
+    const isOic     = (p['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control';
+    const isTitular = (p['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA');
+    if (isBase || isOic || isTitular) obsTotalIdx.add(idx);
+  });
+  const obsTotalSubset = enrichedVac.filter((_, idx) => obsTotalIdx.has(idx));
+
+  const obsHRow = ws.addRow(['Categoría', 'Total']);
+  styleHeader(obsHRow);
+
+  obsGroups.forEach(({ label, subset }, idx) => {
+    const dr = ws.addRow([label, 0]);
+    styleDataRow(dr, idx);
+    dr.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+    fillLinkedCell(wb, ctx, dr.getCell(2), subset, {
+      title: `Observaciones Vacancia — ${label}`,
+      columns: DET_COLS,
+      leftAlignCols: [5, 6, 7, 10],
+    });
+  });
+
+  const obsTotRow = ws.addRow(['Total (unión de las tres categorías)', 0]);
+  styleTotalRow(obsTotRow);
+  obsTotRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+  fillLinkedCell(wb, ctx, obsTotRow.getCell(2), obsTotalSubset, {
+    title: 'Observaciones Vacancia — TOTAL',
+    columns: DET_COLS,
+    leftAlignCols: [5, 6, 7, 10],
+  }, { underline: true });
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

@@ -10,8 +10,9 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick } from "lucide-react";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
+import VacanciaDetalleModal from "./VacanciaDetalleModal";
 import {
     Select,
     SelectContent,
@@ -49,6 +50,10 @@ export const ALL_AVAILABLE_COLUMNS = [
   { key: "nivel", label: "NIVEL", category: "Básicos" },
   { key: "fecha_de_ingreso", label: "FECHA INGRESO", category: "Básicos" },
   { key: "estado_nomina", label: "ESTATUS NÓMINA", category: "Básicos" },
+  // Solo poblada cuando la fila representa una posición vacante (ver
+  // mapVacanteRow.js); interactiva igual que en MovimientosTab: abre
+  // VacanciaDetalleModal con el detalle completo de la vacancia.
+  { key: "fecha_vacancia", label: "FECHA DE VACANCIA", category: "Básicos" },
 
   // Adscripción / Estructura
   { key: "unidad_administrativa", label: "UNIDAD ADMINISTRATIVA", category: "Estructura" },
@@ -132,6 +137,7 @@ const DEFAULT_COLUMN_KEYS = [
 const LOCAL_MODE_DEFAULT_COLUMN_KEYS = [
   "posicion",
   "nivel",
+  "fecha_vacancia",
   "nombre_puesto_funcional",
   "unidad_de_negocio",
   "unidad_administrativa",
@@ -568,6 +574,39 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     const [showColumnsModal, setShowColumnsModal] = useState(false);
     const [selectedEmployeeRecord, setSelectedEmployeeRecord] = useState(null);
 
+    // Detalle de vacancia (columna "Fecha de Vacancia") — mismo patrón que
+    // MovimientosTab: el id de MOV_POS viaja en `row.mov_pos_id` (ver
+    // mapVacanteRow.js), sólo poblado cuando la fila representa una vacante.
+    const [isVacanciaModalOpen, setIsVacanciaModalOpen] = useState(false);
+    const [vacanciaRowId, setVacanciaRowId] = useState(null);
+    const [vacanciaDetalle, setVacanciaDetalle] = useState(null);
+    const [isVacanciaLoading, setIsVacanciaLoading] = useState(false);
+
+    const openVacanciaModal = useCallback((row) => {
+        if (!row || row.mov_pos_id === undefined || row.mov_pos_id === null) return;
+        setVacanciaRowId(row.mov_pos_id);
+        setIsVacanciaModalOpen(true);
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        if (isVacanciaModalOpen && vacanciaRowId !== null) {
+            setIsVacanciaLoading(true);
+            setVacanciaDetalle(null);
+            VacantesService.getMovPosVacanciaDetalle(vacanciaRowId)
+                .then(res => res.json())
+                .then(data => { if (active) setVacanciaDetalle(data); })
+                .catch(err => {
+                    console.error("Error fetching vacancia detalle:", err);
+                    if (active) setVacanciaDetalle({ error: "Error al cargar el detalle de la vacancia." });
+                })
+                .finally(() => { if (active) setIsVacanciaLoading(false); });
+        } else {
+            setVacanciaDetalle(null);
+        }
+        return () => { active = false; };
+    }, [isVacanciaModalOpen, vacanciaRowId]);
+
     // Altura dinámica: la tabla mide su propio contenido (header + filas) y el
     // contenedor adopta esa altura, topada por max-h-[70vh] (el máximo actual).
     // Con pocos registros el modal se ve más chico; con muchos, hace scroll interno.
@@ -714,6 +753,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             setShowColumnsModal(false);
             setSelectedEmployeeRecord(null);
             setContextMenu(null);
+            setIsVacanciaModalOpen(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, fetchData, isLocalMode, rows]);
@@ -867,8 +907,28 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     const hasActiveFilters = activeFilterChips.length > 0;
     const clearAllFilters = () => { setColumnFilters({}); setTextFilters({}); setSortConfig({ key: null, direction: 'asc' }); };
 
-    const renderCell = ({ col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+    const renderCell = ({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
         const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
+        if (col.key === "fecha_vacancia") {
+            const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+            const isClickable = hasValue && row.mov_pos_id !== undefined && row.mov_pos_id !== null;
+            const tdClassName = `px-4 text-sm border-r truncate h-[37px] align-middle ${
+                isSelected
+                    ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]"
+                    : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
+            } font-medium ${isClickable ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""}`;
+            const handleVacanciaClick = (e) => { onClick(e); if (isClickable) openVacanciaModal(row); };
+            return (
+                <td key={col.key} onClick={handleVacanciaClick} onContextMenu={onContextMenu} style={stickyStyle} className={tdClassName} title={value}>
+                    {hasValue ? (
+                        <div className="flex items-center justify-between gap-2">
+                            <span>{formatDateEsMx(value)}</span>
+                            {isClickable && <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" />}
+                        </div>
+                    ) : <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>}
+                </td>
+            );
+        }
         return (
             <td
                 key={col.key}
@@ -1077,9 +1137,22 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 defaultKeys={defaultColumnKeys || (isLocalMode ? LOCAL_MODE_DEFAULT_COLUMN_KEYS : DEFAULT_COLUMN_KEYS)}
             />
 
-            <EmployeeRecordModal isOpen={!!selectedEmployeeRecord} onClose={() => setSelectedEmployeeRecord(null)} record={selectedEmployeeRecord} columns={restrictColumnsTo ? availableColumns : null} />
+            <EmployeeRecordModal
+                isOpen={!!selectedEmployeeRecord}
+                onClose={() => setSelectedEmployeeRecord(null)}
+                record={selectedEmployeeRecord}
+                columns={restrictColumnsTo ? availableColumns : null}
+                fieldClickHandlers={{ fecha_vacancia: (r) => openVacanciaModal(r) }}
+            />
 
             <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+
+            <VacanciaDetalleModal
+                open={isVacanciaModalOpen}
+                onClose={() => setIsVacanciaModalOpen(false)}
+                detalle={vacanciaDetalle}
+                isLoading={isVacanciaLoading}
+            />
         </>
     );
 }
