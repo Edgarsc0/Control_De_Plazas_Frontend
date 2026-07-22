@@ -314,6 +314,11 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
                       }
                       return null;
                     })()}
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 text-xs">
+                      <span className="font-bold text-slate-500 dark:text-slate-400">Movimiento realizado por: </span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{mov.por || '-'}</span>
+                    </div>
                   </div>
                 </div>
               ))}
