@@ -1,23 +1,21 @@
 import { useMemo, useState, useCallback } from 'react';
-import { TableProperties } from 'lucide-react';
-import EmployeesModal from '../../shared/EmployeesModal';
+import { TableProperties, Inbox } from 'lucide-react';
+import EmployeesModal, { ALL_AVAILABLE_COLUMNS } from '../../shared/EmployeesModal';
 import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
 
-// Whitelist del selector "Columnas" de EmployeesModal — debe reflejar 1:1 las
-// claves que mapVacanteRowToEmployeeRow produce (a su vez, las columnas que
-// trae el SELECT de DesgloseJerarquicoView en el backend). Si el back agrega
-// un campo nuevo al query, se debe sumar aquí también.
-const DETALLE_VACANTES_COLUMN_KEYS = [
-  'posicion', 'nivel', 'nombre_puesto_funcional', 'unidad_de_negocio',
-  'unidad_administrativa', 'cd_ua', 'id_departamento', 'departamento', 'nj',
-  'nombre_nj', 'cd_un', 'codigo_presupuestal', 'escala', 'partida',
-  'tipo_de_contratacion', 'sindicato', 'entidad_federativa', 'smb', 'smn',
-];
+// Whitelist del selector "Columnas" de EmployeesModal — derivada de
+// ALL_AVAILABLE_COLUMNS (fuente única en EmployeesModal.jsx) en vez de una
+// lista duplicada a mano, para que nunca haya mismatch entre lo que el
+// backend entrega (DesgloseJerarquicoView / DesgloseJerarquicoOcupadosView,
+// ambos ampliados a devolver todas las columnas de EMPLEADOS_COMPLETOS_SIG) y
+// lo que el botón "Columnas" ofrece seleccionar.
+const ALL_COLUMN_KEYS = ALL_AVAILABLE_COLUMNS.map(col => col.key);
+const DETALLE_VACANTES_COLUMN_KEYS = ALL_COLUMN_KEYS;
 
-// Ocupación: mismo whitelist que Vacancia + identidad de empleado, que sí
-// trae ocupadosJerarquicoData (Id Empleado/Nombres/RFC/CURP) a diferencia de
-// desgloseJerarquicoData (solo describe plazas, nunca personas).
-const DETALLE_OCUPACION_COLUMN_KEYS = ['id_empleado', 'nombres', 'rfc', 'curp', ...DETALLE_VACANTES_COLUMN_KEYS];
+// Ocupación: mismo universo que Vacancia — ambos endpoints ya devuelven todas
+// las columnas (incluida identidad de empleado, que en filas de vacantes
+// simplemente queda vacía porque no hay persona asignada a la plaza).
+const DETALLE_OCUPACION_COLUMN_KEYS = ALL_COLUMN_KEYS;
 const DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS = ['id_empleado', 'nombres', 'rfc', 'curp', 'posicion', 'nivel', 'nombre_puesto_funcional'];
 
 function formatNumber(n) {
@@ -239,6 +237,37 @@ function VacanciaTable({ tableData, totalRow, label, onCellClick }) {
   );
 }
 
+// Placeholder de una tabla vacía del par Vacancia/Ocupación de un nivel — se
+// muestra en la columna correspondiente cuando ese lado (vacantes u
+// ocupadas) no tiene registros para el nivel, en vez de dejar la columna en
+// blanco (ej. nivel J con todas sus plazas ocupadas: 0 vacantes).
+function EmptyLevelTable({ label, message }) {
+  return (
+    <div className="flex flex-col">
+      <h4 className="text-sm font-bold text-slate-400 dark:text-slate-600 mb-3 flex items-center gap-2">
+        <span className="w-1.5 h-5 bg-gradient-to-b from-slate-300 to-slate-400 dark:from-slate-700 dark:to-slate-800 rounded-full inline-block" />
+        {label}
+      </h4>
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60 animate-pulse">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 h-[37px]">
+              <div className="h-3 w-8 bg-slate-150 dark:bg-slate-800/60 rounded" />
+              <div className="h-3 flex-1 bg-slate-150 dark:bg-slate-800/60 rounded" />
+              <div className="h-3 w-14 bg-slate-150 dark:bg-slate-800/60 rounded" />
+              <div className="h-3 w-10 bg-slate-150 dark:bg-slate-800/60 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col items-center justify-center gap-2 py-6 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-800/10">
+          <Inbox className="size-6 text-slate-300 dark:text-slate-700" />
+          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 text-center px-4">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalRows, setModalRows] = useState([]);
@@ -286,6 +315,29 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
     });
     return { base, oic, titulares, total: totalSet.size };
   }, [data]);
+
+  // Observaciones Ocupación — mismo criterio que Observaciones Vacancia
+  // (Contratación Base / OIC / Titulares de Aduanas), pero sobre las plazas
+  // ocupadas (ocupadosData) en vez de las vacantes (data).
+  const observacionesOcup = useMemo(() => {
+    if (!ocupadosData || ocupadosData.length === 0) return { base: 0, oic: 0, titulares: 0, total: 0 };
+    let base = 0, oic = 0, titulares = 0;
+    const totalSet = new Set();
+    ocupadosData.forEach((item, idx) => {
+      const isBase = (item['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE';
+      const isOic = (item['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control';
+      const isTitular = (item['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA');
+
+      if (isBase) base++;
+      if (isOic) oic++;
+      if (isTitular) titulares++;
+
+      if (isBase || isOic || isTitular) {
+        totalSet.add(idx);
+      }
+    });
+    return { base, oic, titulares, total: totalSet.size };
+  }, [ocupadosData]);
 
   // `sourceData`/`levelKey` reemplazan al viejo `prefixMap` (que matcheaba por
   // texto de label): ahora se compara directo contra la key del nivel, ya
@@ -357,119 +409,225 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
           {levelRows.map(lvl => {
             if (lvl.vacTableData.length === 0 && lvl.ocupTableData.length === 0) return null;
             const Comp = lvl.wide ? VacanciaTableK : VacanciaTable;
+            const nivelLabel = lvl.key === 'OPERATIVOS' ? 'niveles Operativos' : `este nivel ${lvl.key}`;
             return (
               <div key={lvl.key} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Comp
-                  tableData={lvl.vacTableData}
-                  totalRow={lvl.vacTotalRow}
-                  label={lvl.vacLabel}
-                  data={data}
-                  onCellClick={(nivel, type, tableLabel) => openDetailModal(data, lvl.key, nivel, type, tableLabel, DETALLE_VACANTES_COLUMN_KEYS, null)}
-                />
-                <Comp
-                  tableData={lvl.ocupTableData}
-                  totalRow={lvl.ocupTotalRow}
-                  label={lvl.ocupLabel}
-                  data={ocupadosData}
-                  onCellClick={(nivel, type, tableLabel) => openDetailModal(ocupadosData, lvl.key, nivel, type, tableLabel, DETALLE_OCUPACION_COLUMN_KEYS, DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS)}
-                />
+                {lvl.vacTableData.length > 0 ? (
+                  <Comp
+                    tableData={lvl.vacTableData}
+                    totalRow={lvl.vacTotalRow}
+                    label={lvl.vacLabel}
+                    data={data}
+                    onCellClick={(nivel, type, tableLabel) => openDetailModal(data, lvl.key, nivel, type, tableLabel, DETALLE_VACANTES_COLUMN_KEYS, null)}
+                  />
+                ) : (
+                  <EmptyLevelTable label={lvl.vacLabel} message={`No hay vacante de ${nivelLabel}.`} />
+                )}
+                {lvl.ocupTableData.length > 0 ? (
+                  <Comp
+                    tableData={lvl.ocupTableData}
+                    totalRow={lvl.ocupTotalRow}
+                    label={lvl.ocupLabel}
+                    data={ocupadosData}
+                    onCellClick={(nivel, type, tableLabel) => openDetailModal(ocupadosData, lvl.key, nivel, type, tableLabel, DETALLE_OCUPACION_COLUMN_KEYS, DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS)}
+                  />
+                ) : (
+                  <EmptyLevelTable label={lvl.ocupLabel} message={`No hay ocupación de ${nivelLabel}.`} />
+                )}
               </div>
             );
           })}
 
-          {/* Observaciones Vacancia — sin equivalente de Ocupación */}
-          {observaciones.total > 0 && (
+          {/* Observaciones Vacancia (izquierda) | Observaciones Ocupación (derecha) —
+              mismo criterio (Contratación Base / OIC / Titulares de Aduanas),
+              una sobre plazas vacantes y otra sobre plazas ocupadas. */}
+          {(observaciones.total > 0 || observacionesOcup.total > 0) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="flex flex-col">
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
-                  <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
-                  Observaciones Vacancia
-                </h4>
-                <div className="overflow-x-auto custom-scrollbar">
-                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md overflow-hidden bg-white dark:bg-slate-900">
-                    <table className="w-full text-sm text-left border-collapse">
-                      <thead className="text-white">
-                        <tr>
-                          <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
-                          <th className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="bg-white dark:bg-slate-900 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
-                          <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
-                          <td className="p-3 text-center">
-                            <ClickableNum
-                              value={observaciones.base}
-                              onClick={() => {
-                                const rows = data.filter(i => (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE');
-                                setModalTitle('Observaciones Vacancia — Contratación Base');
-                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
-                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
-                                setModalDefaultColumnKeys(null);
-                                setModalOpen(true);
-                              }}
-                            />
-                          </td>
-                        </tr>
-                        <tr className="bg-slate-50/20 dark:bg-slate-800/10 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
-                          <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
-                          <td className="p-3 text-center">
-                            <ClickableNum
-                              value={observaciones.oic}
-                              onClick={() => {
-                                const rows = data.filter(i => (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control');
-                                setModalTitle('Observaciones Vacancia — Órgano Interno de Control');
-                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
-                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
-                                setModalDefaultColumnKeys(null);
-                                setModalOpen(true);
-                              }}
-                            />
-                          </td>
-                        </tr>
-                        <tr className="bg-white dark:bg-slate-900 transition-colors hover:bg-[#bc955c]/5">
-                          <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
-                          <td className="p-3 text-center">
-                            <ClickableNum
-                              value={observaciones.titulares}
-                              onClick={() => {
-                                const rows = data.filter(i => (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA'));
-                                setModalTitle('Observaciones Vacancia — Titulares de Aduanas');
-                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
-                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
-                                setModalDefaultColumnKeys(null);
-                                setModalOpen(true);
-                              }}
-                            />
-                          </td>
-                        </tr>
-                        <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
-                          <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
-                          <td className="p-3 text-center bg-[#1a3b63]">
-                            <button
-                              onClick={() => {
-                                const rows = data.filter(i =>
-                                  (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE' ||
-                                  (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control' ||
-                                  (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA')
-                                );
-                                setModalTitle('Observaciones Vacancia — Total');
-                                setModalRows(rows.map(mapVacanteRowToEmployeeRow));
-                                setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
-                                setModalDefaultColumnKeys(null);
-                                setModalOpen(true);
-                              }}
-                              className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
-                            >
-                              {formatNumber(observaciones.total)}
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+              {observaciones.total > 0 ? (
+                <div className="flex flex-col">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
+                    Observaciones Vacancia
+                  </h4>
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md overflow-hidden bg-white dark:bg-slate-900">
+                      <table className="w-full text-sm text-left border-collapse">
+                        <thead className="text-white">
+                          <tr>
+                            <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
+                            <th className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white dark:bg-slate-900 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
+                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
+                            <td className="p-3 text-center">
+                              <ClickableNum
+                                value={observaciones.base}
+                                onClick={() => {
+                                  const rows = data.filter(i => (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE');
+                                  setModalTitle('Observaciones Vacancia — Contratación Base');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(null);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50/20 dark:bg-slate-800/10 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
+                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
+                            <td className="p-3 text-center">
+                              <ClickableNum
+                                value={observaciones.oic}
+                                onClick={() => {
+                                  const rows = data.filter(i => (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control');
+                                  setModalTitle('Observaciones Vacancia — Órgano Interno de Control');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(null);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                          <tr className="bg-white dark:bg-slate-900 transition-colors hover:bg-[#bc955c]/5">
+                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
+                            <td className="p-3 text-center">
+                              <ClickableNum
+                                value={observaciones.titulares}
+                                onClick={() => {
+                                  const rows = data.filter(i => (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA'));
+                                  setModalTitle('Observaciones Vacancia — Titulares de Aduanas');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(null);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                          <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
+                            <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
+                            <td className="p-3 text-center bg-[#1a3b63]">
+                              <button
+                                onClick={() => {
+                                  const rows = data.filter(i =>
+                                    (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE' ||
+                                    (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control' ||
+                                    (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA')
+                                  );
+                                  setModalTitle('Observaciones Vacancia — Total');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_VACANTES_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(null);
+                                  setModalOpen(true);
+                                }}
+                                className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
+                              >
+                                {formatNumber(observaciones.total)}
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : <div />}
+
+              {observacionesOcup.total > 0 ? (
+                <div className="flex flex-col">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
+                    Observaciones Ocupación
+                  </h4>
+                  <div className="overflow-x-auto custom-scrollbar">
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md overflow-hidden bg-white dark:bg-slate-900">
+                      <table className="w-full text-sm text-left border-collapse">
+                        <thead className="text-white">
+                          <tr>
+                            <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
+                            <th className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white dark:bg-slate-900 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
+                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
+                            <td className="p-3 text-center">
+                              <ClickableNum
+                                value={observacionesOcup.base}
+                                onClick={() => {
+                                  const rows = ocupadosData.filter(i => (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE');
+                                  setModalTitle('Observaciones Ocupación — Contratación Base');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_OCUPACION_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50/20 dark:bg-slate-800/10 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
+                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
+                            <td className="p-3 text-center">
+                              <ClickableNum
+                                value={observacionesOcup.oic}
+                                onClick={() => {
+                                  const rows = ocupadosData.filter(i => (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control');
+                                  setModalTitle('Observaciones Ocupación — Órgano Interno de Control');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_OCUPACION_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                          <tr className="bg-white dark:bg-slate-900 transition-colors hover:bg-[#bc955c]/5">
+                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
+                            <td className="p-3 text-center">
+                              <ClickableNum
+                                value={observacionesOcup.titulares}
+                                onClick={() => {
+                                  const rows = ocupadosData.filter(i => (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA'));
+                                  setModalTitle('Observaciones Ocupación — Titulares de Aduanas');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_OCUPACION_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </td>
+                          </tr>
+                          <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
+                            <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
+                            <td className="p-3 text-center bg-[#1a3b63]">
+                              <button
+                                onClick={() => {
+                                  const rows = ocupadosData.filter(i =>
+                                    (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE' ||
+                                    (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control' ||
+                                    (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA')
+                                  );
+                                  setModalTitle('Observaciones Ocupación — Total');
+                                  setModalRows(rows.map(mapVacanteRowToEmployeeRow));
+                                  setModalColumnKeys(DETALLE_OCUPACION_COLUMN_KEYS);
+                                  setModalDefaultColumnKeys(DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS);
+                                  setModalOpen(true);
+                                }}
+                                className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
+                              >
+                                {formatNumber(observacionesOcup.total)}
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : <div />}
             </div>
           )}
         </div>

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import DataTable from "./DataTable";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
+import CopyCellMenu from "./CopyCellMenu";
 import { useColumnFilters } from "../../_hooks/useColumnFilters";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../_hooks/useCellSelection";
 import {
@@ -34,7 +35,11 @@ import {
 } from "@/utils/columnFilters";
 
 // --- CONSTANTS ---
-const ALL_AVAILABLE_COLUMNS = [
+// Exportado para que otros consumidores del modo local de EmployeesModal
+// (p.ej. DetalleVacantesTablas.jsx) puedan derivar su whitelist de
+// `restrictColumnsTo` de esta misma fuente, en vez de duplicar la lista a
+// mano y arriesgar un mismatch con lo que el botón "Columnas" ofrece aquí.
+export const ALL_AVAILABLE_COLUMNS = [
   // Básicos
   { key: "id_empleado", label: "NO. EMPLEADO", category: "Básicos" },
   { key: "nombres", label: "NOMBRE", category: "Básicos" },
@@ -569,7 +574,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     const tableContainerRef = useRef(null);
     const [tableHeight, setTableHeight] = useState(null);
 
-    const { selectedCell, setSelectedCell } = useCellSelection();
+    const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
     const filters = useColumnFilters();
     const {
         columnFilters, setColumnFilters,
@@ -676,6 +681,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             setActiveFilterDropdown(null);
             setShowColumnsModal(false);
             setSelectedEmployeeRecord(null);
+            setContextMenu(null);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, fetchData, isLocalMode, rows]);
@@ -974,7 +980,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                                 setActiveConditionDropdown={setActiveConditionDropdown}
                                 selectedCell={selectedCell}
                                 onSelectCell={setSelectedCell}
-                                onCellContextMenu={() => {}}
+                                onCellContextMenu={(e, value, rect) => setContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
                                 onShowRecord={(row) => setSelectedEmployeeRecord(row)}
                                 sortConfig={sortConfig}
                                 onSort={handleSort}
@@ -1032,6 +1038,8 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             />
 
             <EmployeeRecordModal isOpen={!!selectedEmployeeRecord} onClose={() => setSelectedEmployeeRecord(null)} record={selectedEmployeeRecord} columns={restrictColumnsTo ? availableColumns : null} />
+
+            <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
         </>
     );
 }
