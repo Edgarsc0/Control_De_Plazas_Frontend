@@ -302,6 +302,9 @@ export default function ColumnFilterDropdown({
                         <button onClick={() => setTempSelectedValues([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
                       </div>
                     )}
+                    {Object.keys(dateHierarchy || {}).length === 0 && (
+                      <div className="text-center py-8 text-[10px] font-black uppercase text-slate-400">Sin resultados</div>
+                    )}
                     {Object.keys(dateHierarchy || {}).sort((a, b) => b - a).map(year => {
                       const yearData = dateHierarchy[year];
                       const isYearExpanded = expandedDateNodes[year];

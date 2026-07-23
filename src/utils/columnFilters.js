@@ -158,6 +158,40 @@ export const formatDateEsMx = (val, opts = {}) => {
 export const normalizeForSearch = (val) =>
   val ? String(val).normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').toLowerCase() : '';
 
+/**
+ * Traduce un término de búsqueda tecleado en `DD/MM/AAAA` (o `DD-MM-AAAA`) —
+ * el formato que el resto de la UI muestra en celdas y en el árbol del
+ * `ColumnFilterDropdown` de fecha — al formato ISO `YYYY-MM-DD` que espera el
+ * backend en `distinct_search` sobre una columna de fecha.
+ *
+ * El backend no hace un `icontains` de texto sobre columnas de fecha: parsea
+ * el término como una fecha completa y filtra por igualdad exacta (`año`,
+ * `07`, `16-07` o `2026-07` sin día no matchean nada porque no son una fecha
+ * completa). Por eso, sin esta traducción, buscar "16/07/2026" tal como se ve
+ * en pantalla no matcheaba nada contra el string ISO que sí entiende el
+ * backend: el buscador del dropdown de fecha parecía no funcionar aunque el
+ * dato existiera.
+ *
+ * Cualquier término que no sea una fecha `D/M/AAAA` completa (ISO ya, texto
+ * parcial, texto libre) se devuelve intacto — el backend seguirá sin
+ * matchear nada, igual que antes de esta función, porque requiere fecha
+ * completa.
+ * @param {string} term - Texto tecleado en el buscador del dropdown.
+ * @returns {string} Término listo para mandar como `distinct_search`.
+ */
+export const normalizeDateSearchTerm = (term) => {
+  const str = String(term ?? '').trim();
+  if (!str) return str;
+  const parts = str.split(/[/-]/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length !== 3) return str;
+
+  const [a, b, c] = parts;
+  if (/^\d{1,2}$/.test(a) && /^\d{1,2}$/.test(b) && /^\d{4}$/.test(c)) {
+    return `${c}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`;
+  }
+  return str;
+};
+
 /** Operadores de texto disponibles por columna, con su etiqueta y atajo. */
 export const CONDITION_OPTIONS = [
   { key: 'contains', label: 'Contiene (*)' },

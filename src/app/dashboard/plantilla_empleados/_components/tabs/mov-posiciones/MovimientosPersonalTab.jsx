@@ -23,7 +23,7 @@ import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
-import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts, formatDateEsMx, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
+import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts, formatDateEsMx, normalizeDateSearchTerm, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -1659,7 +1659,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
     const params = {
       distinct_field: activeFilterDropdown,
-      distinct_search: debouncedFilterSearchText,
+      // BUG QA: buscar "16/07/2026" (formato DD/MM/AAAA que muestra toda la UI)
+      // no matcheaba nada — el backend hace icontains contra el valor crudo
+      // ISO ("2026-07-16"). Se traduce antes de mandarlo.
+      distinct_search: isDateColumn(activeFilterDropdown) ? normalizeDateSearchTerm(debouncedFilterSearchText) : debouncedFilterSearchText,
     };
 
     if (filterDropdownTab === 'actuales') {
@@ -1691,11 +1694,16 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           if (!prevInit) {
             if (columnFilters[activeFilterDropdown]) {
               setTempSelectedValues(columnFilters[activeFilterDropdown]);
-            } else if (valuesList.length > HIGH_CARDINALITY_THRESHOLD) {
+            } else if (!isDateColumn(activeFilterDropdown) && valuesList.length > HIGH_CARDINALITY_THRESHOLD) {
               // Alta cardinalidad: la lista queda oculta hasta que el usuario
               // busque, así que preseleccionar todo es invisible — buscar y
               // marcar un valor lo desmarcaría (ya estaba marcado) en vez de
               // seleccionarlo. Sin filtro previo, arranca vacío.
+              // Fechas quedan afuera: el árbol NUNCA se oculta (isHighCardinality
+              // exige `!isDate`), así que aquí "alta cardinalidad" solo describía
+              // cuántas fechas distintas hay, no si la UI está oculta — arrancaba
+              // con todo desmarcado en un árbol totalmente visible, sin reflejar
+              // que sin filtro previo la tabla ya muestra todos los valores.
               setTempSelectedValues([]);
             } else {
               setTempSelectedValues(valuesList.map(v => v.value));
