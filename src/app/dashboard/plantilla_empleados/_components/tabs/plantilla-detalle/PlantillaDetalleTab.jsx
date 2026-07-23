@@ -28,7 +28,7 @@ import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, getConditionLabel, formatDateEsMx } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -777,27 +777,6 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const tableContainerRef = useRef(null);
   const arrowRepeatRef = useRef(0);
 
-  const MONTH_NAMES = useMemo(() => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"], []);
-
-  const parseDateParts = useCallback((val) => {
-    if (!val || String(val).trim() === "") return null;
-    let d = new Date(val);
-    if (isNaN(d.getTime())) {
-      const parts = String(val).split(/[-/]/);
-      if (parts.length === 3) {
-        if (parts[0].length === 4) d = new Date(parts[0], parts[1] - 1, parts[2]);
-        else d = new Date(parts[2], parts[1] - 1, parts[0]);
-      }
-    }
-    if (isNaN(d.getTime())) return null;
-    return {
-      year: d.getFullYear().toString(),
-      month: (d.getMonth() + 1).toString().padStart(2, '0'),
-      day: d.getDate().toString().padStart(2, '0'),
-      monthName: MONTH_NAMES[d.getMonth()]
-    };
-  }, [MONTH_NAMES]);
-
   const getColumnLetter = useCallback((index) => {
     let temp = index, letter = "";
     while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
@@ -829,6 +808,17 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // orden, la celda puede quedar apuntando a otro registro sin avisar.
   useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
 
+  // Dataset del filtro de columna ("Todos los datos"): `detalle` ya viene del
+  // backend restringido a Estado Psn='A' (última posición por Nº Pos Actual,
+  // ver obtener_posiciones_activas), pero incluye posiciones vacantes. QA pidió
+  // acotar además a Estado Nómina ocupado (A/S/L/P) — excluye vacantes — para
+  // que el queryset del dropdown sea EMPLEADOS_COMPLETOS_SIG INNER JOIN MOV_POS
+  // (última) WHERE Estado Psn='A' AND Estado Nómina IN ('A','P','L','S').
+  const detalleParaFiltros = useMemo(
+    () => detalle.filter(row => mapEstadoNomina(row.estado_nomina) !== "Vacante"),
+    [detalle]
+  );
+
   // OPTIMIZACIÓN CRÍTICA: Los cálculos pesados dependen solo de los datos y de la columna activa
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
@@ -839,7 +829,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     targetKeys.forEach(key => {
       const years = {};
-      detalle.forEach(row => {
+      detalleParaFiltros.forEach(row => {
         const val = row[key];
         const parts = parseDateParts(val);
         if (!parts) return;
@@ -853,7 +843,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       hierarchies[key] = years;
     });
     return hierarchies;
-  }, [detalle, activeFilterDropdown, parseDateParts]);
+  }, [detalleParaFiltros, activeFilterDropdown, parseDateParts]);
 
   const uniqueColumnValues = useMemo(() => {
     const valuesMap = {};
@@ -864,7 +854,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     targetKeys.forEach(key => {
       const counts = {};
-      detalle.forEach(row => {
+      detalleParaFiltros.forEach(row => {
         let val = key === "estado_nomina" ? mapEstadoNomina(row[key]) : String(row[key] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
       });
@@ -873,7 +863,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
     });
     return valuesMap;
-  }, [detalle, activeFilterDropdown]);
+  }, [detalleParaFiltros, activeFilterDropdown]);
 
   const toggleDateNode = (path) => {
     setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }));
@@ -885,7 +875,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     let targetRawValues = [];
     if (type === 'year') {
-      targetRawValues = detalle
+      targetRawValues = detalleParaFiltros
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === value;
@@ -893,7 +883,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     } else if (type === 'month') {
       const year = parentPath;
-      targetRawValues = detalle
+      targetRawValues = detalleParaFiltros
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === year && p.month === value;
@@ -901,7 +891,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     } else if (type === 'day') {
       const [year, month] = parentPath.split('-');
-      targetRawValues = detalle
+      targetRawValues = detalleParaFiltros
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === year && p.month === month && p.day === value;
@@ -923,35 +913,36 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
-      setFilterDropdownTab('todos');
+      setFilterDropdownTab('actuales');
       setFilterSearchText("");
-      const uniqueVals = [...new Set(detalle.map(row => 
+      const uniqueVals = [...new Set(detalleParaFiltros.map(row =>
         colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim()
       ))];
-      setTempSelectedValues(columnFilters[colKey] || uniqueVals);
+      // Alta cardinalidad: la lista queda oculta hasta que el usuario busque
+      // (ver HIGH_CARDINALITY_THRESHOLD), así que arrancar con "todo
+      // preseleccionado" es invisible — buscar y marcar un valor lo
+      // desmarcaría (ya estaba marcado) en vez de seleccionarlo. Sin filtro
+      // previo, arranca vacío igual que una columna sin selección.
+      setTempSelectedValues(columnFilters[colKey] || (uniqueVals.length > HIGH_CARDINALITY_THRESHOLD ? [] : uniqueVals));
     }
   };
 
   const applyColumnFilter = (colKey) => {
     const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
-    startTransition(() => {
-      if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
-        const newFilters = { ...columnFilters };
-        delete newFilters[colKey];
-        setColumnFilters(newFilters);
-      } else {
-        setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
-      }
-    });
+    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+      const newFilters = { ...columnFilters };
+      delete newFilters[colKey];
+      setColumnFilters(newFilters);
+    } else {
+      setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
+    }
     setActiveFilterDropdown(null);
   };
 
   const clearColumnFilter = (colKey) => {
-    startTransition(() => {
-      const newFilters = { ...columnFilters };
-      delete newFilters[colKey];
-      setColumnFilters(newFilters);
-    });
+    const newFilters = { ...columnFilters };
+    delete newFilters[colKey];
+    setColumnFilters(newFilters);
     setActiveFilterDropdown(null);
   };
 
@@ -2456,7 +2447,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         columnKey={activeFilterDropdown}
         columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
         isDate={isDateColumn(activeFilterDropdown)}
-        data={detalle}
+        data={detalleParaFiltros}
         filters={filters}
         dropdownValues={filterDropdownValues}
         dateHierarchy={dateHierarchies[activeFilterDropdown]}

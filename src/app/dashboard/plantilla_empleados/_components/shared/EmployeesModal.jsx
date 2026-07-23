@@ -848,7 +848,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     const openFilterDropdown = (colKey) => {
         if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
         setActiveFilterDropdown(colKey);
-        setFilterDropdownTab("todos");
+        setFilterDropdownTab("actuales");
         setFilterSearchText("");
         const allValues = [...new Set(rowData.map((row) => defaultGetCellValue(row, colKey)))];
         setTempSelectedValues(columnFilters[colKey] || allValues);

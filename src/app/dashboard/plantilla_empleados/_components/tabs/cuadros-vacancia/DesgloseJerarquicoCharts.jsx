@@ -26,6 +26,24 @@ const formatNumber = (num) => {
   return num.toLocaleString('en-US');
 };
 
+// Tope de dominio del eje Y "redondo" (1/2/5/10 × 10^n) en vez de un
+// Math.ceil(dataMax*1.15) crudo: ese valor crudo casi nunca cae en un tick
+// "bonito" de Recharts, así que termina dibujándose como un tick extra pegado
+// al último tick regular (p.ej. "485" encimado sobre "450"), ilegible.
+// Redondeando hacia arriba al siguiente número redondo, el tope del dominio
+// coincide con el propio tick que Recharts ya generaría, sin boundary suelto.
+const niceMax = (value) => {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+  const residual = value / magnitude;
+  let niceResidual;
+  if (residual <= 1) niceResidual = 1;
+  else if (residual <= 2) niceResidual = 2;
+  else if (residual <= 5) niceResidual = 5;
+  else niceResidual = 10;
+  return niceResidual * magnitude;
+};
+
 /* ── Paleta institucional ── */
 const GRADIENT_PAIRS = [
   ['#621f32', '#8c2d4a'],
@@ -858,7 +876,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   />
                   <YAxis
                     allowDecimals={false}
-                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
@@ -958,7 +976,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   />
                   <YAxis
                     allowDecimals={false}
-                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
@@ -1080,7 +1098,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   />
                   <YAxis
                     allowDecimals={false}
-                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
@@ -1287,7 +1305,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   />
                   <YAxis
                     allowDecimals={false}
-                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
@@ -1483,7 +1501,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   />
                   <YAxis
                     allowDecimals={false}
-                    domain={[0, (dataMax) => Math.ceil(dataMax * 1.15) || 1]}
+                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}

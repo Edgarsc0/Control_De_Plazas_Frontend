@@ -28,7 +28,7 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts, normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
+import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts, normalizeForSearch, formatDateEsMx, parseDateParts, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -211,6 +211,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const activeStatusFilter = columnFilters["estado_psn"] || [];
   const isLatestFilter = columnFilters.is_latest?.includes("true");
+  const isMonoColumn = useCallback((key) => ["no_pos_actual", "cd_un", "cd_departamento", "cd_puesto", "maximo", "grado", "esc", "partida_ptal"].includes(key), []);
 
   const [hoveredSlice, setHoveredSlice] = useState(null);
 
@@ -551,21 +552,54 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   useEffect(() => {
     if (!activeFilterDropdown) return;
-    // "Vista actual" is computed entirely client-side from filteredSortedData
-    // (see render below) — no need to hit the backend while that tab is active,
-    // it was firing a request on every keystroke in the search box for nothing.
-    if (filterDropdownTab === 'actuales' && !DATE_KEYS_MOV.includes(activeFilterDropdown)) return;
 
-    // "Todos los datos" = distinct values over the WHOLE table, with no filters
-    // applied at all (not even is_latest/search/other column filters). The
-    // already-filtered view lives in the "Vista actual" tab, computed
-    // client-side from filteredSortedData.
+    // "Todos los datos" = distinct values scopeados igual que el card activo
+    // (Activas/Inactivas/Todas -> última posición por Nº Pos Actual, filtrada
+    // por Estado Psn si aplica; Mov. de Posiciones -> tabla MOV_POS completa,
+    // sin restringir a la última).
+    // "Vista actual" = lo mismo + el resto de filtros/búsqueda activos en la
+    // tabla (search, texto por columna, otros column filters, avanzados),
+    // excepto el de la propia columna (no debe filtrarse contra sí misma).
+    // Antes esto se calculaba client-side desde `filteredSortedData`, que en
+    // modo paginado es solo la página actual (50 filas) — el conteo no
+    // reflejaba el total filtrado real.
     const isDateCol = DATE_KEYS_MOV.includes(activeFilterDropdown);
+    const isVistaActual = filterDropdownTab === 'actuales';
     const params = {
       distinct_field: activeFilterDropdown,
       distinct_search: (isDateCol || isServerSafeSearchCondition(filterSearchCondition)) ? debouncedFilterSearchText : "",
-      is_latest: "false"
+      is_latest: isLatestFilter ? "true" : "false"
     };
+    if (isLatestFilter && activeStatusFilter.length === 1) {
+      params.estado_psn__in = activeStatusFilter[0];
+    }
+
+    if (isVistaActual) {
+      params.search = debouncedSearch;
+      Object.entries(debouncedTextFilters).forEach(([colKey, filterObj]) => {
+        if (!filterObj || !filterObj.value || !filterObj.value.trim()) return;
+        const cond = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
+        let suffix = "";
+        if (cond === "contains") suffix = "__icontains";
+        else if (cond === "not_contains") { params[`exclude__${colKey}__icontains`] = filterObj.value.trim(); return; }
+        else if (cond === "starts_with") suffix = "__istartswith";
+        else if (cond === "not_starts_with") { params[`exclude__${colKey}__istartswith`] = filterObj.value.trim(); return; }
+        else if (cond === "ends_with") suffix = "__iendswith";
+        else if (cond === "not_ends_with") { params[`exclude__${colKey}__iendswith`] = filterObj.value.trim(); return; }
+        else if (cond === "equals") suffix = "__iexact";
+        else if (cond === "not_equals") { params[`exclude__${colKey}__iexact`] = filterObj.value.trim(); return; }
+        params[`${colKey}${suffix}`] = filterObj.value.trim();
+      });
+      Object.entries(columnFilters).forEach(([key, values]) => {
+        if (key === "is_latest" || key === "estado_psn" || key === activeFilterDropdown) return;
+        if (values && values.length > 0) {
+          params[`${key}__in`] = encodeFilterValues(values);
+        }
+      });
+      if (appliedAdvancedFilters.length > 0) {
+        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+      }
+    }
 
     const signature = JSON.stringify(params);
     const initTempSelected = (valuesList) => {
@@ -573,6 +607,12 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         if (!prevInit) {
           if (columnFilters[activeFilterDropdown]) {
             setTempSelectedValues(columnFilters[activeFilterDropdown]);
+          } else if (valuesList.length > HIGH_CARDINALITY_THRESHOLD) {
+            // Alta cardinalidad: la lista queda oculta hasta que el usuario
+            // busque, así que preseleccionar todo es invisible — buscar y
+            // marcar un valor lo desmarcaría (ya estaba marcado) en vez de
+            // seleccionarlo. Sin filtro previo, arranca vacío.
+            setTempSelectedValues([]);
           } else {
             setTempSelectedValues(valuesList.map(v => v.value));
           }
@@ -604,7 +644,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       .catch(err => { if (err.name !== "AbortError") console.error("Error loading unique values:", err); })
       .finally(() => setLoadingUniqueValues(false));
     return () => ctrl.abort();
-  }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, filterSearchCondition]);
+  }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, filterSearchCondition, debouncedSearch, debouncedTextFilters, appliedAdvancedFilters, isLatestFilter, activeStatusFilter, isMonoColumn]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [modalHistoryData, setModalHistoryData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
@@ -709,27 +749,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const dropdownRef = useRef(null);
   const tbodyRef = useRef(null);
 
-  const MONTH_NAMES = useMemo(() => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"], []);
-
-  const parseDateParts = useCallback((val) => {
-    if (!val || String(val).trim() === "") return null;
-    let d = new Date(val);
-    if (isNaN(d.getTime())) {
-      const parts = String(val).split(/[-/]/);
-      if (parts.length === 3) {
-        if (parts[0].length === 4) d = new Date(parts[0], parts[1] - 1, parts[2]);
-        else d = new Date(parts[2], parts[1] - 1, parts[0]);
-      }
-    }
-    if (isNaN(d.getTime())) return null;
-    return {
-      year: d.getFullYear().toString(),
-      month: (d.getMonth() + 1).toString().padStart(2, '0'),
-      day: d.getDate().toString().padStart(2, '0'),
-      monthName: MONTH_NAMES[d.getMonth()]
-    };
-  }, [MONTH_NAMES]);
-
 
 
   const getColumnLetter = useCallback((index) => {
@@ -737,8 +756,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
     return letter;
   }, []);
-
-  const isMonoColumn = useCallback((key) => ["no_pos_actual", "cd_un", "cd_departamento", "cd_puesto", "maximo", "grado", "esc", "partida_ptal"].includes(key), []);
 
   const fetchAdvValueSuggestions = useCallback((column) =>
     VacantesService.getMovPosDetalle({ distinct_field: column, distinct_search: "", is_latest: "false" })
@@ -831,7 +848,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     } else {
       setHasInitializedTemp(false);
       setActiveFilterDropdown(colKey);
-      setFilterDropdownTab('todos');
+      setFilterDropdownTab('actuales');
       setFilterSearchText("");
       setFilterSearchCondition(isMonoColumn(colKey) ? "starts_with" : "contains");
       setIsFilterSearchConditionOpen(false);
@@ -843,27 +860,26 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     }
   };
 
+  // No compara contra uniqueColumnValues[colKey]: ese listado se achica con
+  // distinct_search al buscar dentro del dropdown, así que "seleccioné todos
+  // los resultados de la búsqueda" se confundía con "seleccioné todos los
+  // valores de la columna" y el filtro se descartaba en vez de aplicarse.
   const applyColumnFilter = (colKey) => {
-    const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
-    startTransition(() => {
-      if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
-        const newFilters = { ...columnFilters };
-        delete newFilters[colKey];
-        setColumnFilters(newFilters);
-      } else {
-        setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
-      }
-    });
+    if (tempSelectedValues.length === 0) {
+      const newFilters = { ...columnFilters };
+      delete newFilters[colKey];
+      setColumnFilters(newFilters);
+    } else {
+      setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
+    }
     setActiveFilterDropdown(null);
     setHasInitializedTemp(false);
   };
 
   const clearColumnFilter = (colKey) => {
-    startTransition(() => {
-      const newFilters = { ...columnFilters };
-      delete newFilters[colKey];
-      setColumnFilters(newFilters);
-    });
+    const newFilters = { ...columnFilters };
+    delete newFilters[colKey];
+    setColumnFilters(newFilters);
     setActiveFilterDropdown(null);
     setHasInitializedTemp(false);
   };
@@ -988,15 +1004,12 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown || isDateColumn(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
-    let baseUniqueValues = (uniqueColumnValues[activeFilterDropdown] || []).map(v => typeof v === 'object' ? v : { value: v, count: 0 });
-    if (filterDropdownTab === 'actuales') {
-      const counts = {};
-      filteredSortedData.forEach(row => {
-        const val = String(row[activeFilterDropdown] || "").trim();
-        counts[val] = (counts[val] || 0) + 1;
-      });
-      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
-    }
+    // Tanto "Todos los datos" como "Vista actual" llegan ya resueltos del
+    // backend (ver el useEffect de arriba) — "Vista actual" ya viene scopeado
+    // por el resto de filtros/búsqueda activos, así que acá no hay que
+    // recalcular nada client-side (antes se recontaba desde
+    // `filteredSortedData`, que en modo paginado es solo la página actual).
+    const baseUniqueValues = (uniqueColumnValues[activeFilterDropdown] || []).map(v => typeof v === 'object' ? v : { value: v, count: 0 });
 
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
 
@@ -1006,7 +1019,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
     });
-  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
+  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   useEffect(() => {
     let active = true;

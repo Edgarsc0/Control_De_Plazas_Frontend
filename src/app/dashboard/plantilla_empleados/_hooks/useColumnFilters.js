@@ -43,7 +43,7 @@ export function useColumnFilters({ initialColumnFilters = {}, storageKey } = {})
 
   // UI del dropdown por columna
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
-  const [filterDropdownTab, setFilterDropdownTab] = useState('todos');
+  const [filterDropdownTab, setFilterDropdownTab] = useState('actuales');
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState('');

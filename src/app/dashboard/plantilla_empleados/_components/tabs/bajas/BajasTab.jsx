@@ -26,7 +26,7 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, formatDateEsMx, parseDateParts, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -265,28 +265,6 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const dropdownRef = useRef(null);
   const tbodyRef = useRef(null);
 
-  const MONTH_NAMES = useMemo(() => ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"], []);
-
-  const parseDateParts = useCallback((val) => {
-    if (!val || String(val).trim() === "") return null;
-    let d = new Date(val);
-    if (isNaN(d.getTime())) {
-      const parts = String(val).split(/[-/]/);
-      if (parts.length === 3) {
-        if (parts[0].length === 4) d = new Date(parts[0], parts[1] - 1, parts[2]);
-        else d = new Date(parts[2], parts[1] - 1, parts[0]);
-      }
-    }
-    if (isNaN(d.getTime())) return null;
-    return {
-      year: d.getFullYear().toString(),
-      month: (d.getMonth() + 1).toString().padStart(2, '0'),
-      day: d.getDate().toString().padStart(2, '0'),
-      monthName: MONTH_NAMES[d.getMonth()]
-    };
-  }, [MONTH_NAMES]);
-
-    
   const getColumnLetter = useCallback((index) => {
     let temp = index, letter = "";
     while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
@@ -410,34 +388,35 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
-      setFilterDropdownTab('todos');
+      setFilterDropdownTab('actuales');
       setFilterSearchText("");
       // Computar valores únicos inline desde los datos (el memo uniqueColumnValues es
       // lazy y aún no se ha recomputado para la columna recién activada).
-      setTempSelectedValues(columnFilters[colKey] || [...new Set(bajasData.map(row => String(row[colKey] || "").trim()))]);
+      const uniqueVals = [...new Set(bajasData.map(row => String(row[colKey] || "").trim()))];
+      // Alta cardinalidad: la lista queda oculta hasta que el usuario busque
+      // (ver HIGH_CARDINALITY_THRESHOLD), así que arrancar con "todo
+      // preseleccionado" es invisible — buscar y marcar un valor lo
+      // desmarcaría (ya estaba marcado) en vez de seleccionarlo.
+      setTempSelectedValues(columnFilters[colKey] || (uniqueVals.length > HIGH_CARDINALITY_THRESHOLD ? [] : uniqueVals));
     }
   };
 
   const applyColumnFilter = (colKey) => {
     const totalUnique = uniqueColumnValues[colKey].map(v => v.value);
-    startTransition(() => {
-      if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
-        const newFilters = { ...columnFilters };
-        delete newFilters[colKey];
-        setColumnFilters(newFilters);
-      } else {
-        setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
-      }
-    });
+    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+      const newFilters = { ...columnFilters };
+      delete newFilters[colKey];
+      setColumnFilters(newFilters);
+    } else {
+      setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
+    }
     setActiveFilterDropdown(null);
   };
 
   const clearColumnFilter = (colKey) => {
-    startTransition(() => {
-      const newFilters = { ...columnFilters };
-      delete newFilters[colKey];
-      setColumnFilters(newFilters);
-    });
+    const newFilters = { ...columnFilters };
+    delete newFilters[colKey];
+    setColumnFilters(newFilters);
     setActiveFilterDropdown(null);
   };
 

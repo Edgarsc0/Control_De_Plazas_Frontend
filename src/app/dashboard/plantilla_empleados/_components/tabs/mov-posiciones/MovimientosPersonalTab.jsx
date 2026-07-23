@@ -23,7 +23,7 @@ import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
-import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts, formatDateEsMx } from "@/utils/columnFilters";
+import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts, formatDateEsMx, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -1469,24 +1469,28 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   const MONTH_NAMES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
+  // No usa `new Date(...)` (ver el mismo bug documentado en formatDateEsMx /
+  // utils/columnFilters.parseDateParts): interpreta "YYYY-MM-DD" como
+  // medianoche UTC, y leerla con getters locales en México (UTC-6) resta un
+  // día — agrupaba la fecha en el árbol año/mes/día bajo el mes/año anterior.
   const parseDateParts = useCallback((val) => {
     if (!val || String(val).trim() === "") return null;
-    let valStr = String(val).trim().split('T')[0];
-    const parts = valStr.split(/[-/]/);
-    let d;
-    if (parts.length === 3) {
-      if (parts[0].length === 4) d = new Date(parts[0], parts[1] - 1, parts[2]);
-      else d = new Date(parts[2], parts[1] - 1, parts[0]);
-    } else {
-      d = new Date(val);
-    }
-    
-    if (isNaN(d.getTime())) return null;
+    const dateSection = String(val).trim().split(/[T ]/)[0];
+    const sep = dateSection.includes('/') ? '/' : dateSection.includes('-') ? '-' : null;
+    if (!sep) return null;
+    const parts = dateSection.split(sep);
+    if (parts.length !== 3) return null;
+    const [a, b, c] = parts;
+    const [year, month, day] = a.length === 4 ? [a, b, c] : [c, b, a];
+    if (!/^\d{4}$/.test(year) || !/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) return null;
+    const monthNum = parseInt(month, 10);
+    const dayNum = parseInt(day, 10);
+    if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) return null;
     return {
-      year: d.getFullYear().toString(),
-      month: (d.getMonth() + 1).toString().padStart(2, '0'),
-      day: d.getDate().toString().padStart(2, '0'),
-      monthName: MONTH_NAMES[d.getMonth()]
+      year,
+      month: month.padStart(2, '0'),
+      day: day.padStart(2, '0'),
+      monthName: MONTH_NAMES[monthNum - 1]
     };
   }, []);
 
@@ -1630,7 +1634,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     }
 
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab('todos');
+    setFilterDropdownTab('actuales');
     setFilterSearchText("");
     setHasInitializedTemp(false);
     setTempSelectedValues(columnFilters[colKey] || []);
@@ -1687,6 +1691,12 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           if (!prevInit) {
             if (columnFilters[activeFilterDropdown]) {
               setTempSelectedValues(columnFilters[activeFilterDropdown]);
+            } else if (valuesList.length > HIGH_CARDINALITY_THRESHOLD) {
+              // Alta cardinalidad: la lista queda oculta hasta que el usuario
+              // busque, así que preseleccionar todo es invisible — buscar y
+              // marcar un valor lo desmarcaría (ya estaba marcado) en vez de
+              // seleccionarlo. Sin filtro previo, arranca vacío.
+              setTempSelectedValues([]);
             } else {
               setTempSelectedValues(valuesList.map(v => v.value));
             }
@@ -2439,7 +2449,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               <MobileCardList
                 data={data}
                 config={{
-                  getRowId: (r, i) => `${r.posicion ?? ""}-${r.sec ?? i}`,
+                  // `sec` no es único por posición (varias filas de fechas
+                  // distintas comparten sec=0) — usar el id real (PK) evita
+                  // colisiones de key de React que duplican/omiten tarjetas.
+                  getRowId: (r, i) => r.id ?? `${r.posicion ?? ""}-${r.sec ?? i}-${i}`,
                   getTitle: (r) => [r.nombre, r.ap_pat, r.ap_mat].filter(Boolean).join(" ").trim() || "Sin nombre",
                   getSubtitle: (r) => (r.posicion ? `POS ${r.posicion}` : (r.num_empleado ? `Emp ${r.num_empleado}` : "")),
                   renderBadge: (r) => (r.accion_nombre ? <span className="inline-flex items-center px-2 py-1 rounded-md border text-[9px] font-black uppercase bg-[#621f32]/8 text-[#621f32] border-[#621f32]/20 max-w-[120px] truncate">{r.accion_nombre}</span> : null),

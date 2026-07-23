@@ -41,6 +41,17 @@ export const MONTH_NAMES = [
 ];
 
 /**
+ * Columnas con más valores únicos que esto ocultan la lista completa en
+ * `ColumnFilterDropdown` y exigen buscar (ver `HIGH_CARDINALITY_THRESHOLD` ahí).
+ * Se exporta para que cada tab pueda decidir con el mismo criterio si, al abrir
+ * el dropdown sin filtro previo, arranca con todo preseleccionado (columnas
+ * chicas, estilo Excel) o vacío (columnas grandes: la lista está oculta, así
+ * que partir de "todo marcado" es invisible — buscar y marcar un valor lo
+ * desmarcaría en vez de seleccionarlo).
+ */
+export const HIGH_CARDINALITY_THRESHOLD = 500;
+
+/**
  * Parsea una fecha admitiendo `DD/MM/YYYY`, `DD-MM-YYYY`, `YYYY-MM-DD`, ISO y la
  * parte de hora separada por espacio.
  * @param {string|number|Date} d - Valor a interpretar como fecha.
@@ -64,25 +75,36 @@ export const parseFlexibleDate = (d) => {
 /**
  * Descompone una fecha en partes (año, mes, día y nombre del mes), soportando
  * tanto `YYYY-MM-DD` como `DD-MM-YYYY` / `DD/MM/YYYY`.
+ *
+ * Deliberadamente NO usa `new Date(...)`, por la misma razón documentada en
+ * `formatDateEsMx`: interpreta `"YYYY-MM-DD"` como medianoche **UTC**, y leerlo
+ * con getters **locales** en un huso horario negativo (México, UTC-6) resta un
+ * día — un valor `"2026-04-01"` se leía como 31/03/2026, agrupando la fecha en
+ * el árbol año/mes/día del filtro (`ColumnFilterDropdown`) bajo el mes/año
+ * incorrecto. Día/mes/año se extraen siempre por string, igual que aquí manda
+ * el backend, sin ninguna conversión de zona horaria de por medio.
  * @param {string|number|Date} val - Valor de fecha.
  * @returns {{year: string, month: string, day: string, monthName: string}|null} Partes o `null` si no es válida.
  */
 export const parseDateParts = (val) => {
   if (val === null || val === undefined || String(val).trim() === '') return null;
-  let d = new Date(val);
-  if (isNaN(d.getTime())) {
-    const parts = String(val).split(/[-/]/);
-    if (parts.length === 3) {
-      if (parts[0].length === 4) d = new Date(parts[0], parts[1] - 1, parts[2]);
-      else d = new Date(parts[2], parts[1] - 1, parts[0]);
-    }
-  }
-  if (isNaN(d.getTime())) return null;
+  const str = String(val).trim();
+  const dateSection = str.split(/[T ]/)[0];
+  const sep = dateSection.includes('/') ? '/' : dateSection.includes('-') ? '-' : null;
+  if (!sep) return null;
+  const parts = dateSection.split(sep);
+  if (parts.length !== 3) return null;
+  const [a, b, c] = parts;
+  const [year, month, day] = a.length === 4 ? [a, b, c] : [c, b, a];
+  if (!/^\d{4}$/.test(year) || !/^\d{1,2}$/.test(month) || !/^\d{1,2}$/.test(day)) return null;
+  const monthNum = parseInt(month, 10);
+  const dayNum = parseInt(day, 10);
+  if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) return null;
   return {
-    year: d.getFullYear().toString(),
-    month: (d.getMonth() + 1).toString().padStart(2, '0'),
-    day: d.getDate().toString().padStart(2, '0'),
-    monthName: MONTH_NAMES[d.getMonth()],
+    year,
+    month: month.padStart(2, '0'),
+    day: day.padStart(2, '0'),
+    monthName: MONTH_NAMES[monthNum - 1],
   };
 };
 

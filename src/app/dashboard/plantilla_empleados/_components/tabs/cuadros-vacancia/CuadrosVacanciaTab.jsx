@@ -32,6 +32,23 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isTableExpanded, setIsTableExpanded] = useState(false);
 
+  // Alto real del thead (sticky top-0, 2 filas), medido en vivo porque varía
+  // por breakpoint (padding/tamaño de texto sm: cambia). Sirve para que la
+  // celda de Año (con rowSpan sobre todo el bloque del año) pueda pegar su
+  // contenido justo debajo del thead en vez de quedar centrada a la mitad de
+  // una celda de decenas de filas de alto, invisible mientras se hace scroll.
+  const theadRef = useRef(null);
+  const [theadHeight, setTheadHeight] = useState(0);
+  useEffect(() => {
+    const el = theadRef.current;
+    if (!el) return;
+    const measure = () => setTheadHeight(el.getBoundingClientRect().height);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (!yearFilterRef.current?.contains(event.target) && !yearDropdownRef.current?.contains(event.target)) {
@@ -44,6 +61,24 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // El dropdown de filtro se posiciona con `fixed` calculado una sola vez
+  // (getBoundingClientRect) al abrirse. Ese valor queda obsoleto en cuanto hay
+  // scroll (de la página o del contenedor interno de la tabla), dejándolo
+  // flotando lejos de su botón. Como no se reposiciona en vivo, la solución
+  // más simple y predecible es cerrarlo apenas se detecta scroll — mismo
+  // criterio que el cierre por click-outside de arriba. `capture: true` para
+  // enterarse también del scroll del div interno `overflow-auto` de la tabla,
+  // que no hace bubble hasta `window`.
+  useEffect(() => {
+    if (!yearFilterOpen && !qnaFilterOpen) return;
+    const handleScroll = () => {
+      setYearFilterOpen(false);
+      setQnaFilterOpen(false);
+    };
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [yearFilterOpen, qnaFilterOpen]);
 
   const formatNumber = (num) => {
     if (num === null || num === undefined) return "0";
@@ -1218,9 +1253,17 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 </div>
               </div>
 
-              <div className="overflow-auto max-h-[65vh] pb-4 custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg relative bg-white dark:bg-slate-900" ref={tableRef}>
+              <div
+                // Exportar a imagen captura este nodo tal cual, con scrollbar
+                // nativo incluido si queda recortado por max-h + overflow-auto.
+                // Durante la exportación (ver handleExportImage) se quita el
+                // recorte para que la captura sea la tabla completa, sin
+                // barras de scroll quemadas en el PNG.
+                className={`${isExporting ? 'overflow-visible max-h-none' : 'overflow-auto max-h-[65vh]'} pb-4 custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg relative bg-white dark:bg-slate-900`}
+                ref={tableRef}
+              >
                   <table className="w-full text-xs sm:text-sm text-left border-collapse">
-                    <thead className="text-white sticky top-0 z-20">
+                    <thead ref={theadRef} className="text-white sticky top-0 z-20">
                       <tr>
                         <th colSpan={isCompactChart ? 1 : 2} className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Periodo
@@ -1334,10 +1377,21 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                               {!isCompactChart && isNewYear && (
                                 <td
                                   rowSpan={isTableExpanded ? rowSpan : 1}
-                                  className={`sticky left-0 z-10 w-16 sm:w-20 px-2 py-2.5 sm:px-4 sm:py-3 text-center align-middle border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#f5efe7] dark:bg-[#3a3737]" : "bg-white dark:bg-slate-900"
+                                  className={`sticky left-0 z-10 w-16 sm:w-20 p-0 align-top border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#f5efe7] dark:bg-[#3a3737]" : "bg-white dark:bg-slate-900"
                                     }`}
                                 >
-                                  {getYear(row.fecha)}
+                                  {/* rowSpan cubre todo el bloque del año (hasta 40+ filas
+                                      con el histórico expandido); centrar el texto en esa
+                                      celda lo deja fuera del área visible salvo que el
+                                      usuario haga scroll justo hasta la mitad del bloque.
+                                      Se ancla "sticky" debajo del thead para que el año
+                                      siga visible mientras cualquiera de sus filas lo esté. */}
+                                  <div
+                                    className="sticky flex items-center justify-center px-2 py-2.5 sm:px-4 sm:py-3"
+                                    style={{ top: theadHeight }}
+                                  >
+                                    {getYear(row.fecha)}
+                                  </div>
                                 </td>
                               )}
                               <td className={`sticky left-0 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#f5efe7] dark:bg-[#3a3737] text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
@@ -1544,14 +1598,23 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
               <button onClick={selectAllYears} className="flex-1 text-[9px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Marcar Todas</button>
               <button onClick={unselectAllYears} className="flex-1 text-[9px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">Limpiar</button>
             </div>
-            {uniqueYears.map(year => (
+            {uniqueYears.map(year => {
+              // selectedYears === [] significa "sin filtro" (pasan todas las
+              // filas, ver filteredData/toggleYear), no "ninguna seleccionada".
+              // El checkbox debe reflejar ese mismo criterio — si no, se
+              // dibuja vacío mientras el año en realidad cuenta como incluido,
+              // y el primer clic hace lo contrario de lo que el usuario ve
+              // (Qna. ya usa este mismo criterio más abajo).
+              const isYearItemChecked = selectedYears.length === 0 || selectedYears.includes(year);
+              return (
               <div key={year} onClick={() => toggleYear(year)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
-                <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${selectedYears.includes(year) ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
-                  {selectedYears.includes(year) && <Check className="size-3" />}
+                <div className={`size-4 rounded-md border flex-shrink-0 flex items-center justify-center transition-all ${isYearItemChecked ? 'bg-[#621f32] dark:bg-[#bc955c] border-[#621f32] dark:border-[#bc955c] text-white dark:text-[#10243e]' : 'border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800'}`}>
+                  {isYearItemChecked && <Check className="size-3" />}
                 </div>
                 <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{year}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>,
         document.body

@@ -205,7 +205,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab("todos");
+    setFilterDropdownTab("actuales");
     setFilterSearchText("");
     const allValues = [...new Set(data.map((row) => getCellValue(row, colKey)))];
     setTempSelectedValues(columnFilters[colKey] || allValues);

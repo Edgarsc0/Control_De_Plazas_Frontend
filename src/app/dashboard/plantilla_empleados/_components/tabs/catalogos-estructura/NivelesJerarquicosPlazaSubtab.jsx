@@ -237,7 +237,7 @@ export default function NivelesJerarquicosPlazaSubtab() {
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab("todos");
+    setFilterDropdownTab("actuales");
     setFilterSearchText("");
     const allValues = [...new Set(estadoFilteredData.map((row) => getCellValue(row, colKey)))];
     setTempSelectedValues(columnFilters[colKey] || allValues);

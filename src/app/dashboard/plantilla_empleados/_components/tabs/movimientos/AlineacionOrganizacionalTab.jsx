@@ -279,7 +279,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab("todos");
+    setFilterDropdownTab("actuales");
     setFilterSearchText("");
     setHasInitializedTemp(false);
     setTempSelectedValues(columnFilters[colKey] || []);

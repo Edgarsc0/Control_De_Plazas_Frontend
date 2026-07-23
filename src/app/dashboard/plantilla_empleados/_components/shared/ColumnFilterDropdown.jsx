@@ -11,6 +11,7 @@ import {
   parseDateParts,
   defaultGetCellValue,
   normalizeForSearch,
+  HIGH_CARDINALITY_THRESHOLD,
 } from "@/utils/columnFilters";
 
 const ROW_HEIGHT = 36;
@@ -19,7 +20,6 @@ const OVERSCAN = 6;
 // únicos: renderizar el checkbox-list ahí no sirve como filtro categórico,
 // nadie escanea miles de opciones. Se oculta la lista hasta que el usuario
 // busque, dejando el buscador con condición como único camino práctico.
-const HIGH_CARDINALITY_THRESHOLD = 500;
 
 /** Envuelve en `<mark>` la subcadena de `text` que matchea `needle` (sin distinguir acentos/mayúsculas). */
 function highlightMatch(text, needle) {
@@ -114,10 +114,15 @@ export default function ColumnFilterDropdown({
 
   // Cambió la columna: la búsqueda/condición de la columna anterior no debe
   // heredarse a la nueva (filterSearchText/filterSearchCondition viven una
-  // sola vez por tabla en useColumnFilters, no por columna).
+  // sola vez por tabla en useColumnFilters, no por columna). "Vista actual"
+  // como default engañaba: scopea el universo de valores a lo ya filtrado, así
+  // que columnas recién abiertas mostraban de entrada menos opciones de las
+  // que en realidad existen. Cada tab pone 'actuales' al abrir (openFilterDropdown);
+  // este efecto corre después y lo pisa a 'todos', sin tocar los 8 call sites.
   useEffect(() => {
     setFilterSearchText("");
     setFilterSearchCondition("contains");
+    setFilterDropdownTab("todos");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnKey]);
 
