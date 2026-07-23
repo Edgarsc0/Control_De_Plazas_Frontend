@@ -894,6 +894,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
               onScroll={noop}
               columns={columns}
               columnFilters={columnFilters}
+              setColumnFilters={setColumnFilters}
               textFilters={textFilters}
               setTextFilters={setTextFilters}
               activeConditionDropdown={activeConditionDropdown}

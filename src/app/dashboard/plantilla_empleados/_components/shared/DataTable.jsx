@@ -80,6 +80,7 @@ const TableRow = memo(function TableRow({
  * @param {(scrollTop: number) => void} props.onScroll - Reporta el scroll vertical (para virtualización en el tab).
  * @param {Array<{key: string, label: string, width: number, visible: boolean}>} props.columns - Columnas (todas; se filtran las visibles internamente).
  * @param {Object<string, string[]>} props.columnFilters - Filtros de valores activos (resalta header).
+ * @param {Function} props.setColumnFilters - Setter de `columnFilters` (checkboxes por columna); usado por "Limpiar filtros de columna" además de `setTextFilters`.
  * @param {Object<string, {value: string, condition?: string}>} props.textFilters - Filtros de texto por columna.
  * @param {Function} props.setTextFilters - Setter de `textFilters`.
  * @param {?string} props.activeConditionDropdown - Columna con el dropdown de condición abierto.
@@ -118,6 +119,7 @@ function DataTable({
   onScroll,
   columns,
   columnFilters,
+  setColumnFilters,
   textFilters,
   setTextFilters,
   activeConditionDropdown,
@@ -417,8 +419,11 @@ function DataTable({
           <tr className="bg-[#40121e] dark:bg-[#2b0d15]">
             <th className="sticky left-0 z-40 bg-[#40121e] dark:bg-[#2b0d15] border-r border-[#621f32]/35">
               <button
-                onClick={() => setTextFilters({})}
-                disabled={Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value)}
+                onClick={() => { setTextFilters({}); setColumnFilters?.({}); }}
+                disabled={
+                  (Object.keys(textFilters).length === 0 || Object.values(textFilters).every(v => !v || !v.value)) &&
+                  Object.keys(columnFilters || {}).length === 0
+                }
                 title="Limpiar filtros de columna"
                 className="size-full flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-0 cursor-pointer"
               >

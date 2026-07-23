@@ -2413,6 +2413,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             onScroll={() => {}}
             columns={columns}
             columnFilters={columnFilters}
+            setColumnFilters={setColumnFilters}
             textFilters={textFilters}
             setTextFilters={setTextFilters}
             activeConditionDropdown={activeConditionDropdown}

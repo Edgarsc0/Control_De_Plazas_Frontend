@@ -13,6 +13,7 @@ function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar.
   const [search, setSearch] = useState("");
   const [panelRect, setPanelRect] = useState(null);
   const triggerRef = useRef(null);
+  const panelRef = useRef(null);
 
   const selected = options.find(o => o.key === value);
   const filteredOptions = searchable && search
@@ -25,58 +26,75 @@ function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar.
     setIsOpen(true);
   };
 
+  const closePanel = () => { setIsOpen(false); setSearch(""); };
+
+  // BUG-F05: antes se cerraba el panel con un `<div className="fixed inset-0">`
+  // interceptando clics — si quedaba montado (p. ej. el usuario nunca eligió
+  // opción y saltó directo a otro control), ese div absorbía el SIGUIENTE clic
+  // en cualquier parte de la pantalla (incluido "Aplicar Filtros"), que solo
+  // servía para cerrarlo sin llegar al botón. Cerrar por `mousedown` fuera del
+  // trigger/panel, sin div interceptor, deja pasar el clic a su destino real.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (e) => {
+      if (triggerRef.current?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target)) return;
+      closePanel();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isOpen]);
+
   return (
     <div className="relative w-full">
       <button
         type="button"
         ref={triggerRef}
-        onClick={(e) => { e.stopPropagation(); isOpen ? setIsOpen(false) : openPanel(); }}
+        onClick={(e) => { e.stopPropagation(); isOpen ? closePanel() : openPanel(); }}
         className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 transition-colors cursor-pointer"
       >
         <span className={`truncate ${!selected ? "text-slate-400 font-semibold" : ""}`}>{selected ? selected.label : placeholder}</span>
         <ChevronDown className={`size-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
       {isOpen && panelRect && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[200]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearch(""); }} />
-          <div
-            style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
-            className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col"
-          >
-            {searchable && (
-              <div className="p-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5">
-                  <Search className="size-3 text-slate-400 shrink-0" />
-                  <input
-                    type="text"
-                    autoFocus
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Buscar columna..."
-                    className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold"
-                  />
-                </div>
+        <div
+          ref={panelRef}
+          style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
+          className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        >
+          {searchable && (
+            <div className="p-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5">
+                <Search className="size-3 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Buscar columna..."
+                  className="bg-transparent text-[11px] w-full outline-none text-slate-700 dark:text-slate-200 font-bold"
+                />
               </div>
-            )}
-            <div className="max-h-56 overflow-y-auto custom-scrollbar p-1">
-              {filteredOptions.length === 0 && (
-                <div className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase">Sin resultados</div>
-              )}
-              {filteredOptions.map(opt => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onChange(opt.key); setIsOpen(false); setSearch(""); }}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${value === opt.key ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {value === opt.key && <Check className="size-3 shrink-0" />}
-                </button>
-              ))}
             </div>
+          )}
+          <div className="max-h-56 overflow-y-auto custom-scrollbar p-1">
+            {filteredOptions.length === 0 && (
+              <div className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase">Sin resultados</div>
+            )}
+            {filteredOptions.map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onChange(opt.key); closePanel(); }}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${value === opt.key ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {value === opt.key && <Check className="size-3 shrink-0" />}
+              </button>
+            ))}
           </div>
-        </>,
+        </div>,
         document.body
       )}
     </div>
@@ -106,8 +124,24 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
   const [panelRect, setPanelRect] = useState(null);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
+  const panelRef = useRef(null);
   const allValuesRef = useRef([]);
   const cacheRef = useRef(new Map());
+
+  // BUG-F05: mismo fix que AdvFilterSelect — cerrar por `mousedown` fuera del
+  // input/panel en vez de un div `fixed inset-0` interceptor. Este panel es el
+  // más propenso a quedarse montado: se abre con solo enfocar el input
+  // (`onFocus`), así que basta con hacer foco y saltar a otro control.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (e) => {
+      if (inputRef.current?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target)) return;
+      setIsOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isOpen]);
 
   useEffect(() => {
     allValuesRef.current = [];
@@ -169,7 +203,10 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
             e.preventDefault();
             onChange(suggestions[0].value);
             setIsOpen(false);
-          } else if (e.key === "Escape") {
+          } else if (e.key === "Escape" && isOpen) {
+            // Solo cierra el panel de sugerencias; no deja que el Escape
+            // burbujee hasta el listener del modal (que cerraría todo).
+            e.stopPropagation();
             setIsOpen(false);
           }
         }}
@@ -178,12 +215,11 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
         className="w-full px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       />
       {isOpen && panelRect && column && typeof document !== "undefined" && createPortal(
-        <>
-          <div className="fixed inset-0 z-[200]" onClick={() => setIsOpen(false)} />
-          <div
-            style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
-            className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar p-1"
-          >
+        <div
+          ref={panelRef}
+          style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
+          className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar p-1"
+        >
             {loading && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Cargando...</div>}
             {!loading && suggestions.length === 0 && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Sin sugerencias</div>}
             {!loading && suggestions.map(s => (
@@ -197,8 +233,7 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
                 <span className="text-[9px] text-slate-500 shrink-0">{s.count}</span>
               </button>
             ))}
-          </div>
-        </>,
+        </div>,
         document.body
       )}
     </div>
@@ -229,6 +264,15 @@ export default function AdvancedFiltersModal({
   onAddCondition, onRemoveCondition, onUpdateCondition, onApply,
   isDateColumn, fetchSuggestions,
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!mounted) return null;
 
   return createPortal(
@@ -251,6 +295,11 @@ export default function AdvancedFiltersModal({
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar flex flex-col gap-2.5">
+              {conditions.length > 2 && (
+                <p className="text-[10px] text-slate-400 -mt-1 mb-0.5">
+                  Las condiciones se evalúan en orden, de izquierda a derecha (sin precedencia de "Y" sobre "O").
+                </p>
+              )}
               {conditions.map((cond, idx) => {
                 const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
                 const isDateCol = cond.column && isDateColumn(cond.column);

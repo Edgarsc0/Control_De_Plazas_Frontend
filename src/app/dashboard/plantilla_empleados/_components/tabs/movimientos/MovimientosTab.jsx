@@ -1745,6 +1745,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             onScroll={setScrollTop}
             columns={columns}
             columnFilters={columnFilters}
+            setColumnFilters={setColumnFilters}
             textFilters={textFilters}
             setTextFilters={setTextFilters}
             activeConditionDropdown={activeConditionDropdown}

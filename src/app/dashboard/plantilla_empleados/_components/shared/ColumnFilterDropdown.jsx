@@ -269,7 +269,16 @@ export default function ColumnFilterDropdown({
                 <div className="mt-2 text-[9px] font-black uppercase text-slate-500 dark:text-slate-500 px-0.5">
                   {filterSearchText
                     ? `${dropdownValues.visibleVals.filter((v) => tempSelectedValues.includes(v)).length} de ${dropdownValues.visibleVals.length} visibles seleccionados`
-                    : `${tempSelectedValues.length} de ${dropdownValues.allVals.length} seleccionados`}
+                    : (() => {
+                        // BUG-F07: `tempSelectedValues` puede traer selecciones hechas
+                        // en "Todos los datos" (universo global); al cambiar a "Vista
+                        // actual" (universo reducido) hay que acotar el conteo al
+                        // universo activo (`dropdownValues.allVals`), si no salen
+                        // contadores imposibles como "17 de 1 seleccionados".
+                        const allValsSet = new Set(dropdownValues.allVals);
+                        const selectedInScope = tempSelectedValues.filter((v) => allValsSet.has(v)).length;
+                        return `${selectedInScope} de ${dropdownValues.allVals.length} seleccionados`;
+                      })()}
                 </div>
               )}
             </div>

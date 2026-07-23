@@ -537,6 +537,7 @@ export default function NivelesJerarquicosPlazaSubtab() {
           onScroll={setScrollTop}
           columns={columns}
           columnFilters={columnFilters}
+          setColumnFilters={setColumnFilters}
           textFilters={textFilters}
           setTextFilters={setTextFilters}
           activeConditionDropdown={activeConditionDropdown}

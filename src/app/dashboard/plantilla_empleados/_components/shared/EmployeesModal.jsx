@@ -1074,6 +1074,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                                 onScroll={setScrollTop}
                                 columns={columns}
                                 columnFilters={columnFilters}
+                                setColumnFilters={setColumnFilters}
                                 textFilters={textFilters}
                                 setTextFilters={setTextFilters}
                                 activeConditionDropdown={activeConditionDropdown}

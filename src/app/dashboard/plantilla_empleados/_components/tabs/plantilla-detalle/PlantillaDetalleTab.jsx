@@ -1929,6 +1929,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             onScroll={setScrollTop}
             columns={columns}
             columnFilters={columnFilters}
+            setColumnFilters={setColumnFilters}
             textFilters={textFilters}
             setTextFilters={setTextFilters}
             activeConditionDropdown={activeConditionDropdown}

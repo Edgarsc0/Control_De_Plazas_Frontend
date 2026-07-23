@@ -96,10 +96,22 @@ export const matchesAdvancedCondition = (row, cond, opts = {}) => {
   if (!cond.column) return true;
 
   const rowValue = getCellValue(row, cond.column);
-  const compareValue = cond.compareType === 'campo' ? getCellValue(row, cond.compareColumn) : cond.value;
 
-  if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
-  return matchesTextCondition(rowValue, cond.condition, compareValue);
+  // compareType==='campo': el "needle" es row[compareColumn], que puede venir
+  // vacío legítimamente (fecha de baja/salida sin capturar, nivel opcional,
+  // etc.). No reutilizamos el guard "sin valor de búsqueda → true" de
+  // matchesTextCondition/matchesDateCondition (pensado para compareType
+  // 'valor'): si la columna destino está vacía en esta fila, la condición
+  // debe evaluar como false, no como coincidencia automática.
+  if (cond.compareType === 'campo') {
+    const compareValue = getCellValue(row, cond.compareColumn);
+    if (compareValue === null || compareValue === undefined || String(compareValue).trim() === '') return false;
+    if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
+    return matchesTextCondition(rowValue, cond.condition, compareValue, { normalize: true });
+  }
+
+  if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, cond.value);
+  return matchesTextCondition(rowValue, cond.condition, cond.value, { normalize: true });
 };
 
 /**

@@ -40,6 +40,8 @@ export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = ()
       const next = { ...c, ...patch };
       if (patch.column !== undefined && patch.column !== c.column) {
         next.condition = isDateColumn(patch.column) ? 'before' : 'contains';
+        next.value = '';
+        next.compareColumn = null;
       }
       return next;
     }));
