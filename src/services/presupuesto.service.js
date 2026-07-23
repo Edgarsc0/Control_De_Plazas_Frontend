@@ -33,6 +33,20 @@ export const PresupuestoService = {
     },
 
     /**
+     * Crea una nueva plaza en el catálogo.
+     * @param {Object} data - Campos de la plaza a crear.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    createPlaza: (data, options = {}) => {
+        return apiFetch("/presupuesto/catalogo-plazas/", {
+            method: 'POST',
+            body: JSON.stringify(data),
+            ...options
+        });
+    },
+
+    /**
      * Obtiene las constantes del sistema.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.

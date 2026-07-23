@@ -71,6 +71,84 @@ const FormulaTooltip = ({ formula, children }) => {
     );
 };
 
+// ─── NIVEL DETALLE MODAL ────────────────────────────────────────────────────
+const NivelDetalleModal = ({ nivel, detalle, onClose }) => {
+    if (!nivel) return null;
+    const info = detalle || {};
+    const codigos = info.codigos || [];
+
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={onClose}
+        >
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-[#621f32] px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <p className="text-amber-300/80 text-[9px] font-black uppercase tracking-[0.2em]">Detalle de Ocupación</p>
+                        <h3 className="text-white font-black text-lg">Nivel {nivel}</h3>
+                    </div>
+                    <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">
+                        <XCircle className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="px-6 pt-4 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5 text-center">
+                        <div className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Total Plazas</div>
+                        <div className="text-lg font-black text-gray-700">{info.total_plazas ?? '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2.5 text-center">
+                        <div className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Ocupadas</div>
+                        <div className="text-lg font-black text-emerald-700">{info.ocupadas ?? '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5 text-center">
+                        <div className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Vacantes</div>
+                        <div className="text-lg font-black text-amber-700">{info.vacantes ?? '—'}</div>
+                    </div>
+                </div>
+
+                <p className="px-6 pt-4 pb-2 text-[8px] font-black text-gray-400 uppercase tracking-widest">
+                    Desglose por Código Presupuestal
+                </p>
+                <div className="px-6 pb-6 max-h-[320px] overflow-y-auto">
+                    <table className="w-full text-[11px]">
+                        <thead>
+                            <tr className="text-left text-[8px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                                <th className="py-1.5 pr-2">Código Presupuestal</th>
+                                <th className="py-1.5 px-2 text-center">Zona / Escala</th>
+                                <th className="py-1.5 px-2 text-right">Cantidad</th>
+                                <th className="py-1.5 pl-2 text-right">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {codigos.map((c, i) => (
+                                <tr key={i}>
+                                    <td className="py-2 pr-2 font-mono font-bold text-gray-700">{c.codigo_presupuestal}</td>
+                                    <td className="py-2 px-2 text-center text-gray-400 font-medium">{c.zona ?? c.escala ?? '—'}</td>
+                                    <td className="py-2 px-2 text-right font-black text-[#621f32]">{c.cantidad}</td>
+                                    <td className="py-2 pl-2 text-right">
+                                        {c.matched ? (
+                                            <span className="inline-flex items-center gap-1 text-emerald-600 font-black text-[9px]">
+                                                <CheckCircle2 className="w-3 h-3" /> Coincide
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 text-red-500 font-black text-[9px]">
+                                                <XCircle className="w-3 h-3" /> Sin match
+                                            </span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
 // ─── SECTION BADGE ────────────────────────────────────────────────────────────
 const StepBadge = ({ n, label, icon: Icon }) => (
     <div className="flex items-center gap-3">
@@ -96,6 +174,8 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     const [loadingPermanentes, setLoadingPermanentes] = useState(false);
     const [eventualesSinMatch, setEventualesSinMatch] = useState([]);
     const [permanentesSinMatch, setPermanentesSinMatch] = useState([]);
+    const [detalleNiveles, setDetalleNiveles] = useState({});
+    const [nivelDetalleAbierto, setNivelDetalleAbierto] = useState(null);
 
     // Document loading states for split pane layout
     const [expedienteData, setExpedienteData] = useState(null);
@@ -186,6 +266,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 setPermanentesData(null);
                 setPlazasInput(newInput);
                 setEventualesSinMatch(data.sin_match || []);
+                setDetalleNiveles(data.detalle_niveles || {});
             }
         } catch (e) { console.error(e); }
         finally { setLoadingEventuales(false); }
@@ -207,6 +288,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 setEventualesData(null);
                 setPlazasInput(newInput);
                 setPermanentesSinMatch(data.sin_match || []);
+                setDetalleNiveles(data.detalle_niveles || {});
             }
         } catch (e) { console.error(e); }
         finally { setLoadingPermanentes(false); }
@@ -217,6 +299,16 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         const t = searchTerm.toLowerCase();
         return catalogo.filter(i => i.nivel.toLowerCase().includes(t) || i.codigo.toLowerCase().includes(t) || i.denominacion.toLowerCase().includes(t));
     }, [catalogo, searchTerm]);
+
+    const sinMatchByNivel = useMemo(() => {
+        const activeSinMatch = eventualesData ? eventualesSinMatch : permanentesData ? permanentesSinMatch : [];
+        const map = {};
+        activeSinMatch.forEach(({ nivel, cantidad }) => {
+            const niv = (nivel || '').trim();
+            map[niv] = (map[niv] || 0) + cantidad;
+        });
+        return map;
+    }, [eventualesData, permanentesData, eventualesSinMatch, permanentesSinMatch]);
 
     const selectedPlazas = useMemo(() => {
         return Object.entries(plazasInput).filter(([, q]) => q > 0).map(([id, qty]) => {
@@ -378,6 +470,46 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                 }
             },
         });
+
+        // ── DETALLE DE OCUPACIÓN POR NIVEL — CÓDIGO PRESUPUESTAL ──
+        const nivelesUsados = [...new Set(selectedPlazas.map(p => p.nivel))].filter(n => detalleNiveles[n]);
+        if (modoLabel && nivelesUsados.length > 0) {
+            let cursorY = (doc.lastAutoTable.finalY || 150) + 15;
+            doc.setTextColor(98, 31, 50);
+            doc.setFontSize(12);
+            doc.text('DETALLE DE OCUPACIÓN POR NIVEL — CÓDIGO PRESUPUESTAL', 15, cursorY);
+            cursorY += 5;
+
+            nivelesUsados.forEach((niv) => {
+                const info = detalleNiveles[niv];
+                if (cursorY > 250) { doc.addPage(); cursorY = 20; }
+                autoTable(doc, {
+                    startY: cursorY,
+                    head: [[`NIVEL ${niv}`, 'ZONA/ESCALA', 'CANTIDAD', 'ESTADO']],
+                    body: info.codigos.map(c => [
+                        c.codigo_presupuestal,
+                        String(c.zona ?? c.escala ?? ''),
+                        String(c.cantidad),
+                        c.matched ? 'Coincide' : 'Sin match',
+                    ]),
+                    foot: [[{
+                        content: `Total: ${info.total_plazas}   ·   Ocupadas: ${info.ocupadas}   ·   Vacantes: ${info.vacantes}`,
+                        colSpan: 4,
+                        styles: { halign: 'left', fontStyle: 'bold' },
+                    }]],
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { fillColor: [98, 31, 50], textColor: [255, 255, 255] },
+                    footStyles: { fillColor: [245, 245, 245], textColor: [98, 31, 50] },
+                    alternateRowStyles: { fillColor: [250, 250, 250] },
+                    didParseCell: (data) => {
+                        if (data.section === 'body' && data.column.index === 3) {
+                            data.cell.styles.textColor = data.row.raw[3] === 'Coincide' ? [16, 150, 90] : [220, 38, 38];
+                        }
+                    },
+                });
+                cursorY = doc.lastAutoTable.finalY + 8;
+            });
+        }
 
         doc.save(`Valuacion_Presupuestaria_${new Date().getTime()}.pdf`);
     };
@@ -551,6 +683,11 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     const renderSimulatorContent = () => {
         return (
         <div className="space-y-7 animate-in fade-in duration-400">
+            <NivelDetalleModal
+                nivel={nivelDetalleAbierto}
+                detalle={detalleNiveles[nivelDetalleAbierto]}
+                onClose={() => setNivelDetalleAbierto(null)}
+            />
             {/* ── HERO HEADER ─────────────────────────────────────── */}
             <div className="relative overflow-hidden rounded-2xl shadow-lg border border-[#621f32]/10"
                 style={{ background: 'linear-gradient(135deg, #621f32 0%, #4e1828 60%, #3a1120 100%)' }}>
@@ -642,10 +779,24 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                 </button>
                             </div>
                         </div>
-                        {(eventualesSinMatch.length > 0 || permanentesSinMatch.length > 0) && (
-                            <div className="mt-3 flex items-center gap-1.5 text-[9px] font-bold text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5">
-                                <Info className="w-3 h-3 shrink-0" />
-                                {(eventualesData ? eventualesSinMatch.length : permanentesSinMatch.length)} nivel(es) de nómina sin correspondencia en catálogo — no incluidos en la carga.
+                        {Object.keys(sinMatchByNivel).length > 0 && (
+                            <div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5">
+                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-red-500 mb-2">
+                                    <Info className="w-3 h-3 shrink-0" />
+                                    {Object.keys(sinMatchByNivel).length} nivel(es) de nómina sin correspondencia en catálogo — no incluidos en la carga. Clic para ver detalle.
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {Object.entries(sinMatchByNivel).map(([niv, cant]) => (
+                                        <button
+                                            key={niv}
+                                            type="button"
+                                            onClick={() => setNivelDetalleAbierto(niv)}
+                                            className="text-[8px] font-black px-2 py-1 rounded-md bg-white text-red-500 border border-red-200 hover:bg-red-100 transition-colors"
+                                        >
+                                            {niv} · {cant} sin match
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
                         <div className="mt-4 relative">
@@ -678,14 +829,22 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                                 <span className="font-black text-[#621f32] text-xs">{item.nivel}</span>
                                                 <span className="text-amber-500 font-bold text-[10px]">({item.codigo})</span>
                                                 {eventualesData?.[item.id] != null && (
-                                                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNivelDetalleAbierto(item.nivel)}
+                                                        className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15 hover:bg-[#621f32]/15 transition-colors"
+                                                    >
                                                         {eventualesData[item.id]} ocp.
-                                                    </span>
+                                                    </button>
                                                 )}
                                                 {permanentesData?.[item.id] != null && (
-                                                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#1a4a7a]/8 text-[#1a4a7a] border border-[#1a4a7a]/15">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNivelDetalleAbierto(item.nivel)}
+                                                        className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-[#1a4a7a]/8 text-[#1a4a7a] border border-[#1a4a7a]/15 hover:bg-[#1a4a7a]/15 transition-colors"
+                                                    >
                                                         {permanentesData[item.id]} ocp.
-                                                    </span>
+                                                    </button>
                                                 )}
                                             </div>
                                             <div className="text-[9px] text-gray-400 font-medium uppercase truncate max-w-[160px] mt-0.5">{item.denominacion}</div>
