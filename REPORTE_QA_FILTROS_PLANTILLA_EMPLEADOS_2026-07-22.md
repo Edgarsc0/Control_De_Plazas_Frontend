@@ -3,6 +3,7 @@
 **Fecha:** 2026-07-22
 **Entorno probado:** `http://89.116.51.124:3030/dashboard/plantilla_empleados` (build productivo)
 **Componentes bajo prueba:**
+
 - `_components/shared/AdvancedFiltersModal.jsx` (modal "Filtros Avanzados": condiciones combinables AND/OR, `compareType` valor vs. campo, condiciones de texto y de fecha)
 - `_components/shared/ColumnFilterDropdown.jsx` (filtro estilo Excel por columna: checkbox-list, buscador con condición, árbol de fechas año→mes→día)
 - Lógica pura: `src/utils/advancedFilters.js`, `src/utils/columnFilters.js`
@@ -18,12 +19,12 @@
 
 ## 1. Resumen ejecutivo
 
-| Categoría | Cantidad |
-|---|---|
-| Bugs funcionales — ALTA/CRÍTICA prioridad | 5 |
-| Bugs funcionales — MEDIA prioridad | 5 |
-| Bugs — BAJA prioridad / UX menor | 3 |
-| Verificado correcto (sin bug) | ver §5 |
+| Categoría                                 | Cantidad |
+| ----------------------------------------- | -------- |
+| Bugs funcionales — ALTA/CRÍTICA prioridad | 5        |
+| Bugs funcionales — MEDIA prioridad        | 5        |
+| Bugs — BAJA prioridad / UX menor          | 3        |
+| Verificado correcto (sin bug)             | ver §5   |
 
 Lo más urgente: **comparación `campo` vs `campo` con destino vacío devuelve falso positivo** (bug transversal a los 4 tabs), **acentos ignorados en Filtros Avanzados pero no en el filtro de columna** (mismo dato, dos resultados distintos según qué buscador use el usuario), y **dos columnas de fecha con hora embebida (`fh_ult_actz`, `fecha_ult_actz`) rompen las condiciones "igual/no igual/antes-o-igual/después"** en el backend.
 
@@ -115,11 +116,11 @@ Lo más urgente: **comparación `campo` vs `campo` con destino vacío devuelve f
 
 ## 4. Bugs — BAJA prioridad / UX menor
 
-| # | Hallazgo | Dónde |
-|---|---|---|
-| B-01 | `AdvancedFiltersModal` no cierra con `Escape` (sí lo hace `ColumnFilterDropdown`). Visto en Mov. Posiciones y Bajas. | `AdvancedFiltersModal.jsx` (sin handler de teclado) vs `ColumnFilterDropdown.jsx:142-148` |
-| B-02 | Consola con reconexiones repetidas "SSE desconectado, reintentando en 5s" en varios tabs. No relacionado a los componentes de filtro, fuera de alcance de esta sesión. | infraestructura / SSE |
-| B-03 | 404 recurrentes en `/gobierno`, `/tramites` (prefetch de nav superior). No relacionado a filtros. | navegación global |
+| #    | Hallazgo                                                                                                                                                               | Dónde                                                                                     |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| B-01 | `AdvancedFiltersModal` no cierra con `Escape` (sí lo hace `ColumnFilterDropdown`). Visto en Mov. Posiciones y Bajas.                                                   | `AdvancedFiltersModal.jsx` (sin handler de teclado) vs `ColumnFilterDropdown.jsx:142-148` |
+| B-02 | Consola con reconexiones repetidas "SSE desconectado, reintentando en 5s" en varios tabs. No relacionado a los componentes de filtro, fuera de alcance de esta sesión. | infraestructura / SSE                                                                     |
+| B-03 | 404 recurrentes en `/gobierno`, `/tramites` (prefetch de nav superior). No relacionado a filtros.                                                                      | navegación global                                                                         |
 
 ---
 

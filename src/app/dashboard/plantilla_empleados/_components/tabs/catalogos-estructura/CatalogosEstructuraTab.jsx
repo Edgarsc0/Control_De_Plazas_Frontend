@@ -202,22 +202,25 @@ function GenericCatalogSubtab({ activeCatalog }) {
     document.addEventListener("mouseup", onUp);
   };
 
-  // Valores alcanzables de una columna dado el resto de filtros (todos EXCEPTO
-  // el propio de esa columna).
+  // Valores (con conteo) alcanzables de una columna dado el resto de filtros
+  // (todos EXCEPTO el propio de esa columna). El conteo se reutiliza en
+  // `filterDropdownValues` para que el badge del dropdown sea dinámico
+  // (antes mostraba el conteo del dataset completo, ignorando el resto de
+  // filtros activos).
   const computeReachableValues = useCallback((colKey) => {
     const { [colKey]: _omitCF, ...otherColumnFilters } = columnFilters;
     const { [colKey]: _omitTF, ...otherTextFilters } = textFilters;
     const reachableData = applyColumnFilters(data, {
       globalSearch, columnFilters: otherColumnFilters, textFilters: otherTextFilters, getCellValue, isMonoColumn,
     });
-    return getUniqueColumnValues(reachableData, colKey, getCellValue).map((v) => v.value);
+    return getUniqueColumnValues(reachableData, colKey, getCellValue);
   }, [data, globalSearch, columnFilters, textFilters, getCellValue, isMonoColumn]);
 
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
     setFilterSearchText("");
-    setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey));
+    setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey).map((v) => v.value));
   };
 
   const applyColumnFilter = (colKey) => {
@@ -240,16 +243,20 @@ function GenericCatalogSubtab({ activeCatalog }) {
     return getUniqueColumnValues(data, activeFilterDropdown, getCellValue);
   }, [activeFilterDropdown, data, getCellValue]);
 
-  const reachableValues = useMemo(
+  const reachableList = useMemo(
     () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
     [activeFilterDropdown, computeReachableValues]
   );
+  const reachableValues = useMemo(() => reachableList.map((v) => v.value), [reachableList]);
+  const reachableCounts = useMemo(() => Object.fromEntries(reachableList.map((v) => [v.value, v.count])), [reachableList]);
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) {
       return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
     }
-    const baseUniqueValues = dropdownUniqueValues;
+    // Conteo dinámico: `dropdownUniqueValues` es sobre el dataset completo sin
+    // considerar el resto de filtros; se sobreescribe con `reachableCounts`.
+    const baseUniqueValues = dropdownUniqueValues.map((v) => ({ ...v, count: reachableCounts[v.value] ?? 0 }));
     const filteredVals = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
     return finalizeFilterDropdownValues({
       baseUniqueValues,
@@ -258,7 +265,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
       reachableValues,
     });
-  }, [activeFilterDropdown, dropdownUniqueValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
+  }, [activeFilterDropdown, dropdownUniqueValues, reachableValues, reachableCounts, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   const hasActiveFilters = !!globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some((f) => f?.value);
   const resetAllFilters = () => {

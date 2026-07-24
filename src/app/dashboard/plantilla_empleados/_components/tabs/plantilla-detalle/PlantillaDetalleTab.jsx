@@ -818,6 +818,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     [detalle]
   );
 
+  // BUG: si el filtro de Estado Nómina activo incluye "Vacante", intersectar ese
+  // filtro contra `detalleParaFiltros` (que las excluye estructuralmente, ver
+  // arriba) siempre da 0 filas — todo el resto de columnas queda sin ningún
+  // valor alcanzable (checkboxes deshabilitados, imposible filtrar por ellas)
+  // mientras "Vacante" siga marcado. Cuando aplica, se usa `detalle` (con
+  // vacantes) como universo para el resto de columnas en su lugar.
+  const estadoNominaIncluyeVacante = (columnFilters.estado_nomina || []).includes("Vacante");
+  const datosParaColumnaActiva = estadoNominaIncluyeVacante ? detalle : detalleParaFiltros;
+
   // OPTIMIZACIÓN CRÍTICA: Los cálculos pesados dependen solo de los datos y de la columna activa
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
@@ -828,7 +837,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     targetKeys.forEach(key => {
       const years = {};
-      detalleParaFiltros.forEach(row => {
+      datosParaColumnaActiva.forEach(row => {
         const val = row[key];
         const parts = parseDateParts(val);
         if (!parts) return;
@@ -842,7 +851,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       hierarchies[key] = years;
     });
     return hierarchies;
-  }, [detalleParaFiltros, activeFilterDropdown, parseDateParts]);
+  }, [datosParaColumnaActiva, activeFilterDropdown, parseDateParts]);
 
   const uniqueColumnValues = useMemo(() => {
     const valuesMap = {};
@@ -858,7 +867,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       // pero aplicado a esta columna se excluye a sí misma la opción "Vacante"
       // (mapeo del espacio " ") antes de contarla, dejándola sin aparecer nunca
       // en su propio dropdown.
-      const sourceRows = key === "estado_nomina" ? detalle : detalleParaFiltros;
+      const sourceRows = key === "estado_nomina" ? detalle : datosParaColumnaActiva;
       sourceRows.forEach(row => {
         let val = key === "estado_nomina" ? mapEstadoNomina(row[key]) : String(row[key] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
@@ -868,7 +877,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
     });
     return valuesMap;
-  }, [detalle, detalleParaFiltros, activeFilterDropdown]);
+  }, [detalle, datosParaColumnaActiva, activeFilterDropdown]);
 
   const toggleDateNode = (path) => {
     setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }));
@@ -880,7 +889,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     let targetRawValues = [];
     if (type === 'year') {
-      targetRawValues = detalleParaFiltros
+      targetRawValues = datosParaColumnaActiva
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === value;
@@ -888,7 +897,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     } else if (type === 'month') {
       const year = parentPath;
-      targetRawValues = detalleParaFiltros
+      targetRawValues = datosParaColumnaActiva
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === year && p.month === value;
@@ -896,7 +905,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     } else if (type === 'day') {
       const [year, month] = parentPath.split('-');
-      targetRawValues = detalleParaFiltros
+      targetRawValues = datosParaColumnaActiva
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === year && p.month === month && p.day === value;
@@ -925,7 +934,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       setFilterSearchText("");
       // Inline (no vía el memo `reachableValues`, que es lazy y aún no se ha
       // recomputado para la columna recién activada).
-      setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey));
+      setTempSelectedValues(columnFilters[colKey] || Object.keys(computeReachableCounts(colKey)));
     }
   };
 
@@ -1131,21 +1140,27 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // de que `reachableValues` (memo, atado a `activeFilterDropdown`) se
   // recompute.
   //
-  // BUG QA 2026-07-23: debe iterar sobre `detalleParaFiltros` (excluye
-  // vacantes), el MISMO dataset que arma `uniqueColumnValues` (la lista que
-  // ve el usuario). Iterar antes sobre `detalle` (incluye vacantes) hacía que
-  // `reachableValues` incluyera valores de columna que sólo existían en
-  // posiciones vacantes — invisibles en la lista del dropdown. Al usar
-  // "Seleccionar Todo"/"Desmarcar Todo" (que sólo togglean lo VISIBLE), esos
-  // valores fantasma quedaban seleccionados sin que el usuario pudiera verlos
-  // ni desmarcarlos, y se colaban en el filtro aplicado (ej. columna "Nivel":
-  // marcar 2 valores visibles terminaba aplicando 4).
-  const computeReachableValues = useCallback((colKey) => {
+  // BUG QA 2026-07-23: debe iterar sobre el MISMO dataset que arma
+  // `uniqueColumnValues` (la lista que ve el usuario) — `datosParaColumnaActiva`
+  // (que excluye vacantes salvo que el filtro de Estado Nómina ya incluya
+  // "Vacante", ver definición arriba). Iterar antes sobre `detalle` (incluye
+  // vacantes) siempre hacía que `reachableValues` incluyera valores de columna
+  // que sólo existían en posiciones vacantes — invisibles en la lista del
+  // dropdown. Al usar "Seleccionar Todo"/"Desmarcar Todo" (que sólo togglean lo
+  // VISIBLE), esos valores fantasma quedaban seleccionados sin que el usuario
+  // pudiera verlos ni desmarcarlos, y se colaban en el filtro aplicado (ej.
+  // columna "Nivel": marcar 2 valores visibles terminaba aplicando 4).
+  // Devuelve conteos por valor (no sólo un set de alcanzables): el mismo bucle
+  // que antes sólo marcaba `counts[val] = true` ahora tambien sirve para
+  // mostrar en el dropdown cuántas filas de ESTA columna matchean dado el
+  // resto de filtros activos (contador dinámico, ver REPORTE_QA... "contador
+  // de vacantes no baja al filtrar por unidad administrativa").
+  const computeReachableCounts = useCallback((colKey) => {
     const counts = {};
     // Mismo motivo que en `uniqueColumnValues`: para "estado_nomina" hay que
     // iterar `detalle` (incluye vacantes), si no "Vacante" nunca es alcanzable
     // ni seleccionable en su propio dropdown.
-    const sourceRows = colKey === "estado_nomina" ? detalle : detalleParaFiltros;
+    const sourceRows = colKey === "estado_nomina" ? detalle : datosParaColumnaActiva;
     sourceRows.forEach(row => {
       if (deferredGlobalSearch) {
         const searchText = normalizeForSearch(deferredGlobalSearch);
@@ -1179,20 +1194,28 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       }
       if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return;
       const val = colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim();
-      counts[val] = true;
+      counts[val] = (counts[val] || 0) + 1;
     });
-    return Object.keys(counts);
-  }, [detalle, detalleParaFiltros, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
+    return counts;
+  }, [detalle, datosParaColumnaActiva, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
 
-  const reachableValues = useMemo(
-    () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
-    [activeFilterDropdown, computeReachableValues]
+  const reachableCounts = useMemo(
+    () => (activeFilterDropdown ? computeReachableCounts(activeFilterDropdown) : {}),
+    [activeFilterDropdown, computeReachableCounts]
   );
+  const reachableValues = useMemo(() => Object.keys(reachableCounts), [reachableCounts]);
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
-    const baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+    // Conteo dinámico: el `count` de `uniqueColumnValues` es sobre el dataset
+    // completo (sin considerar el resto de filtros activos); se sobreescribe
+    // aquí con `reachableCounts`, que sí los considera (0 si ya no es
+    // alcanzable dado el resto de filtros).
+    const baseUniqueValues = (uniqueColumnValues[activeFilterDropdown] || []).map(v => ({
+      ...v,
+      count: reachableCounts[v.value] ?? 0,
+    }));
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
     return finalizeFilterDropdownValues({
@@ -2478,7 +2501,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         columnKey={activeFilterDropdown}
         columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
         isDate={isDateColumn(activeFilterDropdown)}
-        data={detalleParaFiltros}
+        data={datosParaColumnaActiva}
         filters={filters}
         dropdownValues={filterDropdownValues}
         dateHierarchy={dateHierarchies[activeFilterDropdown]}

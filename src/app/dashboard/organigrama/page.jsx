@@ -39,6 +39,7 @@ import { CatalogoEstructuraService } from "@/services/catalogo_estructura.servic
 import RequirePermission from "@/components/auth/RequirePermission";
 import { PERMISSIONS } from "@/config/permissions";
 import { useAuth } from "@/hooks/useAuth";
+import { normalizeForSearch } from "@/utils/columnFilters";
 
 // ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
 // Nivel → posición de segmento (G,C,A,S,D). "Titular" se trata como raíz (mismo rango que General).
@@ -910,7 +911,7 @@ function OrganigramaContent() {
       setSearchResults([]);
       return;
     }
-    const q = searchQuery.toLowerCase();
+    const q = normalizeForSearch(searchQuery);
 
     // Fast in-memory search over the global catalog, acotado a la vista
     // activa — debe sugerir solo nodos que existan en el árbol que se ve,
@@ -918,14 +919,18 @@ function OrganigramaContent() {
     // filtros de organigrama_tree.build_tree):
     //   - SIG: solo isSIGInfo=1.
     //   - Institucional: sin filtro extra (incluye todo, igual que el árbol).
+    // normalizeForSearch quita acentos/mayúsculas de ambos lados — si no,
+    // buscar "Victor" no encontraba a "Víctor" (mismo bug ya visto en otros
+    // buscadores del repo, ver normalizeForSearch en columnFilters.js).
     const results = globalCatalog
       .filter(n => {
         if (vistaModo === "sig") return n.isSIGInfo;
         return true;
       })
       .filter(n =>
-        n.departamento.toLowerCase().includes(q) ||
-        (n.descripcion_larga && n.descripcion_larga.toLowerCase().includes(q))
+        normalizeForSearch(n.departamento).includes(q) ||
+        normalizeForSearch(n.descripcion_larga).includes(q) ||
+        normalizeForSearch(n.ocupante_nombre).includes(q)
       ).slice(0, 8);
 
     setSearchResults(results);
@@ -2050,7 +2055,7 @@ function OrganigramaContent() {
             <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Nombre o código..."
+              placeholder="Nombre, código u ocupante..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => {
@@ -2091,6 +2096,9 @@ function OrganigramaContent() {
                 >
                   <div className="min-w-0 pr-2" title={r.descripcion_larga}>
                     <div className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{r.descripcion_larga}</div>
+                    {r.ocupante_nombre && (
+                      <div className="text-[9px] text-slate-500 dark:text-slate-400 truncate">{r.ocupante_nombre}</div>
+                    )}
                     <div className="text-[9px] text-slate-400 mt-0.5 font-mono">#{r.departamento} · {r.nivel_direccion}</div>
                   </div>
                   <ArrowRight className="w-3 h-3 text-rose-800 shrink-0" />

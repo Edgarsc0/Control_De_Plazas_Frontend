@@ -579,19 +579,29 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   // Valores alcanzables de la columna activa del dropdown dado el resto de
   // filtros (todos EXCEPTO el propio de esa columna). Determina qué se puede
   // marcar/desmarcar en `ColumnFilterDropdown`.
-  const reachableValues = useMemo(() => {
-    if (!activeFilterDropdown) return [];
-    return [...new Set(
-      bajasData
-        .filter(row => rowPassesFilters(row, { excludeColKey: activeFilterDropdown }))
-        .map(row => String(row[activeFilterDropdown] || "").trim())
-    )];
+  // Conteo por valor dado el resto de filtros activos (todos EXCEPTO el
+  // propio de `activeFilterDropdown`) — el badge del dropdown antes mostraba
+  // el conteo de `uniqueColumnValues` (dataset completo, ignora el resto de
+  // filtros); ver `reachableCounts` abajo.
+  const reachableCounts = useMemo(() => {
+    if (!activeFilterDropdown) return {};
+    const counts = {};
+    bajasData.forEach(row => {
+      if (!rowPassesFilters(row, { excludeColKey: activeFilterDropdown })) return;
+      const val = String(row[activeFilterDropdown] || "").trim();
+      counts[val] = (counts[val] || 0) + 1;
+    });
+    return counts;
   }, [activeFilterDropdown, bajasData, rowPassesFilters]);
+  const reachableValues = useMemo(() => Object.keys(reachableCounts), [reachableCounts]);
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
-    const baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
+    const baseUniqueValues = (uniqueColumnValues[activeFilterDropdown] || []).map(v => ({
+      ...v,
+      count: reachableCounts[v.value] ?? 0,
+    }));
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
     return finalizeFilterDropdownValues({
@@ -601,7 +611,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
       reachableValues,
     });
-  }, [activeFilterDropdown, uniqueColumnValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
+  }, [activeFilterDropdown, uniqueColumnValues, reachableValues, reachableCounts, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   useEffect(() => {
     let active = true;
