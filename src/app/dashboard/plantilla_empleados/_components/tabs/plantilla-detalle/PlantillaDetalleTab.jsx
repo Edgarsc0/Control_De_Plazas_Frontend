@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from "react";
+import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
 import { 
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
@@ -29,7 +29,7 @@ import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, applyColumnFilters, defaultGetCellValue } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -104,6 +104,11 @@ const ALL_DETAIL_KEYS = [
 ];
 
 const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso"];
+
+// CpTblMovCompleto290526 no trae un campo de nombre completo combinado (igual
+// que en MovimientosPersonalTab): se arma a partir de nombre + ap_pat + ap_mat.
+const buildMovHoyFullName = (row) => [row.nombre, row.ap_pat, row.ap_mat].filter(Boolean).join(" ").trim();
+const MOV_HOY_DATE_KEYS = ["fecha_efectiva", "fecha_captura"];
 
 /**
  * 8.5 QA — Cadena de mando descendente: nodo recursivo del árbol de
@@ -319,8 +324,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [selectedAccionHoy, setSelectedAccionHoy] = useState(null);
   const [motivoHoyStats, setMotivoHoyStats] = useState([]);
   const [motivoHoyStatsLoading, setMotivoHoyStatsLoading] = useState(false);
-  const [hoveredAccionHoySlice, setHoveredAccionHoySlice] = useState(null);
-  const [hoveredMotivoHoySlice, setHoveredMotivoHoySlice] = useState(null);
+
+  // Al elegir un motivo dentro de una acción, se muestra el listado de
+  // movimientos reales que componen ese cruce (acción + motivo + hoy) en una
+  // DataTable — el detalle "de última milla" tras el resumen por acción/motivo.
+  const [selectedMotivoHoy, setSelectedMotivoHoy] = useState(null);
+  const [movimientosHoyDetalle, setMovimientosHoyDetalle] = useState([]);
+  const [movimientosHoyDetalleLoading, setMovimientosHoyDetalleLoading] = useState(false);
 
   useEffect(() => {
     if (!isMovimientosHoyModalOpen) return;
@@ -341,6 +351,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   }, [isMovimientosHoyModalOpen, fechaHoy]);
 
   useEffect(() => {
+    setSelectedMotivoHoy(null);
     if (!selectedAccionHoy) {
       setMotivoHoyStats([]);
       return;
@@ -359,6 +370,33 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       active = false;
     };
   }, [selectedAccionHoy, fechaHoy]);
+
+  useEffect(() => {
+    if (!selectedAccionHoy || !selectedMotivoHoy) {
+      setMovimientosHoyDetalle([]);
+      return;
+    }
+    let active = true;
+    setMovimientosHoyDetalleLoading(true);
+    VacantesService.getMovimientosPersonal({
+      fecha_captura: fechaHoy,
+      accion_nombre: selectedAccionHoy,
+      motivo_nombre: selectedMotivoHoy,
+      no_pagination: "true",
+      sort_by: "fecha_efectiva,fecha_captura",
+      sort_order: "desc",
+    })
+      .then(async (response) => {
+        if (!response.ok || !active) return;
+        const data = await response.json();
+        setMovimientosHoyDetalle(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => console.error("Error fetching detalle de movimientos de hoy:", err))
+      .finally(() => { if (active) setMovimientosHoyDetalleLoading(false); });
+    return () => {
+      active = false;
+    };
+  }, [selectedAccionHoy, selectedMotivoHoy, fechaHoy]);
 
   const HOY_PIE_COLORS = [
     "#621f32", "#bc955c", "#8d2c48", "#d4a96a", "#4a1625",
@@ -408,6 +446,207 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const accionHoyPie = useMemo(() => buildHoyPieSlices(accionHoyStats, "accion_nombre"), [accionHoyStats, buildHoyPieSlices]);
   const motivoHoyPie = useMemo(() => buildHoyPieSlices(motivoHoyStats, "motivo_nombre"), [motivoHoyStats, buildHoyPieSlices]);
+
+  // DataTable del detalle acción+motivo (tabla dentro del modal "Movimientos
+  // realizados hoy"): estado propio y desacoplado del de la tabla principal
+  // — mismo patrón que el modo local de EmployeesModal, pero acotado a las 7
+  // columnas pedidas y sin selector de columnas (siempre las mismas).
+  const MOV_HOY_MONO_KEYS = useMemo(() => new Set(["posicion", "num_empleado"]), []);
+  const isMonoColumnMovHoy = useCallback((key) => MOV_HOY_MONO_KEYS.has(key), [MOV_HOY_MONO_KEYS]);
+  const getColumnLetterMovHoy = useCallback((index) => {
+    let temp = index, letter = "";
+    while (temp >= 0) { letter = String.fromCharCode((temp % 26) + 65) + letter; temp = Math.floor(temp / 26) - 1; }
+    return letter;
+  }, []);
+
+  const {
+    selectedCell: movHoySelectedCell, setSelectedCell: setMovHoySelectedCell,
+    contextMenu: movHoyContextMenu, setContextMenu: setMovHoyContextMenu,
+  } = useCellSelection();
+  const movHoyFiltersHook = useColumnFilters();
+  const {
+    columnFilters: movHoyColumnFilters, setColumnFilters: setMovHoyColumnFilters,
+    textFilters: movHoyTextFilters, setTextFilters: setMovHoyTextFilters,
+    activeFilterDropdown: movHoyActiveFilterDropdown, setActiveFilterDropdown: setMovHoyActiveFilterDropdown,
+    activeConditionDropdown: movHoyActiveConditionDropdown, setActiveConditionDropdown: setMovHoyActiveConditionDropdown,
+    setTempSelectedValues: setMovHoyTempSelectedValues, tempSelectedValues: movHoyTempSelectedValues,
+    setFilterSearchText: setMovHoyFilterSearchText, filterSearchCondition: movHoyFilterSearchCondition,
+    debouncedFilterSearchText: movHoyDebouncedFilterSearchText,
+  } = movHoyFiltersHook;
+  const [movHoySortConfig, setMovHoySortConfig] = useState({ key: null, direction: "asc" });
+  const [movHoyColumnWidths, setMovHoyColumnWidths] = useState({
+    posicion: 100, num_empleado: 110, nombre: 220, accion_nombre: 170, motivo_nombre: 170, fecha_efectiva: 130, fecha_captura: 130,
+  });
+  const [movHoySelectedRecord, setMovHoySelectedRecord] = useState(null);
+  const movHoyTableContainerRef = useRef(null);
+
+  // Reset de selección/scroll al cambiar de motivo — mismo dataset previo
+  // podría dejar una celda/scroll apuntando fuera de rango del nuevo listado.
+  useEffect(() => {
+    setMovHoySelectedCell(null);
+    setMovHoyColumnFilters({});
+    setMovHoyTextFilters({});
+    setMovHoySortConfig({ key: null, direction: "asc" });
+    if (movHoyTableContainerRef.current) movHoyTableContainerRef.current.scrollTop = 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMotivoHoy]);
+
+  const MOV_HOY_COLUMNS_BASE = useMemo(() => ([
+    { key: "posicion", label: "Posición" },
+    { key: "num_empleado", label: "No. Empleado" },
+    { key: "nombre", label: "Nombre" },
+    { key: "accion_nombre", label: "Acción" },
+    { key: "motivo_nombre", label: "Motivo" },
+    { key: "fecha_efectiva", label: "Fecha Efectiva" },
+    { key: "fecha_captura", label: "Fecha Captura" },
+  ]), []);
+  const movHoyColumns = useMemo(() => MOV_HOY_COLUMNS_BASE.map(col => ({
+    key: col.key,
+    label: col.label,
+    width: movHoyColumnWidths[col.key] || 150,
+    visible: true,
+  })), [MOV_HOY_COLUMNS_BASE, movHoyColumnWidths]);
+
+  const getMovHoyCellValue = useCallback((row, key) => key === "nombre" ? buildMovHoyFullName(row) : defaultGetCellValue(row, key), []);
+
+  const movHoyProcessedRows = useMemo(() => {
+    const result = applyColumnFilters(movimientosHoyDetalle, {
+      columnFilters: movHoyColumnFilters, textFilters: movHoyTextFilters, getCellValue: getMovHoyCellValue, isMonoColumn: isMonoColumnMovHoy,
+    });
+    if (!movHoySortConfig.key) return result;
+    const { key, direction } = movHoySortConfig;
+    return [...result].sort((a, b) => {
+      const valA = getMovHoyCellValue(a, key);
+      const valB = getMovHoyCellValue(b, key);
+      if (valA === valB) return 0;
+      if (valA === "" || valA === null || valA === undefined) return 1;
+      if (valB === "" || valB === null || valB === undefined) return -1;
+      const strA = String(valA).toLowerCase();
+      const strB = String(valB).toLowerCase();
+      if (strA < strB) return direction === "asc" ? -1 : 1;
+      if (strA > strB) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [movimientosHoyDetalle, movHoyColumnFilters, movHoyTextFilters, movHoySortConfig, getMovHoyCellValue, isMonoColumnMovHoy]);
+
+  // Alto de la tabla proporcional a su contenido (header + filas reales, sin
+  // virtualización acá) — mismo patrón que el modo local de EmployeesModal:
+  // se mide el <table> real (su alto es intrínseco al contenido, no se estira
+  // con flexbox) y se topa al máximo que el bloque ya tenía fijo antes.
+  const MOV_HOY_TABLE_MAX_HEIGHT = 380;
+  const [movHoyTableHeight, setMovHoyTableHeight] = useState(MOV_HOY_TABLE_MAX_HEIGHT);
+  useLayoutEffect(() => {
+    const el = movHoyTableContainerRef.current;
+    if (!el) return;
+    const table = el.querySelector("table");
+    if (!table) return;
+    setMovHoyTableHeight(Math.min(table.getBoundingClientRect().height + 2, MOV_HOY_TABLE_MAX_HEIGHT));
+  }, [movHoyProcessedRows, movimientosHoyDetalleLoading]);
+
+  const movHoyComputeReachableValues = useCallback((colKey) => {
+    const { [colKey]: _omitCF, ...otherColumnFilters } = movHoyColumnFilters;
+    const { [colKey]: _omitTF, ...otherTextFilters } = movHoyTextFilters;
+    const reachableData = applyColumnFilters(movimientosHoyDetalle, {
+      columnFilters: otherColumnFilters, textFilters: otherTextFilters, getCellValue: getMovHoyCellValue, isMonoColumn: isMonoColumnMovHoy,
+    });
+    return getUniqueColumnValues(reachableData, colKey, getMovHoyCellValue).map((v) => v.value);
+  }, [movimientosHoyDetalle, movHoyColumnFilters, movHoyTextFilters, getMovHoyCellValue, isMonoColumnMovHoy]);
+
+  const openMovHoyFilterDropdown = useCallback((colKey) => {
+    if (movHoyActiveFilterDropdown === colKey) { setMovHoyActiveFilterDropdown(null); return; }
+    setMovHoyActiveFilterDropdown(colKey);
+    setMovHoyFilterSearchText("");
+    setMovHoyTempSelectedValues(movHoyColumnFilters[colKey] || movHoyComputeReachableValues(colKey));
+  }, [movHoyActiveFilterDropdown, movHoyColumnFilters, movHoyComputeReachableValues, setMovHoyActiveFilterDropdown, setMovHoyFilterSearchText, setMovHoyTempSelectedValues]);
+
+  const movHoyReachableValues = useMemo(
+    () => (movHoyActiveFilterDropdown ? movHoyComputeReachableValues(movHoyActiveFilterDropdown) : []),
+    [movHoyActiveFilterDropdown, movHoyComputeReachableValues]
+  );
+
+  const applyMovHoyColumnFilter = useCallback((colKey) => {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(movHoyTempSelectedValues, movHoyReachableValues);
+    if (shouldClear) {
+      setMovHoyColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+    } else {
+      setMovHoyColumnFilters((prev) => ({ ...prev, [colKey]: valuesToCommit }));
+    }
+    setMovHoyActiveFilterDropdown(null);
+  }, [movHoyTempSelectedValues, movHoyReachableValues, setMovHoyColumnFilters, setMovHoyActiveFilterDropdown]);
+
+  const clearMovHoyColumnFilter = useCallback((colKey) => {
+    setMovHoyColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
+    setMovHoyActiveFilterDropdown(null);
+  }, [setMovHoyColumnFilters, setMovHoyActiveFilterDropdown]);
+
+  const movHoyDropdownUniqueValues = useMemo(() => {
+    if (!movHoyActiveFilterDropdown) return [];
+    return getUniqueColumnValues(movimientosHoyDetalle, movHoyActiveFilterDropdown, getMovHoyCellValue);
+  }, [movHoyActiveFilterDropdown, movimientosHoyDetalle, getMovHoyCellValue]);
+
+  const movHoyFilterDropdownValues = useMemo(() => {
+    if (!movHoyActiveFilterDropdown) {
+      return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
+    }
+    const filteredVals = movHoyDropdownUniqueValues.filter((v) => matchesTextCondition(v.value, movHoyFilterSearchCondition, movHoyDebouncedFilterSearchText, { normalize: true }));
+    return finalizeFilterDropdownValues({
+      baseUniqueValues: movHoyDropdownUniqueValues,
+      filtered: filteredVals,
+      tempSelectedValues: movHoyTempSelectedValues,
+      committedSelectedValues: movHoyColumnFilters[movHoyActiveFilterDropdown] || [],
+      reachableValues: movHoyReachableValues,
+    });
+  }, [movHoyActiveFilterDropdown, movHoyDropdownUniqueValues, movHoyReachableValues, movHoyTempSelectedValues, movHoyFilterSearchCondition, movHoyDebouncedFilterSearchText, movHoyColumnFilters]);
+
+  const handleMovHoySort = useCallback((key) => {
+    setMovHoySortConfig(prev => {
+      if (prev.key === key) {
+        if (prev.direction === "asc") return { key, direction: "desc" };
+        return { key: null, direction: "asc" };
+      }
+      return { key, direction: "asc" };
+    });
+  }, []);
+
+  const handleMovHoyResizeStart = useCallback((e, index, direction = "right") => {
+    e.preventDefault();
+    const colKey = movHoyColumns[index]?.key;
+    if (!colKey) return;
+    const startX = e.clientX;
+    const startWidth = movHoyColumnWidths[colKey] || 150;
+    const onMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = direction === "left" ? startWidth - deltaX : startWidth + deltaX;
+      setMovHoyColumnWidths(prev => ({ ...prev, [colKey]: Math.max(80, newWidth) }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [movHoyColumns, movHoyColumnWidths]);
+
+  const renderMovHoyCell = useCallback(({ row, col, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
+    const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
+    const rawValue = col.key === "nombre" ? buildMovHoyFullName(row) : row[col.key];
+    const displayValue = rawValue === null || rawValue === undefined || String(rawValue).trim() === "" ? "" : (MOV_HOY_DATE_KEYS.includes(col.key) ? formatDateEsMx(rawValue) : String(rawValue));
+    return (
+      <td
+        key={col.key}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        style={stickyStyle}
+        className={`px-4 text-sm border-r truncate h-[37px] align-middle ${
+          isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
+        } ${isMonoColumnMovHoy(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}`}
+        title={displayValue}
+      >
+        {displayValue || <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>}
+      </td>
+    );
+  }, [isMonoColumnMovHoy]);
+
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { hasPermission } = useAuth();
@@ -2010,227 +2249,193 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         open={isMovimientosHoyModalOpen}
         onClose={() => setIsMovimientosHoyModalOpen(false)}
         size="xl"
+        resizable
+        minWidth={900}
+        maxWidth={1500}
         icon={ArrowUpDown}
         eyebrow="Cp Tbl Mov Completo"
         title="Movimientos realizados hoy"
         subtitle={`${formatDateEsMx(fechaHoy)} — ${accionHoyPie.total} movimiento${accionHoyPie.total === 1 ? "" : "s"} por dirección operativa`}
       >
-        <div className="flex flex-col gap-5 w-full">
-        <div className="flex flex-col lg:flex-row gap-5 items-stretch w-full">
-          <div className="flex-shrink-0 lg:w-56">
-            <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full min-h-[224px] bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20">
-              <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
-              <div className="flex items-center gap-2 mb-3 relative z-10">
-                <div className="p-2 rounded-xl bg-white/20 text-white">
-                  <Briefcase className="size-4" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Total de Movimientos</span>
+        <div className="flex flex-col gap-4 w-full">
+          {/* Pequeño resumen: total del día + distintas, sin las tarjetas grandes ni la gráfica */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-3 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/30">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-[#621f32]/8 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]">
+                <Briefcase className="size-3.5" />
               </div>
-              <div className="flex flex-col relative z-10">
-                <span className="text-5xl font-black tracking-tighter text-white">
-                  {formatNumber(accionHoyPie.total)}
-                </span>
-                <span className="text-xs text-white/60 mt-2 relative z-10 font-semibold">
-                  {accionHoyStats.length} acciones distintas
-                </span>
-              </div>
+              <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(accionHoyPie.total)}</span>
+              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">movimiento{accionHoyPie.total === 1 ? "" : "s"} hoy</span>
             </div>
+            <span className="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              {accionHoyStats.length} acci{accionHoyStats.length === 1 ? "ón" : "ones"} distinta{accionHoyStats.length === 1 ? "" : "s"}
+            </span>
+            {selectedAccionHoy && (
+              <>
+                <span className="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+                <span className="text-[10px] font-bold text-[#bc955c]">
+                  {motivoHoyStats.length} motivo{motivoHoyStats.length === 1 ? "" : "s"} en "{selectedAccionHoy}"
+                </span>
+              </>
+            )}
+            {selectedMotivoHoy && (
+              <>
+                <span className="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+                <span className="text-[10px] font-bold text-[#621f32] dark:text-[#bc955c]">
+                  {movimientosHoyDetalleLoading ? "Cargando…" : `${movimientosHoyDetalle.length} movimiento${movimientosHoyDetalle.length === 1 ? "" : "s"} de "${selectedMotivoHoy}"`}
+                </span>
+              </>
+            )}
           </div>
 
-          <div className="flex flex-col gap-2 flex-1 min-h-[224px] min-w-0">
+          {/* Lista de acciones (sin cuadros grandes ni gráfica de pastel) */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Acciones</span>
             {accionHoyStatsLoading ? (
-              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse min-h-[224px]">
-                <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
-                  <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
-                </div>
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="flex items-center gap-2 py-1">
-                      <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
-                      <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
-                      <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-col gap-1.5">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-900/40 rounded-xl animate-pulse" />
+                ))}
               </div>
             ) : accionHoyPie.slices.length > 0 ? (
-              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center min-h-[224px] min-w-0">
-                <div className="relative shrink-0">
-                  <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
-                    {accionHoyPie.slices.map((slice, i) => (
-                      <path
-                        key={i}
-                        d={slice.d}
-                        fill={slice.color}
-                        opacity={hoveredAccionHoySlice === null || hoveredAccionHoySlice === i ? 1 : 0.35}
-                        stroke="white"
-                        strokeWidth="1.5"
-                        className="transition-all duration-200 cursor-pointer"
-                        onMouseEnter={() => setHoveredAccionHoySlice(i)}
-                        onMouseLeave={() => setHoveredAccionHoySlice(null)}
-                        onClick={() => setSelectedAccionHoy(slice.name)}
-                        style={hoveredAccionHoySlice === i ? { filter: "brightness(1.15)", transform: "scale(1.03)", transformOrigin: "center" } : {}}
-                      />
-                    ))}
-                    <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
-                    <text x="100" y="96" textAnchor="middle" fill="#621f32" fontWeight="900" fontSize="11">
-                      {hoveredAccionHoySlice !== null ? accionHoyPie.slices[hoveredAccionHoySlice].pct + "%" : formatNumber(accionHoyPie.total)}
-                    </text>
-                    <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
-                      {hoveredAccionHoySlice !== null ? "del total" : "movimientos"}
-                    </text>
-                  </svg>
-                </div>
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1 min-w-0">
-                  {accionHoyPie.slices.map((slice, i) => (
-                    <div
-                      key={i}
-                      onMouseEnter={() => setHoveredAccionHoySlice(i)}
-                      onMouseLeave={() => setHoveredAccionHoySlice(null)}
-                      onClick={() => setSelectedAccionHoy(slice.name)}
-                      className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 min-w-0 ${
-                        hoveredAccionHoySlice === null || hoveredAccionHoySlice === i ? "opacity-100" : "opacity-40"
-                      } ${selectedAccionHoy === slice.name ? "bg-[#621f32]/5 dark:bg-[#bc955c]/10" : ""}`}
-                    >
-                      <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
-                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={slice.name}>
-                        {slice.name}
-                      </span>
-                      <span className="text-[10px] font-black text-slate-500 shrink-0">
-                        {formatNumber(slice.total)}
-                        <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 overflow-hidden">
+                {accionHoyPie.slices.map((slice) => (
+                  <button
+                    key={slice.name}
+                    type="button"
+                    onClick={() => setSelectedAccionHoy(selectedAccionHoy === slice.name ? null : slice.name)}
+                    className={`flex items-center gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer ${
+                      selectedAccionHoy === slice.name ? "bg-[#621f32]/8 dark:bg-[#bc955c]/10" : "bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                    }`}
+                  >
+                    <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+                    <span className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{slice.name}</span>
+                    <span className="text-xs font-black text-slate-500 shrink-0">
+                      {formatNumber(slice.total)}<span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+                    </span>
+                    <ChevronRightIcon className={`size-3.5 shrink-0 transition-transform ${selectedAccionHoy === slice.name ? "rotate-90 text-[#621f32] dark:text-[#bc955c]" : "text-slate-300"}`} />
+                  </button>
+                ))}
               </div>
             ) : (
-              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex items-center justify-center min-h-[224px]">
+              <div className="flex items-center justify-center py-8 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                 <span className="text-xs text-slate-400 font-medium">Sin movimientos capturados hoy.</span>
               </div>
             )}
           </div>
-        </div>
 
+          {/* Desglose de motivos de la acción seleccionada */}
           <AnimatePresence>
             {selectedAccionHoy && (
-                <motion.div
-                  key="motivo-hoy-row"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.35, ease: "easeOut" }}
-                  className="flex flex-col lg:flex-row gap-5 items-stretch w-full overflow-hidden"
-                >
-                <div className="flex-shrink-0 lg:w-56 flex flex-col gap-2">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-[#bc955c] dark:text-[#d4a96a] px-1 truncate" title={`Motivos de ${selectedAccionHoy}`}>
+              <motion.div
+                key="motivo-hoy-list"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="flex flex-col gap-1.5 overflow-hidden"
+              >
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#bc955c] dark:text-[#d4a96a] truncate" title={`Motivos de ${selectedAccionHoy}`}>
                     Motivos de {selectedAccionHoy}
-                  </div>
-                  <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full min-h-[224px] bg-gradient-to-br from-[#bc955c] to-[#9a753c] text-slate-950 shadow-xl shadow-[#bc955c]/25 ring-2 ring-white/20">
-                    <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-30 bg-white" />
-                    <button
-                      onClick={() => setSelectedAccionHoy(null)}
-                      className="absolute top-3 right-3 p-1 rounded-full hover:bg-slate-950/10 text-slate-950 transition-colors z-20 cursor-pointer"
-                      title="Cerrar distribución por motivos"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                    <div className="flex items-center gap-2 mb-3 relative z-10 pr-4">
-                      <div className="p-2 rounded-xl bg-slate-950/15 text-slate-950 shrink-0">
-                        <Filter className="size-4" />
-                      </div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-950/90 truncate" title={selectedAccionHoy}>
-                        {selectedAccionHoy}
-                      </span>
-                    </div>
-                    <div className="flex flex-col relative z-10">
-                      <span className="text-5xl font-black tracking-tighter text-slate-950">
-                        {formatNumber(motivoHoyPie.total)}
-                      </span>
-                      <span className="text-xs text-slate-950/70 mt-2 relative z-10 font-semibold truncate">
-                        {motivoHoyStats.length} motivos distintos
-                      </span>
-                    </div>
-                  </div>
+                  </span>
+                  <button
+                    onClick={() => setSelectedAccionHoy(null)}
+                    className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                    title="Cerrar desglose de motivos"
+                  >
+                    <X className="size-3.5" />
+                  </button>
                 </div>
+                {motivoHoyStatsLoading ? (
+                  <div className="flex flex-col gap-1.5">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-10 bg-slate-100 dark:bg-slate-900/40 rounded-xl animate-pulse" />
+                    ))}
+                  </div>
+                ) : motivoHoyPie.slices.length > 0 ? (
+                  <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 overflow-hidden">
+                    {motivoHoyPie.slices.map((slice) => (
+                      <button
+                        key={slice.name}
+                        type="button"
+                        onClick={() => setSelectedMotivoHoy(selectedMotivoHoy === slice.name ? null : slice.name)}
+                        className={`flex items-center gap-3 px-4 py-2.5 text-left transition-colors cursor-pointer ${
+                          selectedMotivoHoy === slice.name ? "bg-[#bc955c]/10 dark:bg-[#bc955c]/15" : "bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                        }`}
+                      >
+                        <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+                        <span className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{slice.name}</span>
+                        <span className="text-xs font-black text-slate-500 shrink-0">
+                          {formatNumber(slice.total)}<span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+                        </span>
+                        <ChevronRightIcon className={`size-3.5 shrink-0 transition-transform ${selectedMotivoHoy === slice.name ? "rotate-90 text-[#bc955c]" : "text-slate-300"}`} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center py-8 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <span className="text-xs text-slate-400 font-medium">Sin motivos para esta acción hoy.</span>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-                <div className="flex-1 flex flex-col gap-2 min-w-0">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1 truncate">
-                    Distribución por Motivos
-                  </div>
-                  <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center min-h-[224px] overflow-hidden w-full min-w-0">
-                    {motivoHoyStatsLoading ? (
-                      <div className="flex-1 flex flex-col md:flex-row gap-6 items-center w-full animate-pulse">
-                        <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
-                          <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
-                        </div>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
-                          {[...Array(4)].map((_, i) => (
-                            <div key={i} className="flex items-center gap-2 py-1">
-                              <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
-                              <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
-                              <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : motivoHoyPie.slices.length > 0 ? (
-                      <>
-                        <div className="relative shrink-0">
-                          <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
-                            {motivoHoyPie.slices.map((slice, i) => (
-                              <path
-                                key={i}
-                                d={slice.d}
-                                fill={slice.color}
-                                opacity={hoveredMotivoHoySlice === null || hoveredMotivoHoySlice === i ? 1 : 0.35}
-                                stroke="white"
-                                strokeWidth="1.5"
-                                className="transition-all duration-200 cursor-pointer"
-                                onMouseEnter={() => setHoveredMotivoHoySlice(i)}
-                                onMouseLeave={() => setHoveredMotivoHoySlice(null)}
-                                style={hoveredMotivoHoySlice === i ? { filter: "brightness(1.15)", transform: "scale(1.03)", transformOrigin: "center" } : {}}
-                              />
-                            ))}
-                            <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
-                            <text x="100" y="96" textAnchor="middle" fill="#bc955c" fontWeight="900" fontSize="11">
-                              {hoveredMotivoHoySlice !== null ? motivoHoyPie.slices[hoveredMotivoHoySlice].pct + "%" : formatNumber(motivoHoyPie.total)}
-                            </text>
-                            <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
-                              {hoveredMotivoHoySlice !== null ? "del total" : "motivos"}
-                            </text>
-                          </svg>
-                        </div>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1 w-full min-w-0">
-                          {motivoHoyPie.slices.map((slice, i) => (
-                            <div
-                              key={i}
-                              onMouseEnter={() => setHoveredMotivoHoySlice(i)}
-                              onMouseLeave={() => setHoveredMotivoHoySlice(null)}
-                              className={`flex items-center gap-2 rounded-lg px-1.5 py-0.5 transition-all duration-150 min-w-0 ${
-                                hoveredMotivoHoySlice === null || hoveredMotivoHoySlice === i ? "opacity-100" : "opacity-40"
-                              }`}
-                            >
-                              <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
-                              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={slice.name}>
-                                {slice.name}
-                              </span>
-                              <span className="text-[10px] font-black text-slate-500 shrink-0">
-                                {formatNumber(slice.total)}
-                                <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center w-full min-h-[180px]">
-                        <span className="text-xs text-slate-400 font-medium">Sin motivos para esta acción hoy.</span>
-                      </div>
-                    )}
-                  </div>
+          {/* Tabla de detalle: movimientos reales del cruce acción + motivo seleccionado */}
+          <AnimatePresence>
+            {selectedMotivoHoy && (
+              <motion.div
+                key="motivo-hoy-tabla"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="flex flex-col gap-1.5 overflow-hidden"
+              >
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1 truncate">
+                  Movimientos: {selectedAccionHoy} / {selectedMotivoHoy}
+                </span>
+                <div className="flex flex-col rounded-2xl overflow-hidden border border-slate-200/60 dark:border-slate-800/60" style={{ height: movHoyTableHeight }}>
+                  <DataTable
+                    containerRef={movHoyTableContainerRef}
+                    fillHeight
+                    fillWidth
+                    edgeToEdge
+                    stickyColumnKeys={["posicion"]}
+                    onScroll={() => {}}
+                    columns={movHoyColumns}
+                    columnFilters={movHoyColumnFilters}
+                    setColumnFilters={setMovHoyColumnFilters}
+                    textFilters={movHoyTextFilters}
+                    setTextFilters={setMovHoyTextFilters}
+                    activeConditionDropdown={movHoyActiveConditionDropdown}
+                    setActiveConditionDropdown={setMovHoyActiveConditionDropdown}
+                    selectedCell={movHoySelectedCell}
+                    onSelectCell={setMovHoySelectedCell}
+                    onCellContextMenu={(e, value, rect) => setMovHoyContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
+                    onShowRecord={(row) => setMovHoySelectedRecord({ ...row, nombre: buildMovHoyFullName(row) })}
+                    sortConfig={movHoySortConfig}
+                    onSort={handleMovHoySort}
+                    onOpenFilter={openMovHoyFilterDropdown}
+                    onResizeStart={handleMovHoyResizeStart}
+                    getColumnLetter={getColumnLetterMovHoy}
+                    isMonoColumn={isMonoColumnMovHoy}
+                    isPending={false}
+                    isLoading={movimientosHoyDetalleLoading}
+                    loadingVariant="skeleton"
+                    loadingMessage="Consultando movimientos..."
+                    data={movHoyProcessedRows}
+                    startIndex={0}
+                    endIndex={movHoyProcessedRows.length}
+                    totalCount={movHoyProcessedRows.length}
+                    rowHeight={37}
+                    getRowId={(row, i) => `${row.num_empleado ?? ""}-${row.posicion ?? ""}-${row.sec ?? i}`}
+                    renderCell={renderMovHoyCell}
+                  />
                 </div>
-                </motion.div>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -2950,6 +3155,37 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           isOpen={!!selectedRowData}
           onClose={() => setSelectedRowData(null)}
           record={selectedRowData}
+        />
+      )}
+
+      {/* Dropdown/menú/expediente de la tabla de detalle del modal "Movimientos realizados hoy" */}
+      <ColumnFilterDropdown
+        open={!!movHoyActiveFilterDropdown}
+        columnKey={movHoyActiveFilterDropdown}
+        columnLabel={movHoyColumns.find(c => c.key === movHoyActiveFilterDropdown)?.label}
+        isDate={false}
+        data={movimientosHoyDetalle}
+        getCellValue={getMovHoyCellValue}
+        filters={movHoyFiltersHook}
+        dropdownValues={movHoyFilterDropdownValues}
+        onApply={() => applyMovHoyColumnFilter(movHoyActiveFilterDropdown)}
+        onClear={() => clearMovHoyColumnFilter(movHoyActiveFilterDropdown)}
+        onClose={() => setMovHoyActiveFilterDropdown(null)}
+        reachableValues={movHoyReachableValues}
+        zIndexClass="z-[1100]"
+      />
+
+      <CopyCellMenu
+        contextMenu={movHoyContextMenu}
+        onClose={() => setMovHoyContextMenu(null)}
+      />
+
+      {movHoySelectedRecord && (
+        <EmployeeRecordModal
+          isOpen={!!movHoySelectedRecord}
+          onClose={() => setMovHoySelectedRecord(null)}
+          record={movHoySelectedRecord}
+          columns={MOV_HOY_COLUMNS_BASE}
         />
       )}
     </div>
