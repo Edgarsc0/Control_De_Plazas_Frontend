@@ -28,7 +28,7 @@ import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -370,7 +370,6 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     tempSelectedValues, setTempSelectedValues,
     filterSearchText, setFilterSearchText,
@@ -899,7 +898,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     }
 
-    const uniqueTargetValues = [...new Set(targetRawValues)];
+    // Sólo togglear lo alcanzable dado el resto de filtros (el nodo ya aparece
+    // deshabilitado en el dropdown cuando nada de él es alcanzable).
+    const reachableSet = new Set(reachableValues);
+    const uniqueTargetValues = [...new Set(targetRawValues)].filter(v => reachableSet.has(v));
+    if (uniqueTargetValues.length === 0) return;
     const allInTemp = uniqueTargetValues.every(v => tempSelectedValues.includes(v));
 
     if (allInTemp) {
@@ -913,28 +916,21 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
-      setFilterDropdownTab('actuales');
       setFilterSearchText("");
-      const uniqueVals = [...new Set(detalleParaFiltros.map(row =>
-        colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim()
-      ))];
-      // Alta cardinalidad: la lista queda oculta hasta que el usuario busque
-      // (ver HIGH_CARDINALITY_THRESHOLD), así que arrancar con "todo
-      // preseleccionado" es invisible — buscar y marcar un valor lo
-      // desmarcaría (ya estaba marcado) en vez de seleccionarlo. Sin filtro
-      // previo, arranca vacío igual que una columna sin selección.
-      setTempSelectedValues(columnFilters[colKey] || (uniqueVals.length > HIGH_CARDINALITY_THRESHOLD ? [] : uniqueVals));
+      // Inline (no vía el memo `reachableValues`, que es lazy y aún no se ha
+      // recomputado para la columna recién activada).
+      setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey));
     }
   };
 
   const applyColumnFilter = (colKey) => {
-    const totalUnique = (uniqueColumnValues[colKey] || []).map(v => v.value);
-    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
+    if (shouldClear) {
       const newFilters = { ...columnFilters };
       delete newFilters[colKey];
       setColumnFilters(newFilters);
     } else {
-      setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
+      setColumnFilters({ ...columnFilters, [colKey]: valuesToCommit });
     }
     setActiveFilterDropdown(null);
   };
@@ -961,7 +957,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const current = columnFilters["estado_nomina"] || [];
     const next = current.includes(label) ? current.filter(s => s !== label) : [...current, label];
     const newFilters = { ...columnFilters };
-    if (next.length === 0 || next.length === uniqueColumnValues["estado_nomina"]?.length) delete newFilters["estado_nomina"];
+    // Ojo: uniqueColumnValues["estado_nomina"] excluye "Vacante" a propósito
+    // (detalleParaFiltros la filtra, ver línea 817), así que no sirve como
+    // total de tarjetas — hay que usar STATUS_COLORS (las 5 tarjetas reales).
+    if (next.length === 0 || next.length === Object.keys(STATUS_COLORS).length) delete newFilters["estado_nomina"];
     else newFilters["estado_nomina"] = next;
     startTransition(() => { setColumnFilters(newFilters); setScrollTop(0); });
   };
@@ -1120,50 +1119,70 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   }, [filteredData, sortConfig]);
 
 
+  // Valores alcanzables de una columna dado el resto de filtros (todos EXCEPTO
+  // el propio de esa columna). Función pura (no memo) para poder llamarla
+  // también desde `openFilterDropdown` con la columna recién activada, antes
+  // de que `reachableValues` (memo, atado a `activeFilterDropdown`) se
+  // recompute.
+  //
+  // BUG QA 2026-07-23: debe iterar sobre `detalleParaFiltros` (excluye
+  // vacantes), el MISMO dataset que arma `uniqueColumnValues` (la lista que
+  // ve el usuario). Iterar antes sobre `detalle` (incluye vacantes) hacía que
+  // `reachableValues` incluyera valores de columna que sólo existían en
+  // posiciones vacantes — invisibles en la lista del dropdown. Al usar
+  // "Seleccionar Todo"/"Desmarcar Todo" (que sólo togglean lo VISIBLE), esos
+  // valores fantasma quedaban seleccionados sin que el usuario pudiera verlos
+  // ni desmarcarlos, y se colaban en el filtro aplicado (ej. columna "Nivel":
+  // marcar 2 valores visibles terminaba aplicando 4).
+  const computeReachableValues = useCallback((colKey) => {
+    const counts = {};
+    detalleParaFiltros.forEach(row => {
+      if (deferredGlobalSearch) {
+        const searchText = normalizeForSearch(deferredGlobalSearch);
+        const blob = searchIndex.get(row) || "";
+        if (!blob.includes(searchText)) return;
+      }
+      for (const [ck, selectedVals] of Object.entries(columnFilters)) {
+        if (ck === colKey) continue;
+        if (!selectedVals.includes(ck === "estado_nomina" ? mapEstadoNomina(row[ck]) : String(row[ck] || "").trim())) return;
+      }
+      for (const [ck, filterObj] of Object.entries(deferredTextFilters)) {
+        if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
+        const searchText = filterObj.value;
+        const condition = filterObj.condition || (isMonoColumn(ck) ? "starts_with" : "contains");
+        const valStr = ck === "estado_nomina" ? mapEstadoNomina(row[ck]) : String(row[ck] || "");
+        const lowerVal = normalizeForSearch(valStr).trim();
+        const lowerSearch = normalizeForSearch(searchText).trim();
+        let pass = false;
+        switch (condition) {
+          case "contains": pass = lowerVal.includes(lowerSearch); break;
+          case "not_contains": pass = !lowerVal.includes(lowerSearch); break;
+          case "starts_with": pass = lowerVal.startsWith(lowerSearch); break;
+          case "not_starts_with": pass = !lowerVal.startsWith(lowerSearch); break;
+          case "ends_with": pass = lowerVal.endsWith(lowerSearch); break;
+          case "not_ends_with": pass = !lowerVal.endsWith(lowerSearch); break;
+          case "equals": pass = lowerVal === lowerSearch; break;
+          case "not_equals": pass = lowerVal !== lowerSearch; break;
+          default: pass = lowerVal.includes(lowerSearch); break;
+        }
+        if (!pass) return;
+      }
+      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return;
+      const val = colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim();
+      counts[val] = true;
+    });
+    return Object.keys(counts);
+  }, [detalleParaFiltros, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
+
+  const reachableValues = useMemo(
+    () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
+    [activeFilterDropdown, computeReachableValues]
+  );
+
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
-    let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
-    if (filterDropdownTab === 'actuales') {
-      const counts = {};
-      detalle.forEach(row => {
-        if (deferredGlobalSearch) {
-          const searchText = normalizeForSearch(deferredGlobalSearch);
-          const blob = searchIndex.get(row) || "";
-          if (!blob.includes(searchText)) return;
-        }
-        for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
-          if (colKey === activeFilterDropdown) continue;
-          if (!selectedVals.includes(colKey === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim())) return;
-        }
-        for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
-          if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
-          const searchText = filterObj.value;
-          const condition = filterObj.condition || ((typeof isMonoColumn !== 'undefined' && isMonoColumn(colKey)) ? "starts_with" : "contains");
-          const valStr = colKey === "estado_nomina" && typeof mapEstadoNomina !== 'undefined' ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "");
-          const lowerVal = normalizeForSearch(valStr).trim();
-          const lowerSearch = normalizeForSearch(searchText).trim();
-          let pass = false;
-          switch (condition) {
-            case "contains": pass = lowerVal.includes(lowerSearch); break;
-            case "not_contains": pass = !lowerVal.includes(lowerSearch); break;
-            case "starts_with": pass = lowerVal.startsWith(lowerSearch); break;
-            case "not_starts_with": pass = !lowerVal.startsWith(lowerSearch); break;
-            case "ends_with": pass = lowerVal.endsWith(lowerSearch); break;
-            case "not_ends_with": pass = !lowerVal.endsWith(lowerSearch); break;
-            case "equals": pass = lowerVal === lowerSearch; break;
-            case "not_equals": pass = lowerVal !== lowerSearch; break;
-            default: pass = lowerVal.includes(lowerSearch); break;
-          }
-          if (!pass) return;
-        }
-        if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return;
-        const val = activeFilterDropdown === "estado_nomina" ? mapEstadoNomina(row[activeFilterDropdown]) : String(row[activeFilterDropdown] || "").trim();
-        counts[val] = (counts[val] || 0) + 1;
-      });
-      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
-    }
-
+    const baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
     return finalizeFilterDropdownValues({
@@ -1171,8 +1190,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       filtered,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, searchIndex, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
+  }, [activeFilterDropdown, uniqueColumnValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   const rowHeight = 37, containerHeight = 1200;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
@@ -2457,6 +2477,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         onApply={() => applyColumnFilter(activeFilterDropdown)}
         onClear={() => clearColumnFilter(activeFilterDropdown)}
         onClose={() => setActiveFilterDropdown(null)}
+        reachableValues={reachableValues}
       />
 
       <AdvancedFiltersModal

@@ -25,7 +25,7 @@ import { useColumnState } from "../../../_hooks/useColumnState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
-import { finalizeFilterDropdownValues, normalizeForSearch, sortValueCounts } from "@/utils/columnFilters";
+import { finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, sortValueCounts } from "@/utils/columnFilters";
 
 // Mismos 14 pares de columnas que compara el backend (ver ALINEACIÓN_PLAZA_PERSONA
 // y `ALINEACION_CAMPOS` en plantilla/views.py). El key de columna en la tabla es
@@ -144,7 +144,6 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     tempSelectedValues, setTempSelectedValues,
     filterSearchText, setFilterSearchText,
@@ -155,7 +154,14 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, debouncedSearch, sortConfig.key, sortConfig.direction, diffFields]);
 
   const [debouncedTextFilters, setDebouncedTextFilters] = useState({});
-  const [uniqueColumnValues, setUniqueColumnValues] = useState({});
+  // Valores alcanzables de la columna activa dado el resto de filtros (todos
+  // EXCEPTO el propio de esa columna) — es el fetch "por defecto" (sin buscar),
+  // sirve de universo Y de set de alcanzabilidad para marcar/deshabilitar.
+  const [reachableColumnValues, setReachableColumnValues] = useState({});
+  // Resultados de buscar en TODA la columna (universo completo, sin el resto de
+  // filtros) — sólo se piden cuando el usuario escribe en el buscador del
+  // dropdown, para no duplicar el fetch en el caso común (sin buscar).
+  const [searchColumnValues, setSearchColumnValues] = useState({});
   const [loadingUniqueValues, setLoadingUniqueValues] = useState(false);
   const [hasInitializedTemp, setHasInitializedTemp] = useState(false);
 
@@ -279,28 +285,25 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab("actuales");
     setFilterSearchText("");
     setHasInitializedTemp(false);
     setTempSelectedValues(columnFilters[colKey] || []);
   };
 
+  // Fetch "por defecto": valores alcanzables dado el resto de filtros activos
+  // (todos menos la columna que se está filtrando), sin `distinct_search` —
+  // mismo costo/forma que el histórico tab "Vista actual".
   useEffect(() => {
     if (!activeFilterDropdown) return;
     const ctrl = new AbortController();
     setLoadingUniqueValues(true);
-    const params = { distinct_field: activeFilterDropdown, distinct_search: debouncedFilterSearchText };
-    if (filterDropdownTab === "actuales") {
-      // "Vista actual": valores únicos ya acotados por el resto de filtros activos
-      // (todos menos la columna que se está filtrando).
-      Object.assign(params, buildBaseParams());
-      delete params[`${activeFilterDropdown}__in`];
-    }
+    const params = { distinct_field: activeFilterDropdown, ...buildBaseParams() };
+    delete params[`${activeFilterDropdown}__in`];
     VacantesService.getMovPosAlineacion(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
         const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
-        setUniqueColumnValues((prev) => ({ ...prev, [activeFilterDropdown]: valuesList }));
+        setReachableColumnValues((prev) => ({ ...prev, [activeFilterDropdown]: valuesList }));
         setHasInitializedTemp((prevInit) => {
           if (!prevInit) {
             if (columnFilters[activeFilterDropdown]) setTempSelectedValues(columnFilters[activeFilterDropdown]);
@@ -310,15 +313,40 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
           return prevInit;
         });
       })
-      .catch((err) => { if (err.name !== "AbortError") console.error("Error valores únicos de columna:", err); })
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error valores alcanzables de columna:", err); })
       .finally(() => { if (!ctrl.signal.aborted) setLoadingUniqueValues(false); });
     return () => ctrl.abort();
-  }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, buildBaseParams]);
+  }, [activeFilterDropdown, columnFilters, buildBaseParams]);
+
+  // Fetch "buscar en toda la columna": sólo cuando hay texto en el buscador del
+  // dropdown — universo completo (sin el resto de filtros), igual al que antes
+  // disparaba el tab "Todos los datos" por cada tecla. No bloquea la lista con
+  // un skeleton (no depende de `loadingUniqueValues`): mientras llega, se ve la
+  // lista de alcanzables ya cargada.
+  useEffect(() => {
+    if (!activeFilterDropdown || !debouncedFilterSearchText) return;
+    const ctrl = new AbortController();
+    const params = { distinct_field: activeFilterDropdown, distinct_search: debouncedFilterSearchText };
+    VacantesService.getMovPosAlineacion(params, { signal: ctrl.signal })
+      .then((res) => res.json())
+      .then((resData) => {
+        const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
+        setSearchColumnValues((prev) => ({ ...prev, [activeFilterDropdown]: valuesList }));
+      })
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error buscando en toda la columna:", err); });
+    return () => ctrl.abort();
+  }, [activeFilterDropdown, debouncedFilterSearchText]);
+
+  const reachableValues = useMemo(
+    () => (reachableColumnValues[activeFilterDropdown] || []).map((v) => v.value),
+    [activeFilterDropdown, reachableColumnValues]
+  );
 
   const applyColumnFilter = (colKey) => {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
     const newFilters = { ...columnFilters };
-    if (tempSelectedValues.length === 0) delete newFilters[colKey];
-    else newFilters[colKey] = tempSelectedValues;
+    if (shouldClear) delete newFilters[colKey];
+    else newFilters[colKey] = valuesToCommit;
     setLoading(true);
     setColumnFilters(newFilters);
     setPage(1);
@@ -336,16 +364,24 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
-    const list = uniqueColumnValues[activeFilterDropdown] || [];
+    const reachableList = reachableColumnValues[activeFilterDropdown] || [];
+    let baseUniqueValues = reachableList;
+    if (debouncedFilterSearchText) {
+      const searchList = searchColumnValues[activeFilterDropdown] || [];
+      const merged = new Map(reachableList.map((v) => [v.value, v]));
+      searchList.forEach((v) => { if (!merged.has(v.value)) merged.set(v.value, v); });
+      baseUniqueValues = sortValueCounts([...merged.values()]);
+    }
     const searchNorm = normalizeForSearch(filterSearchText);
-    const filtered = list.filter((v) => normalizeForSearch(v.value).includes(searchNorm));
+    const filtered = baseUniqueValues.filter((v) => normalizeForSearch(v.value).includes(searchNorm));
     return finalizeFilterDropdownValues({
-      baseUniqueValues: list,
+      baseUniqueValues,
       filtered,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, uniqueColumnValues, filterSearchText, tempSelectedValues, columnFilters]);
+  }, [activeFilterDropdown, reachableColumnValues, searchColumnValues, debouncedFilterSearchText, filterSearchText, reachableValues, tempSelectedValues, columnFilters]);
 
   const handleSort = (key) => {
     let direction = "asc";

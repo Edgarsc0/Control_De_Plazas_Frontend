@@ -322,22 +322,26 @@ export const buildDateHierarchy = (data, key) => {
  * que la lista no salte mientras el usuario sigue marcando casillas).
  *
  * @param {Object} params
- * @param {Array<{value: string, count: number}>} params.baseUniqueValues - Universo de valores de la columna (todos o "vista actual").
+ * @param {Array<{value: string, count: number}>} params.baseUniqueValues - Universo completo de valores de la columna (para listar y buscar).
  * @param {Array<{value: string, count: number}>} params.filtered - Subconjunto de `baseUniqueValues` que matchea el buscador del dropdown.
  * @param {string[]} params.tempSelectedValues - Selección en curso (no aplicada aún).
  * @param {string[]} [params.committedSelectedValues=[]] - Selección ya aplicada (`columnFilters[colKey]`); ancla el orden.
- * @returns {{allVals: string[], isAllSelected: boolean, isPartialSelected: boolean, visibleVals: string[], isVisibleAllSelected: boolean, isVisiblePartialSelected: boolean, sliced: Array<{value: string, count: number}>, filteredCount: number}}
+ * @param {?string[]} [params.reachableValues=null] - Valores alcanzables considerando el resto de filtros activos (todas las columnas EXCEPTO la propia). `null` = sin restricción (todo alcanzable). Determina qué se puede marcar/desmarcar; lo que no está aquí se muestra desmarcado y deshabilitado.
+ * @returns {{allVals: string[], isAllSelected: boolean, isPartialSelected: boolean, visibleVals: string[], isVisibleAllSelected: boolean, isVisiblePartialSelected: boolean, sliced: Array<{value: string, count: number, reachable: boolean}>, filteredCount: number}}
  */
 export const finalizeFilterDropdownValues = ({
   baseUniqueValues,
   filtered,
   tempSelectedValues,
   committedSelectedValues = [],
+  reachableValues = null,
 }) => {
   const allVals = baseUniqueValues.map((v) => v.value);
+  const reachableSet = new Set(reachableValues ?? allVals);
+  const reachableAllVals = allVals.filter((v) => reachableSet.has(v));
   const tempSet = new Set(tempSelectedValues);
-  const isAllSelected = allVals.length > 0 && allVals.every((v) => tempSet.has(v));
-  const isPartialSelected = !isAllSelected && allVals.some((v) => tempSet.has(v));
+  const isAllSelected = reachableAllVals.length > 0 && reachableAllVals.every((v) => tempSet.has(v));
+  const isPartialSelected = !isAllSelected && reachableAllVals.some((v) => tempSet.has(v));
 
   const committedSet = new Set(committedSelectedValues);
   const ordered = committedSet.size > 0
@@ -347,10 +351,12 @@ export const finalizeFilterDropdownValues = ({
         return aSel === bSel ? 0 : aSel ? -1 : 1;
       })
     : filtered;
+  const slicedWithReachability = ordered.map((v) => ({ ...v, reachable: reachableSet.has(v.value) }));
 
   const visibleVals = filtered.map((v) => v.value);
-  const isVisibleAllSelected = visibleVals.length > 0 && visibleVals.every((v) => tempSet.has(v));
-  const isVisiblePartialSelected = !isVisibleAllSelected && visibleVals.some((v) => tempSet.has(v));
+  const reachableVisibleVals = visibleVals.filter((v) => reachableSet.has(v));
+  const isVisibleAllSelected = reachableVisibleVals.length > 0 && reachableVisibleVals.every((v) => tempSet.has(v));
+  const isVisiblePartialSelected = !isVisibleAllSelected && reachableVisibleVals.some((v) => tempSet.has(v));
 
   return {
     allVals,
@@ -359,9 +365,29 @@ export const finalizeFilterDropdownValues = ({
     visibleVals,
     isVisibleAllSelected,
     isVisiblePartialSelected,
-    sliced: ordered,
+    sliced: slicedWithReachability,
     filteredCount: filtered.length,
   };
+};
+
+/**
+ * Resuelve qué guardar en `columnFilters[colKey]` al aplicar el dropdown, dado lo
+ * alcanzable (ver `reachableValues` en {@link finalizeFilterDropdownValues}).
+ * Descarta de la selección en curso cualquier valor que ya no sea alcanzable
+ * (selección histórica de una columna cuyo universo cambió por otros filtros) y
+ * decide si el resultado equivale a "sin filtro": tanto si no quedó nada marcado
+ * como si quedó marcado exactamente todo lo alcanzable (0 o "todos" son
+ * equivalentes a no filtrar, mismo atajo que ya usaban los tabs antes de esto,
+ * pero referenciado contra lo alcanzable en vez del universo completo).
+ * @param {string[]} tempSelectedValues - Selección en curso (no aplicada aún).
+ * @param {string[]} reachableValues - Valores alcanzables dado el resto de filtros.
+ * @returns {{shouldClear: boolean, valuesToCommit: string[]}}
+ */
+export const resolveColumnFilterCommit = (tempSelectedValues, reachableValues) => {
+  const reachableSet = new Set(reachableValues);
+  const valuesToCommit = tempSelectedValues.filter((v) => reachableSet.has(v));
+  const shouldClear = valuesToCommit.length === 0 || valuesToCommit.length === reachableValues.length;
+  return { shouldClear, valuesToCommit };
 };
 
 export const applyColumnFilters = (data, config = {}) => {

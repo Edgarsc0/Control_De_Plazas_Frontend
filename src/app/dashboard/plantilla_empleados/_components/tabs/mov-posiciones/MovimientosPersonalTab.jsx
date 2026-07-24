@@ -23,7 +23,7 @@ import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
-import { normalizeForSearch, finalizeFilterDropdownValues, sortValueCounts, formatDateEsMx, normalizeDateSearchTerm, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
+import { normalizeForSearch, finalizeFilterDropdownValues, resolveColumnFilterCommit, sortValueCounts, formatDateEsMx, normalizeDateSearchTerm } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { getAccionInfo, getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -62,6 +62,10 @@ const formatNumber = (num) => {
   if (num === undefined || num === null) return "0";
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
+
+// Nombre + ap. paterno + ap. materno combinados en una sola celda (columna
+// "nombre" unificada). Mismo criterio que ya usaba `MobileCardList`.
+const buildFullName = (row) => [row.nombre, row.ap_pat, row.ap_mat].filter(Boolean).join(" ").trim();
 
 const getColumnLetter = (index) => {
   let temp = index, letter = "";
@@ -478,7 +482,6 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     tempSelectedValues, setTempSelectedValues,
     filterSearchText, setFilterSearchText,
@@ -611,7 +614,13 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   }, []);
 
   const [hasInitializedTemp, setHasInitializedTemp] = useState(false);
-  const [uniqueColumnValues, setUniqueColumnValues] = useState({});
+  // Valores alcanzables de la columna activa dado el resto de filtros (todos
+  // EXCEPTO el propio de esa columna) — fetch "por defecto" (sin buscar);
+  // también el universo por defecto para listar/jerarquía de fecha.
+  const [reachableColumnValues, setReachableColumnValues] = useState({});
+  // Resultados de buscar en TODA la columna (universo completo, sin el resto
+  // de filtros) — sólo se piden mientras hay texto en el buscador del dropdown.
+  const [searchColumnValues, setSearchColumnValues] = useState({});
   const [loadingUniqueValues, setLoadingUniqueValues] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -631,9 +640,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "num_empleado", label: "No. Empleado", width: 120, visible: true, isBasic: true },
-    { key: "nombre", label: "Nombre", width: 150, visible: true, isBasic: true },
-    { key: "ap_pat", label: "Ap. Paterno", width: 150, visible: true, isBasic: true },
-    { key: "ap_mat", label: "Ap. Materno", width: 150, visible: true, isBasic: true },
+    // Unifica nombre + ap. paterno + ap. materno en una sola celda (antes 3
+    // columnas separadas). El filtro/orden de esta columna siguen operando
+    // sólo sobre `nombre` (backend no tiene un campo combinado) — ver
+    // `buildFullName` para el armado de la celda y la exportación a Excel.
+    { key: "nombre", label: "Nombre Completo", width: 260, visible: true, isBasic: true },
     { key: "accion_nombre", label: "Nombre Acción", width: 180, visible: true, isBasic: true },
     { key: "motivo_nombre", label: "Nombre Motivo", width: 180, visible: true, isBasic: true },
     { key: "fecha_efectiva", label: "Fecha Efectiva", width: 130, visible: true, isBasic: true },
@@ -765,9 +776,30 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       .then((res) => res.json())
       .then((data) => (Array.isArray(data) ? data : [])), []);
 
+  // Universo listado/jerarquía de fecha de la columna activa: valores
+  // alcanzables (fetch por defecto) unidos con los de "buscar en toda la
+  // columna" cuando hay texto en el buscador (si no, es exactamente lo
+  // alcanzable — mismo costo/forma que antes).
+  const mergedColumnValues = useMemo(() => {
+    if (!activeFilterDropdown) return {};
+    const reachableList = reachableColumnValues[activeFilterDropdown] || [];
+    if (!debouncedFilterSearchText) return { [activeFilterDropdown]: reachableList };
+    const searchList = searchColumnValues[activeFilterDropdown] || [];
+    const merged = new Map(reachableList.map((v) => [v.value, v]));
+    searchList.forEach((v) => { if (!merged.has(v.value)) merged.set(v.value, v); });
+    return { [activeFilterDropdown]: sortValueCounts([...merged.values()]) };
+  }, [activeFilterDropdown, reachableColumnValues, searchColumnValues, debouncedFilterSearchText]);
+
+  // Valores alcanzables (plano, sin conteo) de la columna activa — gobierna
+  // qué se puede marcar/desmarcar en ColumnFilterDropdown.
+  const reachableValues = useMemo(
+    () => (reachableColumnValues[activeFilterDropdown] || []).map((v) => v.value),
+    [activeFilterDropdown, reachableColumnValues]
+  );
+
   const movPersonalDropdownValues = useMemo(() => {
     if (!activeFilterDropdown || isDateColumn(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
-    const list = uniqueColumnValues[activeFilterDropdown] || [];
+    const list = mergedColumnValues[activeFilterDropdown] || [];
     const searchNorm = normalizeForSearch(filterSearchText);
     const filtered = list.filter((v) => normalizeForSearch(v.value).includes(searchNorm));
     return finalizeFilterDropdownValues({
@@ -775,13 +807,14 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       filtered,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, filterSearchText, tempSelectedValues, columnFilters]);
+  }, [activeFilterDropdown, isDateColumn, mergedColumnValues, reachableValues, filterSearchText, tempSelectedValues, columnFilters]);
 
   const renderCell = useCallback(({ row, col, colIdx, actualRowIdx, isSticky, leftOffset, isSelected }) => {
     const globalRowIdx = (page - 1) * pageSize + actualRowIdx;
     const isSelectedRow = selectedCell?.rowIdx === globalRowIdx;
-    let val = row[col.key];
+    let val = col.key === "nombre" ? buildFullName(row) : row[col.key];
     if (val === null || val === undefined) val = "";
     if (col.key === "fecha_ult_actz" && val) {
       try { const d = new Date(val); if (!isNaN(d.getTime())) val = d.toLocaleString("es-MX", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch (e) {}
@@ -933,7 +966,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       allData.forEach((row) => {
         const rowData = {};
         visibleCols.forEach((c) => {
-          rowData[c.key] = row[c.key];
+          rowData[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key];
         });
         const addedRow = worksheet.addRow(rowData);
         addedRow.eachCell((cell) => {
@@ -1158,7 +1191,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
       allRows.forEach((row, idx) => {
         const rd = {};
-        columns.forEach((c) => { rd[c.key] = row[c.key]; });
+        columns.forEach((c) => { rd[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key]; });
         const det = detalleAdscripcion.get(idx);
         rd.__adsc_ua_antes__     = det ? det.ua_antes     : "";
         rd.__adsc_ua_despues__   = det ? det.ua_despues   : "";
@@ -1362,7 +1395,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         idxList.forEach((idx) => {
           const row = allRows[idx];
           const rd = {};
-          columns.forEach((c) => { rd[c.key] = row[c.key]; });
+          columns.forEach((c) => { rd[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key]; });
           const det = detalleAdscripcion.get(idx);
           rd.__adsc_ua_antes__     = det ? det.ua_antes     : "";
           rd.__adsc_ua_despues__   = det ? det.ua_despues   : "";
@@ -1498,9 +1531,9 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     const hierarchies = {};
     if (!activeFilterDropdown || !isDateColumn(activeFilterDropdown)) return hierarchies;
 
-    const valuesList = uniqueColumnValues[activeFilterDropdown] || [];
+    const valuesList = mergedColumnValues[activeFilterDropdown] || [];
     const years = {};
-    
+
     valuesList.forEach(item => {
       const val = item.value;
       const parts = parseDateParts(val);
@@ -1508,16 +1541,16 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       const { year, month, day, monthName } = parts;
       if (!years[year]) years[year] = { count: 0, months: {} };
       years[year].count += item.count;
-      
+
       if (!years[year].months[month]) years[year].months[month] = { count: 0, name: monthName, days: {} };
       years[year].months[month].count += item.count;
-      
+
       years[year].months[month].days[day] = (years[year].months[month].days[day] || 0) + item.count;
     });
-    
+
     hierarchies[activeFilterDropdown] = years;
     return hierarchies;
-  }, [uniqueColumnValues, activeFilterDropdown, parseDateParts]);
+  }, [mergedColumnValues, activeFilterDropdown, parseDateParts]);
 
   const temporalChartData = useMemo(() => {
     if (barChartLevel === "year") {
@@ -1589,7 +1622,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   };
 
   const handleDateSelection = (colKey, type, value, parentPath = "") => {
-    const valuesList = uniqueColumnValues[colKey] || [];
+    const valuesList = mergedColumnValues[colKey] || [];
     let targetRawValues = [];
     
     if (type === 'year') {
@@ -1617,7 +1650,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         .map(item => String(item.value || "").trim());
     }
 
-    const uniqueTargetValues = [...new Set(targetRawValues)];
+    // Sólo togglear lo alcanzable dado el resto de filtros (el nodo ya
+    // aparece deshabilitado en el dropdown cuando nada de él es alcanzable).
+    const reachableSet = new Set(reachableValues);
+    const uniqueTargetValues = [...new Set(targetRawValues)].filter(v => reachableSet.has(v));
+    if (uniqueTargetValues.length === 0) return;
     const allInTemp = uniqueTargetValues.every(v => tempSelectedValues.includes(v));
 
     if (allInTemp) {
@@ -1634,12 +1671,15 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     }
 
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab('actuales');
     setFilterSearchText("");
     setHasInitializedTemp(false);
     setTempSelectedValues(columnFilters[colKey] || []);
   };
 
+  // Valores alcanzables (fetch "por defecto", sin buscar): universo dado el
+  // resto de filtros/vista activos (búsqueda global, texto por columna, otros
+  // column filters, año/acción/bitácora seleccionados, avanzados), excepto el
+  // de la propia columna.
   useEffect(() => {
     if (!activeFilterDropdown) return;
     const ctrl = new AbortController();
@@ -1653,58 +1693,39 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       }
     });
 
-    const yearFilter = selectedActionName 
+    const yearFilter = selectedActionName
       ? (selectedMotifYear !== "all" ? selectedMotifYear : null)
       : (selectedYear !== "all" ? selectedYear : null);
 
     const params = {
       distinct_field: activeFilterDropdown,
-      // BUG QA: buscar "16/07/2026" (formato DD/MM/AAAA que muestra toda la UI)
-      // no matcheaba nada — el backend hace icontains contra el valor crudo
-      // ISO ("2026-07-16"). Se traduce antes de mandarlo.
-      distinct_search: isDateColumn(activeFilterDropdown) ? normalizeDateSearchTerm(debouncedFilterSearchText) : debouncedFilterSearchText,
+      distinct_search: "",
+      search: debouncedSearch,
+      ...filterParams,
+      ...colParams,
     };
-
-    if (filterDropdownTab === 'actuales') {
-      Object.assign(params, {
-        search: debouncedSearch,
-        ...filterParams,
-        ...colParams
-      });
-      if (yearFilter && activeSubTab !== "bitacora") {
-        params.fecha_efectiva__year = yearFilter;
-      }
-      if (selectedActionName) {
-        params.accion_nombre = selectedActionName;
-      }
-      if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
-        params.fecha_captura__in = bitacoraDates.join(",");
-      }
-      if (appliedAdvancedFilters.length > 0) {
-        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
-      }
+    if (yearFilter && activeSubTab !== "bitacora") {
+      params.fecha_efectiva__year = yearFilter;
+    }
+    if (selectedActionName) {
+      params.accion_nombre = selectedActionName;
+    }
+    if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+      params.fecha_captura__in = bitacoraDates.join(",");
+    }
+    if (appliedAdvancedFilters.length > 0) {
+      params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
     }
 
     VacantesService.getMovimientosPersonal(params, { signal: ctrl.signal })
       .then((res) => res.json())
       .then((resData) => {
         const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
-        setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
+        setReachableColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
         setHasInitializedTemp(prevInit => {
           if (!prevInit) {
             if (columnFilters[activeFilterDropdown]) {
               setTempSelectedValues(columnFilters[activeFilterDropdown]);
-            } else if (!isDateColumn(activeFilterDropdown) && valuesList.length > HIGH_CARDINALITY_THRESHOLD) {
-              // Alta cardinalidad: la lista queda oculta hasta que el usuario
-              // busque, así que preseleccionar todo es invisible — buscar y
-              // marcar un valor lo desmarcaría (ya estaba marcado) en vez de
-              // seleccionarlo. Sin filtro previo, arranca vacío.
-              // Fechas quedan afuera: el árbol NUNCA se oculta (isHighCardinality
-              // exige `!isDate`), así que aquí "alta cardinalidad" solo describía
-              // cuántas fechas distintas hay, no si la UI está oculta — arrancaba
-              // con todo desmarcado en un árbol totalmente visible, sin reflejar
-              // que sin filtro previo la tabla ya muestra todos los valores.
-              setTempSelectedValues([]);
             } else {
               setTempSelectedValues(valuesList.map(v => v.value));
             }
@@ -1713,17 +1734,43 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           return prevInit;
         });
       })
-      .catch((err) => { if (err.name !== "AbortError") console.error("Error al obtener valores únicos:", err); })
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error valores alcanzables de columna:", err); })
       .finally(() => { if (!ctrl.signal.aborted) setLoadingUniqueValues(false); });
     return () => ctrl.abort();
-  }, [activeFilterDropdown, debouncedFilterSearchText, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, filterDropdownTab, activeSubTab, bitacoraDates, appliedAdvancedFilters]);
+  }, [activeFilterDropdown, debouncedSearch, debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, activeSubTab, bitacoraDates, appliedAdvancedFilters]);
+
+  // Buscar en TODA la columna: sólo cuando hay texto en el buscador del
+  // dropdown, universo completo sin el resto de filtros — igual al que antes
+  // disparaba el tab "Todos los datos". No bloquea la lista con un skeleton
+  // (no depende de `loadingUniqueValues`): mientras llega, se ve la lista de
+  // alcanzables ya cargada.
+  useEffect(() => {
+    if (!activeFilterDropdown || !debouncedFilterSearchText) return;
+    const ctrl = new AbortController();
+    const params = {
+      distinct_field: activeFilterDropdown,
+      // BUG QA: buscar "16/07/2026" (formato DD/MM/AAAA que muestra toda la UI)
+      // no matcheaba nada — el backend hace icontains contra el valor crudo
+      // ISO ("2026-07-16"). Se traduce antes de mandarlo.
+      distinct_search: isDateColumn(activeFilterDropdown) ? normalizeDateSearchTerm(debouncedFilterSearchText) : debouncedFilterSearchText,
+    };
+    VacantesService.getMovimientosPersonal(params, { signal: ctrl.signal })
+      .then((res) => res.json())
+      .then((resData) => {
+        const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
+        setSearchColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
+      })
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error buscando en toda la columna:", err); });
+    return () => ctrl.abort();
+  }, [activeFilterDropdown, debouncedFilterSearchText]);
 
   const applyColumnFilter = (colKey) => {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
     let newFilters = { ...columnFilters };
-    if (tempSelectedValues.length === 0) {
+    if (shouldClear) {
       delete newFilters[colKey];
     } else {
-      newFilters[colKey] = tempSelectedValues;
+      newFilters[colKey] = valuesToCommit;
     }
     setColumnFilters(newFilters);
     setPage(1);
@@ -2519,7 +2566,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             filters={filters}
             dropdownValues={movPersonalDropdownValues}
             dateHierarchy={dateHierarchies[activeFilterDropdown]}
-            dateValues={(uniqueColumnValues[activeFilterDropdown] || []).map(i => i.value)}
+            dateValues={(mergedColumnValues[activeFilterDropdown] || []).map(i => i.value)}
+            reachableValues={reachableValues}
             loadingValues={loadingUniqueValues}
             onDateSelection={(type, value, parentPath) => handleDateSelection(activeFilterDropdown, type, value, parentPath)}
             onToggleDateNode={(path) => setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }))}

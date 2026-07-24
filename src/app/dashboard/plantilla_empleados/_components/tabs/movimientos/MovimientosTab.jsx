@@ -28,7 +28,7 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, finalizeFilterDropdownValues, sortValueCounts, normalizeForSearch, formatDateEsMx, parseDateParts, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
+import { matchesTextCondition, finalizeFilterDropdownValues, resolveColumnFilterCommit, sortValueCounts, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -159,7 +159,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     tempSelectedValues, setTempSelectedValues,
     filterSearchText, setFilterSearchText,
@@ -387,12 +386,20 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     setPage(1);
   }, [columnFilters]);
 
-  const [uniqueColumnValues, setUniqueColumnValues] = useState({});
+  // Valores alcanzables de la columna activa dado el resto de filtros (todos
+  // EXCEPTO el propio de esa columna) — fetch "por defecto" (sin buscar);
+  // también el universo por defecto para listar/jerarquía de fecha.
+  const [reachableColumnValues, setReachableColumnValues] = useState({});
+  // Resultados de buscar en TODA la columna (universo completo bajo el mismo
+  // scope de card Activas/Inactivas/Todas, sin el resto de filtros) — sólo se
+  // piden mientras hay texto en el buscador del dropdown.
+  const [searchColumnValues, setSearchColumnValues] = useState({});
   const [loadingUniqueValues, setLoadingUniqueValues] = useState(false);
   const [hasInitializedTemp, setHasInitializedTemp] = useState(false);
 
 
-  const uniqueValuesCacheRef = useRef({});
+  const reachableValuesCacheRef = useRef({});
+  const searchValuesCacheRef = useRef({});
   const movPosDataCacheRef = useRef({});
 
   const hasFetched = useRef(false);
@@ -550,55 +557,50 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return () => listCtrl.abort();
   }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters, refreshTick]);
 
+  // Valores alcanzables (fetch "por defecto", sin buscar): distinct values
+  // scopeados igual que el card activo (Activas/Inactivas/Todas -> última
+  // posición por Nº Pos Actual, filtrada por Estado Psn si aplica; Mov. de
+  // Posiciones -> tabla MOV_POS completa) MÁS el resto de filtros/búsqueda
+  // activos en la tabla (search, texto por columna, otros column filters,
+  // avanzados), excepto el de la propia columna (no debe filtrarse contra sí
+  // misma). Antes esto se calculaba client-side desde `filteredSortedData`,
+  // que en modo paginado es solo la página actual (50 filas) — el conteo no
+  // reflejaba el total filtrado real.
   useEffect(() => {
     if (!activeFilterDropdown) return;
 
-    // "Todos los datos" = distinct values scopeados igual que el card activo
-    // (Activas/Inactivas/Todas -> última posición por Nº Pos Actual, filtrada
-    // por Estado Psn si aplica; Mov. de Posiciones -> tabla MOV_POS completa,
-    // sin restringir a la última).
-    // "Vista actual" = lo mismo + el resto de filtros/búsqueda activos en la
-    // tabla (search, texto por columna, otros column filters, avanzados),
-    // excepto el de la propia columna (no debe filtrarse contra sí misma).
-    // Antes esto se calculaba client-side desde `filteredSortedData`, que en
-    // modo paginado es solo la página actual (50 filas) — el conteo no
-    // reflejaba el total filtrado real.
-    const isDateCol = DATE_KEYS_MOV.includes(activeFilterDropdown);
-    const isVistaActual = filterDropdownTab === 'actuales';
     const params = {
       distinct_field: activeFilterDropdown,
-      distinct_search: (isDateCol || isServerSafeSearchCondition(filterSearchCondition)) ? debouncedFilterSearchText : "",
+      distinct_search: "",
       is_latest: isLatestFilter ? "true" : "false"
     };
     if (isLatestFilter && activeStatusFilter.length === 1) {
       params.estado_psn__in = activeStatusFilter[0];
     }
 
-    if (isVistaActual) {
-      params.search = debouncedSearch;
-      Object.entries(debouncedTextFilters).forEach(([colKey, filterObj]) => {
-        if (!filterObj || !filterObj.value || !filterObj.value.trim()) return;
-        const cond = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
-        let suffix = "";
-        if (cond === "contains") suffix = "__icontains";
-        else if (cond === "not_contains") { params[`exclude__${colKey}__icontains`] = filterObj.value.trim(); return; }
-        else if (cond === "starts_with") suffix = "__istartswith";
-        else if (cond === "not_starts_with") { params[`exclude__${colKey}__istartswith`] = filterObj.value.trim(); return; }
-        else if (cond === "ends_with") suffix = "__iendswith";
-        else if (cond === "not_ends_with") { params[`exclude__${colKey}__iendswith`] = filterObj.value.trim(); return; }
-        else if (cond === "equals") suffix = "__iexact";
-        else if (cond === "not_equals") { params[`exclude__${colKey}__iexact`] = filterObj.value.trim(); return; }
-        params[`${colKey}${suffix}`] = filterObj.value.trim();
-      });
-      Object.entries(columnFilters).forEach(([key, values]) => {
-        if (key === "is_latest" || key === "estado_psn" || key === activeFilterDropdown) return;
-        if (values && values.length > 0) {
-          params[`${key}__in`] = encodeFilterValues(values);
-        }
-      });
-      if (appliedAdvancedFilters.length > 0) {
-        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+    params.search = debouncedSearch;
+    Object.entries(debouncedTextFilters).forEach(([colKey, filterObj]) => {
+      if (!filterObj || !filterObj.value || !filterObj.value.trim()) return;
+      const cond = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
+      let suffix = "";
+      if (cond === "contains") suffix = "__icontains";
+      else if (cond === "not_contains") { params[`exclude__${colKey}__icontains`] = filterObj.value.trim(); return; }
+      else if (cond === "starts_with") suffix = "__istartswith";
+      else if (cond === "not_starts_with") { params[`exclude__${colKey}__istartswith`] = filterObj.value.trim(); return; }
+      else if (cond === "ends_with") suffix = "__iendswith";
+      else if (cond === "not_ends_with") { params[`exclude__${colKey}__iendswith`] = filterObj.value.trim(); return; }
+      else if (cond === "equals") suffix = "__iexact";
+      else if (cond === "not_equals") { params[`exclude__${colKey}__iexact`] = filterObj.value.trim(); return; }
+      params[`${colKey}${suffix}`] = filterObj.value.trim();
+    });
+    Object.entries(columnFilters).forEach(([key, values]) => {
+      if (key === "is_latest" || key === "estado_psn" || key === activeFilterDropdown) return;
+      if (values && values.length > 0) {
+        params[`${key}__in`] = encodeFilterValues(values);
       }
+    });
+    if (appliedAdvancedFilters.length > 0) {
+      params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
     }
 
     const signature = JSON.stringify(params);
@@ -607,12 +609,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         if (!prevInit) {
           if (columnFilters[activeFilterDropdown]) {
             setTempSelectedValues(columnFilters[activeFilterDropdown]);
-          } else if (valuesList.length > HIGH_CARDINALITY_THRESHOLD) {
-            // Alta cardinalidad: la lista queda oculta hasta que el usuario
-            // busque, así que preseleccionar todo es invisible — buscar y
-            // marcar un valor lo desmarcaría (ya estaba marcado) en vez de
-            // seleccionarlo. Sin filtro previo, arranca vacío.
-            setTempSelectedValues([]);
           } else {
             setTempSelectedValues(valuesList.map(v => v.value));
           }
@@ -622,10 +618,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       });
     };
 
-    const cached = uniqueValuesCacheRef.current[activeFilterDropdown];
+    const cached = reachableValuesCacheRef.current[activeFilterDropdown];
     if (cached && cached.signature === signature) {
-      // Same column, same effective filters/search as last fetch: reuse cached values.
-      setUniqueColumnValues(prev => (prev[activeFilterDropdown] === cached.values ? prev : { ...prev, [activeFilterDropdown]: cached.values }));
+      // Same column, same effective filters as last fetch: reuse cached values.
+      setReachableColumnValues(prev => (prev[activeFilterDropdown] === cached.values ? prev : { ...prev, [activeFilterDropdown]: cached.values }));
       initTempSelected(cached.values);
       setLoadingUniqueValues(false);
       return;
@@ -637,14 +633,50 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       .then(res => res.json())
       .then(resData => {
         const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
-        uniqueValuesCacheRef.current[activeFilterDropdown] = { signature, values: valuesList };
-        setUniqueColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
+        reachableValuesCacheRef.current[activeFilterDropdown] = { signature, values: valuesList };
+        setReachableColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
         initTempSelected(valuesList);
       })
-      .catch(err => { if (err.name !== "AbortError") console.error("Error loading unique values:", err); })
+      .catch(err => { if (err.name !== "AbortError") console.error("Error cargando valores alcanzables:", err); })
       .finally(() => setLoadingUniqueValues(false));
     return () => ctrl.abort();
-  }, [activeFilterDropdown, debouncedFilterSearchText, columnFilters, filterDropdownTab, filterSearchCondition, debouncedSearch, debouncedTextFilters, appliedAdvancedFilters, isLatestFilter, activeStatusFilter, isMonoColumn]);
+  }, [activeFilterDropdown, columnFilters, debouncedSearch, debouncedTextFilters, appliedAdvancedFilters, isLatestFilter, activeStatusFilter, isMonoColumn]);
+
+  // Buscar en TODA la columna: sólo cuando hay texto en el buscador del
+  // dropdown, igual al que antes disparaba el tab "Todos los datos" — mismo
+  // scope de card (is_latest/estado_psn) pero sin el resto de filtros. No
+  // depende de `loadingUniqueValues` (no bloquea la lista con un skeleton en
+  // cada tecla): mientras llega, se ve la lista de alcanzables ya cargada.
+  useEffect(() => {
+    if (!activeFilterDropdown || !debouncedFilterSearchText) return;
+    const isDateCol = DATE_KEYS_MOV.includes(activeFilterDropdown);
+    const params = {
+      distinct_field: activeFilterDropdown,
+      distinct_search: (isDateCol || isServerSafeSearchCondition(filterSearchCondition)) ? debouncedFilterSearchText : "",
+      is_latest: isLatestFilter ? "true" : "false"
+    };
+    if (isLatestFilter && activeStatusFilter.length === 1) {
+      params.estado_psn__in = activeStatusFilter[0];
+    }
+
+    const signature = JSON.stringify(params);
+    const cached = searchValuesCacheRef.current[activeFilterDropdown];
+    if (cached && cached.signature === signature) {
+      setSearchColumnValues(prev => (prev[activeFilterDropdown] === cached.values ? prev : { ...prev, [activeFilterDropdown]: cached.values }));
+      return;
+    }
+
+    const ctrl = new AbortController();
+    VacantesService.getMovPosDetalle(params, { signal: ctrl.signal })
+      .then(res => res.json())
+      .then(resData => {
+        const valuesList = sortValueCounts(Array.isArray(resData) ? resData : []);
+        searchValuesCacheRef.current[activeFilterDropdown] = { signature, values: valuesList };
+        setSearchColumnValues(prev => ({ ...prev, [activeFilterDropdown]: valuesList }));
+      })
+      .catch(err => { if (err.name !== "AbortError") console.error("Error buscando en toda la columna:", err); });
+    return () => ctrl.abort();
+  }, [activeFilterDropdown, debouncedFilterSearchText, filterSearchCondition, isLatestFilter, activeStatusFilter]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [modalHistoryData, setModalHistoryData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
@@ -762,6 +794,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       .then(res => res.json())
       .then(data => (Array.isArray(data) ? data : [])), []);
 
+  // Universo listado/jerarquía de fecha de la columna activa: valores
+  // alcanzables (fetch por defecto) unidos con los de "buscar en toda la
+  // columna" cuando hay texto en el buscador (si no, es exactamente lo
+  // alcanzable — mismo costo/forma que antes).
+  const mergedColumnValues = useMemo(() => {
+    if (!activeFilterDropdown) return {};
+    const reachableList = reachableColumnValues[activeFilterDropdown] || [];
+    if (!debouncedFilterSearchText) return { [activeFilterDropdown]: reachableList };
+    const searchList = searchColumnValues[activeFilterDropdown] || [];
+    const merged = new Map(reachableList.map(v => [v.value, v]));
+    searchList.forEach(v => { if (!merged.has(v.value)) merged.set(v.value, v); });
+    return { [activeFilterDropdown]: sortValueCounts([...merged.values()]) };
+  }, [activeFilterDropdown, reachableColumnValues, searchColumnValues, debouncedFilterSearchText]);
+
+  // Valores alcanzables (plano, sin conteo) de la columna activa — gobierna
+  // qué se puede marcar/desmarcar en ColumnFilterDropdown.
+  const reachableValues = useMemo(
+    () => (reachableColumnValues[activeFilterDropdown] || []).map(v => v.value),
+    [activeFilterDropdown, reachableColumnValues]
+  );
+
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
     const targetKeys = [];
@@ -771,7 +824,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
     targetKeys.forEach(key => {
       const years = {};
-      const valuesList = uniqueColumnValues[key] || [];
+      const valuesList = mergedColumnValues[key] || [];
       valuesList.forEach(item => {
         const val = item.value;
         const count = item.count;
@@ -787,12 +840,12 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       hierarchies[key] = years;
     });
     return hierarchies;
-  }, [uniqueColumnValues, activeFilterDropdown, parseDateParts]);
+  }, [mergedColumnValues, activeFilterDropdown, parseDateParts]);
 
   const allDateLeafValues = useMemo(() => {
     if (!activeFilterDropdown || !isDateColumn(activeFilterDropdown)) return [];
-    return [...new Set((uniqueColumnValues[activeFilterDropdown] || []).map(item => String(item.value).trim()))];
-  }, [uniqueColumnValues, activeFilterDropdown, isDateColumn]);
+    return [...new Set((mergedColumnValues[activeFilterDropdown] || []).map(item => String(item.value).trim()))];
+  }, [mergedColumnValues, activeFilterDropdown, isDateColumn]);
 
   const handleDateSelection = (colKey, type, value, parentPath = "") => {
     const hierarchy = dateHierarchies[colKey];
@@ -800,7 +853,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
     let targetRawValues = [];
     if (type === 'year') {
-      const valuesList = uniqueColumnValues[colKey] || [];
+      const valuesList = mergedColumnValues[colKey] || [];
       targetRawValues = valuesList
         .filter(item => {
           const p = parseDateParts(item.value);
@@ -809,7 +862,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         .map(item => String(item.value).trim());
     } else if (type === 'month') {
       const year = parentPath;
-      const valuesList = uniqueColumnValues[colKey] || [];
+      const valuesList = mergedColumnValues[colKey] || [];
       targetRawValues = valuesList
         .filter(item => {
           const p = parseDateParts(item.value);
@@ -818,7 +871,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         .map(item => String(item.value).trim());
     } else if (type === 'day') {
       const [year, month] = parentPath.split('-');
-      const valuesList = uniqueColumnValues[colKey] || [];
+      const valuesList = mergedColumnValues[colKey] || [];
       targetRawValues = valuesList
         .filter(item => {
           const p = parseDateParts(item.value);
@@ -827,7 +880,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         .map(item => String(item.value).trim());
     }
 
-    const uniqueTargetValues = [...new Set(targetRawValues)];
+    // Sólo togglear lo alcanzable dado el resto de filtros (el nodo ya
+    // aparece deshabilitado en el dropdown cuando nada de él es alcanzable).
+    const reachableSet = new Set(reachableValues);
+    const uniqueTargetValues = [...new Set(targetRawValues)].filter(v => reachableSet.has(v));
+    if (uniqueTargetValues.length === 0) return;
     const allInTemp = uniqueTargetValues.every(v => tempSelectedValues.includes(v));
 
     if (allInTemp) {
@@ -848,7 +905,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     } else {
       setHasInitializedTemp(false);
       setActiveFilterDropdown(colKey);
-      setFilterDropdownTab('actuales');
       setFilterSearchText("");
       setFilterSearchCondition(isMonoColumn(colKey) ? "starts_with" : "contains");
       setIsFilterSearchConditionOpen(false);
@@ -860,17 +916,17 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     }
   };
 
-  // No compara contra uniqueColumnValues[colKey]: ese listado se achica con
-  // distinct_search al buscar dentro del dropdown, así que "seleccioné todos
-  // los resultados de la búsqueda" se confundía con "seleccioné todos los
-  // valores de la columna" y el filtro se descartaba en vez de aplicarse.
+  // Compara contra `reachableValues` (no se achica al buscar dentro del
+  // dropdown, a diferencia del viejo listado único) para decidir si la
+  // selección equivale a "sin filtro".
   const applyColumnFilter = (colKey) => {
-    if (tempSelectedValues.length === 0) {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
+    if (shouldClear) {
       const newFilters = { ...columnFilters };
       delete newFilters[colKey];
       setColumnFilters(newFilters);
     } else {
-      setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
+      setColumnFilters({ ...columnFilters, [colKey]: valuesToCommit });
     }
     setActiveFilterDropdown(null);
     setHasInitializedTemp(false);
@@ -913,7 +969,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     const current = columnFilters["estado_psn"] || [];
     const next = current.includes(label) ? current.filter(s => s !== label) : [...current, label];
     const newFilters = { ...columnFilters };
-    if (next.length === 0 || next.length === uniqueColumnValues["estado_psn"]?.length) delete newFilters["estado_psn"];
+    if (next.length === 0 || next.length === reachableColumnValues["estado_psn"]?.length) delete newFilters["estado_psn"];
     else newFilters["estado_psn"] = next;
     startTransition(() => { setColumnFilters(newFilters); setScrollTop(0); });
   };
@@ -1004,12 +1060,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown || isDateColumn(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
-    // Tanto "Todos los datos" como "Vista actual" llegan ya resueltos del
-    // backend (ver el useEffect de arriba) — "Vista actual" ya viene scopeado
-    // por el resto de filtros/búsqueda activos, así que acá no hay que
-    // recalcular nada client-side (antes se recontaba desde
+    // El universo (alcanzables + búsqueda en toda la columna cuando aplica) ya
+    // llega resuelto del backend (ver los dos useEffect de arriba) — no hay
+    // que recalcular nada client-side (antes se recontaba desde
     // `filteredSortedData`, que en modo paginado es solo la página actual).
-    const baseUniqueValues = (uniqueColumnValues[activeFilterDropdown] || []).map(v => typeof v === 'object' ? v : { value: v, count: 0 });
+    const baseUniqueValues = (mergedColumnValues[activeFilterDropdown] || []).map(v => typeof v === 'object' ? v : { value: v, count: 0 });
 
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText));
 
@@ -1018,8 +1073,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       filtered,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, isDateColumn, uniqueColumnValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
+  }, [activeFilterDropdown, isDateColumn, mergedColumnValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   useEffect(() => {
     let active = true;
@@ -1092,7 +1148,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
-      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{hasValue ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>}</td>);
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>}</td>);
     }
     if (col.key === "categoria_vacancia") {
       const cat = value ? String(value).trim().toUpperCase() : "";
@@ -1852,8 +1908,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             filters={filters}
             dropdownValues={filterDropdownValues}
             dateHierarchy={dateHierarchies[activeFilterDropdown]}
-            dateValues={(uniqueColumnValues[activeFilterDropdown] || []).map(i => i.value)}
+            dateValues={(mergedColumnValues[activeFilterDropdown] || []).map(i => i.value)}
             allDateLeafValues={allDateLeafValues}
+            reachableValues={reachableValues}
             loadingValues={loadingUniqueValues}
             onDateSelection={(type, value, parentPath) => handleDateSelection(activeFilterDropdown, type, value, parentPath)}
             onToggleDateNode={(path) => setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }))}

@@ -16,6 +16,7 @@ import {
   getUniqueColumnValues,
   matchesTextCondition,
   finalizeFilterDropdownValues,
+  resolveColumnFilterCommit,
   formatDateEsMx,
 } from "@/utils/columnFilters";
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER, MONO_CATALOG_COLUMN_KEYS } from "./catalogosConfig";
@@ -90,7 +91,6 @@ function GenericCatalogSubtab({ activeCatalog }) {
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     setTempSelectedValues,
     tempSelectedValues,
@@ -202,21 +202,30 @@ function GenericCatalogSubtab({ activeCatalog }) {
     document.addEventListener("mouseup", onUp);
   };
 
+  // Valores alcanzables de una columna dado el resto de filtros (todos EXCEPTO
+  // el propio de esa columna).
+  const computeReachableValues = useCallback((colKey) => {
+    const { [colKey]: _omitCF, ...otherColumnFilters } = columnFilters;
+    const { [colKey]: _omitTF, ...otherTextFilters } = textFilters;
+    const reachableData = applyColumnFilters(data, {
+      globalSearch, columnFilters: otherColumnFilters, textFilters: otherTextFilters, getCellValue, isMonoColumn,
+    });
+    return getUniqueColumnValues(reachableData, colKey, getCellValue).map((v) => v.value);
+  }, [data, globalSearch, columnFilters, textFilters, getCellValue, isMonoColumn]);
+
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab("actuales");
     setFilterSearchText("");
-    const allValues = [...new Set(data.map((row) => getCellValue(row, colKey)))];
-    setTempSelectedValues(columnFilters[colKey] || allValues);
+    setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey));
   };
 
   const applyColumnFilter = (colKey) => {
-    const totalUnique = getUniqueColumnValues(data, colKey, getCellValue).map((v) => v.value);
-    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
+    if (shouldClear) {
       setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
     } else {
-      setColumnFilters((prev) => ({ ...prev, [colKey]: tempSelectedValues }));
+      setColumnFilters((prev) => ({ ...prev, [colKey]: valuesToCommit }));
     }
     setActiveFilterDropdown(null);
   };
@@ -231,22 +240,25 @@ function GenericCatalogSubtab({ activeCatalog }) {
     return getUniqueColumnValues(data, activeFilterDropdown, getCellValue);
   }, [activeFilterDropdown, data, getCellValue]);
 
+  const reachableValues = useMemo(
+    () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
+    [activeFilterDropdown, computeReachableValues]
+  );
+
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) {
       return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
     }
-    let baseUniqueValues = dropdownUniqueValues;
-    if (filterDropdownTab === "actuales") {
-      baseUniqueValues = getUniqueColumnValues(filteredData, activeFilterDropdown, getCellValue);
-    }
+    const baseUniqueValues = dropdownUniqueValues;
     const filteredVals = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
     return finalizeFilterDropdownValues({
       baseUniqueValues,
       filtered: filteredVals,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, dropdownUniqueValues, filterDropdownTab, filteredData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters, getCellValue]);
+  }, [activeFilterDropdown, dropdownUniqueValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   const hasActiveFilters = !!globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some((f) => f?.value);
   const resetAllFilters = () => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Filter, X, Search, Check, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { Filter, X, Search, Check, ChevronDown, ChevronRight as ChevronRightIcon, AlertTriangle } from "lucide-react";
 import {
   CONDITION_OPTIONS,
   CONDITION_SHORTHANDS,
@@ -52,13 +52,14 @@ function highlightMatch(text, needle) {
  * @param {Object[]} props.data - Filas (para calcular hojas del árbol de fecha).
  * @param {(row: Object, key: string) => string} [props.getCellValue] - Accesor de valor de celda.
  * @param {Object} props.filters - Instancia de `useColumnFilters` (estado + setters).
- * @param {{allVals: string[], isAllSelected: boolean, isPartialSelected: boolean, visibleVals: string[], isVisibleAllSelected: boolean, isVisiblePartialSelected: boolean, sliced: Array<{value: string, count: number}>, filteredCount: number}} props.dropdownValues - Valores ya calculados para la lista.
+ * @param {{allVals: string[], isAllSelected: boolean, isPartialSelected: boolean, visibleVals: string[], isVisibleAllSelected: boolean, isVisiblePartialSelected: boolean, sliced: Array<{value: string, count: number, reachable: boolean}>, filteredCount: number}} props.dropdownValues - Valores ya calculados para la lista (`reachable` = alcanzable dado el resto de filtros; ver `finalizeFilterDropdownValues`).
  * @param {Object} [props.dateHierarchy] - Jerarquía año→mes→día de la columna (si es fecha).
  * @param {(type: ('year'|'month'|'day'), value: string, parentPath?: string) => void} props.onDateSelection - Selección por nodo de fecha.
  * @param {(path: string) => void} props.onToggleDateNode - Expandir/colapsar nodo de fecha.
  * @param {() => void} props.onApply - Aplica el filtro de la columna.
  * @param {() => void} props.onClear - Limpia el filtro de la columna.
  * @param {() => void} props.onClose - Cierra el dropdown.
+ * @param {?string[]} [props.reachableValues=null] - Sólo para columnas de fecha: valores hoja alcanzables considerando el resto de filtros (todas las columnas EXCEPTO la propia). `null` = sin restricción. En columnas no-fecha la alcanzabilidad ya viene por valor en `dropdownValues.sliced[].reachable`.
  * @param {string} [props.zIndexClass] - Clase de z-index del contenedor (stacking context de fondo+panel). Override para usarlo dentro de modales con z-index propio más alto que el z-[60] por defecto.
  * @returns {JSX.Element}
  */
@@ -80,12 +81,12 @@ export default function ColumnFilterDropdown({
   loadingValues = false,
   dateValues = null,
   allDateLeafValues = null,
+  reachableValues = null,
   dimBackdrop = true,
   renderValueLabel = null,
   zIndexClass = "z-[60]",
 }) {
   const {
-    filterDropdownTab, setFilterDropdownTab,
     filterSearchText, setFilterSearchText,
     filterSearchCondition, setFilterSearchCondition,
     isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
@@ -100,29 +101,44 @@ export default function ColumnFilterDropdown({
   const [viewportHeight, setViewportHeight] = useState(280);
   const [highlightIndex, setHighlightIndex] = useState(-1);
 
-  const sliced = dropdownValues?.sliced || [];
+  // Seleccionados primero: reordena localmente (sin tocar dropdownValues) para
+  // que lo marcado quede arriba de la lista virtualizada; el resto conserva su
+  // orden original dentro de cada grupo (sort estable).
+  const rawSliced = dropdownValues?.sliced || [];
+  const tempSelectedSet = new Set(tempSelectedValues);
+  const sliced = [...rawSliced].sort((a, b) => {
+    const aSel = a.reachable && tempSelectedSet.has(a.value) ? 0 : 1;
+    const bSel = b.reachable && tempSelectedSet.has(b.value) ? 0 : 1;
+    return aSel - bSel;
+  });
   const isHighCardinality = !isDate && (dropdownValues?.allVals?.length || 0) > HIGH_CARDINALITY_THRESHOLD;
   const listHidden = isHighCardinality && !filterSearchText;
 
-  // Cambió la columna, la pestaña o el resultado de la búsqueda: el índice
-  // resaltado y el scroll ya no corresponden a la lista actual.
+  // BUG QA 2026-07-23: con texto en el buscador, "Seleccionar visibles" sólo
+  // togglea lo que matchea la búsqueda — cualquier selección previa fuera de
+  // ella (p. ej. quedó marcada desde antes de escribir, o desde una búsqueda
+  // anterior) se aplica igual pero queda invisible en la lista. Sin avisar
+  // esto, es fácil creer que se filtró "sólo a los N buscados" cuando en
+  // realidad se incluyen miles de valores más. `visibleVals` ya viene
+  // filtrado por búsqueda desde `dropdownValues`.
+  const hiddenSelectedCount = !isDate && filterSearchText
+    ? tempSelectedValues.filter((v) => !(dropdownValues?.visibleVals || []).includes(v)).length
+    : 0;
+
+  // Cambió la columna o el resultado de la búsqueda: el índice resaltado y el
+  // scroll ya no corresponden a la lista actual.
   useEffect(() => {
     setHighlightIndex(-1);
     setScrollTop(0);
     if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
-  }, [columnKey, isDate, filterDropdownTab, dropdownValues?.filteredCount]);
+  }, [columnKey, isDate, dropdownValues?.filteredCount]);
 
   // Cambió la columna: la búsqueda/condición de la columna anterior no debe
-  // heredarse a la nueva (filterSearchText/filterSearchCondition viven una
-  // sola vez por tabla en useColumnFilters, no por columna). "Vista actual"
-  // como default engañaba: scopea el universo de valores a lo ya filtrado, así
-  // que columnas recién abiertas mostraban de entrada menos opciones de las
-  // que en realidad existen. Cada tab pone 'actuales' al abrir (openFilterDropdown);
-  // este efecto corre después y lo pisa a 'todos', sin tocar los 8 call sites.
+  // heredarse a la nueva (filterSearchText/filterSearchCondition viven una sola
+  // vez por tabla en useColumnFilters, no por columna).
   useEffect(() => {
     setFilterSearchText("");
     setFilterSearchCondition("contains");
-    setFilterDropdownTab("todos");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columnKey]);
 
@@ -169,8 +185,8 @@ export default function ColumnFilterDropdown({
       setHighlightIndex((i) => { const next = Math.max(i - 1, 0); ensureRowVisible(next); return next; });
     } else if (e.key === " " && highlightIndex >= 0 && document.activeElement?.tagName !== "INPUT") {
       e.preventDefault();
-      const val = sliced[highlightIndex]?.value;
-      if (val !== undefined) setTempSelectedValues((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]));
+      const item = sliced[highlightIndex];
+      if (item?.reachable) setTempSelectedValues((prev) => (prev.includes(item.value) ? prev.filter((v) => v !== item.value) : [...prev, item.value]));
     } else if (e.key === "Enter") {
       e.preventDefault();
       onApply();
@@ -191,8 +207,53 @@ export default function ColumnFilterDropdown({
   // `allDateLeafValues` (varios tabs no lo hacían y el botón global quedaba oculto).
   const resolvedAllDateLeafValues = isDate ? (allDateLeafValues || dateLeaves(() => true)) : [];
 
-  const markValues = (values) => setTempSelectedValues((prev) => [...new Set([...prev, ...values])]);
+  // Alcanzabilidad de nodos de fecha (año/mes/día): `null` = sin restricción
+  // (todo alcanzable). Un nodo se deshabilita únicamente cuando NINGUNA de sus
+  // hojas es alcanzable dado el resto de filtros (no el propio de esta columna).
+  const reachableDateSet = reachableValues ? new Set(reachableValues) : null;
+  const filterReachable = (values) => (reachableDateSet ? values.filter((v) => reachableDateSet.has(v)) : values);
+
+  const markValues = (values) => setTempSelectedValues((prev) => [...new Set([...prev, ...filterReachable(values)])]);
   const unmarkValues = (values) => setTempSelectedValues((prev) => prev.filter((v) => !values.includes(v)));
+
+  // Filtra el árbol año→mes→día por el texto del buscador. BUG QA 2026-07-23:
+  // el buscador se veía activo en columnas de fecha pero no tenía ningún
+  // efecto — el árbol se armaba sólo desde `dateHierarchy`, ignorando
+  // `filterSearchText`. Un año/mes sobrevive si él mismo matchea (año, nombre
+  // de mes) o si CUALQUIERA de sus días matchea (por día suelto o por fecha
+  // completa dd/mm/aaaa), igual que como se ve la fecha en el resto de la UI.
+  const dateSearchText = isDate ? normalizeForSearch(filterSearchText.trim()) : "";
+  const filteredDateHierarchy = useMemo(() => {
+    if (!isDate || !dateSearchText) return dateHierarchy || {};
+    const result = {};
+    Object.entries(dateHierarchy || {}).forEach(([year, yearData]) => {
+      const yearSelfMatch = normalizeForSearch(year).includes(dateSearchText);
+      const months = {};
+      Object.entries(yearData.months || {}).forEach(([month, monthData]) => {
+        const monthSelfMatch = yearSelfMatch
+          || normalizeForSearch(monthData.name).includes(dateSearchText)
+          || normalizeForSearch(`${month}/${year}`).includes(dateSearchText);
+        const days = {};
+        Object.entries(monthData.days || {}).forEach(([day, count]) => {
+          const dayMatch = monthSelfMatch
+            || day.includes(dateSearchText)
+            || normalizeForSearch(`${day}/${month}/${year}`).includes(dateSearchText)
+            || normalizeForSearch(`${day}-${month}-${year}`).includes(dateSearchText);
+          if (dayMatch) days[day] = count;
+        });
+        if (monthSelfMatch || Object.keys(days).length > 0) {
+          months[month] = monthSelfMatch ? monthData : { ...monthData, days };
+        }
+      });
+      if (yearSelfMatch || Object.keys(months).length > 0) {
+        result[year] = yearSelfMatch ? yearData : { ...yearData, months };
+      }
+    });
+    return result;
+  }, [isDate, dateHierarchy, dateSearchText]);
+  // Con búsqueda activa, expandir automáticamente año/mes filtrados (si no,
+  // el usuario vería la lista "vacía" hasta expandir manualmente cada nodo).
+  const isDateNodeExpanded = (path) => (dateSearchText ? true : expandedDateNodes[path]);
 
   return createPortal(
     <AnimatePresence>
@@ -214,12 +275,6 @@ export default function ColumnFilterDropdown({
                 </h4>
                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
               </div>
-              {!isDate && (
-                <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg mb-3">
-                  <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('todos'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'todos' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Todos los datos</button>
-                  <button onClick={(e) => { e.stopPropagation(); setFilterDropdownTab('actuales'); }} className={`flex-1 text-[10px] font-bold py-1.5 rounded-md transition-all ${filterDropdownTab === 'actuales' ? 'bg-white dark:bg-slate-700 shadow-sm text-[#621f32] dark:text-[#bc955c]' : 'text-slate-500 hover:text-slate-700'}`}>Vista actual</button>
-                </div>
-              )}
               <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm gap-2">
                 {!isDate && (
                   <button
@@ -268,17 +323,25 @@ export default function ColumnFilterDropdown({
               {!isDate && dropdownValues && (
                 <div className="mt-2 text-[9px] font-black uppercase text-slate-500 dark:text-slate-500 px-0.5">
                   {filterSearchText
-                    ? `${dropdownValues.visibleVals.filter((v) => tempSelectedValues.includes(v)).length} de ${dropdownValues.visibleVals.length} visibles seleccionados`
-                    : (() => {
-                        // BUG-F07: `tempSelectedValues` puede traer selecciones hechas
-                        // en "Todos los datos" (universo global); al cambiar a "Vista
-                        // actual" (universo reducido) hay que acotar el conteo al
-                        // universo activo (`dropdownValues.allVals`), si no salen
-                        // contadores imposibles como "17 de 1 seleccionados".
-                        const allValsSet = new Set(dropdownValues.allVals);
-                        const selectedInScope = tempSelectedValues.filter((v) => allValsSet.has(v)).length;
-                        return `${selectedInScope} de ${dropdownValues.allVals.length} seleccionados`;
-                      })()}
+                    ? `${dropdownValues.sliced.filter((v) => v.reachable && tempSelectedValues.includes(v.value)).length} de ${dropdownValues.visibleVals.length} visibles seleccionados`
+                    : `${dropdownValues.sliced.filter((v) => v.reachable && tempSelectedValues.includes(v.value)).length} de ${dropdownValues.allVals.length} seleccionados`}
+                </div>
+              )}
+              {hiddenSelectedCount > 0 && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-2 py-1.5">
+                  <AlertTriangle className="size-3 shrink-0 mt-px" />
+                  <span className="flex-1">+{hiddenSelectedCount.toLocaleString("es-MX")} valor(es) seleccionado(s) fuera de tu búsqueda también se incluirán al aplicar.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const visibleSet = new Set(dropdownValues?.visibleVals || []);
+                      setTempSelectedValues((prev) => prev.filter((v) => visibleSet.has(v)));
+                    }}
+                    className="shrink-0 underline decoration-dotted hover:text-amber-900 dark:hover:text-amber-300 transition-colors cursor-pointer"
+                    title="Deja marcados sólo los valores visibles en tu búsqueda actual"
+                  >
+                    Quitar
+                  </button>
                 </div>
               )}
             </div>
@@ -298,27 +361,33 @@ export default function ColumnFilterDropdown({
                   <div className="flex flex-col gap-1">
                     {resolvedAllDateLeafValues.length > 0 && (
                       <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
-                        <button onClick={() => setTempSelectedValues(resolvedAllDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
+                        <button onClick={() => setTempSelectedValues(filterReachable(resolvedAllDateLeafValues))} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
                         <button onClick={() => setTempSelectedValues([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
                       </div>
                     )}
-                    {Object.keys(dateHierarchy || {}).length === 0 && (
+                    {Object.keys(filteredDateHierarchy).length === 0 && (
                       <div className="text-center py-8 text-[10px] font-black uppercase text-slate-400">Sin resultados</div>
                     )}
-                    {Object.keys(dateHierarchy || {}).sort((a, b) => b - a).map(year => {
-                      const yearData = dateHierarchy[year];
-                      const isYearExpanded = expandedDateNodes[year];
+                    {Object.keys(filteredDateHierarchy).sort((a, b) => b - a).map(year => {
+                      const yearData = filteredDateHierarchy[year];
+                      const isYearExpanded = isDateNodeExpanded(year);
                       const yearLeafValues = dateLeaves(p => p.year === year);
-                      const isYearSelected = yearLeafValues.length > 0 && yearLeafValues.every(v => tempSelectedValues.includes(v));
-                      const isYearPartial = !isYearSelected && yearLeafValues.some(v => tempSelectedValues.includes(v));
+                      const yearReachableLeafValues = filterReachable(yearLeafValues);
+                      const isYearDisabled = yearReachableLeafValues.length === 0;
+                      const isYearSelected = yearReachableLeafValues.length > 0 && yearReachableLeafValues.every(v => tempSelectedValues.includes(v));
+                      const isYearPartial = !isYearSelected && yearReachableLeafValues.some(v => tempSelectedValues.includes(v));
 
                       return (
                         <div key={year} className="flex flex-col">
-                          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg group">
+                          <div className={`flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg group ${isYearDisabled ? "opacity-40" : ""}`}>
                             <button onClick={() => onToggleDateNode(year)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors text-slate-400">
                               {isYearExpanded ? <ChevronDown className="size-3" /> : <ChevronRightIcon className="size-3" />}
                             </button>
-                            <div onClick={() => onDateSelection('year', year)} className="flex items-center gap-2 cursor-pointer flex-1">
+                            <div
+                              onClick={isYearDisabled ? undefined : () => onDateSelection('year', year)}
+                              title={isYearDisabled ? "No disponible con los filtros actuales" : undefined}
+                              className={`flex items-center gap-2 flex-1 ${isYearDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+                            >
                               <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isYearSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
                                 {isYearSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
                                 {isYearPartial && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
@@ -326,10 +395,12 @@ export default function ColumnFilterDropdown({
                               <span className="text-xs font-black text-slate-700 dark:text-slate-200">{year}</span>
                               <span className="text-[10px] font-black text-slate-400">({yearData.count})</span>
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                              <button onClick={(e) => { e.stopPropagation(); markValues(yearLeafValues); }} title="Marcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
-                              <button onClick={(e) => { e.stopPropagation(); unmarkValues(yearLeafValues); }} title="Desmarcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
-                            </div>
+                            {!isYearDisabled && (
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                <button onClick={(e) => { e.stopPropagation(); markValues(yearLeafValues); }} title="Marcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
+                                <button onClick={(e) => { e.stopPropagation(); unmarkValues(yearLeafValues); }} title="Desmarcar todo el año" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
+                              </div>
+                            )}
                           </div>
 
                           {isYearExpanded && (
@@ -337,18 +408,24 @@ export default function ColumnFilterDropdown({
                               {Object.keys(yearData.months).sort().map(month => {
                                 const monthData = yearData.months[month];
                                 const monthPath = `${year}-${month}`;
-                                const isMonthExpanded = expandedDateNodes[monthPath];
+                                const isMonthExpanded = isDateNodeExpanded(monthPath);
                                 const monthLeafValues = dateLeaves(p => p.year === year && p.month === month);
-                                const isMonthSelected = monthLeafValues.length > 0 && monthLeafValues.every(v => tempSelectedValues.includes(v));
-                                const isMonthPartial = !isMonthSelected && monthLeafValues.some(v => tempSelectedValues.includes(v));
+                                const monthReachableLeafValues = filterReachable(monthLeafValues);
+                                const isMonthDisabled = monthReachableLeafValues.length === 0;
+                                const isMonthSelected = monthReachableLeafValues.length > 0 && monthReachableLeafValues.every(v => tempSelectedValues.includes(v));
+                                const isMonthPartial = !isMonthSelected && monthReachableLeafValues.some(v => tempSelectedValues.includes(v));
 
                                 return (
                                   <div key={month} className="flex flex-col">
-                                    <div className="flex items-center gap-2 px-2 py-1 group">
+                                    <div className={`flex items-center gap-2 px-2 py-1 group ${isMonthDisabled ? "opacity-40" : ""}`}>
                                       <button onClick={() => onToggleDateNode(monthPath)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-slate-400">
                                         {isMonthExpanded ? <ChevronDown className="size-2.5" /> : <ChevronRightIcon className="size-2.5" />}
                                       </button>
-                                      <div onClick={() => onDateSelection('month', month, year)} className="flex items-center gap-2 cursor-pointer flex-1">
+                                      <div
+                                        onClick={isMonthDisabled ? undefined : () => onDateSelection('month', month, year)}
+                                        title={isMonthDisabled ? "No disponible con los filtros actuales" : undefined}
+                                        className={`flex items-center gap-2 flex-1 ${isMonthDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+                                      >
                                         <div className={`size-3.5 rounded border flex items-center justify-center transition-all ${isMonthSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
                                           {isMonthSelected && <Check className="size-2 text-white dark:text-[#3e131f]" strokeWidth={4} />}
                                           {isMonthPartial && <div className="size-1 bg-[#621f32] dark:bg-[#bc955c] rounded-xs" />}
@@ -356,10 +433,12 @@ export default function ColumnFilterDropdown({
                                         <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">{monthData.name}</span>
                                         <span className="text-[9px] font-black text-slate-500">({monthData.count})</span>
                                       </div>
-                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                        <button onClick={(e) => { e.stopPropagation(); markValues(monthLeafValues); }} title="Marcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
-                                        <button onClick={(e) => { e.stopPropagation(); unmarkValues(monthLeafValues); }} title="Desmarcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
-                                      </div>
+                                      {!isMonthDisabled && (
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                          <button onClick={(e) => { e.stopPropagation(); markValues(monthLeafValues); }} title="Marcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Todo</button>
+                                          <button onClick={(e) => { e.stopPropagation(); unmarkValues(monthLeafValues); }} title="Desmarcar todo el mes" className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Ninguno</button>
+                                        </div>
+                                      )}
                                     </div>
 
                                     {isMonthExpanded && (
@@ -367,10 +446,17 @@ export default function ColumnFilterDropdown({
                                         {Object.keys(monthData.days).sort().map(day => {
                                           const count = monthData.days[day];
                                           const dayUniqueValues = dateLeaves(p => p.year === year && p.month === month && p.day === day);
-                                          const isDaySelected = dayUniqueValues.length > 0 && dayUniqueValues.every(v => tempSelectedValues.includes(v));
+                                          const dayReachableValues = filterReachable(dayUniqueValues);
+                                          const isDayDisabled = dayReachableValues.length === 0;
+                                          const isDaySelected = dayReachableValues.length > 0 && dayReachableValues.every(v => tempSelectedValues.includes(v));
 
                                           return (
-                                            <div key={day} onClick={() => onDateSelection('day', day, monthPath)} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded cursor-pointer group">
+                                            <div
+                                              key={day}
+                                              onClick={isDayDisabled ? undefined : () => onDateSelection('day', day, monthPath)}
+                                              title={isDayDisabled ? "No disponible con los filtros actuales" : undefined}
+                                              className={`flex items-center gap-2 px-2 py-1 rounded group ${isDayDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"}`}
+                                            >
                                               <div className={`size-3 rounded border flex items-center justify-center transition-all ${isDaySelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
                                                 {isDaySelected && <Check className="size-2 text-white dark:text-[#3e131f]" strokeWidth={4} />}
                                               </div>
@@ -396,8 +482,9 @@ export default function ColumnFilterDropdown({
                   <div className="shrink-0 p-2 pb-1 border-b border-slate-50 dark:border-slate-800/50">
                     <button
                       onClick={() => {
-                        const { visibleVals, isVisibleAllSelected } = dropdownValues;
-                        setTempSelectedValues((prev) => (isVisibleAllSelected ? prev.filter((v) => !visibleVals.includes(v)) : [...new Set([...prev, ...visibleVals])]));
+                        const { visibleVals, isVisibleAllSelected, sliced } = dropdownValues;
+                        const reachableVisibleVals = sliced.filter((v) => v.reachable).map((v) => v.value);
+                        setTempSelectedValues((prev) => (isVisibleAllSelected ? prev.filter((v) => !visibleVals.includes(v)) : [...new Set([...prev, ...reachableVisibleVals])]));
                       }}
                       className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group w-full"
                     >
@@ -423,21 +510,23 @@ export default function ColumnFilterDropdown({
                         const visibleCount = Math.ceil(viewportHeight / ROW_HEIGHT) + OVERSCAN * 2;
                         const endIdx = Math.min(sliced.length, startIdx + visibleCount);
                         const visibleSlice = sliced.slice(startIdx, endIdx);
-                        const tempSelectedSet = new Set(tempSelectedValues);
                         return (
                           <div style={{ height: sliced.length * ROW_HEIGHT, position: "relative" }}>
                             {visibleSlice.map((item, i) => {
                               const idx = startIdx + i;
-                              const { value, count } = item;
-                              const isChecked = tempSelectedSet.has(value);
+                              const { value, count, reachable } = item;
+                              const isChecked = reachable && tempSelectedSet.has(value);
                               const isHighlighted = idx === highlightIndex;
                               return (
                                 <button
                                   key={value}
-                                  onClick={() => setTempSelectedValues((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))}
+                                  type="button"
+                                  disabled={!reachable}
+                                  title={reachable ? undefined : "No disponible con los filtros actuales"}
+                                  onClick={reachable ? () => setTempSelectedValues((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value])) : undefined}
                                   onMouseEnter={() => setHighlightIndex(idx)}
                                   style={{ position: "absolute", top: idx * ROW_HEIGHT, left: 0, right: 0, height: ROW_HEIGHT }}
-                                  className={`flex items-center gap-3 px-3 rounded-xl transition-colors text-left ${isHighlighted ? "bg-slate-100 dark:bg-slate-800/70" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                                  className={`flex items-center gap-3 px-3 rounded-xl transition-colors text-left ${!reachable ? "opacity-40 cursor-not-allowed" : isHighlighted ? "bg-slate-100 dark:bg-slate-800/70" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
                                 >
                                   <div className={`size-4 rounded-md border flex items-center justify-center transition-all shrink-0 ${isChecked ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
                                     {isChecked && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}

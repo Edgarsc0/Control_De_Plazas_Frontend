@@ -18,6 +18,7 @@ import {
   getUniqueColumnValues,
   matchesTextCondition,
   finalizeFilterDropdownValues,
+  resolveColumnFilterCommit,
   formatDateEsMx,
 } from "@/utils/columnFilters";
 
@@ -78,7 +79,6 @@ export default function NivelesJerarquicosPlazaSubtab() {
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     setTempSelectedValues,
     tempSelectedValues,
@@ -234,21 +234,30 @@ export default function NivelesJerarquicosPlazaSubtab() {
     document.addEventListener("mouseup", onUp);
   };
 
+  // Valores alcanzables de una columna dado el resto de filtros (todos EXCEPTO
+  // el propio de esa columna).
+  const computeReachableValues = useCallback((colKey) => {
+    const { [colKey]: _omitCF, ...otherColumnFilters } = columnFilters;
+    const { [colKey]: _omitTF, ...otherTextFilters } = textFilters;
+    const reachableData = applyColumnFilters(estadoFilteredData, {
+      globalSearch, columnFilters: otherColumnFilters, textFilters: otherTextFilters, getCellValue, isMonoColumn,
+    });
+    return getUniqueColumnValues(reachableData, colKey, getCellValue).map((v) => v.value);
+  }, [estadoFilteredData, globalSearch, columnFilters, textFilters, getCellValue, isMonoColumn]);
+
   const openFilterDropdown = (colKey) => {
     if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
     setActiveFilterDropdown(colKey);
-    setFilterDropdownTab("actuales");
     setFilterSearchText("");
-    const allValues = [...new Set(estadoFilteredData.map((row) => getCellValue(row, colKey)))];
-    setTempSelectedValues(columnFilters[colKey] || allValues);
+    setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey));
   };
 
   const applyColumnFilter = (colKey) => {
-    const totalUnique = getUniqueColumnValues(estadoFilteredData, colKey, getCellValue).map((v) => v.value);
-    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
+    if (shouldClear) {
       setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
     } else {
-      setColumnFilters((prev) => ({ ...prev, [colKey]: tempSelectedValues }));
+      setColumnFilters((prev) => ({ ...prev, [colKey]: valuesToCommit }));
     }
     setActiveFilterDropdown(null);
   };
@@ -263,22 +272,25 @@ export default function NivelesJerarquicosPlazaSubtab() {
     return getUniqueColumnValues(estadoFilteredData, activeFilterDropdown, getCellValue);
   }, [activeFilterDropdown, estadoFilteredData, getCellValue]);
 
+  const reachableValues = useMemo(
+    () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
+    [activeFilterDropdown, computeReachableValues]
+  );
+
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) {
       return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
     }
-    let baseUniqueValues = dropdownUniqueValues;
-    if (filterDropdownTab === "actuales") {
-      baseUniqueValues = getUniqueColumnValues(filteredData, activeFilterDropdown, getCellValue);
-    }
+    const baseUniqueValues = dropdownUniqueValues;
     const filteredVals = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
     return finalizeFilterDropdownValues({
       baseUniqueValues,
       filtered: filteredVals,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, dropdownUniqueValues, filterDropdownTab, filteredData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters, getCellValue]);
+  }, [activeFilterDropdown, dropdownUniqueValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   const hasActiveFilters = !!globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some((f) => f?.value) || estadoFiltro !== "todos";
   const resetAllFilters = () => {

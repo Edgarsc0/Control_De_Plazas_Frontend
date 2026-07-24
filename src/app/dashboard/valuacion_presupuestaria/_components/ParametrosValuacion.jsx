@@ -10,6 +10,7 @@ import {
     getUniqueColumnValues,
     matchesTextCondition,
     finalizeFilterDropdownValues,
+    resolveColumnFilterCommit,
     getConditionLabel,
     CONDITION_OPTIONS,
     CONDITION_SHORTHANDS,
@@ -381,7 +382,6 @@ export default function ParametrosValuacion({
         columnFilters, setColumnFilters,
         textFilters, setTextFilters,
         activeFilterDropdown, setActiveFilterDropdown,
-        filterDropdownTab, setFilterDropdownTab,
         activeConditionDropdown, setActiveConditionDropdown,
         tempSelectedValues, setTempSelectedValues,
         setFilterSearchText,
@@ -411,21 +411,30 @@ export default function ParametrosValuacion({
         });
     }, [activeRawData, paramSearchTerm, columnFilters, textFilters, getCellValue, isMonoColumn]);
 
+    // Valores alcanzables de una columna dado el resto de filtros (todos
+    // EXCEPTO el propio de esa columna).
+    const computeReachableValues = useCallback((colKey) => {
+        const { [colKey]: _omitCF, ...otherColumnFilters } = columnFilters;
+        const { [colKey]: _omitTF, ...otherTextFilters } = textFilters;
+        const reachableData = applyColumnFilters(activeRawData, {
+            globalSearch: paramSearchTerm, columnFilters: otherColumnFilters, textFilters: otherTextFilters, getCellValue, isMonoColumn,
+        });
+        return getUniqueColumnValues(reachableData, colKey, getCellValue).map((v) => v.value);
+    }, [activeRawData, paramSearchTerm, columnFilters, textFilters, getCellValue, isMonoColumn]);
+
     const openFilterDropdown = (colKey) => {
         if (activeFilterDropdown === colKey) { setActiveFilterDropdown(null); return; }
         setActiveFilterDropdown(colKey);
-        setFilterDropdownTab('todos');
         setFilterSearchText('');
-        const allValues = [...new Set(activeRawData.map((row) => getCellValue(row, colKey)))];
-        setTempSelectedValues(columnFilters[colKey] || allValues);
+        setTempSelectedValues(columnFilters[colKey] || computeReachableValues(colKey));
     };
 
     const applyColumnFilter = (colKey) => {
-        const totalUnique = getUniqueColumnValues(activeRawData, colKey, getCellValue).map((v) => v.value);
-        if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+        const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
+        if (shouldClear) {
             setColumnFilters((prev) => { const next = { ...prev }; delete next[colKey]; return next; });
         } else {
-            setColumnFilters((prev) => ({ ...prev, [colKey]: tempSelectedValues }));
+            setColumnFilters((prev) => ({ ...prev, [colKey]: valuesToCommit }));
         }
         setActiveFilterDropdown(null);
     };
@@ -449,22 +458,25 @@ export default function ParametrosValuacion({
         return getUniqueColumnValues(activeRawData, activeFilterDropdown, getCellValue);
     }, [activeFilterDropdown, activeRawData, getCellValue]);
 
+    const reachableValues = useMemo(
+        () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
+        [activeFilterDropdown, computeReachableValues]
+    );
+
     const filterDropdownValues = useMemo(() => {
         if (!activeFilterDropdown) {
             return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false, isPartialSelected: false, visibleVals: [], isVisibleAllSelected: false, isVisiblePartialSelected: false };
         }
-        let baseUniqueValues = dropdownUniqueValues;
-        if (filterDropdownTab === 'actuales') {
-            baseUniqueValues = getUniqueColumnValues(filteredParams, activeFilterDropdown, getCellValue);
-        }
+        const baseUniqueValues = dropdownUniqueValues;
         const filtered = baseUniqueValues.filter((v) => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
         return finalizeFilterDropdownValues({
             baseUniqueValues,
             filtered,
             tempSelectedValues,
             committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+            reachableValues,
         });
-    }, [activeFilterDropdown, dropdownUniqueValues, filterDropdownTab, filteredParams, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters, getCellValue]);
+    }, [activeFilterDropdown, dropdownUniqueValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
     const handleUpdatePlaza = async (id, field, value) => {
         const res = await PresupuestoService.updatePlaza(id, { [field]: value });

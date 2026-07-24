@@ -26,7 +26,7 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
-import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, normalizeForSearch, formatDateEsMx, parseDateParts, HIGH_CARDINALITY_THRESHOLD } from "@/utils/columnFilters";
+import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
@@ -191,7 +191,6 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     tempSelectedValues, setTempSelectedValues,
     filterSearchText, setFilterSearchText,
@@ -370,7 +369,11 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         .map(row => String(row[colKey] || "").trim());
     }
 
-    const uniqueTargetValues = [...new Set(targetRawValues)];
+    // Sólo togglear lo alcanzable dado el resto de filtros (el nodo ya aparece
+    // deshabilitado en el dropdown cuando nada de él es alcanzable).
+    const reachableSet = new Set(reachableValues);
+    const uniqueTargetValues = [...new Set(targetRawValues)].filter(v => reachableSet.has(v));
+    if (uniqueTargetValues.length === 0) return;
     const allInTemp = uniqueTargetValues.every(v => tempSelectedValues.includes(v));
 
     if (allInTemp) {
@@ -388,27 +391,25 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     if (activeFilterDropdown === colKey) setActiveFilterDropdown(null);
     else {
       setActiveFilterDropdown(colKey);
-      setFilterDropdownTab('actuales');
       setFilterSearchText("");
-      // Computar valores únicos inline desde los datos (el memo uniqueColumnValues es
-      // lazy y aún no se ha recomputado para la columna recién activada).
-      const uniqueVals = [...new Set(bajasData.map(row => String(row[colKey] || "").trim()))];
-      // Alta cardinalidad: la lista queda oculta hasta que el usuario busque
-      // (ver HIGH_CARDINALITY_THRESHOLD), así que arrancar con "todo
-      // preseleccionado" es invisible — buscar y marcar un valor lo
-      // desmarcaría (ya estaba marcado) en vez de seleccionarlo.
-      setTempSelectedValues(columnFilters[colKey] || (uniqueVals.length > HIGH_CARDINALITY_THRESHOLD ? [] : uniqueVals));
+      // Alcanzable inline (no vía el memo `reachableValues`, que es lazy y aún
+      // no se ha recomputado para la columna recién activada): valores de
+      // `colKey` que sobreviven al resto de filtros (todos EXCEPTO el propio).
+      const reachableVals = [...new Set(
+        bajasData.filter(row => rowPassesFilters(row, { excludeColKey: colKey })).map(row => String(row[colKey] || "").trim())
+      )];
+      setTempSelectedValues(columnFilters[colKey] || reachableVals);
     }
   };
 
   const applyColumnFilter = (colKey) => {
-    const totalUnique = uniqueColumnValues[colKey].map(v => v.value);
-    if (tempSelectedValues.length === totalUnique.length || tempSelectedValues.length === 0) {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(tempSelectedValues, reachableValues);
+    if (shouldClear) {
       const newFilters = { ...columnFilters };
       delete newFilters[colKey];
       setColumnFilters(newFilters);
     } else {
-      setColumnFilters({ ...columnFilters, [colKey]: tempSelectedValues });
+      setColumnFilters({ ...columnFilters, [colKey]: valuesToCommit });
     }
     setActiveFilterDropdown(null);
   };
@@ -505,56 +506,64 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     };
   }, [activeFilterDropdown, isColumnsModalOpen]);
 
-  const filteredSortedData = useMemo(() => {
-    let result = bajasData.filter(row => {
-      if (deferredGlobalSearch) {
-        const searchText = normalizeForSearch(deferredGlobalSearch);
-        if (!Object.entries(row).some(([key, val]) => normalizeForSearch(val).includes(searchText))) return false;
-      }
-      for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
-        if (!selectedVals.includes(String(row[colKey] || "").trim())) return false;
-      }
-      for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
-        if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
-        const searchText = filterObj.value;
-        const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
+  // Predicado de fila reusado por `filteredSortedData` (datos mostrados en tabla,
+  // sin excluir nada) y por `reachableValues` (universo alcanzable para el
+  // dropdown de una columna, excluyendo el filtro propio de esa columna vía
+  // `excludeColKey` — ver requerimiento de unificación de ColumnFilterDropdown).
+  const rowPassesFilters = useCallback((row, { excludeColKey = null } = {}) => {
+    if (deferredGlobalSearch) {
+      const searchText = normalizeForSearch(deferredGlobalSearch);
+      if (!Object.entries(row).some(([key, val]) => normalizeForSearch(val).includes(searchText))) return false;
+    }
+    for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
+      if (colKey === excludeColKey) continue;
+      if (!selectedVals.includes(String(row[colKey] || "").trim())) return false;
+    }
+    for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
+      if (colKey === excludeColKey) continue;
+      if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
+      const searchText = filterObj.value;
+      const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
 
-        const val = String(row[colKey] || "");
-        const lowerVal = normalizeForSearch(val).trim();
-        const lowerSearch = normalizeForSearch(searchText).trim();
-        
-        switch (condition) {
-          case "contains":
-            if (!lowerVal.includes(lowerSearch)) return false;
-            break;
-          case "not_contains":
-            if (lowerVal.includes(lowerSearch)) return false;
-            break;
-          case "starts_with":
-            if (!lowerVal.startsWith(lowerSearch)) return false;
-            break;
-          case "not_starts_with":
-            if (lowerVal.startsWith(lowerSearch)) return false;
-            break;
-          case "ends_with":
-            if (!lowerVal.endsWith(lowerSearch)) return false;
-            break;
-          case "not_ends_with":
-            if (lowerVal.endsWith(lowerSearch)) return false;
-            break;
-          case "equals":
-            if (lowerVal !== lowerSearch) return false;
-            break;
-          case "not_equals":
-            if (lowerVal === lowerSearch) return false;
-            break;
-          default:
-            if (!lowerVal.includes(lowerSearch)) return false;
-        }
+      const val = String(row[colKey] || "");
+      const lowerVal = normalizeForSearch(val).trim();
+      const lowerSearch = normalizeForSearch(searchText).trim();
+
+      switch (condition) {
+        case "contains":
+          if (!lowerVal.includes(lowerSearch)) return false;
+          break;
+        case "not_contains":
+          if (lowerVal.includes(lowerSearch)) return false;
+          break;
+        case "starts_with":
+          if (!lowerVal.startsWith(lowerSearch)) return false;
+          break;
+        case "not_starts_with":
+          if (lowerVal.startsWith(lowerSearch)) return false;
+          break;
+        case "ends_with":
+          if (!lowerVal.endsWith(lowerSearch)) return false;
+          break;
+        case "not_ends_with":
+          if (lowerVal.endsWith(lowerSearch)) return false;
+          break;
+        case "equals":
+          if (lowerVal !== lowerSearch) return false;
+          break;
+        case "not_equals":
+          if (lowerVal === lowerSearch) return false;
+          break;
+        default:
+          if (!lowerVal.includes(lowerSearch)) return false;
       }
-      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return false;
-      return true;
-    });
+    }
+    if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return false;
+    return true;
+  }, [deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
+
+  const filteredSortedData = useMemo(() => {
+    let result = bajasData.filter(row => rowPassesFilters(row));
     if (sortConfig.key && sortConfig.direction) {
       const { key, direction } = sortConfig;
       result.sort((a, b) => {
@@ -565,22 +574,24 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       });
     }
     return result;
-  }, [bajasData, deferredGlobalSearch, columnFilters, deferredTextFilters, sortConfig, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
+  }, [bajasData, rowPassesFilters, sortConfig]);
 
+  // Valores alcanzables de la columna activa del dropdown dado el resto de
+  // filtros (todos EXCEPTO el propio de esa columna). Determina qué se puede
+  // marcar/desmarcar en `ColumnFilterDropdown`.
+  const reachableValues = useMemo(() => {
+    if (!activeFilterDropdown) return [];
+    return [...new Set(
+      bajasData
+        .filter(row => rowPassesFilters(row, { excludeColKey: activeFilterDropdown }))
+        .map(row => String(row[activeFilterDropdown] || "").trim())
+    )];
+  }, [activeFilterDropdown, bajasData, rowPassesFilters]);
 
   const filterDropdownValues = useMemo(() => {
     if (!activeFilterDropdown) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
-    let baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
-    if (filterDropdownTab === 'actuales') {
-      const counts = {};
-      filteredSortedData.forEach(row => {
-        const val = String(row[activeFilterDropdown] || "").trim();
-        counts[val] = (counts[val] || 0) + 1;
-      });
-      baseUniqueValues = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === "" ? -1 : b.value === "" ? 1 : b.count - a.count));
-    }
-
+    const baseUniqueValues = uniqueColumnValues[activeFilterDropdown] || [];
     const filtered = baseUniqueValues.filter(v => matchesTextCondition(v.value, filterSearchCondition, debouncedFilterSearchText, { normalize: true }));
 
     return finalizeFilterDropdownValues({
@@ -588,8 +599,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       filtered,
       tempSelectedValues,
       committedSelectedValues: columnFilters[activeFilterDropdown] || [],
+      reachableValues,
     });
-  }, [activeFilterDropdown, uniqueColumnValues, filterDropdownTab, filteredSortedData, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
+  }, [activeFilterDropdown, uniqueColumnValues, reachableValues, tempSelectedValues, filterSearchCondition, debouncedFilterSearchText, columnFilters]);
 
   useEffect(() => {
     let active = true;
@@ -1253,6 +1265,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             onApply={() => applyColumnFilter(activeFilterDropdown)}
             onClear={() => clearColumnFilter(activeFilterDropdown)}
             onClose={() => setActiveFilterDropdown(null)}
+            reachableValues={reachableValues}
           />
         )}
       </AnimatePresence>

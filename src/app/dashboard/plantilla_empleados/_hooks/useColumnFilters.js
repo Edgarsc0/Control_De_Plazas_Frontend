@@ -15,7 +15,7 @@ const readPersistedFilters = (storageKey) => {
 /**
  * Contenedor del estado de filtrado estilo Excel por columna compartido por los
  * tabs de plantilla: búsqueda global, selección de valores, condiciones de texto
- * y la UI del dropdown por columna (pestaña, selección temporal, árbol de fechas,
+ * y la UI del dropdown por columna (selección temporal, árbol de fechas,
  * dropdown de condición). Expone el estado y sus setters crudos con los mismos
  * nombres que usaban los tabs, para un cableado directo.
  *
@@ -43,7 +43,6 @@ export function useColumnFilters({ initialColumnFilters = {}, storageKey } = {})
 
   // UI del dropdown por columna
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
-  const [filterDropdownTab, setFilterDropdownTab] = useState('actuales');
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState('');
@@ -65,7 +64,6 @@ export function useColumnFilters({ initialColumnFilters = {}, storageKey } = {})
     columnFilters, setColumnFilters,
     textFilters, setTextFilters,
     activeFilterDropdown, setActiveFilterDropdown,
-    filterDropdownTab, setFilterDropdownTab,
     activeConditionDropdown, setActiveConditionDropdown,
     tempSelectedValues, setTempSelectedValues,
     filterSearchText, setFilterSearchText,
