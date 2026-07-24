@@ -34,6 +34,19 @@ import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
+
+const CATEGORIA_VACANCIA_TOOLTIP = {
+  A: "Posición vacante porque empleado que la ocupaba causó baja",
+  B: "Posición vacante porque empleado que la ocupaba cambió a otra posición, vacancia = fecha en que tomó esa nueva posición",
+  C: "Posición vacante porque jamás tuvo ocupante, vacancia = fecha creación posición",
+};
+
+const TUVO_INSUBSISTENCIA_TOOLTIP = {
+  S: "La fecha de vacancia ignoró una Insubsistencia (Nombramiento o Contrato HH) y, si la acompañaba, su Contratación/Recontratación, recalculando con el movimiento válido siguiente",
+  N: "La fecha de vacancia se calculó sin encontrar insubsistencias en el historial de la posición",
+};
 
 const TUVO_INSUBSISTENCIA_BADGE = {
   S: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", label: "Sí" },
@@ -48,6 +61,39 @@ const MOV_STATUS_BADGE_STYLES = {
 const formatNumber = (num) => {
   if (num === undefined || num === null) return "0";
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+// Construye la fecha en horario LOCAL (no UTC) a partir de un string
+// 'YYYY-MM-DD' — `new Date(str)` interpreta ese formato como UTC medianoche,
+// lo que puede restar un día al comparar contra "hoy" en zonas horarias
+// negativas (México).
+const parseIsoDate = (str) => {
+  if (!str) return null;
+  const [y, m, d] = String(str).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const date = new Date(y, m - 1, d);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+// Días restantes (positivo = futuro, negativo = ya venció) entre hoy y la
+// fecha ISO recibida — base de la "semaforización" de fecha_anuencia y del
+// tooltip de fecha_vacancia.
+const daysUntil = (str) => {
+  const target = parseIsoDate(str);
+  if (!target) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / 86400000);
+};
+
+// Semáforo de "Fecha de Anuencia": 20+ días = verde, 10-19 = ámbar, 9 o
+// menos (incluye ya vencida) = rojo.
+const getAnuenciaColorClasses = (dias) => {
+  if (dias === null) return null;
+  if (dias >= 20) return "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400";
+  if (dias >= 10) return "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400";
+  return "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400";
 };
 
 const extractRawList = (data) => {
@@ -78,7 +124,7 @@ const ALL_MOV_KEYS = [
   "categoria_vacancia", "tuvo_insubsistencia",
 ];
 
-const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia"];
+const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia", "fecha_anuencia"];
 
 // Server-side distinct_search only supports icontains; only safe to forward
 // for "positive" conditions (a match always implies icontains too).
@@ -106,6 +152,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
+  const { hasPermission } = useAuth();
+  const canEditFechaAnuencia = hasPermission(PERMISSIONS.EDIT_PLANTILLA_MOV_POSICIONES);
+  // Edición inline (doble clic) de "Fecha de Anuencia" — por default es
+  // fecha_vacancia + 30 días (calculada al vuelo, ver annotate_fecha_anuencia
+  // en el backend); el usuario puede sobreescribirla y ese override persiste
+  // independiente de MOV_POS (que se trunca/recarga cada 30 min).
+  const [editingAnuencia, setEditingAnuencia] = useState(null); // { noPosActual, value, originalValue, saving, error } | null
+  const editAnuenciaCancelledRef = useRef(false);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
@@ -113,6 +167,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
+    { key: "fecha_anuencia", label: "Fecha de Anuencia", width: 140, visible: true, isBasic: true },
     { key: "categoria_vacancia", label: "Categoría Vacancia", width: 180, visible: true, isBasic: true },
     { key: "tuvo_insubsistencia", label: "Tuvo Insubsistencia", width: 160, visible: true, isBasic: true },
     { key: "estado_psn", label: "Estado (A/I)", width: 110, visible: true, isBasic: true },
@@ -724,6 +779,61 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     setIsVacanciaModalOpen(true);
   }, []);
 
+  // ── Edición inline de "Fecha de Anuencia" (doble clic) ─────────────────
+  const startEditAnuencia = useCallback((row) => {
+    if (!canEditFechaAnuencia) return;
+    const current = row.fecha_anuencia && String(row.fecha_anuencia).trim() !== "" ? String(row.fecha_anuencia) : "";
+    setEditingAnuencia({ noPosActual: row.no_pos_actual, value: current, originalValue: current, saving: false, error: null });
+  }, [canEditFechaAnuencia]);
+
+  const commitEditAnuencia = useCallback(async () => {
+    if (!editingAnuencia || editingAnuencia.saving) return;
+    const { noPosActual, value, originalValue } = editingAnuencia;
+    if (value === originalValue) { setEditingAnuencia(null); return; }
+    if (!value) {
+      // Campo vaciado por el usuario: revertir al cálculo automático.
+      setEditingAnuencia((c) => (c ? { ...c, saving: true, error: null } : c));
+      try {
+        const res = await VacantesService.deleteFechaAnuenciaOverride(noPosActual);
+        if (!res.ok) throw new Error("No se pudo revertir a la fecha automática.");
+        const body = await res.json();
+        setMovPosData((prev) => prev.map((r) => (r.no_pos_actual === noPosActual ? { ...r, fecha_anuencia: body.fecha_anuencia ?? "", fecha_anuencia_override: false } : r)));
+        // Evita que un futuro cambio de filtro/orden/página que coincida con
+        // una firma ya cacheada sirva la respuesta vieja (sin este revert).
+        movPosDataCacheRef.current = {};
+        setEditingAnuencia(null);
+      } catch (err) {
+        setEditingAnuencia((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
+      }
+      return;
+    }
+    setEditingAnuencia((c) => (c ? { ...c, saving: true, error: null } : c));
+    try {
+      const res = await VacantesService.patchFechaAnuenciaOverride(noPosActual, value);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "No se pudo guardar la fecha.");
+      }
+      const body = await res.json();
+      setMovPosData((prev) => prev.map((r) => (r.no_pos_actual === noPosActual ? { ...r, fecha_anuencia: body.fecha_anuencia, fecha_anuencia_override: true } : r)));
+      // Ídem: sin esto, volver a la misma firma de filtros/orden/página
+      // mostraría la fecha de antes del override.
+      movPosDataCacheRef.current = {};
+      setEditingAnuencia(null);
+    } catch (err) {
+      setEditingAnuencia((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
+    }
+  }, [editingAnuencia]);
+
+  const handleAnuenciaKeyDown = useCallback((e) => {
+    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+    else if (e.key === "Escape") { e.preventDefault(); editAnuenciaCancelledRef.current = true; setEditingAnuencia(null); }
+  }, []);
+
+  const handleAnuenciaBlur = useCallback(() => {
+    if (editAnuenciaCancelledRef.current) { editAnuenciaCancelledRef.current = false; return; }
+    commitEditAnuencia();
+  }, [commitEditAnuencia]);
 
   const timelineData = useMemo(() => {
     if (!modalHistoryData || modalHistoryData.length === 0) return [];
@@ -1148,7 +1258,66 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
-      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>}</td>);
+      const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>;
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{content}</td>);
+    }
+    if (col.key === "fecha_anuencia") {
+      const isEditingThis = editingAnuencia?.noPosActual === row.no_pos_actual;
+      if (isEditingThis) {
+        const tdClassNameEdit = `px-2 text-xs border-r h-[37px] align-middle relative ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+        return (
+          <td key={col.key} style={stickyStyle} className={tdClassNameEdit}>
+            <input
+              type="date"
+              autoFocus
+              value={editingAnuencia.value}
+              disabled={editingAnuencia.saving}
+              onChange={(e) => setEditingAnuencia((c) => (c ? { ...c, value: e.target.value } : c))}
+              onKeyDown={handleAnuenciaKeyDown}
+              onBlur={handleAnuenciaBlur}
+              className="w-full h-full px-1 text-xs font-semibold bg-white dark:bg-slate-900 border border-[#621f32] rounded outline-none disabled:opacity-50"
+            />
+            {editingAnuencia.error && (
+              <span className="absolute left-1 top-full mt-0.5 z-20 text-[9px] font-bold text-red-600 bg-white dark:bg-slate-950 px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">{editingAnuencia.error}</span>
+            )}
+          </td>
+        );
+      }
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const dias = hasValue ? daysUntil(value) : null;
+      const isOverride = !!row.fecha_anuencia_override;
+      // El override manual (azul) tiene prioridad visual sobre el semáforo de
+      // urgencia — "editado a mano" es la señal más relevante para identificarlo.
+      const colorClasses = isOverride
+        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
+        : (dias !== null ? getAnuenciaColorClasses(dias) : null);
+      // El color (semáforo o azul de override) se conserva SIEMPRE, incluso
+      // seleccionada — antes `isSelected` reemplazaba el fondo por blanco,
+      // apagando el color mientras la celda estaba seleccionada.
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle font-semibold ${
+        colorClasses || (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")
+      } ${isSelected ? "ring-2 ring-[#621f32] z-10 shadow-md" : ""} ${canEditFechaAnuencia ? "cursor-pointer" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = hasValue ? formatDateEsMx(value) : <span className="text-slate-300">-</span>;
+      const handleAnuenciaDoubleClick = (e) => { e.stopPropagation(); startEditAnuencia(row); };
+      if (dias === null) {
+        return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} onDoubleClick={handleAnuenciaDoubleClick} className={tdClassName} title={canEditFechaAnuencia ? "Doble clic para editar" : undefined}>{content}</td>);
+      }
+      // Tooltip con los días restantes para llegar a esta fecha (o los que
+      // ya pasaron desde que venció) — ver daysUntil.
+      const tooltipMsg = (dias > 0
+        ? `Faltan ${dias} ${dias === 1 ? "día" : "días"} para la fecha de anuencia`
+        : dias === 0
+        ? "Hoy vence la fecha de anuencia"
+        : `La fecha de anuencia venció hace ${Math.abs(dias)} ${Math.abs(dias) === 1 ? "día" : "días"}`
+      ) + (isOverride ? " (fecha editada manualmente)" : "");
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} onDoubleClick={handleAnuenciaDoubleClick} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipMsg}{canEditFechaAnuencia ? " — doble clic para editar" : ""}</TooltipContent>
+        </Tooltip>
+      );
     }
     if (col.key === "categoria_vacancia") {
       const cat = value ? String(value).trim().toUpperCase() : "";
@@ -1294,7 +1463,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       );
     }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
-  }, [isMonoColumn, isDateColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog]);
+  }, [isMonoColumn, isDateColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });

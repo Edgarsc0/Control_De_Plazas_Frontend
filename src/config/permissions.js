@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   VIEW_PLANTILLA_GEOGRAFIA: 'authentication.view_plantilla_geografia',
   VIEW_PLANTILLA_CATALOGOS: 'authentication.view_plantilla_catalogos',
   EDIT_PLANTILLA_DETALLE: 'authentication.edit_plantilla_detalle',
+  EDIT_PLANTILLA_MOV_POSICIONES: 'authentication.edit_plantilla_mov_posiciones',
 
   // Ocupación de Plazas por Oficio
   VIEW_OCUPACION_SANKEY: 'authentication.view_ocupacion_sankey',

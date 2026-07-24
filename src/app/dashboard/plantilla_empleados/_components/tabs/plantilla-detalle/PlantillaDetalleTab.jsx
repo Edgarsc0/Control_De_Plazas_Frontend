@@ -295,18 +295,56 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
-    { key: "id_empleado", label: "Id Empleado", width: 115, visible: true, isBasic: true },
+    { key: "id_empleado", label: "Número de Empleado", width: 115, visible: true, isBasic: true },
     { key: "rfc", label: "RFC", width: 140, visible: false, isBasic: true },
     { key: "curp", label: "CURP", width: 185, visible: false, isBasic: true },
     { key: "nombres", label: "Nombres", width: 280, visible: true, isBasic: true },
     { key: "motivo", label: "Motivo", width: 200, visible: true, isBasic: true },
     { key: "fecha_efectiva_personal", label: "Fecha efectiva (Personal)", width: 180, visible: true, isBasic: true },
     { key: "fecha_de_captura", label: "Fecha de captura", width: 150, visible: true, isBasic: true },
-    { key: "qna", label: "Qna", width: 80, visible: true, isBasic: true },
+    { key: "qna", label: "Qna #", width: 80, visible: true, isBasic: true },
     { key: "fecha_prevista_de_salida", label: "Fecha prevista de salida", width: 180, visible: true, isBasic: true },
-    { key: "nj", label: "NJ", width: 120, visible: true, isBasic: true },
+    { key: "nj", label: "Nivel Jerárquico", width: 120, visible: true, isBasic: true },
     { key: "codigo_presupuestal", label: "Código Presupuestal", width: 150, visible: true, isBasic: true },
     { key: "nivel", label: "Nivel", width: 85, visible: true, isBasic: true },
+    { key: "escala", label: "Escala", width: 120, visible: true, isBasic: true },
+    { key: "smb", label: "SMB", width: 150, visible: true, isBasic: true },
+    { key: "smn", label: "SMN", width: 150, visible: true, isBasic: true },
+    { key: "partida", label: "Partida", width: 100, visible: true, isBasic: true },
+    { key: "tipo_de_contratacion", label: "TIpo de Contratación", width: 180, visible: true, isBasic: true },
+    { key: "cd_un", label: "Cd UN", width: 100, visible: true, isBasic: true },
+    { key: "unidad_de_negocio", label: "Unidad de Negocio", width: 250, visible: true, isBasic: true },
+    { key: "cd_ua", label: "Cd UA", width: 100, visible: true, isBasic: true },
+    { key: "unidad_administrativa", label: "Unidad Administrativa", width: 280, visible: true, isBasic: true },
+    { key: "cd_pto_funcional", label: "Cd Pto Funcional", width: 120, visible: true, isBasic: true },
+    { key: "nombre_puesto_funcional", label: "Nombre Puesto Funcional", width: 250, visible: true, isBasic: true },
+    { key: "id_departamento", label: "Id Departamento", width: 120, visible: true, isBasic: true },
+    { key: "departamento", label: "Departamento", width: 200, visible: true, isBasic: true },
+    { key: "dependencia_directa", label: "Dependencia Directa", width: 250, visible: true, isBasic: true },
+    // A partir de aqui todos los encabezados se pintan de verde
+    // falta agregar la columna Codigo 
+    { key: "entidad_federativa", label: "Entidad Federativa", width: 180, visible: true, isBasic: true },
+    { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 130, visible: true, isBasic: true },
+    { key: "ubicacion", label: "Ubicación", width: 200, visible: true, isBasic: true },
+    { key: "descripcion_ubicacion", label: "Descripción ubicación", width: 200, visible: true, isBasic: true },
+    // hasta aqui termina la seccion con encabezados verdes
+    { key: "tipo_de_personal_sedena_semar", label: "Tipo de personal SEDENA / SEMAR", width: 220, visible: true, isBasic: true },
+    { key: "rango", label: "Rango", width: 150, visible: true, isBasic: true },
+    { key: "fecha_de_ingreso", label: "Fecha de ingreso", width: 130, visible: true, isBasic: true },
+    { key: "dg_o_aduana_compactada", label: "DG o Aduana compactada", width: 200, visible: true, isBasic: true },
+    // Comienzan nuevamente las columnas pintadas de verde a partir de aqui
+    // Aqui va la columna de Fecha de Anuencia 
+    // Aqui va la columna de Oficios de Autorización SHCP
+    // Aqui va la columna de Plazas eventuales registradas para autorización 2026sharon
+    // Aqui va la columna de Candidato
+    // Aqui va la columna de Reportada
+    // Aqui va la columna de Fecha que se genera la vacante
+    // Aqui va la columna de CAP ANUAL 
+    // Aqui va la columna de CAP MENSUAL
+    // Aqui va la columna de Observaciones - Plantillas DO
+    // Aqui va la columna de Observaciones - Proyectos y Alineaciones
+    // Aqui va la columna de Año de Vacancia (Nuevo Reporte)
+
 
     { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
     { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
@@ -320,35 +358,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "estado", label: "Estado", width: 150, visible: false, isBasic: false },
     { key: "municipio", label: "Municipio", width: 180, visible: false, isBasic: false },
     { key: "ua2", label: "UA (Nombre)", width: 200, visible: false, isBasic: false },
-    { key: "escala", label: "Escala", width: 120, visible: false, isBasic: false },
-    { key: "smb", label: "SMB", width: 150, visible: false, isBasic: false },
-    { key: "smn", label: "SMN", width: 150, visible: false, isBasic: false },
-    { key: "partida", label: "Partida", width: 100, visible: false, isBasic: false },
-    { key: "tipo_de_contratacion", label: "TIPO DE CONTRATACIÓN", width: 180, visible: false, isBasic: false },
-    { key: "cd_un", label: "Cd UN", width: 100, visible: false, isBasic: false },
-    { key: "unidad_de_negocio", label: "Unidad de Negocio", width: 250, visible: false, isBasic: false },
-    { key: "cd_ua", label: "Cd UA", width: 100, visible: false, isBasic: false },
-    { key: "unidad_administrativa", label: "Unidad Administrativa", width: 280, visible: false, isBasic: false },
-    { key: "cd_pto_funcional", label: "Cd Pto Funcional", width: 120, visible: false, isBasic: false },
-    { key: "nombre_puesto_funcional", label: "Nombre Puesto Funcional", width: 250, visible: false, isBasic: false },
-    { key: "id_departamento", label: "Id Departamento", width: 120, visible: false, isBasic: false },
-    { key: "departamento", label: "Departamento", width: 200, visible: false, isBasic: false },
-    { key: "dependencia_directa", label: "DependenciaDirecta", width: 250, visible: false, isBasic: false },
+    
     { key: "observaciones", label: "OBSERVACIONES", width: 200, visible: false, isBasic: false },
-    { key: "ubicacion", label: "Ubicación", width: 200, visible: false, isBasic: false },
-    { key: "descripcion_ubicacion", label: "Descripción ubicación", width: 200, visible: false, isBasic: false },
     { key: "posicion_civil_sedena_semar", label: "Posición _Civil / SEDENA / SEMAR", width: 250, visible: false, isBasic: false },
     { key: "personal_militar_o_civil", label: "Personal Militar o Civil", width: 180, visible: false, isBasic: false },
-    { key: "tipo_de_personal_sedena_semar", label: "Tipo de personal SEDENA / SEMAR", width: 220, visible: false, isBasic: false },
-    { key: "rango", label: "Rango", width: 150, visible: false, isBasic: false },
-    { key: "fecha_de_ingreso", label: "Fecha de ingreso", width: 130, visible: false, isBasic: false },
     { key: "val_estat", label: "Val_estat", width: 100, visible: false, isBasic: false },
     { key: "status_jefe_inm_posicion", label: "Status Jefe Inm Posición", width: 180, visible: false, isBasic: false },
     { key: "numempleado", label: "Numempleado", width: 120, visible: false, isBasic: false },
     { key: "sindicato", label: "Sindicato", width: 150, visible: false, isBasic: false },
-    { key: "entidad_federativa", label: "Entidad Federativa", width: 180, visible: false, isBasic: false },
-    { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 130, visible: false, isBasic: false },
-    { key: "dg_o_aduana_compactada", label: "DG o Aduana compactada", width: 200, visible: false, isBasic: false },
     { key: "estado_en_nomina", label: "Estado en nomina", width: 150, visible: false, isBasic: false },
     { key: "ua_validacion", label: "UA Validación", width: 180, visible: false, isBasic: false },
     { key: "validando_posicion_por_documento", label: "Validando de posición por documento", width: 250, visible: false, isBasic: false },

@@ -191,6 +191,40 @@ export const VacantesService = {
         });
     },
 
+    /**
+     * Edita manualmente la Fecha de Anuencia de una posición (por default es
+     * fecha_vacancia + 30 días, calculada al vuelo). Persiste el override
+     * (CeldaOverride) de forma independiente de MOV_POS, que se trunca y
+     * recarga completa cada 30 min — el override sobrevive esa recarga sin
+     * ningún trabajo extra porque nunca depende de esa tabla.
+     * @param {string} noPosActual - Identificador estable de la posición (`Nº Pos Actual`).
+     * @param {string} valorNuevo - Fecha 'YYYY-MM-DD'.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    patchFechaAnuenciaOverride: (noPosActual, valorNuevo, options = {}) => {
+        return apiFetch('/plantilla/mov_pos_detalle/fecha_anuencia_override/', {
+            method: 'POST',
+            body: JSON.stringify({ no_pos_actual: noPosActual, valor_nuevo: valorNuevo }),
+            ...options
+        });
+    },
+
+    /**
+     * Revierte la Fecha de Anuencia de una posición al cálculo automático
+     * (fecha_vacancia + 30 días), desactivando el override manual vigente.
+     * @param {string} noPosActual - Identificador estable de la posición (`Nº Pos Actual`).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    deleteFechaAnuenciaOverride: (noPosActual, options = {}) => {
+        return apiFetch('/plantilla/mov_pos_detalle/fecha_anuencia_override/', {
+            method: 'DELETE',
+            body: JSON.stringify({ no_pos_actual: noPosActual }),
+            ...options
+        });
+    },
+
     exportMovPosExcel: (query = {}, options = {}) => {
         return apiFetch(`/plantilla/mov_pos_detalle/export_excel/${buildQuery(query)}`, {
             method: 'GET',
