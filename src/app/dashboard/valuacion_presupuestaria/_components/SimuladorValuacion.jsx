@@ -164,7 +164,14 @@ const StepBadge = ({ n, label, icon: Icon }) => (
 
 export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm, selectedAsunto = null, onCloseAsunto }) {
     const getRemainingMonths = () => { const now = new Date(); return 12 - now.getMonth(); };
-    const [meses, setMeses] = useState(getRemainingMonths());
+    const [mesesEnteros, setMesesEnteros] = useState(getRemainingMonths());
+    // Permite afinar el período a medio mes (ej. "16 de febrero al 31 de
+    // diciembre" = 10 meses completos + 1 quincena) sin tocar ninguna
+    // fórmula: `meses` sigue siendo el mismo número que ya consumían todos
+    // los cálculos/exportaciones, solo que ahora puede traer ".5".
+    const [tieneQuincena, setTieneQuincena] = useState(false);
+    const meses = mesesEnteros + (tieneQuincena ? 0.5 : 0);
+    const periodoLabel = `${mesesEnteros} ${mesesEnteros === 1 ? 'Mes' : 'Meses'}${tieneQuincena ? ' y 1 Quincena' : ''}`;
     const [plazasInput, setPlazasInput] = useState({});
     const [calculating, setCalculating] = useState(false);
     const [resultado, setResultado] = useState(null);
@@ -370,7 +377,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         doc.text('REPORTE DE VALUACIÓN PRESUPUESTARIA', 15, 20);
         doc.setFontSize(10);
         doc.text(`FUMP 2025 · SISTEMA DE CONTROL DE PLAZAS · ${now}`, 15, 28);
-        doc.text(`Período de Evaluación: ${meses} ${meses === 1 ? 'Mes' : 'Meses'}`, 15, 34);
+        doc.text(`Período de Evaluación: ${periodoLabel}`, 15, 34);
         if (modoLabel) {
             doc.setFillColor(188, 149, 92);
             doc.roundedRect(15, 38, 60, 7, 1, 1, 'F');
@@ -725,16 +732,35 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                             {MONTHS_SHORT.map((m, i) => (
                                 <button
                                     key={i}
-                                    onClick={() => setMeses(i + 1)}
+                                    onClick={() => setMesesEnteros(i + 1)}
                                     title={`${i + 1} mes${i > 0 ? 'es' : ''}`}
                                     className={`flex flex-col items-center justify-center min-w-[36px] h-10 rounded-lg text-[8px] font-black uppercase tracking-wide transition-all duration-150
-                                        ${meses === i + 1
+                                        ${mesesEnteros === i + 1
                                             ? 'bg-amber-400 text-[#621f32] shadow-md shadow-amber-400/30 scale-110'
                                             : 'text-white/40 hover:text-white hover:bg-white/10'}`}
                                 >
-                                    <span className={`text-sm mt-0.5 ${meses === i + 1 ? 'text-[#621f32]' : 'text-white/20'}`}>{i + 1}</span>
+                                    <span className={`text-sm mt-0.5 ${mesesEnteros === i + 1 ? 'text-[#621f32]' : 'text-white/20'}`}>{i + 1}</span>
                                 </button>
                             ))}
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                            <button
+                                onClick={() => setTieneQuincena(v => !v)}
+                                title="Sumar una quincena (medio mes) adicional al período — ej. para cubrir del 16 al 31 de un mes"
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all
+                                    ${tieneQuincena
+                                        ? 'bg-amber-400 border-amber-400 text-[#621f32] shadow-md shadow-amber-400/30'
+                                        : 'border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
+                            >
+                                <span className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center shrink-0
+                                    ${tieneQuincena ? 'border-[#621f32] bg-[#621f32]' : 'border-white/30'}`}>
+                                    {tieneQuincena && <CheckCircle2 className="w-2.5 h-2.5 text-amber-300" />}
+                                </span>
+                                + 1 Quincena
+                            </button>
+                            <span className="text-[9px] font-bold text-white/50 uppercase tracking-wider">
+                                Total: <span className="text-amber-400">{periodoLabel}</span>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -990,104 +1016,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                         </div>
                     </div>
 
-                    {/* Table 1 — Executive Summary */}
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200/80 overflow-hidden">
-                        {/* Table header */}
-                        <div className="flex items-center justify-between px-8 py-5"
-                            style={{ background: 'linear-gradient(90deg, #3a1120 0%, #621f32 100%)' }}>
-                            <div className="flex items-center gap-3.5">
-                                <div className="bg-white/10 p-2 rounded-lg">
-                                    <FileText className="w-5 h-5 text-amber-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-white font-black text-sm uppercase tracking-widest">
-                                        Desglose por Concepto
-                                    </h2>
-                                    <p className="text-white/40 text-[9px] font-medium uppercase tracking-widest mt-0.5">
-                                        Resumen por
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="bg-amber-400 text-[#621f32] text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full">
-                                FUMP 2025 · {meses} {meses === 1 ? 'Mes' : 'Meses'}
-                            </div>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm min-w-[900px]">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-8 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest
-                                                       sticky left-0 bg-gray-50 z-20 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
-                                            Partida
-                                        </th>
-                                        <th className="px-8 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Concepto</th>
-                                        <th className="px-8 py-4 text-right text-[9px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">
-                                            Período Colectivo ({meses}m)
-                                        </th>
-                                        <th className="px-8 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Regularizable (12m)</th>
-                                        <th className="px-8 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Complemento Colectivo</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 text-xs">
-                                    {resultado.tabla_q322_t348.map((row) => (
-                                        <tr key={row.concepto} className="hover:bg-gray-50/60 transition-colors group">
-                                            {/* Partida — sticky */}
-                                            <td className="px-8 py-4 sticky left-0 bg-white group-hover:bg-gray-50/60 z-10 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
-                                                <FormulaTooltip formula="Código de concepto presupuestal">
-                                                    <span className="font-mono font-black text-[#621f32] text-sm">{row.concepto}</span>
-                                                </FormulaTooltip>
-                                            </td>
-                                            <td className="px-8 py-4 font-semibold text-gray-500 uppercase text-[10px] tracking-tight max-w-[280px]">
-                                                <FormulaTooltip formula="Descripción oficial del concepto según FUMP">
-                                                    {row.descripcion}
-                                                </FormulaTooltip>
-                                            </td>
-                                            <td className="px-8 py-4 text-right bg-[#621f32]/[0.02]">
-                                                <FormulaTooltip formula={conceptFormulas[row.concepto] || 'Cálculo base'}>
-                                                    <span className="font-mono font-black text-[#621f32]">{fmt(row.periodo)}</span>
-                                                </FormulaTooltip>
-                                            </td>
-                                            <td className="px-8 py-4 text-right">
-                                                <FormulaTooltip formula={`${conceptFormulas[row.concepto] || 'Cálculo base'} (Proyección 12m)`}>
-                                                    <span className="font-mono font-semibold text-gray-500">{fmt(row.anual)}</span>
-                                                </FormulaTooltip>
-                                            </td>
-                                            <td className="px-8 py-4 text-right">
-                                                <FormulaTooltip formula="Diferencia entre el monto Anual y el monto del Período (T – R)">
-                                                    <span className="font-mono font-semibold text-gray-400">{fmt(row.complemento)}</span>
-                                                </FormulaTooltip>
-                                            </td>
-                                        </tr>
-                                    ))}
-
-                                    {/* Totals row */}
-                                    <tr style={{ background: 'linear-gradient(90deg, #3a1120, #621f32)' }}>
-                                        <td colSpan={2} className="px-8 py-6 text-right text-[10px] font-black text-white/70 uppercase tracking-widest">
-                                            Total Valuación Presupuestal
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <FormulaTooltip formula="Σ Totales del período seleccionado">
-                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.periodo)}</span>
-                                            </FormulaTooltip>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <FormulaTooltip formula="Σ Proyección anual">
-                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.anual)}</span>
-                                            </FormulaTooltip>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <FormulaTooltip formula="Σ Complementos">
-                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.complemento)}</span>
-                                            </FormulaTooltip>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* Table 2 — Analytic Breakdown */}
+                    {/* Table 1 — Analytic Breakdown */}
                     <div className="bg-white rounded-2xl shadow-lg border border-gray-200/80 overflow-hidden">
                         <div className="px-8 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                             <div className="flex items-center gap-3.5">
@@ -1193,6 +1122,103 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                         </td>
                                         <td className="px-7 py-5 text-right text-sm font-mono font-black text-amber-300 text-base bg-[#621f32]/30">
                                             {fmt(resultado.tabla_2022.reduce((t, r) => t + r.total_nivel, 0))}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Table 2 — Executive Summary */}
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200/80 overflow-hidden">
+                        {/* Table header */}
+                        <div className="flex items-center justify-between px-8 py-5"
+                            style={{ background: 'linear-gradient(90deg, #3a1120 0%, #621f32 100%)' }}>
+                            <div className="flex items-center gap-3.5">
+                                <div className="bg-white/10 p-2 rounded-lg">
+                                    <FileText className="w-5 h-5 text-amber-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-white font-black text-sm uppercase tracking-widest">
+                                        Desglose por Concepto
+                                    </h2>
+                                    <p className="text-white/40 text-[9px] font-medium uppercase tracking-widest mt-0.5">
+                                        Resumen por
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="bg-amber-400 text-[#621f32] text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full">
+                                FUMP 2025 · {periodoLabel}
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm min-w-[900px]">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-200">
+                                        <th className="px-8 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest
+                                                       sticky left-0 bg-gray-50 z-20 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
+                                            Partida
+                                        </th>
+                                        <th className="px-8 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Concepto</th>
+                                        <th className="px-8 py-4 text-right text-[9px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">
+                                            Período Colectivo ({meses}m)
+                                        </th>
+                                        <th className="px-8 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Complemento Colectivo</th>
+                                        <th className="px-8 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Regularizable (12m)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-xs">
+                                    {resultado.tabla_q322_t348.map((row) => (
+                                        <tr key={row.concepto} className="hover:bg-gray-50/60 transition-colors group">
+                                            {/* Partida — sticky */}
+                                            <td className="px-8 py-4 sticky left-0 bg-white group-hover:bg-gray-50/60 z-10 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
+                                                <FormulaTooltip formula="Código de concepto presupuestal">
+                                                    <span className="font-mono font-black text-[#621f32] text-sm">{row.concepto}</span>
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-8 py-4 font-semibold text-gray-500 uppercase text-[10px] tracking-tight max-w-[280px]">
+                                                <FormulaTooltip formula="Descripción oficial del concepto según FUMP">
+                                                    {row.descripcion}
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-8 py-4 text-right bg-[#621f32]/[0.02]">
+                                                <FormulaTooltip formula={conceptFormulas[row.concepto] || 'Cálculo base'}>
+                                                    <span className="font-mono font-black text-[#621f32]">{fmt(row.periodo)}</span>
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-8 py-4 text-right">
+                                                <FormulaTooltip formula="Diferencia entre el monto Anual y el monto del Período (T – R)">
+                                                    <span className="font-mono font-semibold text-gray-400">{fmt(row.complemento)}</span>
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-8 py-4 text-right">
+                                                <FormulaTooltip formula={`${conceptFormulas[row.concepto] || 'Cálculo base'} (Proyección 12m)`}>
+                                                    <span className="font-mono font-semibold text-gray-500">{fmt(row.anual)}</span>
+                                                </FormulaTooltip>
+                                            </td>
+                                        </tr>
+                                    ))}
+
+                                    {/* Totals row */}
+                                    <tr style={{ background: 'linear-gradient(90deg, #3a1120, #621f32)' }}>
+                                        <td colSpan={2} className="px-8 py-6 text-right text-[10px] font-black text-white/70 uppercase tracking-widest">
+                                            Total Valuación Presupuestal
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <FormulaTooltip formula="Σ Totales del período seleccionado">
+                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.periodo)}</span>
+                                            </FormulaTooltip>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <FormulaTooltip formula="Σ Complementos">
+                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.complemento)}</span>
+                                            </FormulaTooltip>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <FormulaTooltip formula="Σ Proyección anual">
+                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.anual)}</span>
+                                            </FormulaTooltip>
                                         </td>
                                     </tr>
                                 </tbody>
