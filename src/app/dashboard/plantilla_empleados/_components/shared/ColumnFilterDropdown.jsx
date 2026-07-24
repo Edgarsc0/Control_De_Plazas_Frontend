@@ -97,21 +97,28 @@ export default function ColumnFilterDropdown({
   const listScrollRef = useRef(null);
   const searchInputRef = useRef(null);
   const panelRef = useRef(null);
+  const groupSnapshotRef = useRef(new Map());
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(280);
   const [highlightIndex, setHighlightIndex] = useState(-1);
 
   // Reordena localmente (sin tocar dropdownValues) en 3 grupos: seleccionados
   // arriba, disponibles (reachable, sin seleccionar) en medio, desactivados
-  // (no reachable) siempre abajo. El resto conserva su orden original dentro
-  // de cada grupo (sort estable). BUG: con sólo 2 grupos (seleccionado vs
-  // resto), al desmarcar un valor caía en el mismo bucket que los
-  // desactivados y podía terminar mezclado/lejos según su posición original,
-  // dando la sensación de que "se perdía" de la lista.
+  // (no reachable) siempre abajo. El orden de grupo se congela en
+  // `groupSnapshotRef` al abrir el modal (ver efecto abajo) y no se
+  // recalcula en vivo: si se recalculara en cada click, al desmarcar un
+  // valor éste saltaría inmediatamente a media lista, dando la sensación de
+  // que "se pierde". El usuario ve el nuevo orden recién al reabrir el
+  // dropdown. Valores sin snapshot (aún no capturados) caen a su grupo en
+  // vivo como fallback.
   const rawSliced = dropdownValues?.sliced || [];
   const tempSelectedSet = new Set(tempSelectedValues);
   const groupOf = (item) => (item.reachable && tempSelectedSet.has(item.value) ? 0 : item.reachable ? 1 : 2);
-  const sliced = [...rawSliced].sort((a, b) => groupOf(a) - groupOf(b));
+  const sliced = [...rawSliced].sort((a, b) => {
+    const aGroup = groupSnapshotRef.current.has(a.value) ? groupSnapshotRef.current.get(a.value) : groupOf(a);
+    const bGroup = groupSnapshotRef.current.has(b.value) ? groupSnapshotRef.current.get(b.value) : groupOf(b);
+    return aGroup - bGroup;
+  });
   const isHighCardinality = !isDate && (dropdownValues?.allVals?.length || 0) > HIGH_CARDINALITY_THRESHOLD;
   const listHidden = isHighCardinality && !filterSearchText;
 
@@ -126,13 +133,21 @@ export default function ColumnFilterDropdown({
     ? tempSelectedValues.filter((v) => !(dropdownValues?.visibleVals || []).includes(v)).length
     : 0;
 
-  // Cambió la columna o el resultado de la búsqueda: el índice resaltado y el
-  // scroll ya no corresponden a la lista actual.
+  // Cambió la columna, el resultado de la búsqueda, o se acaba de abrir el
+  // modal: el índice resaltado y el scroll ya no corresponden a la lista
+  // actual, y toca congelar el orden de grupos (seleccionado/disponible/
+  // desactivado) de nuevo — ver `groupSnapshotRef` arriba.
   useEffect(() => {
     setHighlightIndex(-1);
     setScrollTop(0);
     if (listScrollRef.current) listScrollRef.current.scrollTop = 0;
-  }, [columnKey, isDate, dropdownValues?.filteredCount]);
+    const snapshot = new Map();
+    (dropdownValues?.sliced || []).forEach((item) => {
+      snapshot.set(item.value, item.reachable && tempSelectedSet.has(item.value) ? 0 : item.reachable ? 1 : 2);
+    });
+    groupSnapshotRef.current = snapshot;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnKey, isDate, dropdownValues?.filteredCount, open]);
 
   // Cambió la columna: la búsqueda/condición de la columna anterior no debe
   // heredarse a la nueva (filterSearchText/filterSearchCondition viven una sola
