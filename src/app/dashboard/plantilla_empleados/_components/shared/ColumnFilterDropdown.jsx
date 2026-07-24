@@ -101,16 +101,17 @@ export default function ColumnFilterDropdown({
   const [viewportHeight, setViewportHeight] = useState(280);
   const [highlightIndex, setHighlightIndex] = useState(-1);
 
-  // Seleccionados primero: reordena localmente (sin tocar dropdownValues) para
-  // que lo marcado quede arriba de la lista virtualizada; el resto conserva su
-  // orden original dentro de cada grupo (sort estable).
+  // Reordena localmente (sin tocar dropdownValues) en 3 grupos: seleccionados
+  // arriba, disponibles (reachable, sin seleccionar) en medio, desactivados
+  // (no reachable) siempre abajo. El resto conserva su orden original dentro
+  // de cada grupo (sort estable). BUG: con sólo 2 grupos (seleccionado vs
+  // resto), al desmarcar un valor caía en el mismo bucket que los
+  // desactivados y podía terminar mezclado/lejos según su posición original,
+  // dando la sensación de que "se perdía" de la lista.
   const rawSliced = dropdownValues?.sliced || [];
   const tempSelectedSet = new Set(tempSelectedValues);
-  const sliced = [...rawSliced].sort((a, b) => {
-    const aSel = a.reachable && tempSelectedSet.has(a.value) ? 0 : 1;
-    const bSel = b.reachable && tempSelectedSet.has(b.value) ? 0 : 1;
-    return aSel - bSel;
-  });
+  const groupOf = (item) => (item.reachable && tempSelectedSet.has(item.value) ? 0 : item.reachable ? 1 : 2);
+  const sliced = [...rawSliced].sort((a, b) => groupOf(a) - groupOf(b));
   const isHighCardinality = !isDate && (dropdownValues?.allVals?.length || 0) > HIGH_CARDINALITY_THRESHOLD;
   const listHidden = isHighCardinality && !filterSearchText;
 
