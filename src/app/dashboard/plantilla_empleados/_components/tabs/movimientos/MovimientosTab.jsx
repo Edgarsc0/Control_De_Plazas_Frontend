@@ -37,17 +37,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 
-const CATEGORIA_VACANCIA_TOOLTIP = {
-  A: "Posición vacante porque empleado que la ocupaba causó baja",
-  B: "Posición vacante porque empleado que la ocupaba cambió a otra posición, vacancia = fecha en que tomó esa nueva posición",
-  C: "Posición vacante porque jamás tuvo ocupante, vacancia = fecha creación posición",
-};
-
-const TUVO_INSUBSISTENCIA_TOOLTIP = {
-  S: "La fecha de vacancia ignoró una Insubsistencia (Nombramiento o Contrato HH) y, si la acompañaba, su Contratación/Recontratación, recalculando con el movimiento válido siguiente",
-  N: "La fecha de vacancia se calculó sin encontrar insubsistencias en el historial de la posición",
-};
-
 const TUVO_INSUBSISTENCIA_BADGE = {
   S: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", label: "Sí" },
   N: { bg: "bg-slate-100 dark:bg-slate-800/60", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200/60 dark:border-slate-700", label: "No" },
