@@ -19,6 +19,7 @@ import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import CeldaValorModal from "../../shared/CeldaValorModal";
+import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -287,6 +288,126 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Indicador flotante de movimientos capturados hoy en cp_tbl_mov_completo_29_05_26
+  // (fecha_captura = hoy). `page_size: 1` porque solo se necesita el total paginado.
+  const fechaHoy = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }, []);
+  const [movimientosHoyCount, setMovimientosHoyCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    VacantesService.getMovimientosPersonal({ fecha_captura: fechaHoy, page_size: 1 })
+      .then(async (response) => {
+        if (!response.ok || !active) return;
+        const data = await response.json();
+        setMovimientosHoyCount(data?.count ?? 0);
+      })
+      .catch((err) => console.error("Error fetching movimientos de hoy:", err));
+    return () => {
+      active = false;
+    };
+  }, [fechaHoy]);
+
+  // Resumen (modal) de movimientos de hoy: desglose por acción y, al elegir una
+  // acción, por motivo — mismo patrón de dona+leyenda que la tarjeta de
+  // estadísticas de MovimientosPersonalTab, pero acotado al día de hoy.
+  const [isMovimientosHoyModalOpen, setIsMovimientosHoyModalOpen] = useState(false);
+  const [accionHoyStats, setAccionHoyStats] = useState([]);
+  const [accionHoyStatsLoading, setAccionHoyStatsLoading] = useState(false);
+  const [selectedAccionHoy, setSelectedAccionHoy] = useState(null);
+  const [motivoHoyStats, setMotivoHoyStats] = useState([]);
+  const [motivoHoyStatsLoading, setMotivoHoyStatsLoading] = useState(false);
+  const [hoveredAccionHoySlice, setHoveredAccionHoySlice] = useState(null);
+  const [hoveredMotivoHoySlice, setHoveredMotivoHoySlice] = useState(null);
+
+  useEffect(() => {
+    if (!isMovimientosHoyModalOpen) return;
+    let active = true;
+    setAccionHoyStatsLoading(true);
+    setSelectedAccionHoy(null);
+    VacantesService.getMovimientosPersonalStats({ fecha_captura__in: fechaHoy })
+      .then(async (response) => {
+        if (!response.ok || !active) return;
+        const data = await response.json();
+        setAccionHoyStats(data?.all || []);
+      })
+      .catch((err) => console.error("Error fetching stats de movimientos de hoy:", err))
+      .finally(() => { if (active) setAccionHoyStatsLoading(false); });
+    return () => {
+      active = false;
+    };
+  }, [isMovimientosHoyModalOpen, fechaHoy]);
+
+  useEffect(() => {
+    if (!selectedAccionHoy) {
+      setMotivoHoyStats([]);
+      return;
+    }
+    let active = true;
+    setMotivoHoyStatsLoading(true);
+    VacantesService.getMovimientosPersonalStats({ fecha_captura__in: fechaHoy, accion_nombre: selectedAccionHoy })
+      .then(async (response) => {
+        if (!response.ok || !active) return;
+        const data = await response.json();
+        setMotivoHoyStats(data?.all || []);
+      })
+      .catch((err) => console.error("Error fetching stats de motivos de hoy:", err))
+      .finally(() => { if (active) setMotivoHoyStatsLoading(false); });
+    return () => {
+      active = false;
+    };
+  }, [selectedAccionHoy, fechaHoy]);
+
+  const HOY_PIE_COLORS = [
+    "#621f32", "#bc955c", "#8d2c48", "#d4a96a", "#4a1625",
+    "#e8c280", "#3d1020", "#a07040", "#7a2038", "#f0d090",
+    "#2d0a18", "#c8a050", "#b06040", "#6a1828", "#dbb870",
+  ];
+
+  const buildHoyPieSlices = useCallback((list, nameKey) => {
+    const total = list.reduce((s, d) => s + d.total, 0);
+    if (!list.length || total === 0) return { slices: [], total: 0 };
+    const R = 80, cx = 100, cy = 100;
+    // Una sola categoría (100%): inicio y fin del arco coinciden en el mismo
+    // punto (círculo completo de 360°), lo que SVG dibuja como arco de
+    // longitud cero -> nada visible. Se dibuja como círculo con dos arcos de
+    // 180° en vez de un único arco de 360°.
+    if (list.length === 1) {
+      return {
+        slices: [{
+          d: `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx} ${cy + R} A ${R} ${R} 0 1 1 ${cx} ${cy - R} Z`,
+          color: HOY_PIE_COLORS[0],
+          pct: "100.0",
+          name: list[0][nameKey],
+          total: list[0].total,
+        }],
+        total,
+      };
+    }
+    let angle = -Math.PI / 2;
+    const slices = list.map((d, i) => {
+      const sliceAngle = (d.total / total) * 2 * Math.PI;
+      const x1 = cx + R * Math.cos(angle);
+      const y1 = cy + R * Math.sin(angle);
+      angle += sliceAngle;
+      const x2 = cx + R * Math.cos(angle);
+      const y2 = cy + R * Math.sin(angle);
+      const largeArc = sliceAngle > Math.PI ? 1 : 0;
+      return {
+        d: `M ${cx} ${cy} L ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} Z`,
+        color: HOY_PIE_COLORS[i % HOY_PIE_COLORS.length],
+        pct: ((d.total / total) * 100).toFixed(1),
+        name: d[nameKey],
+        total: d.total,
+      };
+    });
+    return { slices, total };
+  }, []);
+
+  const accionHoyPie = useMemo(() => buildHoyPieSlices(accionHoyStats, "accion_nombre"), [accionHoyStats, buildHoyPieSlices]);
+  const motivoHoyPie = useMemo(() => buildHoyPieSlices(motivoHoyStats, "motivo_nombre"), [motivoHoyStats, buildHoyPieSlices]);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { hasPermission } = useAuth();
@@ -1867,6 +1988,254 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   return (
     <div className="w-full flex flex-col">
+      {/* Indicador flotante: movimientos capturados hoy (fecha_captura = hoy en cp_tbl_mov_completo_29_05_26) */}
+      <button
+        type="button"
+        onClick={() => setIsMovimientosHoyModalOpen(true)}
+        title="Ver resumen de movimientos de hoy"
+        className="fixed top-36 sm:top-48 right-4 md:right-8 z-30 flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
+      >
+        <div className="relative shrink-0 flex items-center justify-center size-8 rounded-xl bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[#621f32] dark:text-[#bc955c]">
+          <ArrowUpDown className="size-4" />
+          <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950">
+            {movimientosHoyCount > 99 ? "99+" : movimientosHoyCount}
+          </span>
+        </div>
+        <span className="text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
+          Movimientos realizados por dirección operativa
+        </span>
+      </button>
+
+      <ModalShell
+        open={isMovimientosHoyModalOpen}
+        onClose={() => setIsMovimientosHoyModalOpen(false)}
+        size="xl"
+        icon={ArrowUpDown}
+        eyebrow="Cp Tbl Mov Completo"
+        title="Movimientos realizados hoy"
+        subtitle={`${formatDateEsMx(fechaHoy)} — ${accionHoyPie.total} movimiento${accionHoyPie.total === 1 ? "" : "s"} por dirección operativa`}
+      >
+        <div className="flex flex-col gap-5 w-full">
+        <div className="flex flex-col lg:flex-row gap-5 items-stretch w-full">
+          <div className="flex-shrink-0 lg:w-56">
+            <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full min-h-[224px] bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20">
+              <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
+              <div className="flex items-center gap-2 mb-3 relative z-10">
+                <div className="p-2 rounded-xl bg-white/20 text-white">
+                  <Briefcase className="size-4" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Total de Movimientos</span>
+              </div>
+              <div className="flex flex-col relative z-10">
+                <span className="text-5xl font-black tracking-tighter text-white">
+                  {formatNumber(accionHoyPie.total)}
+                </span>
+                <span className="text-xs text-white/60 mt-2 relative z-10 font-semibold">
+                  {accionHoyStats.length} acciones distintas
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 flex-1 min-h-[224px] min-w-0">
+            {accionHoyStatsLoading ? (
+              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse min-h-[224px]">
+                <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
+                  <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
+                </div>
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1">
+                      <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
+                      <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
+                      <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : accionHoyPie.slices.length > 0 ? (
+              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center min-h-[224px] min-w-0">
+                <div className="relative shrink-0">
+                  <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+                    {accionHoyPie.slices.map((slice, i) => (
+                      <path
+                        key={i}
+                        d={slice.d}
+                        fill={slice.color}
+                        opacity={hoveredAccionHoySlice === null || hoveredAccionHoySlice === i ? 1 : 0.35}
+                        stroke="white"
+                        strokeWidth="1.5"
+                        className="transition-all duration-200 cursor-pointer"
+                        onMouseEnter={() => setHoveredAccionHoySlice(i)}
+                        onMouseLeave={() => setHoveredAccionHoySlice(null)}
+                        onClick={() => setSelectedAccionHoy(slice.name)}
+                        style={hoveredAccionHoySlice === i ? { filter: "brightness(1.15)", transform: "scale(1.03)", transformOrigin: "center" } : {}}
+                      />
+                    ))}
+                    <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+                    <text x="100" y="96" textAnchor="middle" fill="#621f32" fontWeight="900" fontSize="11">
+                      {hoveredAccionHoySlice !== null ? accionHoyPie.slices[hoveredAccionHoySlice].pct + "%" : formatNumber(accionHoyPie.total)}
+                    </text>
+                    <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
+                      {hoveredAccionHoySlice !== null ? "del total" : "movimientos"}
+                    </text>
+                  </svg>
+                </div>
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1 min-w-0">
+                  {accionHoyPie.slices.map((slice, i) => (
+                    <div
+                      key={i}
+                      onMouseEnter={() => setHoveredAccionHoySlice(i)}
+                      onMouseLeave={() => setHoveredAccionHoySlice(null)}
+                      onClick={() => setSelectedAccionHoy(slice.name)}
+                      className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 min-w-0 ${
+                        hoveredAccionHoySlice === null || hoveredAccionHoySlice === i ? "opacity-100" : "opacity-40"
+                      } ${selectedAccionHoy === slice.name ? "bg-[#621f32]/5 dark:bg-[#bc955c]/10" : ""}`}
+                    >
+                      <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={slice.name}>
+                        {slice.name}
+                      </span>
+                      <span className="text-[10px] font-black text-slate-500 shrink-0">
+                        {formatNumber(slice.total)}
+                        <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex items-center justify-center min-h-[224px]">
+                <span className="text-xs text-slate-400 font-medium">Sin movimientos capturados hoy.</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+          <AnimatePresence>
+            {selectedAccionHoy && (
+                <motion.div
+                  key="motivo-hoy-row"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                  className="flex flex-col lg:flex-row gap-5 items-stretch w-full overflow-hidden"
+                >
+                <div className="flex-shrink-0 lg:w-56 flex flex-col gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[#bc955c] dark:text-[#d4a96a] px-1 truncate" title={`Motivos de ${selectedAccionHoy}`}>
+                    Motivos de {selectedAccionHoy}
+                  </div>
+                  <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full min-h-[224px] bg-gradient-to-br from-[#bc955c] to-[#9a753c] text-slate-950 shadow-xl shadow-[#bc955c]/25 ring-2 ring-white/20">
+                    <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-30 bg-white" />
+                    <button
+                      onClick={() => setSelectedAccionHoy(null)}
+                      className="absolute top-3 right-3 p-1 rounded-full hover:bg-slate-950/10 text-slate-950 transition-colors z-20 cursor-pointer"
+                      title="Cerrar distribución por motivos"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                    <div className="flex items-center gap-2 mb-3 relative z-10 pr-4">
+                      <div className="p-2 rounded-xl bg-slate-950/15 text-slate-950 shrink-0">
+                        <Filter className="size-4" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-950/90 truncate" title={selectedAccionHoy}>
+                        {selectedAccionHoy}
+                      </span>
+                    </div>
+                    <div className="flex flex-col relative z-10">
+                      <span className="text-5xl font-black tracking-tighter text-slate-950">
+                        {formatNumber(motivoHoyPie.total)}
+                      </span>
+                      <span className="text-xs text-slate-950/70 mt-2 relative z-10 font-semibold truncate">
+                        {motivoHoyStats.length} motivos distintos
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1 truncate">
+                    Distribución por Motivos
+                  </div>
+                  <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center min-h-[224px] overflow-hidden w-full min-w-0">
+                    {motivoHoyStatsLoading ? (
+                      <div className="flex-1 flex flex-col md:flex-row gap-6 items-center w-full animate-pulse">
+                        <div className="relative shrink-0 size-[180px] rounded-full border-[22px] border-slate-200 dark:border-slate-800 flex items-center justify-center">
+                          <div className="size-16 rounded-full bg-slate-100 dark:bg-slate-900/50" />
+                        </div>
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full">
+                          {[...Array(4)].map((_, i) => (
+                            <div key={i} className="flex items-center gap-2 py-1">
+                              <span className="shrink-0 size-2.5 rounded-full bg-slate-200 dark:bg-slate-850" />
+                              <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-24" />
+                              <div className="h-3 bg-slate-200 dark:bg-slate-850 rounded-md w-10 ml-auto" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : motivoHoyPie.slices.length > 0 ? (
+                      <>
+                        <div className="relative shrink-0">
+                          <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
+                            {motivoHoyPie.slices.map((slice, i) => (
+                              <path
+                                key={i}
+                                d={slice.d}
+                                fill={slice.color}
+                                opacity={hoveredMotivoHoySlice === null || hoveredMotivoHoySlice === i ? 1 : 0.35}
+                                stroke="white"
+                                strokeWidth="1.5"
+                                className="transition-all duration-200 cursor-pointer"
+                                onMouseEnter={() => setHoveredMotivoHoySlice(i)}
+                                onMouseLeave={() => setHoveredMotivoHoySlice(null)}
+                                style={hoveredMotivoHoySlice === i ? { filter: "brightness(1.15)", transform: "scale(1.03)", transformOrigin: "center" } : {}}
+                              />
+                            ))}
+                            <circle cx="100" cy="100" r="42" fill="white" className="dark:fill-slate-900" />
+                            <text x="100" y="96" textAnchor="middle" fill="#bc955c" fontWeight="900" fontSize="11">
+                              {hoveredMotivoHoySlice !== null ? motivoHoyPie.slices[hoveredMotivoHoySlice].pct + "%" : formatNumber(motivoHoyPie.total)}
+                            </text>
+                            <text x="100" y="110" textAnchor="middle" fill="#999" fontSize="7" fontWeight="600">
+                              {hoveredMotivoHoySlice !== null ? "del total" : "motivos"}
+                            </text>
+                          </svg>
+                        </div>
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 max-h-48 overflow-y-auto pr-1 w-full min-w-0">
+                          {motivoHoyPie.slices.map((slice, i) => (
+                            <div
+                              key={i}
+                              onMouseEnter={() => setHoveredMotivoHoySlice(i)}
+                              onMouseLeave={() => setHoveredMotivoHoySlice(null)}
+                              className={`flex items-center gap-2 rounded-lg px-1.5 py-0.5 transition-all duration-150 min-w-0 ${
+                                hoveredMotivoHoySlice === null || hoveredMotivoHoySlice === i ? "opacity-100" : "opacity-40"
+                              }`}
+                            >
+                              <span className="shrink-0 size-2.5 rounded-full" style={{ background: slice.color }} />
+                              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate flex-1" title={slice.name}>
+                                {slice.name}
+                              </span>
+                              <span className="text-[10px] font-black text-slate-500 shrink-0">
+                                {formatNumber(slice.total)}
+                                <span className="text-slate-400 font-normal ml-0.5">({slice.pct}%)</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center w-full min-h-[180px]">
+                        <span className="text-xs text-slate-400 font-medium">Sin motivos para esta acción hoy.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </ModalShell>
+
       <div className="w-full px-4 lg:px-6">
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">

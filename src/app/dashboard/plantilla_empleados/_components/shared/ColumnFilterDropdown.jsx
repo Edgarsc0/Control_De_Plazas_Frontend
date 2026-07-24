@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Filter, X, Search, Check, ChevronDown, ChevronRight as ChevronRightIcon, AlertTriangle } from "lucide-react";
+import { Filter, X, Search, Check, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import {
   CONDITION_OPTIONS,
   CONDITION_SHORTHANDS,
@@ -121,17 +121,6 @@ export default function ColumnFilterDropdown({
   });
   const isHighCardinality = !isDate && (dropdownValues?.allVals?.length || 0) > HIGH_CARDINALITY_THRESHOLD;
   const listHidden = isHighCardinality && !filterSearchText;
-
-  // BUG QA 2026-07-23: con texto en el buscador, "Seleccionar visibles" sólo
-  // togglea lo que matchea la búsqueda — cualquier selección previa fuera de
-  // ella (p. ej. quedó marcada desde antes de escribir, o desde una búsqueda
-  // anterior) se aplica igual pero queda invisible en la lista. Sin avisar
-  // esto, es fácil creer que se filtró "sólo a los N buscados" cuando en
-  // realidad se incluyen miles de valores más. `visibleVals` ya viene
-  // filtrado por búsqueda desde `dropdownValues`.
-  const hiddenSelectedCount = !isDate && filterSearchText
-    ? tempSelectedValues.filter((v) => !(dropdownValues?.visibleVals || []).includes(v)).length
-    : 0;
 
   // Cambió la columna, el resultado de la búsqueda, o se acaba de abrir el
   // modal: el índice resaltado y el scroll ya no corresponden a la lista
@@ -343,23 +332,6 @@ export default function ColumnFilterDropdown({
                     : `${dropdownValues.sliced.filter((v) => v.reachable && tempSelectedValues.includes(v.value)).length} de ${dropdownValues.allVals.length} seleccionados`}
                 </div>
               )}
-              {hiddenSelectedCount > 0 && (
-                <div className="mt-1.5 flex items-start gap-1.5 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-2 py-1.5">
-                  <AlertTriangle className="size-3 shrink-0 mt-px" />
-                  <span className="flex-1">+{hiddenSelectedCount.toLocaleString("es-MX")} valor(es) seleccionado(s) fuera de tu búsqueda también se incluirán al aplicar.</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const visibleSet = new Set(dropdownValues?.visibleVals || []);
-                      setTempSelectedValues((prev) => prev.filter((v) => visibleSet.has(v)));
-                    }}
-                    className="shrink-0 underline decoration-dotted hover:text-amber-900 dark:hover:text-amber-300 transition-colors cursor-pointer"
-                    title="Deja marcados sólo los valores visibles en tu búsqueda actual"
-                  >
-                    Quitar
-                  </button>
-                </div>
-              )}
             </div>
             <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-slate-900">
               {loadingValues ? (
@@ -498,18 +470,18 @@ export default function ColumnFilterDropdown({
                   <div className="shrink-0 p-2 pb-1 border-b border-slate-50 dark:border-slate-800/50">
                     <button
                       onClick={() => {
-                        const { visibleVals, isVisibleAllSelected, sliced } = dropdownValues;
-                        const reachableVisibleVals = sliced.filter((v) => v.reachable).map((v) => v.value);
-                        setTempSelectedValues((prev) => (isVisibleAllSelected ? prev.filter((v) => !visibleVals.includes(v)) : [...new Set([...prev, ...reachableVisibleVals])]));
+                        const { allVals, isAllSelected } = dropdownValues;
+                        const reachableAllVals = filterReachable(allVals);
+                        setTempSelectedValues((prev) => (isAllSelected ? prev.filter((v) => !allVals.includes(v)) : [...new Set([...prev, ...reachableAllVals])]));
                       }}
                       className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group w-full"
                     >
-                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${dropdownValues.isVisibleAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                        {dropdownValues.isVisibleAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                        {dropdownValues.isVisiblePartialSelected && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
+                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${dropdownValues.isAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                        {dropdownValues.isAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                        {dropdownValues.isPartialSelected && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
                       </div>
                       <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">
-                        {filterSearchText ? "Seleccionar visibles" : "Seleccionar Todo"}
+                        Seleccionar Todo
                       </span>
                     </button>
                   </div>
