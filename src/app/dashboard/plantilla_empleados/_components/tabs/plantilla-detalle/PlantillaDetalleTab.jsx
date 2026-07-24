@@ -853,7 +853,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     targetKeys.forEach(key => {
       const counts = {};
-      detalleParaFiltros.forEach(row => {
+      // "estado_nomina" itera `detalle` (incluye vacantes): `detalleParaFiltros`
+      // las excluye a propósito para el resto de columnas (BUG QA 2026-07-23),
+      // pero aplicado a esta columna se excluye a sí misma la opción "Vacante"
+      // (mapeo del espacio " ") antes de contarla, dejándola sin aparecer nunca
+      // en su propio dropdown.
+      const sourceRows = key === "estado_nomina" ? detalle : detalleParaFiltros;
+      sourceRows.forEach(row => {
         let val = key === "estado_nomina" ? mapEstadoNomina(row[key]) : String(row[key] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
       });
@@ -862,7 +868,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
     });
     return valuesMap;
-  }, [detalleParaFiltros, activeFilterDropdown]);
+  }, [detalle, detalleParaFiltros, activeFilterDropdown]);
 
   const toggleDateNode = (path) => {
     setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }));
@@ -1136,7 +1142,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // marcar 2 valores visibles terminaba aplicando 4).
   const computeReachableValues = useCallback((colKey) => {
     const counts = {};
-    detalleParaFiltros.forEach(row => {
+    // Mismo motivo que en `uniqueColumnValues`: para "estado_nomina" hay que
+    // iterar `detalle` (incluye vacantes), si no "Vacante" nunca es alcanzable
+    // ni seleccionable en su propio dropdown.
+    const sourceRows = colKey === "estado_nomina" ? detalle : detalleParaFiltros;
+    sourceRows.forEach(row => {
       if (deferredGlobalSearch) {
         const searchText = normalizeForSearch(deferredGlobalSearch);
         const blob = searchIndex.get(row) || "";
@@ -1172,7 +1182,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       counts[val] = true;
     });
     return Object.keys(counts);
-  }, [detalleParaFiltros, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
+  }, [detalle, detalleParaFiltros, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
 
   const reachableValues = useMemo(
     () => (activeFilterDropdown ? computeReachableValues(activeFilterDropdown) : []),
