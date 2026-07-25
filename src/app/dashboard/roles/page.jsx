@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Activity,
     ShieldCheck,
     Plus,
     Pencil,
@@ -36,6 +37,7 @@ import { RoleService } from '@/services/role.service';
 import { WhitelistService } from '@/services/whitelist.service';
 import { UaService } from '@/services/ua.service';
 import { PresenceService } from '@/services/presence.service';
+import UserActivityDialog from './_components/UserActivityDialog';
 import { PERMISSIONS } from '@/config/permissions';
 import { PERMISSION_PREVIEWS } from '@/config/permissionPreviews';
 import { PERMISSION_CATEGORY_ORDER, getPermissionCategory } from '@/config/permissionCategories';
@@ -156,6 +158,7 @@ function RolesAdminContent() {
     const [userRoleFilter, setUserRoleFilter] = useState('');
     const [userPage, setUserPage] = useState(1);
     const [activeSessionsByEmail, setActiveSessionsByEmail] = useState({});
+    const [activityEntry, setActivityEntry] = useState(null);
 
     const loadAll = useCallback(async () => {
         setIsLoading(true);
@@ -605,6 +608,7 @@ function RolesAdminContent() {
                                     <th className="text-left px-4 py-2.5">Estado</th>
                                     <th className="text-left px-4 py-2.5">Página actual</th>
                                     <th className="text-left px-4 py-2.5">Rol</th>
+                                    <th className="text-left px-4 py-2.5">Actividad</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -663,12 +667,22 @@ function RolesAdminContent() {
                                                     </SelectContent>
                                                 </Select>
                                             </td>
+                                            <td className="px-4 py-2.5">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon-sm"
+                                                    onClick={() => setActivityEntry(entry)}
+                                                    title="Ver actividad"
+                                                >
+                                                    <Activity className="size-4 text-[#621f32]" />
+                                                </Button>
+                                            </td>
                                         </tr>
                                     );
                                 })}
                                 {paginatedWhitelist.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
                                             {whitelist.length === 0
                                                 ? 'Sin usuarios en la whitelist.'
                                                 : 'Sin usuarios que coincidan con la búsqueda.'}
@@ -924,6 +938,8 @@ function RolesAdminContent() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <UserActivityDialog entry={activityEntry} onClose={() => setActivityEntry(null)} />
         </div>
     );
 }
