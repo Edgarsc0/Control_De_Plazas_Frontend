@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Activity } from 'lucide-react';
+import { Activity, Clock, Eye, ListChecks } from 'lucide-react';
 import {
     Bar,
     CartesianGrid,
@@ -22,19 +22,32 @@ function todayStr() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function formatDuration(totalSeconds) {
+    const s = Math.max(0, Math.round(totalSeconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${sec}s`;
+    return `${sec}s`;
+}
+
 function buildChartData(summary) {
     return Array.from({ length: 24 }, (_, hour) => ({
         hour,
         label: `${String(hour).padStart(2, '0')}h`,
-        visitasDelDia: summary?.hourly_distribution_day?.[hour] ?? 0,
-        promedioHistorico: summary?.hourly_average_all_time?.[hour] ?? 0,
+        minutosDelDia: Math.round(((summary?.hourly_active_seconds_day?.[hour] ?? 0) / 60) * 10) / 10,
+        promedioHistorico:
+            Math.round(((summary?.hourly_average_active_seconds_all_time?.[hour] ?? 0) / 60) * 10) / 10,
     }));
 }
 
-function StatCard({ label, value, sub }) {
+function StatCard({ icon: Icon, label, value, sub }) {
     return (
         <div className="flex-1 min-w-[150px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+            <p className="flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-400">
+                {Icon && <Icon className="size-3" />} {label}
+            </p>
             <p
                 className="text-lg font-black text-slate-800 truncate"
                 title={typeof value === 'string' ? value : undefined}
@@ -77,18 +90,18 @@ export default function UserActivityDialog({ entry, onClose }) {
     }, [entry]);
 
     const chartData = buildChartData(summary);
-    const peakAverage = summary ? Math.max(0, ...summary.hourly_average_all_time) : 0;
 
     return (
         <Dialog open={!!entry} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="lg:max-w-3xl">
+            <DialogContent className="lg:max-w-4xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Activity className="size-5 text-[#621f32]" /> Actividad de {entry?.email}
                     </DialogTitle>
                     <DialogDescription>
-                        Cada petición que ese usuario le hace al backend cuenta como una visita.
-                        Elige un día para ver su distribución en las 24 horas.
+                        Cada visita agrupa los heartbeats de presencia consecutivos (hasta 90s de hueco) del
+                        usuario. Elige un día para ver cuántas visitas hizo, cuánto tiempo estuvo activo y qué
+                        páginas vio en cada una.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -112,14 +125,19 @@ export default function UserActivityDialog({ entry, onClose }) {
                 ) : summary ? (
                     <div className="space-y-4">
                         <div className="flex flex-wrap gap-2">
-                            <StatCard label="Visitas del día" value={summary.total_visits_day} />
-                            <StatCard label="Pico promedio/hora" value={peakAverage} sub="histórico completo" />
+                            <StatCard icon={ListChecks} label="Visitas del día" value={summary.sessions_count_day} />
                             <StatCard
-                                label="Página más visitada"
-                                value={summary.top_page_all_time?.path || '—'}
+                                icon={Clock}
+                                label="Tiempo activo del día"
+                                value={formatDuration(summary.total_active_seconds_day)}
+                            />
+                            <StatCard
+                                icon={Eye}
+                                label="Vista más visitada"
+                                value={summary.top_view_all_time?.label || '—'}
                                 sub={
-                                    summary.top_page_all_time
-                                        ? `${summary.top_page_all_time.count} veces · histórico`
+                                    summary.top_view_all_time
+                                        ? `${summary.top_view_all_time.count} veces · histórico`
                                         : 'sin datos'
                                 }
                             />
@@ -129,15 +147,26 @@ export default function UserActivityDialog({ entry, onClose }) {
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} interval={1} />
-                                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
-                                    <Tooltip />
+                                    <XAxis
+                                        dataKey="label"
+                                        tick={{ fontSize: 9, fill: '#94a3b8' }}
+                                        interval={0}
+                                        angle={-45}
+                                        textAnchor="end"
+                                        height={36}
+                                    />
+                                    <YAxis
+                                        tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                        allowDecimals={false}
+                                        label={{ value: 'min', position: 'insideTopLeft', fontSize: 10, fill: '#94a3b8' }}
+                                    />
+                                    <Tooltip formatter={(value) => `${value} min`} />
                                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                                    <Bar dataKey="visitasDelDia" name="Visitas ese día" fill="#621f32" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="minutosDelDia" name="Minutos activo ese día" fill="#621f32" radius={[4, 4, 0, 0]} />
                                     <Line
                                         type="monotone"
                                         dataKey="promedioHistorico"
-                                        name="Promedio histórico"
+                                        name="Promedio histórico (min)"
                                         stroke="#bc955c"
                                         strokeWidth={2}
                                         dot={false}
@@ -148,17 +177,33 @@ export default function UserActivityDialog({ entry, onClose }) {
 
                         <div>
                             <h4 className="text-xs font-black uppercase tracking-wide text-slate-400 mb-2">
-                                Visitas del {date} ({summary.visits.length})
+                                Visitas del {date} ({summary.sessions.length})
                             </h4>
-                            <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-200 divide-y divide-slate-100">
-                                {summary.visits.length === 0 ? (
-                                    <p className="text-sm text-slate-400 px-4 py-6 text-center">Sin visitas ese día.</p>
+                            <div className="max-h-56 overflow-y-auto space-y-2">
+                                {summary.sessions.length === 0 ? (
+                                    <p className="text-sm text-slate-400 px-4 py-6 text-center rounded-2xl border border-slate-200">
+                                        Sin visitas ese día.
+                                    </p>
                                 ) : (
-                                    summary.visits.map((v, i) => (
-                                        <div key={`${v.time}-${i}`} className="flex items-center gap-3 px-3 py-1.5 text-xs">
-                                            <span className="font-mono text-slate-400 shrink-0">{v.time}</span>
-                                            <span className="font-bold text-slate-500 shrink-0 w-12">{v.method}</span>
-                                            <span className="text-slate-700 truncate">{v.path}</span>
+                                    summary.sessions.map((s, i) => (
+                                        <div key={`${s.start}-${i}`} className="rounded-2xl border border-slate-200 px-3 py-2">
+                                            <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                                                <span>
+                                                    {s.start} — {s.end}
+                                                </span>
+                                                <span className="text-slate-400">{formatDuration(s.duration_seconds)}</span>
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {s.views.map((v) => (
+                                                    <span
+                                                        key={v.label}
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px]"
+                                                    >
+                                                        {v.label}
+                                                        {v.count > 1 && <span className="text-slate-400">×{v.count}</span>}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
                                     ))
                                 )}
