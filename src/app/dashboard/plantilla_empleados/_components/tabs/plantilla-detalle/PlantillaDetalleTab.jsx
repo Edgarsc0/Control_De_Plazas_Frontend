@@ -301,13 +301,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // (evento SSE "zafiro_updates" publicado en tasks.py y propagado por
   // ZafiroUpdatesContext) — sin esto el badge quedaba congelado con el valor
   // del montaje hasta que el usuario recargaba la página.
+  const fechaHoy = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }, []);
   const [movimientosHoyCount, setMovimientosHoyCount] = useState(0);
   const { subscribe: subscribeZafiroUpdates } = useZafiroUpdates();
   useEffect(() => {
     let active = true;
     const fetchMovimientosHoyCount = () => {
-      const now = new Date();
-      const fechaHoy = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       VacantesService.getMovimientosPersonal({ fecha_captura: fechaHoy, page_size: 1 })
         .then(async (response) => {
           if (!response.ok || !active) return;
@@ -322,7 +324,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       active = false;
       unsubscribe();
     };
-  }, [subscribeZafiroUpdates]);
+  }, [fechaHoy, subscribeZafiroUpdates]);
 
   // Resumen (modal) de movimientos de hoy: desglose por acción y, al elegir una
   // acción, por motivo — mismo patrón de dona+leyenda que la tarjeta de
