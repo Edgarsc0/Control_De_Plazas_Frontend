@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
 import { VacantesService } from "@/services/vacantes.service";
+import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ColumnsModal from "../../shared/ColumnsModal";
@@ -296,24 +297,32 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   // Indicador flotante de movimientos capturados hoy en cp_tbl_mov_completo_29_05_26
   // (fecha_captura = hoy). `page_size: 1` porque solo se necesita el total paginado.
-  const fechaHoy = useMemo(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  }, []);
+  // Se refetchea al montar y cada vez que Celery termina el swap blue-green
+  // (evento SSE "zafiro_updates" publicado en tasks.py y propagado por
+  // ZafiroUpdatesContext) — sin esto el badge quedaba congelado con el valor
+  // del montaje hasta que el usuario recargaba la página.
   const [movimientosHoyCount, setMovimientosHoyCount] = useState(0);
+  const { subscribe: subscribeZafiroUpdates } = useZafiroUpdates();
   useEffect(() => {
     let active = true;
-    VacantesService.getMovimientosPersonal({ fecha_captura: fechaHoy, page_size: 1 })
-      .then(async (response) => {
-        if (!response.ok || !active) return;
-        const data = await response.json();
-        setMovimientosHoyCount(data?.count ?? 0);
-      })
-      .catch((err) => console.error("Error fetching movimientos de hoy:", err));
+    const fetchMovimientosHoyCount = () => {
+      const now = new Date();
+      const fechaHoy = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      VacantesService.getMovimientosPersonal({ fecha_captura: fechaHoy, page_size: 1 })
+        .then(async (response) => {
+          if (!response.ok || !active) return;
+          const data = await response.json();
+          setMovimientosHoyCount(data?.count ?? 0);
+        })
+        .catch((err) => console.error("Error fetching movimientos de hoy:", err));
+    };
+    fetchMovimientosHoyCount();
+    const unsubscribe = subscribeZafiroUpdates(fetchMovimientosHoyCount);
     return () => {
       active = false;
+      unsubscribe();
     };
-  }, [fechaHoy]);
+  }, [subscribeZafiroUpdates]);
 
   // Resumen (modal) de movimientos de hoy: desglose por acción y, al elegir una
   // acción, por motivo — mismo patrón de dona+leyenda que la tarjeta de
