@@ -106,6 +106,14 @@ const ALL_DETAIL_KEYS = [
 
 const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso"];
 
+// Columnas que DEFINEN la vacancia de la posición: su dropdown debe iterar
+// `detalle` (con vacantes) y no `detalleParaFiltros` (que las excluye a
+// propósito para el resto de columnas, ver ahí). Si iteran el dataset recortado
+// se excluyen a sí mismas el valor "Vacante" antes de contarlo y nunca aparece
+// en su propio filtro. En BD son el mismo conjunto de filas: `Val_estat`
+// ='Vacante' <=> `Estado Nómina` vacío (mapEstadoNomina → "Vacante").
+const VACANCY_DEFINING_KEYS = new Set(["estado_nomina", "val_estat"]);
+
 // CpTblMovCompleto290526 no trae un campo de nombre completo combinado (igual
 // que en MovimientosPersonalTab): se arma a partir de nombre + ap_pat + ap_mat.
 const buildMovHoyFullName = (row) => [row.nombre, row.ap_pat, row.ap_mat].filter(Boolean).join(" ").trim();
@@ -1206,14 +1214,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     [detalle]
   );
 
-  // BUG: si el filtro de Estado Nómina activo incluye "Vacante", intersectar ese
-  // filtro contra `detalleParaFiltros` (que las excluye estructuralmente, ver
-  // arriba) siempre da 0 filas — todo el resto de columnas queda sin ningún
-  // valor alcanzable (checkboxes deshabilitados, imposible filtrar por ellas)
-  // mientras "Vacante" siga marcado. Cuando aplica, se usa `detalle` (con
-  // vacantes) como universo para el resto de columnas en su lugar.
-  const estadoNominaIncluyeVacante = (columnFilters.estado_nomina || []).includes("Vacante");
-  const datosParaColumnaActiva = estadoNominaIncluyeVacante ? detalle : detalleParaFiltros;
+  // BUG: si un filtro activo de columna de vacancia (Estado Nómina o Val_estat)
+  // incluye "Vacante", intersectar ese filtro contra `detalleParaFiltros` (que
+  // las excluye estructuralmente, ver arriba) siempre da 0 filas — todo el resto
+  // de columnas queda sin ningún valor alcanzable (checkboxes deshabilitados,
+  // imposible filtrar por ellas) mientras "Vacante" siga marcado. Cuando aplica,
+  // se usa `detalle` (con vacantes) como universo para el resto de columnas.
+  const filtroIncluyeVacantes = [...VACANCY_DEFINING_KEYS].some(
+    (key) => (columnFilters[key] || []).includes("Vacante")
+  );
+  const datosParaColumnaActiva = filtroIncluyeVacantes ? detalle : detalleParaFiltros;
 
   // OPTIMIZACIÓN CRÍTICA: Los cálculos pesados dependen solo de los datos y de la columna activa
   const dateHierarchies = useMemo(() => {
@@ -1250,12 +1260,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     targetKeys.forEach(key => {
       const counts = {};
-      // "estado_nomina" itera `detalle` (incluye vacantes): `detalleParaFiltros`
-      // las excluye a propósito para el resto de columnas (BUG QA 2026-07-23),
-      // pero aplicado a esta columna se excluye a sí misma la opción "Vacante"
-      // (mapeo del espacio " ") antes de contarla, dejándola sin aparecer nunca
-      // en su propio dropdown.
-      const sourceRows = key === "estado_nomina" ? detalle : datosParaColumnaActiva;
+      // Las columnas de vacancia ("estado_nomina", "val_estat") iteran `detalle`
+      // (incluye vacantes): `detalleParaFiltros` las excluye a propósito para el
+      // resto de columnas (BUG QA 2026-07-23), pero aplicado a estas columnas se
+      // excluyen a sí mismas la opción "Vacante" antes de contarla, dejándola sin
+      // aparecer nunca en su propio dropdown (ver VACANCY_DEFINING_KEYS).
+      const sourceRows = VACANCY_DEFINING_KEYS.has(key) ? detalle : datosParaColumnaActiva;
       sourceRows.forEach(row => {
         let val = key === "estado_nomina" ? mapEstadoNomina(row[key]) : String(row[key] || "").trim();
         counts[val] = (counts[val] || 0) + 1;
@@ -1545,10 +1555,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // de vacantes no baja al filtrar por unidad administrativa").
   const computeReachableCounts = useCallback((colKey) => {
     const counts = {};
-    // Mismo motivo que en `uniqueColumnValues`: para "estado_nomina" hay que
-    // iterar `detalle` (incluye vacantes), si no "Vacante" nunca es alcanzable
-    // ni seleccionable en su propio dropdown.
-    const sourceRows = colKey === "estado_nomina" ? detalle : datosParaColumnaActiva;
+    // Mismo motivo que en `uniqueColumnValues`: para las columnas de vacancia
+    // hay que iterar `detalle` (incluye vacantes), si no "Vacante" nunca es
+    // alcanzable ni seleccionable en su propio dropdown.
+    const sourceRows = VACANCY_DEFINING_KEYS.has(colKey) ? detalle : datosParaColumnaActiva;
     sourceRows.forEach(row => {
       if (deferredGlobalSearch) {
         const searchText = normalizeForSearch(deferredGlobalSearch);
