@@ -6,6 +6,11 @@ import { PresupuestoService } from '@/services/presupuesto.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import { addExcelLetterhead } from '@/utils/excelLetterhead';
 import {
+    LETTERHEAD_LOGO_BASE64,
+    LETTERHEAD_LOGO_WIDTH,
+    LETTERHEAD_LOGO_HEIGHT,
+} from '@/assets/letterhead-logo';
+import {
     Calculator, ChevronUp, ChevronDown, CheckCircle2, XCircle, Info,
     Landmark, FileText, ClipboardList, CalendarDays, Layers, TrendingUp,
     Download, Table as TableIcon, Search, User, File, Paperclip, Loader2
@@ -324,6 +329,19 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         });
     }, [plazasInput, catalogo]);
 
+    // Totales del desglose analítico por nivel. Se centralizan aquí para que la
+    // vista, el PDF y el Excel muestren exactamente los mismos números.
+    const totalesNivel = useMemo(() => {
+        const rows = resultado?.tabla_2022 || [];
+        return {
+            plazas: Object.values(plazasInput).reduce((t, q) => t + (q > 0 ? q : 0), 0),
+            sueldo: rows.reduce((t, r) => t + r.sueldo, 0),
+            sueldoPeriodo: rows.reduce((t, r) => t + r.sueldo_colectivo_periodo, 0),
+            compensacion: rows.reduce((t, r) => t + r.compensacion, 0),
+            compensacionPeriodo: rows.reduce((t, r) => t + r.compensacion_colectiva_periodo, 0),
+        };
+    }, [resultado, plazasInput]);
+
     const handlePlazaChange = (id, value) => {
         const qty = parseInt(value) || 0;
         setPlazasInput(prev => { const n = { ...prev }; if (qty <= 0) delete n[id]; else n[id] = qty; return n; });
@@ -363,73 +381,269 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         '15901': 'Σ(EPR Quincenal × Plazas) × Meses',
     };
 
+    // ─── EXPORTACIÓN PDF INSTITUCIONAL ────────────────────────────────────────
+    // Documento sobrio: membretado ANAM en todas las páginas, una sola tinta de
+    // acento (guinda institucional) y jerarquía apoyada en tipografía, no en
+    // rellenos de color.
+    const PDF = {
+        pageW: 210,
+        pageH: 297,
+        margin: 15,
+        headerH: 32,
+        footerH: 18,
+        ink: [26, 26, 26],
+        muted: [115, 115, 115],
+        hair: [205, 205, 205],
+        accent: [98, 31, 50],
+        soft: [243, 243, 243],
+    };
+
     const exportToPDF = () => {
         const doc = new jsPDF('p', 'mm', 'a4');
-        const now = new Date().toLocaleDateString('es-MX');
+        const { pageW, pageH, margin: M, headerH, ink, muted, hair, accent, soft } = PDF;
+        const contentW = pageW - M * 2;
+        const bottomLimit = pageH - PDF.footerH - 6;
+        const now = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+        const hora = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
 
         const modoLabel = eventualesData ? 'EVENTUALES OCUPADAS' : permanentesData ? 'PERMANENTES OCUPADAS' : null;
-        const headerHeight = modoLabel ? 48 : 40;
+        const origenLabel = modoLabel || 'SELECCIÓN MANUAL DE PLAZAS';
+        const origenDetalle = eventualesData
+            ? 'Plazas eventuales ocupadas conforme a la nómina vigente, conciliadas contra el catálogo PECEN.'
+            : permanentesData
+                ? 'Plazas permanentes ocupadas conforme a la nómina vigente, conciliadas contra el catálogo PECEN.'
+                : 'Plazas capturadas manualmente por el usuario en el simulador de valuación.';
 
-        doc.setFillColor(98, 31, 50);
-        doc.rect(0, 0, 210, headerHeight, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(18);
-        doc.text('REPORTE DE VALUACIÓN PRESUPUESTARIA', 15, 20);
-        doc.setFontSize(10);
-        doc.text(`FUMP 2025 · SISTEMA DE CONTROL DE PLAZAS · ${now}`, 15, 28);
-        doc.text(`Período de Evaluación: ${periodoLabel}`, 15, 34);
-        if (modoLabel) {
-            doc.setFillColor(188, 149, 92);
-            doc.roundedRect(15, 38, 60, 7, 1, 1, 'F');
-            doc.setTextColor(98, 31, 50);
+        // ── Membrete y pie, una sola vez por página ──
+        const stamped = new Set();
+        const stampPage = () => {
+            const page = doc.internal.getCurrentPageInfo().pageNumber;
+            if (stamped.has(page)) return;
+            stamped.add(page);
+
+            const logoW = 58;
+            const logoH = (logoW * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH;
+            doc.addImage(LETTERHEAD_LOGO_BASE64, 'PNG', M, 11, logoW, logoH);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(...ink);
+            doc.text('AGENCIA NACIONAL DE ADUANAS DE MÉXICO', pageW - M, 14.5, { align: 'right' });
+            doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-            doc.setFont(undefined, 'bold');
-            doc.text(modoLabel, 17, 43.5);
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor(255, 255, 255);
-        }
+            doc.setTextColor(...muted);
+            doc.text('UNIDAD DE ADMINISTRACIÓN Y FINANZAS', pageW - M, 19, { align: 'right' });
+            doc.text('DIRECCIÓN DE RECURSOS HUMANOS', pageW - M, 23, { align: 'right' });
 
-        const conceptosStartY = headerHeight + 10;
-        doc.setTextColor(98, 31, 50);
-        doc.setFontSize(12);
-        doc.text('DESGLOSE POR CONCEPTO', 15, conceptosStartY);
+            doc.setDrawColor(...accent);
+            doc.setLineWidth(0.7);
+            doc.line(M, 26.5, pageW - M, 26.5);
+            doc.setDrawColor(...hair);
+            doc.setLineWidth(0.2);
+            doc.line(M, 27.6, pageW - M, 27.6);
+
+            doc.setDrawColor(...hair);
+            doc.setLineWidth(0.2);
+            doc.line(M, pageH - 15, pageW - M, pageH - 15);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...muted);
+            doc.text(`FUMP 2025 · Sistema de Control de Plazas · Generado el ${now} a las ${hora} h`, M, pageH - 10.5);
+            doc.text(`Página ${page} de {tp}`, pageW - M, pageH - 10.5, { align: 'right' });
+        };
+
+        stampPage();
+        let y = headerH + 6;
+
+        const ensureSpace = (h) => {
+            if (y + h <= bottomLimit) return;
+            doc.addPage();
+            stampPage();
+            y = headerH + 6;
+        };
+
+        // ── Título del documento ──
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(...ink);
+        doc.text('REPORTE DE VALUACIÓN PRESUPUESTARIA', pageW / 2, y, { align: 'center' });
+        y += 5.5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...muted);
+        doc.text(`Período de evaluación: ${periodoLabel}`, pageW / 2, y, { align: 'center' });
+        y += 9;
+
+        // ── Origen de la información (eventuales / permanentes / manual) ──
+        const origenH = 18;
+        doc.setFillColor(...soft);
+        doc.rect(M, y, contentW, origenH, 'F');
+        doc.setFillColor(...accent);
+        doc.rect(M, y, 2, origenH, 'F');
+        doc.setDrawColor(...hair);
+        doc.setLineWidth(0.2);
+        doc.rect(M, y, contentW, origenH, 'S');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.8);
+        doc.setTextColor(...muted);
+        doc.text('ORIGEN DE LA INFORMACIÓN', M + 6, y + 6);
+        doc.setFontSize(13);
+        doc.setTextColor(...accent);
+        doc.text(origenLabel, M + 6, y + 13);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...muted);
+        const origenLineas = doc.splitTextToSize(origenDetalle, 78);
+        origenLineas.slice(0, 3).forEach((linea, i) => {
+            doc.text(linea, pageW - M - 5, y + 8 + i * 3.4, { align: 'right' });
+        });
+        y += origenH + 7;
+
+        // ── Indicadores principales ──
+        const totSueldo    = totalesNivel.sueldo;
+        const totSueldoPer = totalesNivel.sueldoPeriodo;
+        const totComp      = totalesNivel.compensacion;
+        const totCompPer   = totalesNivel.compensacionPeriodo;
+        const totPlazas    = totalesNivel.plazas;
+
+        const kpis = [
+            ['PERÍODO EVALUADO', periodoLabel],
+            ['PLAZAS ANALIZADAS', String(totPlazas)],
+            ['NIVELES INVOLUCRADOS', String(resultado.tabla_2022.length)],
+        ];
+        const kpiGap = 3;
+        const kpiW = (contentW - kpiGap * (kpis.length - 1)) / kpis.length;
+        const kpiH = 16;
+        kpis.forEach(([label, value], i) => {
+            const x = M + i * (kpiW + kpiGap);
+            doc.setDrawColor(...hair);
+            doc.setLineWidth(0.2);
+            doc.rect(x, y, kpiW, kpiH, 'S');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(6.2);
+            doc.setTextColor(...muted);
+            doc.text(label, x + 3, y + 5);
+            doc.setFontSize(10);
+            doc.setTextColor(...ink);
+            doc.text(value, x + 3, y + 12);
+        });
+        y += kpiH + 4;
+
+        if (selectedAsunto?.oficioInfo) {
+            const oficio = selectedAsunto.oficioInfo;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...muted);
+            doc.text(
+                `Oficio vinculado: ${oficio.asuntoNoOficio || 's/n'} · Folio ${oficio.asuntoFolio || 's/f'}` +
+                (oficio.asuntoRemitente ? ` · Remitente: ${oficio.asuntoRemitente}` : ''),
+                M, y + 3, { maxWidth: contentW }
+            );
+            y += 7;
+        }
+        y += 4;
+
+        // ── Encabezado de sección ──
+        // Reserva espacio para el título y las primeras filas de su tabla: evita
+        // que un encabezado de sección quede huérfano al final de la página.
+        const sectionTitle = (num, label) => {
+            ensureSpace(34);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.setTextColor(...ink);
+            doc.text(`${num}.  ${label}`, M, y);
+            doc.setDrawColor(...accent);
+            doc.setLineWidth(0.4);
+            doc.line(M, y + 2, M + 22, y + 2);
+            doc.setDrawColor(...hair);
+            doc.setLineWidth(0.2);
+            doc.line(M + 22, y + 2, pageW - M, y + 2);
+            y += 7;
+        };
+
+        const baseTableOptions = {
+            theme: 'grid',
+            margin: { left: M, right: M, top: headerH + 6, bottom: PDF.footerH + 6 },
+            styles: {
+                font: 'helvetica',
+                textColor: ink,
+                lineColor: [222, 222, 222],
+                lineWidth: 0.1,
+                cellPadding: 2,
+                overflow: 'linebreak',
+            },
+            headStyles: {
+                fillColor: accent,
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 7.5,
+                halign: 'center',
+                valign: 'middle',
+                lineWidth: 0,
+            },
+            didDrawPage: stampPage,
+        };
+
+        // ── I. Desglose por concepto ──
+        sectionTitle('I', 'DESGLOSE POR CONCEPTO');
 
         autoTable(doc, {
-            startY: conceptosStartY + 5,
-            head: [['PARTIDA', 'CONCEPTO', `PERÍODO (${meses}m)`, 'ANUAL (12m)', 'COMPLEMENTO']],
+            ...baseTableOptions,
+            startY: y,
+            head: [['PARTIDA', 'CONCEPTO', `PERÍODO (${meses} M)`, 'REGULARIZABLE (12 M)', 'COMPLEMENTO']],
             body: [
                 ...resultado.tabla_q322_t348.map(r => [
                     r.concepto,
                     r.descripcion,
                     fmt(r.periodo),
                     fmt(r.anual),
-                    fmt(r.complemento)
+                    fmt(r.complemento),
                 ]),
-                [{ content: 'TOTAL VALUACIÓN', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-                { content: fmt(resultado.total.periodo), styles: { fontStyle: 'bold' } },
-                { content: fmt(resultado.total.anual), styles: { fontStyle: 'bold' } },
-                { content: fmt(resultado.total.complemento), styles: { fontStyle: 'bold' } }]
+                [
+                    { content: 'TOTAL VALUACIÓN', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+                    { content: fmt(resultado.total.periodo), styles: { fontStyle: 'bold' } },
+                    { content: fmt(resultado.total.anual), styles: { fontStyle: 'bold' } },
+                    { content: fmt(resultado.total.complemento), styles: { fontStyle: 'bold' } },
+                ],
             ],
-            styles: { fontSize: 8, cellPadding: 3 },
-            headStyles: { fillColor: [98, 31, 50], textColor: [255, 255, 255] },
-            alternateRowStyles: { fillColor: [250, 250, 250] },
+            styles: { ...baseTableOptions.styles, fontSize: 9, cellPadding: 2.2 },
+            columnStyles: {
+                0: { cellWidth: 18, fontStyle: 'bold', halign: 'center' },
+                1: { cellWidth: 47 },
+                2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+                3: { cellWidth: 37, halign: 'right' },
+                4: { cellWidth: 38, halign: 'right' },
+            },
+            didParseCell: (data) => {
+                if (data.section !== 'body') return;
+                if (data.row.index === resultado.tabla_q322_t348.length) {
+                    data.cell.styles.fillColor = [232, 232, 232];
+                    data.cell.styles.fontSize = 10;
+                    data.cell.styles.lineWidth = { top: 0.5, right: 0, bottom: 0, left: 0 };
+                    data.cell.styles.lineColor = accent;
+                    // Los importes de la fila TOTAL nunca deben partirse en dos
+                    // líneas: sin salto y con menos aire lateral.
+                    data.cell.styles.overflow = 'visible';
+                    data.cell.styles.cellPadding = { top: 2.5, right: 1.5, bottom: 2.5, left: 1.5 };
+                } else if (data.column.index === 2) {
+                    data.cell.styles.fillColor = [248, 248, 248];
+                }
+            },
         });
+        y = doc.lastAutoTable.finalY + 10;
 
-        const finalY = doc.lastAutoTable.finalY || 150;
-        doc.setTextColor(98, 31, 50);
-        doc.setFontSize(12);
-        doc.text('DESGLOSE ANALÍTICO POR NIVEL', 15, finalY + 15);
+        // ── II. Desglose analítico por nivel ──
+        sectionTitle('II', 'DESGLOSE ANALÍTICO POR NIVEL');
 
-        const totSueldo        = resultado.tabla_2022.reduce((t, r) => t + r.sueldo, 0);
-        const totSueldoPer     = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo, 0);
-        const totComp          = resultado.tabla_2022.reduce((t, r) => t + r.compensacion, 0);
-        const totCompPer       = resultado.tabla_2022.reduce((t, r) => t + r.compensacion_colectiva_periodo, 0);
-        const totTotal         = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion, 0);
-        const totPlazas        = selectedPlazas.reduce((t, p) => t + p.qty, 0);
+        const nivelTotalIdx = resultado.tabla_2022.length;
+        const nivelQuincenaIdx = nivelTotalIdx + 1;
 
         autoTable(doc, {
-            startY: finalY + 20,
-            head: [['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO PER.', 'COMP. GAR.', 'COMP. GAR. PER.', 'TOTAL']],
+            ...baseTableOptions,
+            startY: y,
+            head: [['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO COLECTIVO / PERÍODO', 'COMP. GARANTIZADA', 'COMP. GAR. COLECTIVA / PERÍODO']],
             body: [
                 ...resultado.tabla_2022.map(r => [
                     r.nivel,
@@ -440,59 +654,105 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                     fmt(r.sueldo_colectivo_periodo),
                     fmt(r.compensacion),
                     fmt(r.compensacion_colectiva_periodo),
-                    fmt(r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion)
                 ]),
                 [
-                    { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold' } },
+                    { content: 'TOTAL', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
                     { content: totPlazas, styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldo), styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldoPer), styles: { fontStyle: 'bold' } },
                     { content: fmt(totComp), styles: { fontStyle: 'bold' } },
                     { content: fmt(totCompPer), styles: { fontStyle: 'bold' } },
-                    { content: fmt(totTotal), styles: { fontStyle: 'bold' } },
                 ],
                 [
-                    { content: 'QUINCENA', colSpan: 3, styles: { fontStyle: 'bold' } },
+                    { content: 'EQUIVALENTE QUINCENAL', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } },
                     { content: totPlazas, styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldo / meses / 2), styles: { fontStyle: 'bold' } },
                     { content: fmt(totSueldoPer / meses / 2), styles: { fontStyle: 'bold' } },
                     { content: fmt(totComp / meses / 2), styles: { fontStyle: 'bold' } },
                     { content: fmt(totCompPer / meses / 2), styles: { fontStyle: 'bold' } },
-                    { content: fmt(totTotal / meses / 2), styles: { fontStyle: 'bold' } },
                 ],
             ],
-            styles: { fontSize: 7, cellPadding: 2 },
-            headStyles: { fillColor: [78, 24, 40], textColor: [255, 255, 255] },
-            alternateRowStyles: { fillColor: [250, 250, 250] },
+            styles: { ...baseTableOptions.styles, fontSize: 9, cellPadding: 2 },
+            columnStyles: {
+                0: { cellWidth: 20, fontStyle: 'bold' },
+                1: { cellWidth: 17, halign: 'center' },
+                2: { cellWidth: 12, halign: 'center' },
+                3: { cellWidth: 16, halign: 'center' },
+                4: { cellWidth: 24, halign: 'right' },
+                5: { cellWidth: 31, halign: 'right', fontStyle: 'bold' },
+                6: { cellWidth: 26, halign: 'right' },
+                7: { cellWidth: 34, halign: 'right', fontStyle: 'bold' },
+            },
             didParseCell: (data) => {
-                const totalRowIdx = resultado.tabla_2022.length;
-                const quincenaRowIdx = totalRowIdx + 1;
-                if (data.row.index === totalRowIdx) {
-                    data.cell.styles.fillColor = [40, 40, 40];
-                    data.cell.styles.textColor = [255, 255, 255];
+                if (data.section !== 'body') return;
+                const esColectiva = data.column.index === 5 || data.column.index === 7;
+                const esResumen = data.row.index === nivelTotalIdx || data.row.index === nivelQuincenaIdx;
+                if (esColectiva) data.cell.styles.fillColor = [248, 248, 248];
+                if (esResumen) {
+                    // Importes acumulados siempre en una sola línea.
+                    data.cell.styles.overflow = 'visible';
+                    data.cell.styles.cellPadding = { top: 2.2, right: 1.5, bottom: 2.2, left: 1.5 };
                 }
-                if (data.row.index === quincenaRowIdx) {
-                    data.cell.styles.fillColor = [26, 74, 122];
-                    data.cell.styles.textColor = [255, 255, 255];
+                if (data.row.index === nivelTotalIdx) {
+                    data.cell.styles.fillColor = [232, 232, 232];
+                    data.cell.styles.lineWidth = { top: 0.5, right: 0, bottom: 0, left: 0 };
+                    data.cell.styles.lineColor = accent;
+                }
+                if (data.row.index === nivelQuincenaIdx) {
+                    data.cell.styles.fillColor = [243, 243, 243];
+                    data.cell.styles.textColor = muted;
+                }
+                if (esColectiva && esResumen) {
+                    data.cell.styles.fontSize = 9.5;
+                    data.cell.styles.textColor = accent;
+                    data.cell.styles.fillColor = [225, 225, 225];
                 }
             },
         });
+        y = doc.lastAutoTable.finalY + 8;
 
-        // ── DETALLE DE OCUPACIÓN POR NIVEL — CÓDIGO PRESUPUESTAL ──
+        // ── Acumulados colectivos por período (dato principal del reporte) ──
+        const highlightH = 20;
+        ensureSpace(highlightH + 4);
+        const highlights = [
+            ['TOTAL SUELDOS COLECTIVOS POR PERÍODO', fmt(totSueldoPer)],
+            ['TOTAL COMPENSACIONES GARANTIZADAS COLECTIVAS POR PERÍODO', fmt(totCompPer)],
+        ];
+        const hlGap = 4;
+        const hlW = (contentW - hlGap) / 2;
+        highlights.forEach(([label, value], i) => {
+            const x = M + i * (hlW + hlGap);
+            doc.setDrawColor(...accent);
+            doc.setLineWidth(0.5);
+            doc.rect(x, y, hlW, highlightH, 'S');
+            doc.setFillColor(...accent);
+            doc.rect(x, y, hlW, 1.2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(6.4);
+            doc.setTextColor(...muted);
+            doc.text(label, x + 4, y + 7, { maxWidth: hlW - 8 });
+            doc.setFontSize(15);
+            doc.setTextColor(...ink);
+            doc.text(value, x + 4, y + 16);
+        });
+        y += highlightH + 10;
+
+        // ── III. Detalle de ocupación por nivel — código presupuestal ──
         const nivelesUsados = [...new Set(selectedPlazas.map(p => p.nivel))].filter(n => detalleNiveles[n]);
         if (modoLabel && nivelesUsados.length > 0) {
-            let cursorY = (doc.lastAutoTable.finalY || 150) + 15;
-            doc.setTextColor(98, 31, 50);
-            doc.setFontSize(12);
-            doc.text('DETALLE DE OCUPACIÓN POR NIVEL — CÓDIGO PRESUPUESTAL', 15, cursorY);
-            cursorY += 5;
+            // El detalle de ocupación arranca siempre en hoja nueva.
+            doc.addPage();
+            stampPage();
+            y = headerH + 6;
+            sectionTitle('III', `DETALLE DE OCUPACIÓN POR NIVEL — ${modoLabel}`);
 
             nivelesUsados.forEach((niv) => {
                 const info = detalleNiveles[niv];
-                if (cursorY > 250) { doc.addPage(); cursorY = 20; }
+                ensureSpace(28);
                 autoTable(doc, {
-                    startY: cursorY,
-                    head: [[`NIVEL ${niv}`, 'ZONA/ESCALA', 'CANTIDAD', 'ESTADO']],
+                    ...baseTableOptions,
+                    startY: y,
+                    head: [[`NIVEL ${niv}`, 'ZONA / ESCALA', 'CANTIDAD', 'ESTADO']],
                     body: info.codigos.map(c => [
                         c.codigo_presupuestal,
                         String(c.zona ?? c.escala ?? ''),
@@ -500,24 +760,32 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                         c.matched ? 'Coincide' : 'Sin match',
                     ]),
                     foot: [[{
-                        content: `Total: ${info.total_plazas}   ·   Ocupadas: ${info.ocupadas}   ·   Vacantes: ${info.vacantes}`,
+                        content: `Total de plazas: ${info.total_plazas}     ·     Ocupadas: ${info.ocupadas}     ·     Vacantes: ${info.vacantes}`,
                         colSpan: 4,
                         styles: { halign: 'left', fontStyle: 'bold' },
                     }]],
-                    styles: { fontSize: 7, cellPadding: 2 },
-                    headStyles: { fillColor: [98, 31, 50], textColor: [255, 255, 255] },
-                    footStyles: { fillColor: [245, 245, 245], textColor: [98, 31, 50] },
-                    alternateRowStyles: { fillColor: [250, 250, 250] },
+                    styles: { ...baseTableOptions.styles, fontSize: 8, cellPadding: 1.8 },
+                    headStyles: { ...baseTableOptions.headStyles, fillColor: [70, 70, 70], halign: 'left', fontSize: 7 },
+                    footStyles: { fillColor: [243, 243, 243], textColor: ink, fontSize: 7.5, lineWidth: 0.1, lineColor: [222, 222, 222] },
+                    columnStyles: {
+                        0: { cellWidth: 60, fontStyle: 'bold' },
+                        1: { cellWidth: 40, halign: 'center' },
+                        2: { cellWidth: 30, halign: 'center' },
+                        3: { cellWidth: 50, halign: 'right' },
+                    },
                     didParseCell: (data) => {
                         if (data.section === 'body' && data.column.index === 3) {
-                            data.cell.styles.textColor = data.row.raw[3] === 'Coincide' ? [16, 150, 90] : [220, 38, 38];
+                            const sinMatch = data.row.raw[3] !== 'Coincide';
+                            data.cell.styles.textColor = sinMatch ? [140, 26, 26] : muted;
+                            data.cell.styles.fontStyle = sinMatch ? 'bold' : 'normal';
                         }
                     },
                 });
-                cursorY = doc.lastAutoTable.finalY + 8;
+                y = doc.lastAutoTable.finalY + 6;
             });
         }
 
+        doc.putTotalPages('{tp}');
         doc.save(`Valuacion_Presupuestaria_${new Date().getTime()}.pdf`);
     };
 
@@ -565,28 +833,28 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
 
         const styleHeaderRow = (row) => {
             row.eachCell((cell) => {
-                cell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: WHITE } };
+                cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: WHITE } };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MAROON } };
                 cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
                 cell.border = allBorders;
             });
-            row.height = 26;
+            row.height = 32;
         };
 
         const styleTotalRow = (row, colSpanLabel) => {
             row.eachCell((cell, colNumber) => {
-                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: colNumber <= colSpanLabel ? WHITE : AMBER } };
+                cell.font = { name: 'Calibri', size: 13, bold: true, color: { argb: colNumber <= colSpanLabel ? WHITE : AMBER } };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MAROON_DARK } };
                 cell.border = allBorders;
                 cell.alignment = { vertical: 'middle', horizontal: colNumber <= colSpanLabel ? 'right' : 'right' };
             });
-            row.height = 24;
+            row.height = 30;
         };
 
         // ── HOJA 1: Resumen por Concepto ──────────────────────────────
         const ws1 = wb.addWorksheet('Resumen por Concepto', { views: [{ showGridLines: false }] });
         ws1.columns = [
-            { width: 14 }, { width: 46 }, { width: 20 }, { width: 20 }, { width: 20 },
+            { width: 16 }, { width: 52 }, { width: 24 }, { width: 24 }, { width: 24 },
         ];
 
         const off1 = addExcelLetterhead(wb, ws1, 5);
@@ -600,12 +868,12 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
             const row = ws1.addRow([r.concepto, r.descripcion, r.periodo, r.anual, r.complemento]);
             row.eachCell((cell, colNumber) => {
                 cell.border = allBorders;
-                cell.font = { name: 'Calibri', size: 10, color: { argb: colNumber === 1 ? MAROON : GRAY_TEXT }, bold: colNumber === 1 };
+                cell.font = { name: 'Calibri', size: 12, color: { argb: colNumber === 1 ? MAROON : GRAY_TEXT }, bold: colNumber === 1 };
                 if (colNumber >= 3) { cell.numFmt = moneyFmt; cell.alignment = { horizontal: 'right' }; }
                 if (colNumber === 3) { cell.font = { ...cell.font, bold: true, color: { argb: MAROON } }; }
                 if (idx % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRAY_HEADER } };
             });
-            row.height = 20;
+            row.height = 24;
         });
 
         const totalRow1 = ws1.addRow(['TOTAL VALUACIÓN', '', resultado.total.periodo, resultado.total.anual, resultado.total.complemento]);
@@ -620,59 +888,91 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         // ── HOJA 2: Desglose Analítico ────────────────────────────────
         const ws2 = wb.addWorksheet('Desglose Analítico', { views: [{ showGridLines: false }] });
         ws2.columns = [
-            { width: 22 }, { width: 12 }, { width: 12 }, { width: 10 },
-            { width: 18 }, { width: 20 }, { width: 18 }, { width: 22 }, { width: 20 },
+            { width: 26 }, { width: 14 }, { width: 14 }, { width: 12 },
+            { width: 22 }, { width: 24 }, { width: 22 }, { width: 26 },
         ];
 
-        const off2 = addExcelLetterhead(wb, ws2, 9);
-        styleTitleBand(ws2, off2, 9, 'DESGLOSE ANALÍTICO POR NIVEL', `Detalle individualizado por plaza seleccionada · Base PECEN · ${now}`);
+        const off2 = addExcelLetterhead(wb, ws2, 8);
+        styleTitleBand(ws2, off2, 8, 'DESGLOSE ANALÍTICO POR NIVEL', `Detalle individualizado por plaza seleccionada · Base PECEN · ${now}`);
         ws2.addRow([]);
 
-        const headerRow2 = ws2.addRow(['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO PERÍODO', 'COMP. GAR.', 'COMP. GAR. PERÍODO', 'TOTAL NIVEL']);
+        const headerRow2 = ws2.addRow(['NIVEL', 'CÓDIGO', 'ZONA', 'PLAZAS', 'SUELDO BASE', 'SUELDO PERÍODO', 'COMP. GAR.', 'COMP. GAR. PERÍODO']);
         styleHeaderRow(headerRow2);
 
         resultado.tabla_2022.forEach((r, idx) => {
-            const totalNivel = r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion;
             const row = ws2.addRow([
                 r.nivel, r.codigo, r.zona, r.plazas,
-                r.sueldo, r.sueldo_colectivo_periodo, r.compensacion, r.compensacion_colectiva_periodo, totalNivel
+                r.sueldo, r.sueldo_colectivo_periodo, r.compensacion, r.compensacion_colectiva_periodo
             ]);
             row.eachCell((cell, colNumber) => {
                 cell.border = allBorders;
-                cell.font = { name: 'Calibri', size: 9, color: { argb: GRAY_TEXT } };
+                cell.font = { name: 'Calibri', size: 11, color: { argb: GRAY_TEXT } };
                 if (colNumber === 1) cell.font = { ...cell.font, bold: true, color: { argb: MAROON } };
                 if (colNumber === 4) cell.alignment = { horizontal: 'center' };
                 if (colNumber >= 5) { cell.numFmt = moneyFmt; cell.alignment = { horizontal: 'right' }; }
                 if (colNumber >= 5 && colNumber <= 8) cell.font = { ...cell.font, bold: true, color: { argb: MAROON } };
-                if (colNumber === 9) cell.font = { name: 'Calibri', size: 9.5, bold: true, color: { argb: 'FFB45309' } };
                 if (idx % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRAY_HEADER } };
             });
-            row.height = 20;
+            row.height = 24;
         });
 
-        const totPlazas = selectedPlazas.reduce((t, p) => t + p.qty, 0);
-        const totSueldo = resultado.tabla_2022.reduce((t, r) => t + r.sueldo, 0);
-        const totSueldoPer = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo, 0);
-        const totComp = resultado.tabla_2022.reduce((t, r) => t + r.compensacion, 0);
-        const totCompPer = resultado.tabla_2022.reduce((t, r) => t + r.compensacion_colectiva_periodo, 0);
-        const totTotal = resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo + r.compensacion_colectiva_periodo + r.compensacion, 0);
+        const totPlazas = totalesNivel.plazas;
+        const totSueldo = totalesNivel.sueldo;
+        const totSueldoPer = totalesNivel.sueldoPeriodo;
+        const totComp = totalesNivel.compensacion;
+        const totCompPer = totalesNivel.compensacionPeriodo;
 
-        const totalRow2 = ws2.addRow(['TOTAL', '', '', totPlazas, totSueldo, totSueldoPer, totComp, totCompPer, totTotal]);
+        const totalRow2 = ws2.addRow(['TOTAL', '', '', totPlazas, totSueldo, totSueldoPer, totComp, totCompPer]);
         ws2.mergeCells(totalRow2.number, 1, totalRow2.number, 3);
-        [5, 6, 7, 8, 9].forEach(c => totalRow2.getCell(c).numFmt = moneyFmt);
+        [5, 6, 7, 8].forEach(c => totalRow2.getCell(c).numFmt = moneyFmt);
         styleTotalRow(totalRow2, 3);
         totalRow2.getCell(4).alignment = { horizontal: 'center' };
+        // Los dos acumulados colectivos por período son la lectura principal del
+        // reporte: van más grandes y con fondo propio dentro de la fila TOTAL.
+        [6, 8].forEach(c => {
+            const cell = totalRow2.getCell(c);
+            cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: AMBER } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F0A12' } };
+        });
+        totalRow2.height = 34;
 
-        const quincenaRow2 = ws2.addRow(['QUINCENA', '', '', totPlazas, totSueldo / meses / 2, totSueldoPer / meses / 2, totComp / meses / 2, totCompPer / meses / 2, totTotal / meses / 2]);
+        const quincenaRow2 = ws2.addRow(['QUINCENA', '', '', totPlazas, totSueldo / meses / 2, totSueldoPer / meses / 2, totComp / meses / 2, totCompPer / meses / 2]);
         ws2.mergeCells(quincenaRow2.number, 1, quincenaRow2.number, 3);
-        [5, 6, 7, 8, 9].forEach(c => quincenaRow2.getCell(c).numFmt = moneyFmt);
+        [5, 6, 7, 8].forEach(c => quincenaRow2.getCell(c).numFmt = moneyFmt);
         quincenaRow2.eachCell((cell, colNumber) => {
-            cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: colNumber <= 3 ? WHITE : AMBER } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A4A7A' } };
+            cell.font = { name: 'Calibri', size: colNumber === 6 || colNumber === 8 ? 13 : 11, bold: true, color: { argb: colNumber <= 3 ? WHITE : AMBER } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colNumber === 6 || colNumber === 8 ? 'FF123253' : 'FF1A4A7A' } };
             cell.border = allBorders;
             cell.alignment = { vertical: 'middle', horizontal: colNumber === 4 ? 'center' : 'right' };
         });
-        quincenaRow2.height = 24;
+        quincenaRow2.height = 28;
+
+        // ── Bloque de resalte: totales colectivos por período ──
+        ws2.addRow([]);
+        const hlLabelRow = ws2.addRow(['TOTAL SUELDOS COLECTIVOS / PERÍODO', '', '', '', 'TOTAL COMP. GAR. COLECTIVAS / PERÍODO', '', '', '']);
+        ws2.mergeCells(hlLabelRow.number, 1, hlLabelRow.number, 4);
+        ws2.mergeCells(hlLabelRow.number, 5, hlLabelRow.number, 8);
+        const hlValueRow = ws2.addRow([totSueldoPer, '', '', '', totCompPer, '', '', '']);
+        ws2.mergeCells(hlValueRow.number, 1, hlValueRow.number, 4);
+        ws2.mergeCells(hlValueRow.number, 5, hlValueRow.number, 8);
+
+        [1, 5].forEach(c => {
+            const labelCell = hlLabelRow.getCell(c);
+            labelCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFBC955C' } };
+            labelCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            const valueCell = hlValueRow.getCell(c);
+            valueCell.numFmt = moneyFmt;
+            valueCell.font = { name: 'Calibri', size: 20, bold: true, color: { argb: AMBER } };
+            valueCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+        [hlLabelRow, hlValueRow].forEach(row => {
+            for (let c = 1; c <= 8; c++) {
+                row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: MAROON_DARK } };
+                row.getCell(c).border = allBorders;
+            }
+        });
+        hlLabelRow.height = 22;
+        hlValueRow.height = 38;
 
         headerRow1.alignment = { vertical: 'middle', horizontal: 'left' };
         [ws1, ws2].forEach(ws => { ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }; });
@@ -1038,94 +1338,103 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-[11px] text-left min-w-[1100px]">
+                            <table className="w-full text-[14px] text-left min-w-[1000px]">
                                 <thead>
                                     <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-7 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest
+                                        <th className="px-7 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest
                                                        sticky left-0 bg-gray-50 z-20 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
                                             Nivel
                                         </th>
-                                        <th className="px-7 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Plazas</th>
-                                        <th className="px-7 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-200">Sueldo Base</th>
-                                        <th className="px-7 py-4 text-right text-[9px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">Sueldo Colectivo / Período</th>
-                                        <th className="px-7 py-4 text-right text-[9px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">Comp. Garantizada</th>
-                                        <th className="px-7 py-4 text-right text-[9px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">Comp. Gar. Colectiva / Período</th>
-                                        <th className="px-7 py-4 text-right text-[9px] font-black text-amber-700 uppercase tracking-widest bg-amber-50/40">Total Nivel</th>
+                                        <th className="px-7 py-4 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest">Plazas</th>
+                                        <th className="px-7 py-4 text-right text-[11px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-200">Sueldo Base</th>
+                                        <th className="px-7 py-4 text-right text-[11px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">Sueldo Colectivo / Período</th>
+                                        <th className="px-7 py-4 text-right text-[11px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">Comp. Garantizada</th>
+                                        <th className="px-7 py-4 text-right text-[11px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">Comp. Gar. Colectiva / Período</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 font-semibold uppercase tracking-tight">
-                                    {resultado.tabla_2022.map((row, idx) => {
-                                        row.total_nivel = row.sueldo_colectivo_periodo + row.compensacion_colectiva_periodo + row.compensacion;
-                                        return (
-                                            <tr key={idx} className="hover:bg-gray-50/60 transition-colors group">
-                                                <td className="px-7 py-5 sticky left-0 bg-white group-hover:bg-gray-50/60 z-10 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
-                                                    <FormulaTooltip formula={`Nivel: ${row.nivel} | Código: ${row.codigo}`}>
-                                                        <div className="font-black text-[#621f32] text-xs">{row.nivel}</div>
-                                                        <div className="text-[9px] text-gray-400 font-medium leading-tight mt-0.5 max-w-[180px]">{row.puesto}</div>
-                                                    </FormulaTooltip>
-                                                </td>
-                                                <td className="px-7 py-5 text-center">
-                                                    <FormulaTooltip formula="Plazas asignadas para la simulación">
-                                                        <span className="inline-flex items-center justify-center bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15 font-black rounded-lg px-3 py-1 text-xs">
-                                                            {row.plazas}
-                                                        </span>
-                                                    </FormulaTooltip>
-                                                </td>
-                                                <td className="px-7 py-5 text-right text-gray-400 font-medium border-r border-gray-100">
-                                                    <FormulaTooltip formula="Monto mensual unitario según Tabulador PECEN">
-                                                        {fmt(row.sueldo)}
-                                                    </FormulaTooltip>
-                                                </td>
-                                                <td className="px-7 py-5 text-right text-[#621f32] font-black bg-[#621f32]/[0.02]">
-                                                    <FormulaTooltip formula="Sueldo Base × Plazas × Meses">
-                                                        {fmt(row.sueldo_colectivo_periodo)}
-                                                    </FormulaTooltip>
-                                                </td>
-                                                <td className="px-7 py-5 text-right text-[#621f32] font-black bg-[#621f32]/[0.02]">
-                                                    <FormulaTooltip formula="Compensación Garantizada unitaria">
-                                                        {fmt(row.compensacion)}
-                                                    </FormulaTooltip>
-                                                </td>
-                                                <td className="px-7 py-5 text-right text-[#621f32] font-black bg-[#621f32]/[0.02]">
-                                                    <FormulaTooltip formula="Comp. Garantizada × Plazas × Meses">
-                                                        {fmt(row.compensacion_colectiva_periodo)}
-                                                    </FormulaTooltip>
-                                                </td>
-                                                <td className="px-7 py-5 text-right text-amber-700 font-black bg-amber-50/30">
-                                                    <FormulaTooltip formula="Sueldo Colectivo + Comp. Colectiva + Compensación">
-                                                        {fmt(row.total_nivel)}
-                                                    </FormulaTooltip>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {resultado.tabla_2022.map((row, idx) => (
+                                        <tr key={idx} className="hover:bg-gray-50/60 transition-colors group">
+                                            <td className="px-7 py-5 sticky left-0 bg-white group-hover:bg-gray-50/60 z-10 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
+                                                <FormulaTooltip formula={`Nivel: ${row.nivel} | Código: ${row.codigo}`}>
+                                                    <div className="font-black text-[#621f32] text-sm">{row.nivel}</div>
+                                                    <div className="text-[11px] text-gray-400 font-medium leading-tight mt-0.5 max-w-[200px]">{row.puesto}</div>
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-7 py-5 text-center">
+                                                <FormulaTooltip formula="Plazas asignadas para la simulación">
+                                                    <span className="inline-flex items-center justify-center bg-[#621f32]/8 text-[#621f32] border border-[#621f32]/15 font-black rounded-lg px-3 py-1 text-sm">
+                                                        {row.plazas}
+                                                    </span>
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-7 py-5 text-right text-gray-400 font-medium border-r border-gray-100">
+                                                <FormulaTooltip formula="Monto mensual unitario según Tabulador PECEN">
+                                                    {fmt(row.sueldo)}
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-7 py-5 text-right text-[#621f32] font-black bg-[#621f32]/[0.02]">
+                                                <FormulaTooltip formula="Sueldo Base × Plazas × Meses">
+                                                    {fmt(row.sueldo_colectivo_periodo)}
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-7 py-5 text-right text-[#621f32] font-black bg-[#621f32]/[0.02]">
+                                                <FormulaTooltip formula="Compensación Garantizada unitaria">
+                                                    {fmt(row.compensacion)}
+                                                </FormulaTooltip>
+                                            </td>
+                                            <td className="px-7 py-5 text-right text-[#621f32] font-black bg-[#621f32]/[0.02]">
+                                                <FormulaTooltip formula="Comp. Garantizada × Plazas × Meses">
+                                                    {fmt(row.compensacion_colectiva_periodo)}
+                                                </FormulaTooltip>
+                                            </td>
+                                        </tr>
+                                    ))}
 
                                     {/* Totals row */}
                                     <tr className="bg-gray-800 text-white">
-                                        <td className="px-7 py-5 sticky left-0 bg-gray-800 z-10 font-black text-sm uppercase tracking-wider">TOTAL</td>
+                                        <td className="px-7 py-5 sticky left-0 bg-gray-800 z-10 font-black text-base uppercase tracking-wider">TOTAL</td>
                                         <td className="px-7 py-5 text-center">
-                                            <span className="bg-white/10 text-amber-400 border border-white/10 font-black rounded-lg px-3 py-1 text-xs">
-                                                {selectedPlazas.reduce((t, p) => t + p.qty, 0)}
+                                            <span className="bg-white/10 text-amber-400 border border-white/10 font-black rounded-lg px-3 py-1 text-sm">
+                                                {totalesNivel.plazas}
                                             </span>
                                         </td>
-                                        <td className="px-7 py-5 text-right text-sm font-mono font-semibold text-gray-400 border-r border-gray-700">
-                                            {fmt(resultado.tabla_2022.reduce((t, r) => t + r.sueldo, 0))}
+                                        <td className="px-7 py-5 text-right text-base font-mono font-semibold text-gray-400 border-r border-gray-700">
+                                            {fmt(totalesNivel.sueldo)}
                                         </td>
-                                        <td className="px-7 py-5 text-right text-sm font-mono font-black text-amber-400">
-                                            {fmt(resultado.tabla_2022.reduce((t, r) => t + r.sueldo_colectivo_periodo, 0))}
+                                        <td className="px-7 py-5 text-right font-mono font-black text-amber-300 text-xl bg-[#621f32]/40 border-x border-amber-400/20">
+                                            {fmt(totalesNivel.sueldoPeriodo)}
                                         </td>
-                                        <td className="px-7 py-5 text-right text-sm font-mono font-black text-amber-400">
-                                            {fmt(resultado.tabla_2022.reduce((t, r) => t + r.compensacion, 0))}
+                                        <td className="px-7 py-5 text-right text-base font-mono font-black text-amber-400">
+                                            {fmt(totalesNivel.compensacion)}
                                         </td>
-                                        <td className="px-7 py-5 text-right text-sm font-mono font-black text-amber-400">
-                                            {fmt(resultado.tabla_2022.reduce((t, r) => t + r.compensacion_colectiva_periodo, 0))}
-                                        </td>
-                                        <td className="px-7 py-5 text-right text-sm font-mono font-black text-amber-300 text-base bg-[#621f32]/30">
-                                            {fmt(resultado.tabla_2022.reduce((t, r) => t + r.total_nivel, 0))}
+                                        <td className="px-7 py-5 text-right font-mono font-black text-amber-300 text-xl bg-[#621f32]/40 border-x border-amber-400/20">
+                                            {fmt(totalesNivel.compensacionPeriodo)}
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Highlight — totales colectivos por período */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/10"
+                            style={{ background: 'linear-gradient(90deg, #3a1120 0%, #621f32 100%)' }}>
+                            <div className="px-8 py-6">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#bc955c]">
+                                    Total Sueldos Colectivos / Período
+                                </p>
+                                <p className="mt-1.5 font-mono font-black text-amber-400 text-3xl md:text-4xl leading-none break-words">
+                                    {fmt(totalesNivel.sueldoPeriodo)}
+                                </p>
+                            </div>
+                            <div className="px-8 py-6 border-t md:border-t-0 md:border-l border-white/10">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#bc955c]">
+                                    Total Comp. Gar. Colectivas / Período
+                                </p>
+                                <p className="mt-1.5 font-mono font-black text-amber-400 text-3xl md:text-4xl leading-none break-words">
+                                    {fmt(totalesNivel.compensacionPeriodo)}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -1153,48 +1462,48 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm min-w-[900px]">
+                            <table className="w-full text-base min-w-[950px]">
                                 <thead>
                                     <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="px-8 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest
+                                        <th className="px-8 py-4 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest
                                                        sticky left-0 bg-gray-50 z-20 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
                                             Partida
                                         </th>
-                                        <th className="px-8 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Concepto</th>
-                                        <th className="px-8 py-4 text-right text-[9px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">
+                                        <th className="px-8 py-4 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Concepto</th>
+                                        <th className="px-8 py-4 text-right text-[11px] font-black text-[#621f32] uppercase tracking-widest bg-[#621f32]/[0.03]">
                                             Período Colectivo ({meses}m)
                                         </th>
-                                        <th className="px-8 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Complemento Colectivo</th>
-                                        <th className="px-8 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Regularizable (12m)</th>
+                                        <th className="px-8 py-4 text-right text-[11px] font-black text-gray-400 uppercase tracking-widest">Complemento Colectivo</th>
+                                        <th className="px-8 py-4 text-right text-[11px] font-black text-gray-400 uppercase tracking-widest">Regularizable (12m)</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100 text-xs">
+                                <tbody className="divide-y divide-gray-100 text-sm">
                                     {resultado.tabla_q322_t348.map((row) => (
                                         <tr key={row.concepto} className="hover:bg-gray-50/60 transition-colors group">
                                             {/* Partida — sticky */}
                                             <td className="px-8 py-4 sticky left-0 bg-white group-hover:bg-gray-50/60 z-10 shadow-[3px_0_8px_-2px_rgba(0,0,0,0.06)]">
                                                 <FormulaTooltip formula="Código de concepto presupuestal">
-                                                    <span className="font-mono font-black text-[#621f32] text-sm">{row.concepto}</span>
+                                                    <span className="font-mono font-black text-[#621f32] text-base">{row.concepto}</span>
                                                 </FormulaTooltip>
                                             </td>
-                                            <td className="px-8 py-4 font-semibold text-gray-500 uppercase text-[10px] tracking-tight max-w-[280px]">
+                                            <td className="px-8 py-4 font-semibold text-gray-500 uppercase text-[13px] tracking-tight max-w-[320px]">
                                                 <FormulaTooltip formula="Descripción oficial del concepto según FUMP">
                                                     {row.descripcion}
                                                 </FormulaTooltip>
                                             </td>
                                             <td className="px-8 py-4 text-right bg-[#621f32]/[0.02]">
                                                 <FormulaTooltip formula={conceptFormulas[row.concepto] || 'Cálculo base'}>
-                                                    <span className="font-mono font-black text-[#621f32]">{fmt(row.periodo)}</span>
+                                                    <span className="font-mono font-black text-[#621f32] text-base">{fmt(row.periodo)}</span>
                                                 </FormulaTooltip>
                                             </td>
                                             <td className="px-8 py-4 text-right">
                                                 <FormulaTooltip formula="Diferencia entre el monto Anual y el monto del Período (T – R)">
-                                                    <span className="font-mono font-semibold text-gray-400">{fmt(row.complemento)}</span>
+                                                    <span className="font-mono font-semibold text-gray-400 text-base">{fmt(row.complemento)}</span>
                                                 </FormulaTooltip>
                                             </td>
                                             <td className="px-8 py-4 text-right">
                                                 <FormulaTooltip formula={`${conceptFormulas[row.concepto] || 'Cálculo base'} (Proyección 12m)`}>
-                                                    <span className="font-mono font-semibold text-gray-500">{fmt(row.anual)}</span>
+                                                    <span className="font-mono font-semibold text-gray-500 text-base">{fmt(row.anual)}</span>
                                                 </FormulaTooltip>
                                             </td>
                                         </tr>
@@ -1202,22 +1511,22 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
 
                                     {/* Totals row */}
                                     <tr style={{ background: 'linear-gradient(90deg, #3a1120, #621f32)' }}>
-                                        <td colSpan={2} className="px-8 py-6 text-right text-[10px] font-black text-white/70 uppercase tracking-widest">
+                                        <td colSpan={2} className="px-8 py-6 text-right text-xs font-black text-white/70 uppercase tracking-widest">
                                             Total Valuación Presupuestal
                                         </td>
                                         <td className="px-8 py-6 text-right">
                                             <FormulaTooltip formula="Σ Totales del período seleccionado">
-                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.periodo)}</span>
+                                                <span className="font-mono font-black text-amber-400 text-xl">{fmt(resultado.total.periodo)}</span>
                                             </FormulaTooltip>
                                         </td>
                                         <td className="px-8 py-6 text-right">
                                             <FormulaTooltip formula="Σ Complementos">
-                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.complemento)}</span>
+                                                <span className="font-mono font-black text-amber-400 text-xl">{fmt(resultado.total.complemento)}</span>
                                             </FormulaTooltip>
                                         </td>
                                         <td className="px-8 py-6 text-right">
                                             <FormulaTooltip formula="Σ Proyección anual">
-                                                <span className="font-mono font-black text-amber-400 text-lg">{fmt(resultado.total.anual)}</span>
+                                                <span className="font-mono font-black text-amber-400 text-xl">{fmt(resultado.total.anual)}</span>
                                             </FormulaTooltip>
                                         </td>
                                     </tr>
