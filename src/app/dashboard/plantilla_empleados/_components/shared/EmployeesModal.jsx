@@ -546,7 +546,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         <ModalShell
             open={isOpen}
             onClose={onClose}
-            size="lg"
+            size="xl"
             icon={Stamp}
             eyebrow="Expediente de plaza"
             title={nombreTitular || (posicionPlaza ? `Posición ${posicionPlaza}` : "Expediente de Plaza")}
