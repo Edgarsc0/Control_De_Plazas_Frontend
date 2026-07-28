@@ -6,7 +6,8 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
-  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2
+  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2,
+  MousePointerClick
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
@@ -14,6 +15,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
 import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
@@ -510,6 +512,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [movHoySelectedRecord, setMovHoySelectedRecord] = useState(null);
   const movHoyTableContainerRef = useRef(null);
 
+  // Clic en "No. Empleado" del detalle → modal "Detalle de Empleado" (mismo
+  // comportamiento que la columna homónima en MovimientosPersonalTab).
+  const [movHoyTimelineOpen, setMovHoyTimelineOpen] = useState(false);
+  const [movHoyTimelineNumEmpleado, setMovHoyTimelineNumEmpleado] = useState(null);
+
   // Reset de selección/scroll al cambiar de motivo — mismo dataset previo
   // podría dejar una celda/scroll apuntando fuera de rango del nuevo listado.
   useEffect(() => {
@@ -661,18 +668,31 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
     const rawValue = col.key === "nombre" ? buildMovHoyFullName(row) : row[col.key];
     const displayValue = rawValue === null || rawValue === undefined || String(rawValue).trim() === "" ? "" : (MOV_HOY_DATE_KEYS.includes(col.key) ? formatDateEsMx(rawValue) : String(rawValue));
+    const isEmpleadoLink = col.key === "num_empleado" && !!displayValue;
+    const handleClick = isEmpleadoLink
+      ? (e) => { e.stopPropagation(); setMovHoyTimelineNumEmpleado(displayValue); setMovHoyTimelineOpen(true); }
+      : onClick;
     return (
       <td
         key={col.key}
-        onClick={onClick}
+        onClick={handleClick}
         onContextMenu={onContextMenu}
         style={stickyStyle}
         className={`px-4 text-sm border-r truncate h-[37px] align-middle ${
           isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
-        } ${isMonoColumnMovHoy(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}`}
-        title={displayValue}
+        } ${isMonoColumnMovHoy(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}${
+          isEmpleadoLink ? " font-bold hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer" : ""
+        }`}
+        title={isEmpleadoLink ? "Clic para ver el detalle del empleado" : displayValue}
       >
-        {displayValue || <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>}
+        {isEmpleadoLink ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate">{displayValue}</span>
+            <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" />
+          </div>
+        ) : (
+          displayValue || <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
+        )}
       </td>
     );
   }, [isMonoColumnMovHoy]);
@@ -2383,7 +2403,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
       <ModalShell
         open={isMovimientosHoyModalOpen}
-        onClose={() => setIsMovimientosHoyModalOpen(false)}
+        // Con el detalle de empleado encima, Escape solo debe cerrar ese modal:
+        // ambos escuchan la tecla a nivel documento.
+        onClose={() => { if (!movHoyTimelineOpen) setIsMovimientosHoyModalOpen(false); }}
         size="xl"
         resizable
         minWidth={900}
@@ -2576,6 +2598,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           </AnimatePresence>
         </div>
       </ModalShell>
+
+      {/* Detalle de Empleado desde la columna "No. Empleado" del modal de hoy —
+          z por encima del ModalShell (z-[1000]) para que no quede debajo. */}
+      <EmpleadoTimelineModal
+        open={movHoyTimelineOpen}
+        onOpenChange={setMovHoyTimelineOpen}
+        numEmpleado={movHoyTimelineNumEmpleado}
+        zIndexClass="z-[1100]"
+      />
 
       <div className="w-full px-4 lg:px-6">
         <Zoom triggerOnce>

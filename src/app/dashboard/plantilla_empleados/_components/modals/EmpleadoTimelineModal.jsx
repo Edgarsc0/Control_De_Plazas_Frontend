@@ -114,7 +114,9 @@ const COLUMNS = [
   { key: "fecha_posicion", label: "Fecha Posición", width: 130 }
 ];
 
-export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado }) {
+// `zIndexClass` permite abrirlo encima de otro modal (p. ej. desde la tabla del
+// modal "Movimientos realizados hoy", que vive en un ModalShell con z-[1000]).
+export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado, zIndexClass = "z-[110]" }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline"); // "timeline" | "table"
@@ -180,7 +182,7 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4`}>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -192,7 +194,7 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className={`relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full z-[110] flex flex-col overflow-hidden h-[80vh] transition-[max-width] duration-500 ease-in-out ${activeTab === "table" ? "max-w-[95vw]" : "max-w-3xl"}`}
+        className={`relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full ${zIndexClass} flex flex-col overflow-hidden h-[80vh] transition-[max-width] duration-500 ease-in-out ${activeTab === "table" ? "max-w-[95vw]" : "max-w-3xl"}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
