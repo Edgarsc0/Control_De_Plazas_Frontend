@@ -14,6 +14,7 @@ import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
 import PosicionTimelineModal from "../../modals/PosicionTimelineModal";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
@@ -35,6 +36,9 @@ import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
+import { useToast } from "@/hooks/useToast";
 import {
   Select,
   SelectContent,
@@ -310,9 +314,15 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
 };
 
 export default function MovimientosPersonalTab({ isPending, startTransition, cardRef }) {
+  const { hasPermission } = useAuth();
+  const canViewFotoMovimientos = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO);
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
+  const [isExportingConFotos, setIsExportingConFotos] = useState(false);
+  const exportConFotosAbortRef = useRef(null);
+  const { toast } = useToast();
   const [data, setData] = useState([]);
   const tbodyRef = useRef(null);
   const bitacoraDateInputRef = useRef(null);
@@ -903,48 +913,57 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
   }, []);
 
+  // Params compartidos por el export normal (client-side, sin fotos) y el
+  // nuevo export con fotos (backend) — mismos filtros/orden que ya usa
+  // `getMovimientosPersonal`, para que ambos reflejen exactamente lo que la
+  // tabla tiene filtrado en ese momento.
+  const buildExportParams = useCallback(() => {
+    const filterParams = getTextFilterParams(debouncedTextFilters);
+    const colParams = {};
+    Object.entries(columnFilters).forEach(([key, values]) => {
+      if (values && values.length > 0) {
+        colParams[`${key}__in`] = values.join(",");
+      }
+    });
+
+    const yearFilter = selectedActionName
+      ? (selectedMotifYear !== "all" ? selectedMotifYear : null)
+      : (selectedYear !== "all" ? selectedYear : null);
+
+    const params = {
+      no_pagination: true,
+      search: debouncedSearch,
+      ...filterParams,
+      ...colParams
+    };
+
+    if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+      params.fecha_captura__in = bitacoraDates.join(",");
+    }
+
+    if (sortConfig.key) {
+      params.sort_by = sortConfig.key;
+      params.sort_order = sortConfig.direction;
+    } else if (activeSubTab === "bitacora") {
+      params.sort_by = "fecha_captura,fecha_ult_actz";
+      params.sort_order = "desc";
+    }
+
+    if (yearFilter && activeSubTab !== "bitacora") {
+      params.fecha_efectiva__year = yearFilter;
+    }
+
+    if (appliedAdvancedFilters.length > 0) {
+      params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
+    }
+
+    return params;
+  }, [debouncedTextFilters, columnFilters, selectedActionName, selectedMotifYear, selectedYear, debouncedSearch, activeSubTab, bitacoraDates, sortConfig, appliedAdvancedFilters]);
+
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const filterParams = getTextFilterParams(debouncedTextFilters);
-      const colParams = {};
-      Object.entries(columnFilters).forEach(([key, values]) => {
-        if (values && values.length > 0) {
-          colParams[`${key}__in`] = values.join(",");
-        }
-      });
-
-      const yearFilter = selectedActionName 
-        ? (selectedMotifYear !== "all" ? selectedMotifYear : null)
-        : (selectedYear !== "all" ? selectedYear : null);
-
-      const params = {
-        no_pagination: true,
-        search: debouncedSearch,
-        ...filterParams,
-        ...colParams
-      };
-      
-      if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
-        params.fecha_captura__in = bitacoraDates.join(",");
-      }
-
-      if (sortConfig.key) {
-        params.sort_by = sortConfig.key;
-        params.sort_order = sortConfig.direction;
-      } else if (activeSubTab === "bitacora") {
-        params.sort_by = "fecha_captura,fecha_ult_actz";
-        params.sort_order = "desc";
-      }
-
-      if (yearFilter && activeSubTab !== "bitacora") {
-        params.fecha_efectiva__year = yearFilter;
-      }
-
-      if (appliedAdvancedFilters.length > 0) {
-        params.advanced_filters = JSON.stringify(appliedAdvancedFilters);
-      }
-
+      const params = buildExportParams();
       const res = await VacantesService.getMovimientosPersonal(params);
       const allData = await res.json();
 
@@ -1024,6 +1043,64 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     } finally {
       setIsExportingExcel(false);
     }
+  };
+
+  // Botón "Exportar a Excel": con permiso de foto en este tab, se ofrece
+  // elegir incluirlas (modal) antes de exportar; sin el permiso, exporta
+  // directo como siempre (sin fotos, 100% client-side, sin cambios).
+  const handleOpenExportClick = () => {
+    if (canViewFotoMovimientos) {
+      setIsExportFotosModalOpen(true);
+    } else {
+      handleExportExcel();
+    }
+  };
+
+  const handleConfirmExportConFotos = async (incluirFotos) => {
+    if (!incluirFotos) {
+      setIsExportFotosModalOpen(false);
+      handleExportExcel();
+      return;
+    }
+    const controller = new AbortController();
+    exportConFotosAbortRef.current = controller;
+    setIsExportingConFotos(true);
+    try {
+      const visibleCols = columns.filter(c => c.visible);
+      const params = buildExportParams();
+      const res = await VacantesService.exportarMovimientosPersonalConFotos(
+        params,
+        visibleCols.map(c => ({ key: c.key, label: c.label })),
+        true,
+        { signal: controller.signal }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Error al generar el Excel con fotografías.");
+      }
+      // Ver nota en PlantillaDetalleTab.jsx: la extensión depende de si el
+      // backend incluyó la macro VBA (VBA_HABILITADO en excel_fotos.py).
+      const extension = res.headers.get("Content-Type")?.includes("macroEnabled") ? "xlsm" : "xlsx";
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Movimientos_Personal_ConFotos.${extension}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setIsExportFotosModalOpen(false);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        toast.error(err.message || "Error al generar el Excel con fotografías.");
+      }
+    } finally {
+      setIsExportingConFotos(false);
+      exportConFotosAbortRef.current = null;
+    }
+  };
+
+  const handleCancelExportConFotos = () => {
+    exportConFotosAbortRef.current?.abort();
   };
 
   const handleDownloadYearReport = async (year) => {
@@ -2318,7 +2395,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             searchValue={searchQuery}
             onSearch={(v) => setSearchQuery(v)}
             count={data.length}
-            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel, disabled: data.length === 0 }}
+            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel, disabled: data.length === 0 }}
             actions={[
               { icon: RotateCcw, label: "Restablecer filtros", onClick: () => { setTextFilters({}); setColumnFilters({}); setSortConfig({ key: null, direction: null }); setSearchQuery(""); resetAdvancedFilters(); } },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
@@ -2448,7 +2525,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                 <RotateCcw className="size-3.5" />
               </button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
-              <button onClick={handleExportExcel} disabled={isExportingExcel || data.length === 0} className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 disabled:opacity-75 disabled:pointer-events-none">
+              <button onClick={handleOpenExportClick} disabled={isExportingExcel || data.length === 0} className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 disabled:opacity-75 disabled:pointer-events-none">
                 {isExportingExcel ? (
                   <div className="size-3.5 border-2 border-white/20 border-t-white dark:border-[#3e131f]/20 dark:border-t-[#3e131f] rounded-full animate-spin" />
                 ) : (
@@ -2658,6 +2735,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               onClose={() => setSelectedRowData(null)}
               record={mappedEmployee}
               columns={columns}
+              canViewPhoto={canViewFotoMovimientos}
             />
           );
         })()}
@@ -2675,6 +2753,15 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         open={posicionTimelineModalOpen}
         onOpenChange={setPosicionTimelineModalOpen}
         posicion={selectedPosicion}
+      />
+
+      <ExportConFotosModal
+        open={isExportFotosModalOpen}
+        onClose={() => setIsExportFotosModalOpen(false)}
+        onConfirm={handleConfirmExportConFotos}
+        isExporting={isExportingConFotos}
+        onCancelExport={handleCancelExportConFotos}
+        rowCount={count}
       />
     </div>
   );

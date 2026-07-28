@@ -192,6 +192,93 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene la fotografía de un empleado (carga bajo demanda, no en el listado).
+     * Respuesta cruda: usar `.blob()` y convertir a Object URL para un <img>,
+     * ya que este endpoint requiere el header Authorization que un <img src>
+     * plano no puede enviar.
+     * @param {string} numempleado
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>}
+     */
+    getEmpleadoFoto: (numempleado, options = {}) => {
+        return apiFetch(`/plantilla/empleado_foto/${encodeURIComponent(numempleado)}/`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Genera el Excel de Plantilla Detalle en el backend, opcionalmente con
+     * fotografías de empleados embebidas en la celda (.xlsm con macro VBA).
+     * Camino opt-in — el export normal (sin fotos) sigue siendo client-side.
+     * @param {{posiciones: string[], columnas: {key:string,label:string}[], incluirFotos: boolean}} payload
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.blob()` para el archivo.
+     */
+    exportarPlantillaDetalleConFotos: ({ posiciones, columnas, incluirFotos }, options = {}) => {
+        return apiFetch('/plantilla/exportar_plantilla_detalle_con_fotos/', {
+            method: 'POST',
+            body: JSON.stringify({ posiciones, columnas, incluir_fotos: incluirFotos }),
+            ...options
+        });
+    },
+
+    /**
+     * Genera el Excel de Movimientos (tab "Movimientos", MovimientosPersonalTab)
+     * en el backend, opcionalmente con fotografías embebidas. Reenvía los
+     * MISMOS filtros que ya usa `getMovimientosPersonal` (no_pagination
+     * forzado en el backend), para que el export refleje exactamente lo que
+     * la tabla tiene filtrado en ese momento.
+     * @param {object} filtros - Mismos query params que `getMovimientosPersonal`.
+     * @param {{key:string,label:string}[]} columnas
+     * @param {boolean} incluirFotos
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>}
+     */
+    exportarMovimientosPersonalConFotos: (filtros = {}, columnas, incluirFotos, options = {}) => {
+        const query = buildQuery({
+            ...filtros,
+            incluir_fotos: incluirFotos ? 'true' : 'false',
+            columnas: JSON.stringify(columnas),
+        });
+        return apiFetch(`/plantilla/exportar_movimientos_personal_con_fotos/${query}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Genera el Excel de Empleados Bajas en el backend, opcionalmente con
+     * fotografías embebidas.
+     * @param {{ids: number[], columnas: {key:string,label:string}[], incluirFotos: boolean}} payload
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>}
+     */
+    exportarBajasConFotos: ({ ids, columnas, incluirFotos }, options = {}) => {
+        return apiFetch('/plantilla/exportar_bajas_con_fotos/', {
+            method: 'POST',
+            body: JSON.stringify({ ids, columnas, incluir_fotos: incluirFotos }),
+            ...options
+        });
+    },
+
+    /**
+     * Genera el Excel de un listado de empleados por posición (usado por el
+     * componente compartido EmployeesModal — drill-down de Estatus Nómina y
+     * de Cuadros de Vacancia), opcionalmente con fotografías embebidas.
+     * @param {{posiciones: string[], columnas: {key:string,label:string}[], incluirFotos: boolean, permisoFoto: string}} payload
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>}
+     */
+    exportarEmpleadosPorPosicionConFotos: ({ posiciones, columnas, incluirFotos, permisoFoto }, options = {}) => {
+        return apiFetch('/plantilla/exportar_empleados_por_posicion_con_fotos/', {
+            method: 'POST',
+            body: JSON.stringify({ posiciones, columnas, incluir_fotos: incluirFotos, permiso_foto: permisoFoto }),
+            ...options
+        });
+    },
+
+    /**
      * Edita manualmente la Fecha de Anuencia de una posición (por default es
      * fecha_vacancia + 30 días, calculada al vuelo). Persiste el override
      * (CeldaOverride) de forma independiente de MOV_POS, que se trunca y

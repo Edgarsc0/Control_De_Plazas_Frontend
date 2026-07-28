@@ -15,6 +15,15 @@ export const PERMISSIONS = {
   EDIT_PLANTILLA_DETALLE: 'authentication.edit_plantilla_detalle',
   EDIT_PLANTILLA_MOV_POSICIONES: 'authentication.edit_plantilla_mov_posiciones',
 
+  // Plantilla de Empleados — fotografía: permiso independiente por tab, para
+  // poder mostrar el tab pero ocultar la fotografía dentro de él (o viceversa).
+  VIEW_PLANTILLA_DETALLE_FOTO: 'authentication.view_plantilla_detalle_foto',
+  VIEW_PLANTILLA_ESTATUS_NOMINA_FOTO: 'authentication.view_plantilla_estatus_nomina_foto',
+  VIEW_PLANTILLA_MOV_POSICIONES_FOTO: 'authentication.view_plantilla_mov_posiciones_foto',
+  VIEW_PLANTILLA_MOVIMIENTOS_FOTO: 'authentication.view_plantilla_movimientos_foto',
+  VIEW_PLANTILLA_BAJAS_FOTO: 'authentication.view_plantilla_bajas_foto',
+  VIEW_PLANTILLA_GEOGRAFIA_FOTO: 'authentication.view_plantilla_geografia_foto',
+
   // Ocupación de Plazas por Oficio
   VIEW_OCUPACION_SANKEY: 'authentication.view_ocupacion_sankey',
   VIEW_OCUPACION_TABLA: 'authentication.view_ocupacion_tabla',

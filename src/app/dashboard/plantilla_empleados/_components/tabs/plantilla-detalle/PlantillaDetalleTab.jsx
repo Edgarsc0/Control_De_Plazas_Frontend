@@ -14,6 +14,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
@@ -301,6 +302,9 @@ function CadenaTreeNode({
 export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading, remoteUpdatesCount = 0, onClearRemoteUpdates }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
+  const [isExportingConFotos, setIsExportingConFotos] = useState(false);
+  const exportConFotosAbortRef = useRef(null);
   useEffect(() => setMounted(true), []);
 
   // Indicador flotante de movimientos capturados hoy en cp_tbl_mov_completo_29_05_26
@@ -670,6 +674,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { hasPermission } = useAuth();
   const canEditCeldas = hasPermission(PERMISSIONS.EDIT_PLANTILLA_DETALLE);
+  const canViewFotoDetalle = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
   const { toast } = useToast();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
@@ -2133,6 +2138,69 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
   };
 
+  // Botón "Exportar a Excel": si el usuario tiene permiso de ver fotografía
+  // en este tab, se le ofrece elegir incluirlas (modal) antes de exportar;
+  // si no tiene el permiso, exporta directo como siempre (sin fotos, 100%
+  // client-side vía handleExportExcel, sin cambios).
+  const handleOpenExportClick = () => {
+    if (canViewFotoDetalle) {
+      setIsExportFotosModalOpen(true);
+    } else {
+      handleExportExcel();
+    }
+  };
+
+  const handleConfirmExportConFotos = async (incluirFotos) => {
+    if (!incluirFotos) {
+      setIsExportFotosModalOpen(false);
+      handleExportExcel();
+      return;
+    }
+    const controller = new AbortController();
+    exportConFotosAbortRef.current = controller;
+    setIsExportingConFotos(true);
+    try {
+      const visibleCols = columns.filter(c => c.visible);
+      const posiciones = filteredSortedData.map(row => row.posicion);
+      const res = await VacantesService.exportarPlantillaDetalleConFotos(
+        {
+          posiciones,
+          columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
+          incluirFotos: true,
+        },
+        { signal: controller.signal }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Error al generar el Excel con fotografías.");
+      }
+      // La extensión depende de si el backend incluyó la macro VBA
+      // (VBA_HABILITADO en excel_fotos.py) — se lee de Content-Type en vez
+      // de Content-Disposition porque ese último no siempre es legible
+      // desde JS en peticiones cross-origin sin CORS_EXPOSE_HEADERS.
+      const extension = res.headers.get("Content-Type")?.includes("macroEnabled") ? "xlsm" : "xlsx";
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Plantilla_Empleados_ConFotos.${extension}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setIsExportFotosModalOpen(false);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        toast.error(err.message || "Error al generar el Excel con fotografías.");
+      }
+    } finally {
+      setIsExportingConFotos(false);
+      exportConFotosAbortRef.current = null;
+    }
+  };
+
+  const handleCancelExportConFotos = () => {
+    exportConFotosAbortRef.current?.abort();
+  };
+
   const donutData = useMemo(() => {
     const total = resumen?.total_registros || 11957;
     const slices = [
@@ -2484,7 +2552,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             searchValue={searchQuery}
             onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
             count={filteredSortedData.length}
-            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
+            primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel }}
             actions={[
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0 },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
@@ -2542,8 +2610,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                 )}
               </button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex-shrink-0"><Columns className="size-3.5" /><span>Columnas</span></button>
-              <button 
-                onClick={handleExportExcel} 
+              <button
+                onClick={handleOpenExportClick}
                 disabled={isExportingExcel}
                 className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 disabled:opacity-75 disabled:pointer-events-none"
               >
@@ -3176,39 +3244,18 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           isOpen={!!selectedRowData}
           onClose={() => setSelectedRowData(null)}
           record={selectedRowData}
+          canViewPhoto={canViewFotoDetalle}
         />
       )}
 
-      {/* Dropdown/menú/expediente de la tabla de detalle del modal "Movimientos realizados hoy" */}
-      <ColumnFilterDropdown
-        open={!!movHoyActiveFilterDropdown}
-        columnKey={movHoyActiveFilterDropdown}
-        columnLabel={movHoyColumns.find(c => c.key === movHoyActiveFilterDropdown)?.label}
-        isDate={false}
-        data={movimientosHoyDetalle}
-        getCellValue={getMovHoyCellValue}
-        filters={movHoyFiltersHook}
-        dropdownValues={movHoyFilterDropdownValues}
-        onApply={() => applyMovHoyColumnFilter(movHoyActiveFilterDropdown)}
-        onClear={() => clearMovHoyColumnFilter(movHoyActiveFilterDropdown)}
-        onClose={() => setMovHoyActiveFilterDropdown(null)}
-        reachableValues={movHoyReachableValues}
-        zIndexClass="z-[1100]"
+      <ExportConFotosModal
+        open={isExportFotosModalOpen}
+        onClose={() => setIsExportFotosModalOpen(false)}
+        onConfirm={handleConfirmExportConFotos}
+        isExporting={isExportingConFotos}
+        onCancelExport={handleCancelExportConFotos}
+        rowCount={filteredSortedData.length}
       />
-
-      <CopyCellMenu
-        contextMenu={movHoyContextMenu}
-        onClose={() => setMovHoyContextMenu(null)}
-      />
-
-      {movHoySelectedRecord && (
-        <EmployeeRecordModal
-          isOpen={!!movHoySelectedRecord}
-          onClose={() => setMovHoySelectedRecord(null)}
-          record={movHoySelectedRecord}
-          columns={MOV_HOY_COLUMNS_BASE}
-        />
-      )}
     </div>
   );
 }

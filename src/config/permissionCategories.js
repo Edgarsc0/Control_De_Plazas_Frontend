@@ -12,6 +12,12 @@ const CATEGORY_MAP = {
   [PERMISSIONS.VIEW_PLANTILLA_BAJAS]: 'Plantilla de Empleados',
   [PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA]: 'Plantilla de Empleados',
   [PERMISSIONS.VIEW_PLANTILLA_CATALOGOS]: 'Plantilla de Empleados',
+  [PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO]: 'Plantilla de Empleados',
+  [PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA_FOTO]: 'Plantilla de Empleados',
+  [PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO]: 'Plantilla de Empleados',
+  [PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO]: 'Plantilla de Empleados',
+  [PERMISSIONS.VIEW_PLANTILLA_BAJAS_FOTO]: 'Plantilla de Empleados',
+  [PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO]: 'Plantilla de Empleados',
 
   [PERMISSIONS.VIEW_OCUPACION_SANKEY]: 'Ocupación de Plazas por Oficio',
   [PERMISSIONS.VIEW_OCUPACION_TABLA]: 'Ocupación de Plazas por Oficio',

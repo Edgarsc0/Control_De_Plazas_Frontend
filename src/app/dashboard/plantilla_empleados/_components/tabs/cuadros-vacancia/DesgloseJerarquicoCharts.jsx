@@ -3,6 +3,8 @@ import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, 
 import { Layers, ChevronLeft, TrendingUp } from 'lucide-react';
 import EmployeesModal from '../../shared/EmployeesModal';
 import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 
 // Pestañas del modal de detalle al hacer clic en un nivel dentro de una familia
 // en "Ocupadas vs Vacantes por familia de nivel" (gráfica 3, segundo nivel de
@@ -238,6 +240,8 @@ const GradientBar = (props) => {
 const OCUPADAS_COLOR = '#2f855a';
 
 export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false }) {
+  const { hasPermission } = useAuth();
+  const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
   const [drillFamily, setDrillFamily] = useState(null);
   const [drillFamily3, setDrillFamily3] = useState(null);
   const [drillFamilyOcup, setDrillFamilyOcup] = useState(null);
@@ -1647,6 +1651,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         rows={modalRows}
         title={modalTitle}
         defaultColumnKeys={modalDefaultCols}
+        canViewPhoto={canViewFotoMovPosiciones}
+        fotoPermissionCodename="view_plantilla_mov_posiciones_foto"
       />
 
       {/* Modal de detalle por nivel (Ocupadas vs Vacantes por familia de nivel) */}
@@ -1655,6 +1661,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         onOpenChange={setEmployeesModalOpen}
         nivel={employeesModalNivel}
         categoryTabs={VACANCIA_CATEGORY_TABS}
+        canViewPhoto={canViewFotoMovPosiciones}
+        fotoPermissionCodename="view_plantilla_mov_posiciones_foto"
       />
     </div>
   );

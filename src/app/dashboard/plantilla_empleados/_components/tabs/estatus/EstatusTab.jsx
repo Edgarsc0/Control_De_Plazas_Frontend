@@ -22,6 +22,8 @@ import EmployeesModal from "../../shared/EmployeesModal";
 import { VacantesService } from "@/services/vacantes.service";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 
 /** Orden alfanumérico correcto ("2" antes que "11"), no lexicográfico plano. */
 const sortLevels = (keys) => [...keys].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -405,6 +407,8 @@ function UaStackedTooltip({ active, payload, label }) {
 // ─── EstatusTab ───────────────────────────────────────────────────────────────
 
 export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua: {} }, activeSubTab, detalle = [] }) {
+  const { hasPermission } = useAuth();
+  const canViewFotoEstatus = hasPermission(PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA_FOTO);
   const [levelsPage, setLevelsPage] = useState(1);
   const [levelsPageSize, setLevelsPageSize] = useState(8);
   const [uasPage, setUasPage] = useState(1);
@@ -972,6 +976,8 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
         nivel={selectedLevelEstatus?.nivel}
         estatus={selectedLevelEstatus?.estatus}
         ua={selectedLevelEstatus?.ua}
+        canViewPhoto={canViewFotoEstatus}
+        fotoPermissionCodename="view_plantilla_estatus_nomina_foto"
       />
 
       <AnimatePresence>

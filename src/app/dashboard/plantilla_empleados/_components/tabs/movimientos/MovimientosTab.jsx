@@ -143,6 +143,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   useEffect(() => setMounted(true), []);
   const { hasPermission } = useAuth();
   const canEditFechaAnuencia = hasPermission(PERMISSIONS.EDIT_PLANTILLA_MOV_POSICIONES);
+  const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
   // Edición inline (doble clic) de "Fecha de Anuencia" — por default es
   // fecha_vacancia + 30 días (calculada al vuelo, ver annotate_fecha_anuencia
   // en el backend); el usuario puede sobreescribirla y ese override persiste
@@ -2379,6 +2380,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             record={matchingEmployee}
             columns={columns}
             fieldClickHandlers={{ fecha_vacancia: (r) => openVacanciaModal(r) }}
+            canViewPhoto={canViewFotoMovPosiciones}
           />
         );
       })()}

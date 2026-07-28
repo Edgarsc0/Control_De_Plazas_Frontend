@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence } from "motion/react";
 import { VacantesService } from "@/services/vacantes.service";
 import {
@@ -10,9 +11,11 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download } from "lucide-react";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
+import ExportConFotosModal from "./ExportConFotosModal";
+import { useToast } from "@/hooks/useToast";
 import {
     Select,
     SelectContent,
@@ -347,7 +350,7 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys, av
 };
 
 // --- COMPONENTE DE FICHERO DETALLADO (EXPEDIENTE) ---
-export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldClickHandlers = {} }) => {
+export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldClickHandlers = {}, canViewPhoto = true }) => {
     const [fieldSearch, setFieldSearch] = useState("");
 
     useEffect(() => {
@@ -355,6 +358,50 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             setFieldSearch("");
         }
     }, [isOpen]);
+
+    // ── Foto del empleado — carga bajo demanda (solo al abrir este modal, no
+    // precargada en la tabla, ver decisión de diseño: prioriza que la tabla
+    // y este modal abran rápido, la foto es la única petición extra y solo
+    // ocurre cuando el usuario realmente la pidió). Object URL en vez de
+    // <img src> directo porque el endpoint exige el header Authorization,
+    // que un <img> plano no puede mandar (mismo patrón que el visor de PDF
+    // en SimuladorValuacion.jsx).
+    const [fotoUrl, setFotoUrl] = useState(null);
+    const [fotoLoading, setFotoLoading] = useState(false);
+    const [fotoExpandida, setFotoExpandida] = useState(false);
+    const numempleadoFoto = record?.numempleado || record?.id_empleado;
+
+    useEffect(() => {
+        if (!isOpen || !numempleadoFoto || !canViewPhoto) {
+            setFotoUrl(null);
+            return;
+        }
+        let cancelado = false;
+        setFotoLoading(true);
+        setFotoUrl(null);
+        setFotoExpandida(false);
+        VacantesService.getEmpleadoFoto(numempleadoFoto)
+            .then((res) => (res.ok ? res.blob() : null))
+            .then((blob) => {
+                if (cancelado) return;
+                if (blob) setFotoUrl(URL.createObjectURL(blob));
+            })
+            .catch(() => {})
+            .finally(() => { if (!cancelado) setFotoLoading(false); });
+        return () => { cancelado = true; };
+    }, [isOpen, numempleadoFoto, canViewPhoto]);
+
+    useEffect(() => {
+        return () => { if (fotoUrl) URL.revokeObjectURL(fotoUrl); };
+    }, [fotoUrl]);
+
+    // Cierra la foto expandida con Escape, igual que el resto de overlays del proyecto.
+    useEffect(() => {
+        if (!fotoExpandida) return;
+        const handler = (e) => { if (e.key === "Escape") setFotoExpandida(false); };
+        document.addEventListener("keydown", handler);
+        return () => document.removeEventListener("keydown", handler);
+    }, [fotoExpandida]);
 
     const filteredGroupedFields = useMemo(() => {
         const groups = {};
@@ -389,6 +436,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     if (!record) return null;
 
     return (
+        <>
         <ModalShell
             open={isOpen}
             onClose={onClose}
@@ -419,21 +467,51 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                     )}
                 </div>
 
-                {/* Tarjetas principales */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 p-3.5 sm:p-5 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800">
-                    {[
-                        { label: "No. Empleado", value: record.id_empleado, isMono: true },
-                        { label: "Posición", value: record.posicion, isMono: true },
-                        { label: "RFC", value: record.rfc, isMono: true },
-                        { label: "Nivel Salarial", value: record.nivel, isMono: true }
-                    ].map((item, idx) => (
-                        <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
-                            <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
-                            <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
-                                {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
-                            </span>
-                        </div>
-                    ))}
+                {/* Foto + Tarjetas principales */}
+                <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4">
+                    {/* Foto del empleado — cargada bajo demanda al abrir este modal (ver useEffect arriba).
+                        Clic para expandir (ver lightbox al final del componente) solo si ya hay foto. */}
+                    <div
+                        onClick={fotoUrl ? () => setFotoExpandida(true) : undefined}
+                        className={`shrink-0 size-20 sm:size-24 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden flex flex-col items-center justify-center mx-auto sm:mx-0 ${fotoUrl ? "cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-[#bc955c]/40 transition-all" : ""}`}
+                        title={fotoUrl ? "Clic para ampliar" : undefined}
+                    >
+                        {fotoLoading ? (
+                            <Loader2 className="size-5 text-slate-300 dark:text-slate-600 animate-spin" />
+                        ) : !canViewPhoto ? (
+                            <>
+                                <Lock className="size-7 sm:size-8 text-slate-200 dark:text-slate-700" />
+                                <span className="text-[7px] sm:text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-tight text-center leading-tight mt-1 px-1">
+                                    Foto restringida
+                                </span>
+                            </>
+                        ) : fotoUrl ? (
+                            <img src={fotoUrl} alt="Fotografía del empleado" className="w-full h-full object-cover" />
+                        ) : (
+                            <>
+                                <UserRound className="size-7 sm:size-8 text-slate-200 dark:text-slate-700" />
+                                <span className="text-[7px] sm:text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-tight text-center leading-tight mt-1 px-1">
+                                    Sin foto registrada
+                                </span>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 p-3.5 sm:p-5 flex-1 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800">
+                        {[
+                            { label: "No. Empleado", value: record.id_empleado, isMono: true },
+                            { label: "Posición", value: record.posicion, isMono: true },
+                            { label: "RFC", value: record.rfc, isMono: true },
+                            { label: "Nivel Salarial", value: record.nivel, isMono: true }
+                        ].map((item, idx) => (
+                            <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
+                                <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
+                                <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
+                                    {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Detalle Categorizado */}
@@ -490,6 +568,35 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                 </div>
             </div>
         </ModalShell>
+
+        {/* Foto ampliada — overlay simple (no ModalShell/Dialog anidado, para
+            evitar conflictos de focus-trap con el modal que ya la contiene).
+            Portal a document.body + z-index por encima de ModalShell (que
+            porta el suyo a z-[1000]): sin el portal, este div se queda
+            dentro del árbol normal y ModalShell (ya portado a body) queda
+            encima sin importar el z-index. */}
+        {fotoExpandida && fotoUrl && createPortal(
+            <div
+                className="fixed inset-0 z-[1100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6 cursor-zoom-out"
+                onClick={() => setFotoExpandida(false)}
+            >
+                <button
+                    onClick={() => setFotoExpandida(false)}
+                    className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                    title="Cerrar"
+                >
+                    <X className="size-5" />
+                </button>
+                <img
+                    src={fotoUrl}
+                    alt="Fotografía del empleado (ampliada)"
+                    onClick={(e) => e.stopPropagation()}
+                    className="max-w-full max-h-full rounded-2xl shadow-2xl cursor-default"
+                />
+            </div>,
+            document.body
+        )}
+        </>
     );
 };
 
@@ -513,8 +620,12 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
 // universo completo de ALL_AVAILABLE_COLUMNS. Pensado para datasets que no
 // traen todos los campos de empleado (p.ej. desglose_jerarquico, que es de
 // plazas): sin esto, el selector listaría columnas que siempre salen vacías.
-export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null, rows = null, title = null, defaultColumnKeys = null, restrictColumnsTo = null }) {
+export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null, rows = null, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
     const isLocalMode = Array.isArray(rows);
+    const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
+    const [isExportingConFotos, setIsExportingConFotos] = useState(false);
+    const exportConFotosAbortRef = useRef(null);
+    const { toast } = useToast();
     const isCategoryMode = Array.isArray(categoryTabs) && categoryTabs.length > 0;
     const [activeCategoryIdx, setActiveCategoryIdx] = useState(0);
     const effectiveEstatus = isCategoryMode ? categoryTabs[activeCategoryIdx]?.estatus : estatus;
@@ -816,6 +927,55 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         });
     }, [rowData, columnFilters, textFilters, sortConfig]);
 
+    // Export a Excel con fotos — proceso NUEVO y aislado (no toca los
+    // exports complejos de Estatus Nómina ni Cuadros de Vacancia). Reutiliza
+    // la misma clave de negocio (`posicion`) que ya usan ambas fuentes de
+    // este modal (fetch por nivel/estatus y modo local por mapVacanteRowToEmployeeRow)
+    // contra EMPLEADOS_COMPLETOS_SIG — las filas vacantes simplemente no
+    // tienen numempleado resoluble y no llevan foto.
+    const handleConfirmExportConFotos = async (incluirFotos) => {
+        const controller = new AbortController();
+        exportConFotosAbortRef.current = controller;
+        setIsExportingConFotos(true);
+        try {
+            const visibleCols = columns.filter(c => c.visible);
+            const posiciones = processedData.map(row => row.posicion).filter(Boolean);
+            const res = await VacantesService.exportarEmpleadosPorPosicionConFotos(
+                {
+                    posiciones,
+                    columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
+                    incluirFotos,
+                    permisoFoto: fotoPermissionCodename,
+                },
+                { signal: controller.signal }
+            );
+            if (!res.ok) {
+                const body = await res.json().catch(() => null);
+                throw new Error(body?.error || "Error al generar el Excel con fotografías.");
+            }
+            const extension = res.headers.get("Content-Type")?.includes("macroEnabled") ? "xlsm" : "xlsx";
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Listado_Empleados.${extension}`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            setIsExportFotosModalOpen(false);
+        } catch (err) {
+            if (err.name !== "AbortError") {
+                toast.error(err.message || "Error al generar el Excel con fotografías.");
+            }
+        } finally {
+            setIsExportingConFotos(false);
+            exportConFotosAbortRef.current = null;
+        }
+    };
+
+    const handleCancelExportConFotos = () => {
+        exportConFotosAbortRef.current?.abort();
+    };
+
     // Ventana de filas realmente montadas en el DOM (ver `viewportHeight` más
     // arriba). Los `<tr>` spacer de DataTable rellenan el resto del alto, así
     // que la medición de abajo (altura real de la tabla) sigue reflejando el
@@ -1022,6 +1182,14 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             >
                 <Columns3 className="size-3.5" /> Columnas
             </button>
+            {canViewPhoto && (
+                <button
+                    onClick={() => setIsExportFotosModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[11px] font-bold hover:border-[#bc955c]/50 hover:text-[#621f32] dark:hover:text-[#bc955c] transition-all cursor-pointer"
+                >
+                    <Download className="size-3.5" /> Exportar a Excel
+                </button>
+            )}
             {hasActiveFilters && (
                 <button onClick={clearAllFilters} className="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-950/20 border border-red-200/40 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-[11px] font-black uppercase cursor-pointer">
                     <X className="size-3.5" /> Limpiar filtros
@@ -1156,6 +1324,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 record={selectedEmployeeRecord}
                 columns={restrictColumnsTo ? availableColumns : null}
                 fieldClickHandlers={{ fecha_vacancia: (r) => openVacanciaModal(r) }}
+                canViewPhoto={canViewPhoto}
             />
 
             <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
@@ -1165,6 +1334,15 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 onClose={() => setIsVacanciaModalOpen(false)}
                 detalle={vacanciaDetalle}
                 isLoading={isVacanciaLoading}
+            />
+
+            <ExportConFotosModal
+                open={isExportFotosModalOpen}
+                onClose={() => setIsExportFotosModalOpen(false)}
+                onConfirm={handleConfirmExportConFotos}
+                isExporting={isExportingConFotos}
+                onCancelExport={handleCancelExportConFotos}
+                rowCount={processedData.length}
             />
         </>
     );

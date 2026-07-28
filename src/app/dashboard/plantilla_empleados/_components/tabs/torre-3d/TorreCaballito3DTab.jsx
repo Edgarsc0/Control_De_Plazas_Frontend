@@ -7,6 +7,8 @@ import { VacantesService } from "@/services/vacantes.service";
 import { Search, MapPin, RotateCcw } from "lucide-react";
 import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
 import * as THREE from "three";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 
 const extractFloorNumber = (pisoStr) => {
   if (!pisoStr) return 0;
@@ -430,6 +432,8 @@ const CameraRig = ({ targetCamera }) => {
 };
 
 export default function TorreCaballito3DTab() {
+  const { hasPermission } = useAuth();
+  const canViewFotoGeografia = hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hoverInfo, setHoverInfo] = useState(null);
@@ -968,14 +972,15 @@ export default function TorreCaballito3DTab() {
 
       {/* Empleados Detail Modal */}
       {(empleadosData || loadingEmpleados) && (
-        <EmpleadosTableModal 
-          data={empleadosData} 
-          loading={loadingEmpleados} 
-          title={empleadosModalTitle} 
+        <EmpleadosTableModal
+          data={empleadosData}
+          loading={loadingEmpleados}
+          title={empleadosModalTitle}
           onClose={() => {
             setEmpleadosData(null);
             setLoadingEmpleados(false);
-          }} 
+          }}
+          canViewPhoto={canViewFotoGeografia}
         />
       )}
     </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useDeferredValue } from "react";
-import { Search, Filter, Check, X, ChevronDown, FilterX } from "lucide-react";
+import { Search, Filter, Check, X, ChevronDown, FilterX, Eye } from "lucide-react";
+import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
 
 const getConditionLabel = (cond) => {
   switch (cond) {
@@ -33,7 +34,16 @@ const getStatusStyle = (status) => {
   }
 };
 
-export default function EmpleadosTableModal({ data, loading, title, onClose }) {
+const EXPEDIENTE_COLUMNS = [
+  { key: "id_empleado", label: "No. Empleado" },
+  { key: "nombres", label: "Nombre Completo" },
+  { key: "posicion", label: "Posición" },
+  { key: "ua", label: "UA Adscrito" },
+  { key: "ubicacion", label: "Ubicación" },
+  { key: "estado_nomina", label: "Estatus" },
+];
+
+export default function EmpleadosTableModal({ data, loading, title, onClose, canViewPhoto = true }) {
   const [globalSearch, setGlobalSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState({});
   const [textFilters, setTextFilters] = useState({});
@@ -41,6 +51,17 @@ export default function EmpleadosTableModal({ data, loading, title, onClose }) {
   const [activeConditionDropdown, setActiveConditionDropdown] = useState(null);
   const [tempSelectedValues, setTempSelectedValues] = useState([]);
   const [filterSearchText, setFilterSearchText] = useState("");
+  const [selectedEmployeeRecord, setSelectedEmployeeRecord] = useState(null);
+
+  // EmployeeRecordModal espera `numempleado`/`nombres` (convención del resto
+  // de la Plantilla de Empleados) — esta fuente de datos usa `num_empleado`/
+  // `nombre`, así que se mapea antes de pasarlo.
+  const mappedEmployeeRecord = selectedEmployeeRecord && {
+    ...selectedEmployeeRecord,
+    id_empleado: selectedEmployeeRecord.num_empleado,
+    numempleado: selectedEmployeeRecord.num_empleado,
+    nombres: selectedEmployeeRecord.nombre,
+  };
   
   const resetFilters = () => {
     setGlobalSearch("");
@@ -231,6 +252,9 @@ export default function EmpleadosTableModal({ data, loading, title, onClose }) {
             <table className="w-full text-left text-sm text-slate-900">
               <thead className="text-xs uppercase bg-slate-50/90 text-slate-800 sticky top-0 backdrop-blur-md z-20 shadow-md">
                 <tr>
+                  <th className="p-0 align-top border-b border-slate-200 bg-slate-100" style={{ width: 50 }}>
+                    <span className="sr-only">Ver</span>
+                  </th>
                   {columns.map(col => {
                     const isFiltered = !!columnFilters[col.key] || !!textFilters[col.key]?.value;
                     return (
@@ -373,13 +397,22 @@ export default function EmpleadosTableModal({ data, loading, title, onClose }) {
               <tbody className="divide-y divide-slate-800/50">
                 {filteredData.length === 0 && (
                   <tr>
-                    <td colSpan={columns.length} className="px-5 py-8 text-center text-slate-800 font-medium italic">
+                    <td colSpan={columns.length + 1} className="px-5 py-8 text-center text-slate-800 font-medium italic">
                       No hay registros que coincidan con los filtros.
                     </td>
                   </tr>
                 )}
                 {filteredData.map((emp, i) => (
                   <tr key={i} className="hover:bg-slate-100 transition-colors">
+                    <td className="px-3 py-3.5 text-center align-middle">
+                      <button
+                        onClick={() => setSelectedEmployeeRecord(emp)}
+                        className="p-1 rounded-md text-slate-400 hover:text-[#621f32] transition-colors cursor-pointer"
+                        title="Ver expediente"
+                      >
+                        <Eye className="size-4" />
+                      </button>
+                    </td>
                     <td className="px-5 py-3.5 font-mono text-slate-800 align-middle">{emp.num_empleado}</td>
                     <td className="px-5 py-3.5 font-bold text-[#621f32] align-middle">{emp.nombre}</td>
                     <td className="px-5 py-3.5 text-slate-800 align-middle">{emp.posicion}</td>
@@ -397,6 +430,14 @@ export default function EmpleadosTableModal({ data, loading, title, onClose }) {
           )}
         </div>
       </div>
+
+      <EmployeeRecordModal
+        isOpen={!!selectedEmployeeRecord}
+        onClose={() => setSelectedEmployeeRecord(null)}
+        record={mappedEmployeeRecord}
+        columns={EXPEDIENTE_COLUMNS}
+        canViewPhoto={canViewPhoto}
+      />
     </div>
   );
 }

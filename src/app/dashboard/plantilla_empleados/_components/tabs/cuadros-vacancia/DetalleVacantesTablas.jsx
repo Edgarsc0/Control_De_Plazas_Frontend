@@ -2,6 +2,8 @@ import { useMemo, useState, useCallback } from 'react';
 import { TableProperties, Inbox } from 'lucide-react';
 import EmployeesModal, { ALL_AVAILABLE_COLUMNS } from '../../shared/EmployeesModal';
 import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 
 // Whitelist del selector "Columnas" de EmployeesModal — derivada de
 // ALL_AVAILABLE_COLUMNS (fuente única en EmployeesModal.jsx) en vez de una
@@ -271,6 +273,8 @@ function EmptyLevelTable({ label, message }) {
 }
 
 export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) {
+  const { hasPermission } = useAuth();
+  const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalRows, setModalRows] = useState([]);
   const [modalTitle, setModalTitle] = useState('');
@@ -645,6 +649,8 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
         title={modalTitle}
         restrictColumnsTo={modalColumnKeys}
         defaultColumnKeys={modalDefaultColumnKeys}
+        canViewPhoto={canViewFotoMovPosiciones}
+        fotoPermissionCodename="view_plantilla_mov_posiciones_foto"
       />
     </div>
   );
