@@ -90,6 +90,14 @@ export default function ValuacionPresupuestaria({
         startTransition(() => setActiveTab('simulador'));
     };
 
+    // El asunto guardado vuelve del backend sin `oficioInfo` (ese enriquecido lo
+    // arma AsuntosValuacion), así que se conserva el que ya tenía en memoria.
+    const handleValuacionGuardada = useCallback((asuntoActualizado) => {
+        setSelectedAsuntoForSimulation((prev) =>
+            prev ? { ...prev, ...asuntoActualizado, oficioInfo: prev.oficioInfo } : prev
+        );
+    }, []);
+
     const fetchInitialData = async () => {
         setLoading(true);
         try {
@@ -137,6 +145,7 @@ export default function ValuacionPresupuestaria({
                                 setSearchTerm={setSearchTerm}
                                 selectedAsunto={selectedAsuntoForSimulation}
                                 onCloseAsunto={() => setSelectedAsuntoForSimulation(null)}
+                                onValuacionGuardada={handleValuacionGuardada}
                             />
                         )}
                         {activeTab === 'parametros' && hasPermission(PERMISSIONS.EDIT_VALUACION_PARAMETROS) && (

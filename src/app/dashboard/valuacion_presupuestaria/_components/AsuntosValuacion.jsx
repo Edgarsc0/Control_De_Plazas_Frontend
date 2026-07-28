@@ -7,13 +7,15 @@ import {
   ClipboardList, 
   Paperclip, 
   Loader2, 
-  Search, 
+  Search,
   X,
-  Filter
+  Filter,
+  Table as TableIcon
 } from 'lucide-react';
 import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import DetailModal from '@/components/shared/OficioDetailModal';
+import ValuacionGuardadaModal from './ValuacionGuardadaModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Counter } from '@/components/ui/BentoMiniComponents';
 
@@ -28,6 +30,9 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
     const [isLoadingExpediente, setIsLoadingExpediente] = useState(false);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [currentPdfUrl, setCurrentPdfUrl] = useState(null);
+
+    // Valuación previamente guardada desde el simulador
+    const [valuacionAbierta, setValuacionAbierta] = useState(null);
 
     const loadAsuntosData = async () => {
         setLoading(true);
@@ -159,6 +164,13 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
         );
     });
 
+    // Un asunto se considera valuado cuando trae al menos la tabla por nivel.
+    // Se aceptan también los JSON crudos del simulador (`tabla_2022`).
+    const tieneValuacion = (item) => {
+        const v = item?.valuacion;
+        return !!(v && (v.tablas?.desglose_por_nivel?.length || v.tabla_2022?.length));
+    };
+
     const getStatusValuacionBadge = (status) => {
         const s = status?.toLowerCase() || 'pendiente';
         if (s === 'procedente') {
@@ -193,6 +205,14 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
                         </span>
                     </div>
                 </div>
+            )}
+
+            {valuacionAbierta && (
+                <ValuacionGuardadaModal
+                    valuacion={valuacionAbierta.valuacion}
+                    oficioInfo={valuacionAbierta.oficioInfo || {}}
+                    onClose={() => setValuacionAbierta(null)}
+                />
             )}
 
             <AnimatePresence>
@@ -395,12 +415,35 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
                                             </td>
                                             <td className="px-6 py-7 align-top">
                                                 <div className="flex flex-col items-center gap-2 pt-1">
-                                                    <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border flex items-center gap-2 shadow-sm ${statusConf.badge}`}>
-                                                        <span className={`size-1.5 rounded-full ${statusConf.dot}`} />
-                                                        {statusConf.label}
-                                                    </div>
+                                                    {/* Con una valuación guardada el estado "Pendiente" ya no
+                                                        aporta: lo sustituye el chip "Valuada" de abajo. */}
+                                                    {!(tieneValuacion(item) && statusConf.label === 'Pendiente') && (
+                                                        <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border flex items-center gap-2 shadow-sm ${statusConf.badge}`}>
+                                                            <span className={`size-1.5 rounded-full ${statusConf.dot}`} />
+                                                            {statusConf.label}
+                                                        </div>
+                                                    )}
+                                                    {tieneValuacion(item) ? (
+                                                        <button
+                                                            onClick={() => setValuacionAbierta(item)}
+                                                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.12em] border border-[#621f32]/20 bg-[#621f32]/5 text-[#621f32] hover:bg-[#621f32] hover:text-white transition-all"
+                                                            title="Ver la valuación guardada"
+                                                        >
+                                                            <TableIcon className="size-2.5" />
+                                                            Valuada
+                                                            {item.valuacion?.guardado_en && (
+                                                                <span className="font-bold opacity-70">
+                                                                    · {new Date(item.valuacion.guardado_en).toLocaleDateString('es-MX')}
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-[0.12em]">
+                                                            Sin valuación guardada
+                                                        </span>
+                                                    )}
                                                     {item.oficio_resolucion && (
-                                                        <a 
+                                                        <a
                                                             href={item.oficio_resolucion} 
                                                             target="_blank" 
                                                             rel="noopener noreferrer" 
@@ -420,12 +463,20 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
                                                     >
                                                         <Eye className="size-4 group-hover/btn:scale-110 transition-transform" />
                                                     </button>
-                                                    <button 
-                                                        onClick={() => onNavigateToSimulador(item)} 
-                                                        className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#bc955c] hover:text-white transition-all duration-300 group/btn" 
+                                                    <button
+                                                        onClick={() => onNavigateToSimulador(item)}
+                                                        className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#bc955c] hover:text-white transition-all duration-300 group/btn"
                                                         title="Ir al simulador"
                                                     >
                                                         <Calculator className="size-4 group-hover/btn:scale-110 transition-transform" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setValuacionAbierta(item)}
+                                                        disabled={!tieneValuacion(item)}
+                                                        className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#621f32] hover:text-white transition-all duration-300 group/btn disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#621f32]"
+                                                        title={tieneValuacion(item) ? 'Ver valuación guardada' : 'Aún no se ha guardado una valuación'}
+                                                    >
+                                                        <TableIcon className="size-4 group-hover/btn:scale-110 transition-transform" />
                                                     </button>
                                                 </div>
                                             </td>
