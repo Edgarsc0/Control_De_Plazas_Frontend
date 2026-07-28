@@ -1785,6 +1785,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             numempleado={row.numempleado || row.id_empleado}
             rootRef={tableContainerRef}
             enabled={canViewFotoDetalle}
+            caption={[row.nombres, row.posicion ? `POS ${row.posicion}` : null].filter(Boolean).join(" — ")}
           />
         </td>
       );

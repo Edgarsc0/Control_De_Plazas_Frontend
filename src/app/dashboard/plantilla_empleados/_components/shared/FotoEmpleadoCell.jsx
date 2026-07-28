@@ -1,7 +1,8 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import { User } from "lucide-react";
+import { createPortal } from "react-dom";
+import { User, X } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 
 /**
@@ -104,14 +105,19 @@ const VISIBILITY_DELAY_MS = 150;
  * @param {Object} [props.rootRef] - Ref del contenedor con scroll de la tabla; es el viewport contra el que se mide la visibilidad.
  * @param {boolean} [props.enabled=true] - `false` (sin permiso de ver fotografía) no dispara ninguna petición.
  * @param {number} [props.size=28] - Lado del avatar en px.
+ * @param {string} [props.caption] - Pie de la vista ampliada (ej. nombre y posición del empleado).
  */
-const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, enabled = true, size = 28 }) {
+const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, enabled = true, size = 28, caption }) {
   const holderRef = useRef(null);
   const key = numempleado === null || numempleado === undefined ? "" : String(numempleado).trim();
   const [fotoUrl, setFotoUrl] = useState(() => (key ? fotoCache.get(key) ?? null : null));
   const [isLoading, setIsLoading] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
+    // La virtualización reutiliza el componente para otro empleado al ordenar o
+    // filtrar: la vista ampliada del anterior no debe quedarse abierta.
+    setIsExpanded(false);
     if (!enabled || !key) {
       setFotoUrl(null);
       setIsLoading(false);
@@ -162,6 +168,14 @@ const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, 
     };
   }, [key, enabled, rootRef]);
 
+  // Escape cierra la vista ampliada, igual que el resto de overlays del proyecto.
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handler = (e) => { if (e.key === "Escape") setIsExpanded(false); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isExpanded]);
+
   const dimension = { width: size, height: size };
 
   return (
@@ -172,7 +186,9 @@ const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, 
           src={fotoUrl}
           alt=""
           style={dimension}
-          className="rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+          onClick={(e) => { e.stopPropagation(); setIsExpanded(true); }}
+          title="Ver fotografía en grande"
+          className="rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 cursor-zoom-in transition-transform hover:scale-110 hover:ring-[#621f32] dark:hover:ring-[#bc955c]"
         />
       ) : (
         <div
@@ -181,6 +197,35 @@ const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, 
         >
           <User className="size-3.5 text-slate-300 dark:text-slate-600" />
         </div>
+      )}
+
+      {/* Vista ampliada: mismo overlay que el expediente (EmployeesModal), en un
+          portal a document.body para no quedar recortada por el `overflow-auto`
+          de la tabla ni por el apilamiento de las celdas sticky. */}
+      {isExpanded && fotoUrl && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[1100] bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 p-6 cursor-zoom-out"
+          onClick={() => setIsExpanded(false)}
+        >
+          <button
+            onClick={() => setIsExpanded(false)}
+            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            title="Cerrar"
+          >
+            <X className="size-5" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fotoUrl}
+            alt="Fotografía del empleado (ampliada)"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl cursor-default"
+          />
+          {caption && (
+            <p className="max-w-xl text-center text-xs font-bold text-white/80 uppercase tracking-wide">{caption}</p>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   );
