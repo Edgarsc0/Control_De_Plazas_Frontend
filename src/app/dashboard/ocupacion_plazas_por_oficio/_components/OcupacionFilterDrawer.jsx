@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Search, XCircle, CheckSquare, Square, Check, SlidersHorizontal } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 export default function OcupacionFilterDrawer({
     isOpen,
@@ -13,6 +14,8 @@ export default function OcupacionFilterDrawer({
     resetFilters,
     excludeAll
 }) {
+    useBodyScrollLock(isOpen);
+
     return (
         <AnimatePresence>
             {isOpen && (

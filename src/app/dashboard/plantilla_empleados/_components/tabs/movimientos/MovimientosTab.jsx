@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck,
-  MousePointerClick, Loader2, Copy, Check,
+  MousePointerClick, Loader2, Copy, Check, History,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/useToast";
@@ -20,6 +20,7 @@ import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaValorModal from "../../shared/CeldaValorModal";
+import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
@@ -36,6 +37,7 @@ import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCat
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const TUVO_INSUBSISTENCIA_BADGE = {
   S: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", label: "Sí" },
@@ -124,6 +126,11 @@ const isServerSafeSearchCondition = (condition) => ["contains", "starts_with", "
 // este sentinel para reconocer la selección de "(Vacío)".
 const EMPTY_VALUE_TOKEN = "__EMPTY__";
 const encodeFilterValues = (values) => values.map(v => (v === "" ? EMPTY_VALUE_TOKEN : v)).join(",");
+
+// Única columna de MOV_POS con edición manual (CeldaOverride, tabla="MOV_POS"):
+// `fecha_anuencia`. Constante de módulo para que la referencia sea estable y no
+// re-dispare los fetch del modal de historial.
+const HISTORIAL_COLUMNS_MOV_POS = [{ key: "fecha_anuencia", label: "Fecha de Anuencia" }];
 
 export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef, onCardTitleChange }) {
   const [movPosData, setMovPosData] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]));
@@ -728,6 +735,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
   const [activeModalTab, setActiveModalTab] = useState('timeline');
+  useBodyScrollLock(isHistoryModalOpen && !!selectedCell);
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
   const [copiedPorIndex, setCopiedPorIndex] = useState(null);
@@ -757,6 +765,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       toast.error('No se pudo copiar al portapapeles.');
     }
   };
+
+  // Modal "Historial de Cambios" — mismo componente del tab Detalle, pero
+  // contra el historial de CeldaOverride de la tabla MOV_POS.
+  const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
+  const openHistorialModal = useCallback(() => setIsHistorialModalOpen(true), []);
+  const formatHistorialValue = useCallback((colKey, val) => (
+    DATE_KEYS_MOV.includes(colKey) || colKey === "fecha_anuencia" ? formatDateEsMx(val) : String(val)
+  ), []);
 
   const [isVacanciaModalOpen, setIsVacanciaModalOpen] = useState(false);
   const [vacanciaRowId, setVacanciaRowId] = useState(null);
@@ -1824,6 +1840,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: !canReset },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
+              { icon: History, label: "Historial de Cambios", onClick: openHistorialModal },
             ]}
             chips={activeStatusFilter.map(status => (
               <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}>
@@ -1937,6 +1954,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                 )}
               </AnimatePresence>
               <button onClick={resetAllFilters} disabled={!canReset} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
+              <button onClick={openHistorialModal} title="Ver historial de ediciones manuales de esta tabla" className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><History className="size-3.5" /><span>Historial de Cambios</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button
@@ -2359,6 +2377,17 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           const col = columns.filter(c => c.visible)[selectedCell.col];
           return row?.[col?.key] ?? null;
         })()}
+      />
+
+      {/* Historial de ediciones manuales de MOV_POS (CeldaOverride tabla="MOV_POS") */}
+      <CeldaHistorialModal
+        open={isHistorialModalOpen}
+        onClose={() => setIsHistorialModalOpen(false)}
+        columns={HISTORIAL_COLUMNS_MOV_POS}
+        formatValue={formatHistorialValue}
+        fetchHistorial={VacantesService.getMovPosOverrideHistorial}
+        subtitle="MOV_POS · Auditoría de ediciones manuales"
+        posicionPlaceholder="No. Posición exacta..."
       />
 
       <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />

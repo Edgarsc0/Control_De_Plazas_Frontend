@@ -79,4 +79,34 @@ export const CatTipoOficioService = {
     });
     return res.json();
   },
+
+  /**
+   * Guarda el resultado del simulador (ambas tablas) en el asunto de valuación.
+   * @param {number} idAsuntoValuacion - PK del registro `AsuntoValuacion`.
+   * @param {Object} valuacion - JSON del simulador; debe traer
+   *   `tablas.desglose_por_nivel` y `tablas.desglose_por_concepto`.
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object>} Asunto de valuación actualizado (JSON parseado).
+   * @throws {Error} Si el backend rechaza el guardado.
+   */
+  guardarValuacion: async (idAsuntoValuacion, valuacion, options = {}) => {
+    const res = await apiFetch(
+      `/cat-tipo-oficio/asuntos-valuacion/${idAsuntoValuacion}/guardar-valuacion/`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ valuacion }),
+        ...options,
+      }
+    );
+    if (!res.ok) {
+      let detalle = '';
+      try {
+        detalle = (await res.json())?.error || '';
+      } catch {
+        /* respuesta sin cuerpo JSON */
+      }
+      throw new Error(detalle || 'No se pudo guardar la valuación');
+    }
+    return res.json();
+  },
 };

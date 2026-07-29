@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Columns, Search, X, Check } from "lucide-react";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 /**
  * Modal genérico para configurar la visibilidad de columnas de una tabla.
@@ -25,6 +26,7 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
   const [search, setSearch] = useState("");
 
   useEscapeToClose(open, onClose);
+  useBodyScrollLock(open);
 
   if (typeof document === "undefined") return null;
 

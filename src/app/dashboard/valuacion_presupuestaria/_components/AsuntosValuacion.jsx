@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Book, 
-  Eye, 
-  Calculator, 
-  User, 
-  ClipboardList, 
-  Paperclip, 
-  Loader2, 
-  Search, 
+import {
+  Book,
+  Eye,
+  Calculator,
+  User,
+  ClipboardList,
+  Paperclip,
+  Loader2,
+  Search,
   X,
-  Filter
+  Filter,
+  Table as TableIcon,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import DetailModal from '@/components/shared/OficioDetailModal';
+import ValuacionGuardadaModal from './ValuacionGuardadaModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Counter } from '@/components/ui/BentoMiniComponents';
 
@@ -28,6 +32,14 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
     const [isLoadingExpediente, setIsLoadingExpediente] = useState(false);
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [currentPdfUrl, setCurrentPdfUrl] = useState(null);
+
+    // Valuación previamente guardada desde el simulador
+    const [valuacionAbierta, setValuacionAbierta] = useState(null);
+
+    // Eliminación de oficio (categoría Valuación Presupuestaria)
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState('');
 
     const loadAsuntosData = async () => {
         setLoading(true);
@@ -147,6 +159,33 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
         loadAsuntosData();
     };
 
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        setIsDeleting(true);
+        setDeleteError('');
+        try {
+            // La relación asunto-tipoOficio es la que clasifica el oficio como
+            // "Valuación Presupuestaria" (idTipoAsunto=1). Al eliminarla, una señal
+            // en el backend borra en cascada la AsuntoValuacion asociada (si existe).
+            const relaciones = await CatTipoOficioService.getRelacionesAsuntoOficio(itemToDelete.idAsuntoSCG);
+            const relacionesList = Array.isArray(relaciones) ? relaciones : relaciones?.results || [];
+            const relacion = relacionesList.find(r => r.idTipoAsunto === 1);
+
+            if (!relacion) {
+                throw new Error('No se encontró la clasificación del oficio para eliminarla.');
+            }
+
+            await CatTipoOficioService.deleteRelacionAsuntoOficio(relacion.id);
+            setItemToDelete(null);
+            await loadAsuntosData();
+        } catch (error) {
+            console.error('Error al eliminar el oficio:', error);
+            setDeleteError(error.message || 'No se pudo eliminar el oficio. Intenta de nuevo.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // Filter local list
     const filteredAsuntos = asuntos.filter(item => {
         const query = searchTerm.toLowerCase();
@@ -158,6 +197,13 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
             item.status?.toLowerCase().includes(query)
         );
     });
+
+    // Un asunto se considera valuado cuando trae al menos la tabla por nivel.
+    // Se aceptan también los JSON crudos del simulador (`tabla_2022`).
+    const tieneValuacion = (item) => {
+        const v = item?.valuacion;
+        return !!(v && (v.tablas?.desglose_por_nivel?.length || v.tabla_2022?.length));
+    };
 
     const getStatusValuacionBadge = (status) => {
         const s = status?.toLowerCase() || 'pendiente';
@@ -194,6 +240,81 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
                     </div>
                 </div>
             )}
+
+            {valuacionAbierta && (
+                <ValuacionGuardadaModal
+                    valuacion={valuacionAbierta.valuacion}
+                    oficioInfo={valuacionAbierta.oficioInfo || {}}
+                    onClose={() => setValuacionAbierta(null)}
+                />
+            )}
+
+            <AnimatePresence>
+                {itemToDelete && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100001] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                        onClick={() => !isDeleting && setItemToDelete(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-gray-100"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-start gap-4 mb-5">
+                                <div className={`shrink-0 p-3 rounded-2xl ${tieneValuacion(itemToDelete) ? 'bg-red-50' : 'bg-amber-50'}`}>
+                                    <AlertTriangle className={`size-6 ${tieneValuacion(itemToDelete) ? 'text-red-600' : 'text-amber-600'}`} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-gray-800 uppercase tracking-tight">Eliminar oficio</h3>
+                                    <p className="text-xs font-semibold text-gray-500 mt-1">
+                                        {itemToDelete.oficioInfo?.asuntoNoOficio || 'Sin Oficio'} · Folio {itemToDelete.oficioInfo?.asuntoFolio || 'N/A'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                                ¿Seguro que deseas eliminar este oficio de <strong>Valuación Presupuestaria</strong>?
+                            </p>
+
+                            {tieneValuacion(itemToDelete) && (
+                                <div className="mt-4 p-4 rounded-2xl bg-red-50 border border-red-200 flex items-start gap-3">
+                                    <AlertTriangle className="size-4 text-red-600 shrink-0 mt-0.5" />
+                                    <p className="text-[12px] font-bold text-red-700 leading-relaxed">
+                                        Este oficio tiene una valuación guardada. Si das clic en <strong>Eliminar</strong>, la valuación también se eliminará de forma permanente.
+                                    </p>
+                                </div>
+                            )}
+
+                            {deleteError && (
+                                <p className="mt-4 text-[11px] font-bold text-red-600">{deleteError}</p>
+                            )}
+
+                            <div className="flex items-center justify-end gap-3 mt-7">
+                                <button
+                                    onClick={() => setItemToDelete(null)}
+                                    disabled={isDeleting}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleConfirmDelete}
+                                    disabled={isDeleting}
+                                    className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center gap-2"
+                                >
+                                    {isDeleting && <Loader2 className="size-3.5 animate-spin" />}
+                                    Eliminar
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {selectedItem && (
@@ -395,12 +516,35 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
                                             </td>
                                             <td className="px-6 py-7 align-top">
                                                 <div className="flex flex-col items-center gap-2 pt-1">
-                                                    <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border flex items-center gap-2 shadow-sm ${statusConf.badge}`}>
-                                                        <span className={`size-1.5 rounded-full ${statusConf.dot}`} />
-                                                        {statusConf.label}
-                                                    </div>
+                                                    {/* Con una valuación guardada el estado "Pendiente" ya no
+                                                        aporta: lo sustituye el chip "Valuada" de abajo. */}
+                                                    {!(tieneValuacion(item) && statusConf.label === 'Pendiente') && (
+                                                        <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.15em] border flex items-center gap-2 shadow-sm ${statusConf.badge}`}>
+                                                            <span className={`size-1.5 rounded-full ${statusConf.dot}`} />
+                                                            {statusConf.label}
+                                                        </div>
+                                                    )}
+                                                    {tieneValuacion(item) ? (
+                                                        <button
+                                                            onClick={() => setValuacionAbierta(item)}
+                                                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.12em] border border-[#621f32]/20 bg-[#621f32]/5 text-[#621f32] hover:bg-[#621f32] hover:text-white transition-all"
+                                                            title="Ver la valuación guardada"
+                                                        >
+                                                            <TableIcon className="size-2.5" />
+                                                            Valuada
+                                                            {item.valuacion?.guardado_en && (
+                                                                <span className="font-bold opacity-70">
+                                                                    · {new Date(item.valuacion.guardado_en).toLocaleDateString('es-MX')}
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-[0.12em]">
+                                                            Sin valuación guardada
+                                                        </span>
+                                                    )}
                                                     {item.oficio_resolucion && (
-                                                        <a 
+                                                        <a
                                                             href={item.oficio_resolucion} 
                                                             target="_blank" 
                                                             rel="noopener noreferrer" 
@@ -420,12 +564,27 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
                                                     >
                                                         <Eye className="size-4 group-hover/btn:scale-110 transition-transform" />
                                                     </button>
-                                                    <button 
-                                                        onClick={() => onNavigateToSimulador(item)} 
-                                                        className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#bc955c] hover:text-white transition-all duration-300 group/btn" 
+                                                    <button
+                                                        onClick={() => onNavigateToSimulador(item)}
+                                                        className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#bc955c] hover:text-white transition-all duration-300 group/btn"
                                                         title="Ir al simulador"
                                                     >
                                                         <Calculator className="size-4 group-hover/btn:scale-110 transition-transform" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setValuacionAbierta(item)}
+                                                        disabled={!tieneValuacion(item)}
+                                                        className="p-3 bg-white hover:bg-[#621f32] border border-gray-100 shadow-sm rounded-2xl text-[#621f32] hover:text-white transition-all duration-300 group/btn disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#621f32]"
+                                                        title={tieneValuacion(item) ? 'Ver valuación guardada' : 'Aún no se ha guardado una valuación'}
+                                                    >
+                                                        <TableIcon className="size-4 group-hover/btn:scale-110 transition-transform" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setDeleteError(''); setItemToDelete(item); }}
+                                                        className="p-3 bg-white hover:bg-red-600 border border-gray-100 shadow-sm rounded-2xl text-red-500 hover:text-white transition-all duration-300 group/btn"
+                                                        title="Eliminar oficio"
+                                                    >
+                                                        <Trash2 className="size-4 group-hover/btn:scale-110 transition-transform" />
                                                     </button>
                                                 </div>
                                             </td>

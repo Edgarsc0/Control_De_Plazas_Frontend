@@ -11,11 +11,13 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck } from "lucide-react";
+import { copyToClipboard } from "@/utils/clipboard";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
 import ExportConFotosModal from "./ExportConFotosModal";
 import { useToast } from "@/hooks/useToast";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import {
     Select,
     SelectContent,
@@ -350,14 +352,68 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys, av
 };
 
 // --- COMPONENTE DE FICHERO DETALLADO (EXPEDIENTE) ---
+
+// Orden canónico de las "secciones" (apartados) del expediente. Las categorías
+// que no estén aquí — p.ej. cuando el consumidor pasa sus propias `columns` sin
+// `category`, que caen todas en "General" — se agregan al final conservando su
+// orden de aparición.
+const EXPEDIENTE_CATEGORY_ORDER = ["Básicos", "Estructura", "Plaza", "Validación", "Otros"];
+const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+
+// Valor "presentable" o null: unifica undefined / null / cadenas en blanco, que
+// en estos datasets significan lo mismo (campo sin capturar).
+const cleanFieldValue = (v) => (v !== undefined && v !== null && String(v).trim() !== "" ? String(v) : null);
+
+// Botón de copiado por campo. Sólo aparece al pasar el cursor en escritorio;
+// en pantallas táctiles (sin hover) queda siempre visible.
+const CopyValueButton = ({ label, copied, onCopy, className = "" }) => (
+    <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onCopy(); }}
+        title={`Copiar ${label}`}
+        aria-label={`Copiar ${label}`}
+        className={`shrink-0 p-1 rounded-md transition-all cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 ${copied
+            ? "text-emerald-600 dark:text-emerald-400 sm:opacity-100"
+            : "text-slate-300 hover:text-[#621f32] hover:bg-[#621f32]/8 dark:text-slate-600 dark:hover:text-[#bc955c] dark:hover:bg-slate-800"} ${className}`}
+    >
+        {copied ? <ClipboardCheck className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}
+    </button>
+);
+
 export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldClickHandlers = {}, canViewPhoto = true }) => {
     const [fieldSearch, setFieldSearch] = useState("");
+    // Un expediente completo son ~60 campos y la mayoría suele venir vacía; el
+    // toggle deja "limpiar la hoja" sin perder la vista completa por defecto.
+    const [hideEmptyFields, setHideEmptyFields] = useState(false);
+    const [activeSection, setActiveSection] = useState(null);
+    const sectionRefs = useRef({});
+    const { toast } = useToast();
+    // Clave del último campo copiado — sólo para la palomita temporal del botón.
+    const [copiedKey, setCopiedKey] = useState(null);
+    const copiedTimeoutRef = useRef(null);
 
     useEffect(() => {
         if (isOpen) {
             setFieldSearch("");
+            setHideEmptyFields(false);
+            setActiveSection(null);
+            setCopiedKey(null);
         }
     }, [isOpen]);
+
+    useEffect(() => () => clearTimeout(copiedTimeoutRef.current), []);
+
+    const handleCopyField = useCallback(async (key, value) => {
+        const ok = await copyToClipboard(value);
+        if (!ok) {
+            toast.error("No se pudo copiar al portapapeles");
+            return;
+        }
+        setCopiedKey(key);
+        toast.success("Se ha copiado al portapapeles!");
+        clearTimeout(copiedTimeoutRef.current);
+        copiedTimeoutRef.current = setTimeout(() => setCopiedKey(null), 1400);
+    }, [toast]);
 
     // ── Foto del empleado — carga bajo demanda (solo al abrir este modal, no
     // precargada en la tabla, ver decisión de diseño: prioriza que la tabla
@@ -369,6 +425,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const [fotoUrl, setFotoUrl] = useState(null);
     const [fotoLoading, setFotoLoading] = useState(false);
     const [fotoExpandida, setFotoExpandida] = useState(false);
+    useBodyScrollLock(fotoExpandida);
     const numempleadoFoto = record?.numempleado || record?.id_empleado;
 
     useEffect(() => {
@@ -403,11 +460,13 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         return () => document.removeEventListener("keydown", handler);
     }, [fotoExpandida]);
 
-    const filteredGroupedFields = useMemo(() => {
-        const groups = {};
-        if (!record) return groups;
+    // Apartados del expediente: mismo filtrado de siempre (label / valor /
+    // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
+    const sections = useMemo(() => {
+        if (!record) return [];
         const fieldsSource = columns || ALL_AVAILABLE_COLUMNS;
         const query = normalizeForSearch(fieldSearch.trim());
+        const groups = new Map();
 
         fieldsSource.forEach(field => {
             const category = field.category || 'General';
@@ -419,153 +478,344 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                 return;
             }
 
-            if (!groups[category]) groups[category] = [];
-            groups[category].push({
-                label: field.label,
-                key: field.key,
-                value: record[field.key]
-            });
-        });
-        return groups;
-    }, [record, columns, fieldSearch]);
+            const value = cleanFieldValue(record[field.key]);
+            if (hideEmptyFields && value === null) return;
 
-    const hasVisibleFields = useMemo(() => {
-        return Object.values(filteredGroupedFields).some(group => group.length > 0);
-    }, [filteredGroupedFields]);
+            if (!groups.has(category)) groups.set(category, []);
+            groups.get(category).push({ label: field.label, key: field.key, value });
+        });
+
+        return [...groups.entries()]
+            .sort((a, b) => {
+                const ia = EXPEDIENTE_CATEGORY_ORDER.indexOf(a[0]);
+                const ib = EXPEDIENTE_CATEGORY_ORDER.indexOf(b[0]);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            })
+            .map(([category, fields]) => ({
+                category,
+                fields,
+                filled: fields.filter(f => f.value !== null).length,
+            }));
+    }, [record, columns, fieldSearch, hideEmptyFields]);
+
+    const totalFieldsShown = useMemo(() => sections.reduce((sum, s) => sum + s.fields.length, 0), [sections]);
+    const hasVisibleFields = totalFieldsShown > 0;
+    const sectionKeys = sections.map(s => s.category).join("|");
+
+    // Marca en el índice el apartado que el usuario está leyendo. `root: null`
+    // (viewport) basta: el modal es fixed, así que al hacer scroll dentro de su
+    // contenedor las secciones igual se mueven respecto al viewport.
+    useEffect(() => {
+        if (!isOpen || sections.length < 2) return;
+        const els = sections.map(s => sectionRefs.current[s.category]).filter(Boolean);
+        if (els.length === 0) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const top = entries
+                    .filter(e => e.isIntersecting)
+                    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+                if (top) setActiveSection(top.target.dataset.category);
+            },
+            { rootMargin: "-15% 0px -65% 0px", threshold: 0 }
+        );
+        els.forEach(el => observer.observe(el));
+        return () => observer.disconnect();
+    }, [isOpen, sectionKeys, sections.length]);
+
+    const scrollToSection = useCallback((category) => {
+        setActiveSection(category);
+        sectionRefs.current[category]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, []);
 
     if (!record) return null;
+
+    // --- Carátula: identidad de la plaza y su titular ---
+    const nombreTitular = cleanFieldValue(record.nombres) || cleanFieldValue(record.nombre);
+    const posicionPlaza = cleanFieldValue(record.posicion);
+    const puestoPlaza = cleanFieldValue(record.nombre_puesto_funcional);
+    const uaPlaza = cleanFieldValue(record.unidad_administrativa) || cleanFieldValue(record.unidad_de_negocio);
+    const fechaVacancia = cleanFieldValue(record.fecha_vacancia);
+    const estatusNomina = cleanFieldValue(record.estado_nomina) || cleanFieldValue(record.estado_en_nomina);
+    const identificadores = [
+        { label: "No. Empleado", value: cleanFieldValue(record.id_empleado) || cleanFieldValue(record.numempleado) },
+        { label: "RFC", value: cleanFieldValue(record.rfc) },
+        { label: "CURP", value: cleanFieldValue(record.curp) },
+        { label: "Nivel", value: cleanFieldValue(record.nivel) },
+    ];
 
     return (
         <>
         <ModalShell
             open={isOpen}
             onClose={onClose}
-            size="lg"
+            size="xl"
             icon={Stamp}
-            eyebrow="Expediente"
-            title="Expediente de Plaza"
-            subtitle="Consulta detallada de la plaza"
+            eyebrow="Expediente de plaza"
+            title={nombreTitular || (posicionPlaza ? `Posición ${posicionPlaza}` : "Expediente de Plaza")}
+            subtitle={[puestoPlaza, uaPlaza].filter(Boolean).join(" · ") || "Consulta detallada de la plaza"}
+            headerExtra={
+                fechaVacancia
+                    ? <Pill tone="rose" className="hidden sm:inline-flex">Vacante</Pill>
+                    : estatusNomina
+                        ? <Pill tone="slate" className="hidden sm:inline-flex uppercase">{estatusNomina}</Pill>
+                        : null
+            }
         >
-            <div className="flex flex-col gap-5 sm:gap-7">
-                {/* Buscador de Campos */}
-                <div className="shrink-0 flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
-                    <Search className="size-4.5 sm:size-5 text-[#bc955c] shrink-0" />
-                    <input
-                        type="text"
-                        placeholder="Buscar campos (RFC, aduana, nivel, sueldo...)"
-                        value={fieldSearch}
-                        onChange={(e) => setFieldSearch(e.target.value)}
-                        className="bg-transparent border-none focus:ring-0 text-[13px] sm:text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
-                    />
-                    {fieldSearch && (
-                        <button
-                            onClick={() => setFieldSearch("")}
-                            className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer shrink-0"
-                        >
-                            <X className="size-4.5" />
-                        </button>
-                    )}
-                </div>
-
-                {/* Foto + Tarjetas principales */}
-                <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-4">
-                    {/* Foto del empleado — cargada bajo demanda al abrir este modal (ver useEffect arriba).
-                        Clic para expandir (ver lightbox al final del componente) solo si ya hay foto. */}
-                    <div
-                        onClick={fotoUrl ? () => setFotoExpandida(true) : undefined}
-                        className={`shrink-0 size-20 sm:size-24 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden flex flex-col items-center justify-center mx-auto sm:mx-0 ${fotoUrl ? "cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-[#bc955c]/40 transition-all" : ""}`}
-                        title={fotoUrl ? "Clic para ampliar" : undefined}
-                    >
-                        {fotoLoading ? (
-                            <Loader2 className="size-5 text-slate-300 dark:text-slate-600 animate-spin" />
-                        ) : !canViewPhoto ? (
-                            <>
-                                <Lock className="size-7 sm:size-8 text-slate-200 dark:text-slate-700" />
-                                <span className="text-[7px] sm:text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-tight text-center leading-tight mt-1 px-1">
-                                    Foto restringida
-                                </span>
-                            </>
-                        ) : fotoUrl ? (
-                            <img src={fotoUrl} alt="Fotografía del empleado" className="w-full h-full object-cover" />
-                        ) : (
-                            <>
-                                <UserRound className="size-7 sm:size-8 text-slate-200 dark:text-slate-700" />
-                                <span className="text-[7px] sm:text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-tight text-center leading-tight mt-1 px-1">
-                                    Sin foto registrada
-                                </span>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 p-3.5 sm:p-5 flex-1 bg-[#621f32]/[0.03] dark:bg-slate-900/30 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800">
-                        {[
-                            { label: "No. Empleado", value: record.id_empleado, isMono: true },
-                            { label: "Posición", value: record.posicion, isMono: true },
-                            { label: "RFC", value: record.rfc, isMono: true },
-                            { label: "Nivel Salarial", value: record.nivel, isMono: true }
-                        ].map((item, idx) => (
-                            <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-950 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all sm:hover:scale-[1.02] min-w-0">
-                                <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest truncate">{item.label}</span>
-                                <span className={`text-[13px] sm:text-base font-bold truncate ${item.isMono ? 'font-mono text-slate-700 dark:text-[#bc955c]' : 'text-slate-800 dark:text-slate-200'}`}>
-                                    {item.value !== undefined && item.value !== null && String(item.value).trim() !== "" ? String(item.value) : "—"}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Detalle Categorizado */}
-                <div className="flex flex-col gap-5 sm:gap-7 mb-2">
-                    {!hasVisibleFields ? (
-                        <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center px-4">
-                            <div className="size-14 sm:size-16 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
-                                <Search className="size-6 sm:size-7 text-[#621f32]/40 dark:text-slate-500 animate-pulse" />
-                            </div>
-                            <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest">No se encontraron campos coincidentes</p>
-                            <p className="text-xs text-slate-400 mt-1">Prueba con otra palabra clave o limpia el buscador</p>
-                        </div>
-                    ) : (
-                        Object.entries(filteredGroupedFields).map(([category, fields]) => {
-                            if (fields.length === 0) return null;
-                            return (
-                                <div key={category} className="flex flex-col gap-2.5 sm:gap-3.5">
-                                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-900 pb-2">
-                                        <span className="text-[11px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                            {category}
+            <div className="flex flex-col gap-5 sm:gap-6">
+                {/* ── Carátula del expediente: foto tipo credencial, titular, folio de
+                    posición y tira de identificadores oficiales ── */}
+                <div className="relative overflow-hidden rounded-2xl border border-[#621f32]/15 dark:border-slate-800 bg-gradient-to-br from-[#621f32]/[0.05] via-white to-[#bc955c]/[0.08] dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+                    <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#bc955c] via-[#621f32] to-[#bc955c]" />
+                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 p-4 pt-5 sm:p-5 sm:pt-6">
+                        {/* Foto del empleado — cargada bajo demanda al abrir este modal (ver useEffect arriba).
+                            Clic para expandir (ver lightbox al final del componente) solo si ya hay foto. */}
+                        <div className="shrink-0 mx-auto sm:mx-0">
+                            <div
+                                onClick={fotoUrl ? () => setFotoExpandida(true) : undefined}
+                                className={`h-28 w-24 sm:h-34 sm:w-28 rounded-lg border-[3px] border-double border-[#bc955c]/50 dark:border-[#bc955c]/30 bg-white dark:bg-slate-950 shadow-sm overflow-hidden flex flex-col items-center justify-center ${fotoUrl ? "cursor-pointer hover:opacity-90 hover:border-[#bc955c] transition-all" : ""}`}
+                                title={fotoUrl ? "Clic para ampliar" : undefined}
+                            >
+                                {fotoLoading ? (
+                                    <Loader2 className="size-5 text-slate-300 dark:text-slate-600 animate-spin" />
+                                ) : !canViewPhoto ? (
+                                    <>
+                                        <Lock className="size-7 sm:size-8 text-slate-200 dark:text-slate-700" />
+                                        <span className="text-[7px] sm:text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-tight text-center leading-tight mt-1 px-1">
+                                            Foto restringida
                                         </span>
-                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400">
-                                            {fields.length} {fields.length === 1 ? 'campo' : 'campos'}
+                                    </>
+                                ) : fotoUrl ? (
+                                    <img src={fotoUrl} alt="Fotografía del empleado" className="w-full h-full object-cover" />
+                                ) : (
+                                    <>
+                                        <UserRound className="size-7 sm:size-8 text-slate-200 dark:text-slate-700" />
+                                        <span className="text-[7px] sm:text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-tight text-center leading-tight mt-1 px-1">
+                                            Sin foto registrada
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                            <span className="mt-1.5 block text-center text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">
+                                Fotografía
+                            </span>
+                        </div>
+
+                        <div className="flex-1 min-w-0 flex flex-col">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="group min-w-0">
+                                    <span className="block text-[9px] font-black uppercase tracking-[0.2em] text-[#bc955c]">
+                                        {nombreTitular ? "Titular de la plaza" : "Plaza sin titular"}
+                                    </span>
+                                    <h3 className="flex items-center gap-1.5 text-base sm:text-xl font-black text-[#621f32] dark:text-[#f0d9b8] leading-tight break-words mt-0.5">
+                                        {nombreTitular || "Vacante"}
+                                        {nombreTitular && (
+                                            <CopyValueButton
+                                                label="nombre"
+                                                copied={copiedKey === "caratula-nombre"}
+                                                onCopy={() => handleCopyField("caratula-nombre", nombreTitular)}
+                                            />
+                                        )}
+                                    </h3>
+                                    {(puestoPlaza || uaPlaza) && (
+                                        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1 break-words">
+                                            {[puestoPlaza, uaPlaza].filter(Boolean).join(" · ")}
+                                        </p>
+                                    )}
+                                    {fechaVacancia && (
+                                        <p className="text-[10px] sm:text-[11px] font-bold text-rose-600/90 dark:text-rose-400/90 mt-1.5 uppercase tracking-wide">
+                                            Vacante desde {formatDateEsMx(fechaVacancia)}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="group shrink-0 text-right border-l border-dashed border-[#621f32]/20 dark:border-slate-800 pl-3 sm:pl-4">
+                                    <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-[#bc955c]">Posición</span>
+                                    <span className="flex items-center justify-end gap-1 font-mono text-base sm:text-lg font-black text-[#621f32] dark:text-[#e3c793] leading-tight mt-0.5">
+                                        {posicionPlaza || "—"}
+                                        {posicionPlaza && (
+                                            <CopyValueButton
+                                                label="posición"
+                                                copied={copiedKey === "caratula-posicion"}
+                                                onCopy={() => handleCopyField("caratula-posicion", posicionPlaza)}
+                                            />
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="mt-3.5 sm:mt-4 flex flex-wrap gap-y-2.5 border-t border-dashed border-[#621f32]/15 dark:border-slate-800 pt-3">
+                                {identificadores.map((item, idx) => (
+                                    <div
+                                        key={item.label}
+                                        className={`group min-w-0 flex-1 basis-1/2 sm:basis-0 px-3 sm:px-4 ${idx === 0 ? "pl-0" : "border-l border-slate-200 dark:border-slate-800"}`}
+                                    >
+                                        <span className="block text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">
+                                            {item.label}
+                                        </span>
+                                        <span className="flex items-center gap-1 font-mono text-[12px] sm:text-[13px] font-bold text-slate-700 dark:text-[#e3c793]" title={item.value || undefined}>
+                                            <span className="truncate">
+                                                {item.value || <span className="text-slate-300 dark:text-slate-700">—</span>}
+                                            </span>
+                                            {item.value && (
+                                                <CopyValueButton
+                                                    label={item.label}
+                                                    copied={copiedKey === `caratula-${item.label}`}
+                                                    onCopy={() => handleCopyField(`caratula-${item.label}`, item.value)}
+                                                />
+                                            )}
                                         </span>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
-                                        {fields.map((field, idx) => {
-                                            const hasValue = field.value !== undefined && field.value !== null && String(field.value).trim() !== "";
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Barra de consulta: buscador de campos + depuración de vacíos ── */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                    <div className="flex-1 flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
+                        <Search className="size-4.5 text-[#bc955c] shrink-0" />
+                        <input
+                            type="text"
+                            placeholder="Buscar campos (RFC, aduana, nivel, sueldo...)"
+                            value={fieldSearch}
+                            onChange={(e) => setFieldSearch(e.target.value)}
+                            className="bg-transparent border-none focus:ring-0 text-[13px] sm:text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
+                        />
+                        {fieldSearch && (
+                            <button
+                                onClick={() => setFieldSearch("")}
+                                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-red-500 transition-all cursor-pointer shrink-0"
+                            >
+                                <X className="size-4.5" />
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                        <button
+                            onClick={() => setHideEmptyFields(v => !v)}
+                            title={hideEmptyFields ? "Mostrar también los campos sin capturar" : "Ocultar los campos sin capturar"}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${hideEmptyFields
+                                ? "bg-[#621f32] border-[#621f32] text-white dark:bg-[#bc955c] dark:border-[#bc955c] dark:text-slate-950"
+                                : "bg-white dark:bg-slate-900 border-[#621f32]/15 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-[#bc955c]/60"}`}
+                        >
+                            {hideEmptyFields ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                            Vacíos
+                        </button>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600 whitespace-nowrap">
+                            {totalFieldsShown} {totalFieldsShown === 1 ? "campo" : "campos"}
+                        </span>
+                    </div>
+                </div>
+
+                {/* ── Cuerpo del expediente: índice de apartados + hojas de datos ── */}
+                {!hasVisibleFields ? (
+                    <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-center px-4">
+                        <div className="size-14 sm:size-16 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
+                            <Search className="size-6 sm:size-7 text-[#621f32]/40 dark:text-slate-500 animate-pulse" />
+                        </div>
+                        <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest">No se encontraron campos coincidentes</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                            {hideEmptyFields ? "Prueba con otra palabra clave o vuelve a mostrar los campos vacíos" : "Prueba con otra palabra clave o limpia el buscador"}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex gap-6">
+                        {sections.length > 1 && (
+                            <nav className="hidden lg:block w-40 shrink-0">
+                                <div className="sticky top-0 flex flex-col gap-1 pb-4">
+                                    <span className="px-2 pb-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">
+                                        Índice
+                                    </span>
+                                    {sections.map((section, idx) => {
+                                        const isActive = (activeSection ?? sections[0].category) === section.category;
+                                        return (
+                                            <button
+                                                key={section.category}
+                                                onClick={() => scrollToSection(section.category)}
+                                                className={`flex items-center gap-2 rounded-r-lg border-l-2 py-1.5 pl-2.5 pr-2 text-left transition-all cursor-pointer ${isActive
+                                                    ? "border-[#621f32] bg-[#621f32]/[0.06] text-[#621f32] dark:border-[#bc955c] dark:bg-slate-900 dark:text-[#e3c793]"
+                                                    : "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-500 hover:border-[#bc955c] hover:text-[#621f32] dark:hover:text-[#e3c793]"}`}
+                                            >
+                                                <span className="w-4 shrink-0 font-mono text-[9px] font-black text-[#bc955c]">{ROMAN_NUMERALS[idx] || idx + 1}</span>
+                                                <span className="flex-1 truncate text-[11px] font-bold uppercase tracking-wide">{section.category}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-600">{section.fields.length}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </nav>
+                        )}
+
+                        <div className="flex-1 min-w-0 flex flex-col gap-6 sm:gap-7 mb-2">
+                            {sections.map((section, sectionIdx) => (
+                                <section
+                                    key={section.category}
+                                    data-category={section.category}
+                                    ref={(el) => { sectionRefs.current[section.category] = el; }}
+                                    className="scroll-mt-1 flex flex-col gap-2.5"
+                                >
+                                    {/* Separador de apartado — el "índice" impreso del expediente */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="shrink-0 size-6 rounded-md bg-[#621f32] dark:bg-[#3e131f] text-[#bc955c] text-[9px] font-black font-mono flex items-center justify-center">
+                                            {ROMAN_NUMERALS[sectionIdx] || sectionIdx + 1}
+                                        </span>
+                                        <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em] text-[#621f32] dark:text-[#e3c793] whitespace-nowrap">
+                                            {section.category}
+                                        </h4>
+                                        <span className="flex-1 h-px bg-gradient-to-r from-[#bc955c]/50 to-transparent" />
+                                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                                            {section.filled}/{section.fields.length} con dato
+                                        </span>
+                                    </div>
+
+                                    {/* Hoja de datos: renglones con guía punteada (label ··· valor),
+                                        los valores largos ocupan el renglón completo */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-7 rounded-xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/40 px-2.5 py-1.5 sm:px-3.5 sm:py-2">
+                                        {section.fields.map((field) => {
+                                            const hasValue = field.value !== null;
                                             const clickHandler = fieldClickHandlers[field.key];
                                             const isClickable = hasValue && typeof clickHandler === "function";
+                                            const displayValue = hasValue
+                                                ? (isDateField(field.key) ? formatDateEsMx(field.value) : field.value)
+                                                : null;
+                                            const isLong = (displayValue?.length || 0) > 34;
                                             return (
-                                                <div key={idx} className="flex flex-col gap-1 sm:gap-1.5 p-3 sm:p-4 bg-white dark:bg-slate-900/10 rounded-lg sm:rounded-xl border border-slate-100 dark:border-slate-900 hover:border-slate-200 dark:hover:border-slate-800 transition-all min-w-0">
-                                                    <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-555 uppercase tracking-wider truncate" title={field.label}>
+                                                <div
+                                                    key={field.key}
+                                                    className={`group flex items-baseline gap-2 py-1.5 px-1.5 rounded-md transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 ${isLong ? "sm:col-span-2" : ""}`}
+                                                >
+                                                    <span className="shrink-0 max-w-[52%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
                                                         <HighlightText text={field.label} highlight={fieldSearch} />
                                                     </span>
+                                                    <span className="flex-1 min-w-[10px] self-end mb-[5px] border-b border-dotted border-slate-200 dark:border-slate-800" />
                                                     <span
                                                         onClick={isClickable ? () => clickHandler(record) : undefined}
-                                                        className={`text-[13px] sm:text-sm font-semibold break-all ${isMonoColumn(field.key) ? 'font-mono text-slate-700 dark:text-slate-355 font-bold' : 'text-slate-850 dark:text-slate-200'} ${isClickable ? 'cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid' : ''}`}
+                                                        className={`text-right text-[12px] sm:text-[13px] font-semibold break-words ${isLong ? "max-w-[75%]" : "max-w-[60%]"} ${isMonoColumn(field.key) ? "font-mono font-bold text-slate-700 dark:text-slate-300" : "text-slate-800 dark:text-slate-200"} ${isClickable ? "cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid" : ""}`}
                                                     >
                                                         {hasValue ? (
-                                                            <HighlightText text={isDateField(field.key) ? formatDateEsMx(field.value) : String(field.value)} highlight={fieldSearch} />
+                                                            <HighlightText text={displayValue} highlight={fieldSearch} />
                                                         ) : (
-                                                            <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
+                                                            <span className="text-slate-300 dark:text-slate-700 italic font-normal">Sin dato</span>
                                                         )}
                                                     </span>
+                                                    {/* Se copia el valor tal como se muestra (fechas ya formateadas) */}
+                                                    {hasValue && (
+                                                        <CopyValueButton
+                                                            label={field.label}
+                                                            copied={copiedKey === field.key}
+                                                            onCopy={() => handleCopyField(field.key, displayValue)}
+                                                            className="self-center"
+                                                        />
+                                                    )}
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
+                                </section>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </ModalShell>
 

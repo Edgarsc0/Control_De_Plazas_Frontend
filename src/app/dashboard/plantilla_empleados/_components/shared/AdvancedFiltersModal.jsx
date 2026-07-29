@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2 } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
 import { ADV_DATE_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS } from "@/utils/advancedFilters";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 /** Select con panel flotante (portal), usado por las condiciones del modal de filtros avanzados. */
 function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar...", searchable = false }) {
@@ -272,6 +273,8 @@ export default function AdvancedFiltersModal({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
+
+  useBodyScrollLock(open);
 
   if (!mounted) return null;
 

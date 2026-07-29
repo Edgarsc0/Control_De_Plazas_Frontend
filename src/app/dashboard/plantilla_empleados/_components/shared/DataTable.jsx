@@ -78,7 +78,7 @@ const TableRow = memo(function TableRow({
  * @param {Object} props.containerRef - Ref del contenedor con scroll (para scroll-into-view del tab).
  * @param {Object} props.tbodyRef - Ref del `<tbody>`.
  * @param {(scrollTop: number) => void} props.onScroll - Reporta el scroll vertical (para virtualización en el tab).
- * @param {Array<{key: string, label: string, width: number, visible: boolean}>} props.columns - Columnas (todas; se filtran las visibles internamente).
+ * @param {Array<{key: string, label: string, width: number, visible: boolean, noFilter?: boolean}>} props.columns - Columnas (todas; se filtran las visibles internamente). `noFilter` marca columnas sin dato filtrable (ej. la de fotografía): se les oculta el orden, el botón de filtro y el buscador de texto del encabezado.
  * @param {Object<string, string[]>} props.columnFilters - Filtros de valores activos (resalta header).
  * @param {Function} props.setColumnFilters - Setter de `columnFilters` (checkboxes por columna); usado por "Limpiar filtros de columna" además de `setTextFilters`.
  * @param {Object<string, {value: string, condition?: string}>} props.textFilters - Filtros de texto por columna.
@@ -398,16 +398,18 @@ function DataTable({
                   <div className="flex flex-col items-center gap-1 w-full">
                     <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
                     <div className="flex items-center justify-between w-full">
-                      <div onClick={() => onSort(col.key)} className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5">
+                      <div onClick={() => { if (!col.noFilter) onSort(col.key); }} className={`flex items-center gap-1.5 flex-1 truncate py-0.5 ${col.noFilter ? "" : "cursor-pointer"}`}>
                         <span>{col.label}</span>
-                        <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                        {!col.noFilter && <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />}
                       </div>
                       {renderColumnHeaderExtra && (
                         <div onClick={(e) => e.stopPropagation()} className="shrink-0">{renderColumnHeaderExtra(col)}</div>
                       )}
-                      <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
-                        <Filter className="size-3 fill-current" />
-                      </button>
+                      {!col.noFilter && (
+                        <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
+                          <Filter className="size-3 fill-current" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')} />
@@ -436,6 +438,14 @@ function DataTable({
               const condition = filterObj.condition || (isMonoColumn(col.key) ? "starts_with" : "contains");
               const { isSticky, leftOffset } = stickyMeta[colIdx];
               const symbol = CONDITION_SYMBOLS[condition] || "*";
+
+              // Columnas sin dato filtrable (ej. la de fotografía): sólo se
+              // deja la celda vacía, sin buscador ni selector de condición.
+              if (col.noFilter) {
+                return (
+                  <th key={`filter-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`p-1.5 border-r border-[#621f32]/30 ${isSticky ? 'bg-[#40121e] dark:bg-[#2b0d15] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`} />
+                );
+              }
 
               return (
                 <th key={`filter-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`p-1.5 border-r border-[#621f32]/30 relative ${isSticky ? 'bg-[#40121e] dark:bg-[#2b0d15] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>

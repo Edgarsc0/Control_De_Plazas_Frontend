@@ -39,6 +39,7 @@ import { CatalogoEstructuraService } from "@/services/catalogo_estructura.servic
 import RequirePermission from "@/components/auth/RequirePermission";
 import { PERMISSIONS } from "@/config/permissions";
 import { useAuth } from "@/hooks/useAuth";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { normalizeForSearch } from "@/utils/columnFilters";
 
 // ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
@@ -662,6 +663,8 @@ function OrganigramaContent() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingNode, setDeletingNode] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+
+  useBodyScrollLock(!!selectedNode || showExportModal || showCreateGeneral || showCreateChild);
 
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);

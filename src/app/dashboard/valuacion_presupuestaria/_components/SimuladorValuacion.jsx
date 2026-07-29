@@ -4,6 +4,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
+import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { addExcelLetterhead } from '@/utils/excelLetterhead';
 import {
     LETTERHEAD_LOGO_BASE64,
@@ -13,7 +15,8 @@ import {
 import {
     Calculator, ChevronUp, ChevronDown, CheckCircle2, XCircle, Info,
     Landmark, FileText, ClipboardList, CalendarDays, Layers, TrendingUp,
-    Download, Table as TableIcon, Search, User, File, Paperclip, Loader2
+    Download, Table as TableIcon, Search, User, File, Paperclip, Loader2,
+    Save, AlertCircle
 } from 'lucide-react';
 
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -78,6 +81,7 @@ const FormulaTooltip = ({ formula, children }) => {
 
 // ─── NIVEL DETALLE MODAL ────────────────────────────────────────────────────
 const NivelDetalleModal = ({ nivel, detalle, onClose }) => {
+    useBodyScrollLock(!!nivel);
     if (!nivel) return null;
     const info = detalle || {};
     const codigos = info.codigos || [];
@@ -167,7 +171,7 @@ const StepBadge = ({ n, label, icon: Icon }) => (
     </div>
 );
 
-export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm, selectedAsunto = null, onCloseAsunto }) {
+export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm, selectedAsunto = null, onCloseAsunto, onValuacionGuardada }) {
     const getRemainingMonths = () => { const now = new Date(); return 12 - now.getMonth(); };
     const [mesesEnteros, setMesesEnteros] = useState(getRemainingMonths());
     // Permite afinar el período a medio mes (ej. "16 de febrero al 31 de
@@ -194,6 +198,23 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     const [isLoadingExpediente, setIsLoadingExpediente] = useState(false);
     const [pdfUrl, setPdfUrl] = useState(null);
     const [currentDocPath, setCurrentDocPath] = useState(null);
+
+    // Guardado de la valuación en el asunto vinculado
+    const [savingValuacion, setSavingValuacion] = useState(false);
+    const [saveFeedback, setSaveFeedback] = useState(null);
+    const [guardadoEn, setGuardadoEn] = useState(selectedAsunto?.valuacion?.guardado_en || null);
+
+    // Identificadores estables: guardar la valuación reemplaza el objeto
+    // `selectedAsunto`, y sin estas claves los efectos de abajo volverían a
+    // descargar el expediente y a limpiar el aviso de guardado.
+    const idAsuntoValuacion = selectedAsunto?.id ?? null;
+    const idAsuntoSCG = selectedAsunto?.oficioInfo?.idAsunto ?? null;
+
+    useEffect(() => {
+        setGuardadoEn(selectedAsunto?.valuacion?.guardado_en || null);
+        setSaveFeedback(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [idAsuntoValuacion]);
 
     useEffect(() => {
         if (!selectedAsunto?.oficioInfo?.idAsunto) {
@@ -240,7 +261,8 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         return () => {
             if (pdfUrl) window.URL.revokeObjectURL(pdfUrl);
         };
-    }, [selectedAsunto]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [idAsuntoSCG]);
 
     const handleSwitchPreviewDocument = async (relativePath) => {
         const idAsunto = selectedAsunto?.oficioInfo?.idAsunto;
@@ -355,6 +377,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
         const plazas = selectedPlazas.map(p => ({ catalogo_id: p.id, plazas: p.qty }));
         if (!plazas.length) return;
         setCalculating(true);
+        setSaveFeedback(null);
         try {
             const res = await PresupuestoService.calcularValuacion(meses, plazas);
             if (res.ok) {
@@ -363,6 +386,68 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
             }
         } catch (e) { console.error(e); }
         finally { setCalculating(false); }
+    };
+
+    // ─── GUARDADO DE LA VALUACIÓN EN EL ASUNTO ────────────────────────────────
+    // Se persiste el mismo par de tablas que ve el usuario: `tabla_2022`
+    // (Desglose Analítico por Nivel) y `tabla_q322_t348` (Desglose por
+    // Concepto), más el contexto necesario para releerlas sin recalcular.
+    const buildValuacionPayload = () => {
+        if (!resultado) return null;
+        return {
+            version: 1,
+            periodo: {
+                meses,
+                meses_enteros: mesesEnteros,
+                tiene_quincena: tieneQuincena,
+                label: periodoLabel,
+            },
+            origen: eventualesData
+                ? 'eventuales_ocupadas'
+                : permanentesData
+                    ? 'permanentes_ocupadas'
+                    : 'manual',
+            asunto: {
+                id_asunto: selectedAsunto?.oficioInfo?.idAsunto ?? null,
+                folio: selectedAsunto?.oficioInfo?.asuntoFolio ?? null,
+                no_oficio: selectedAsunto?.oficioInfo?.asuntoNoOficio ?? null,
+                remitente: selectedAsunto?.oficioInfo?.asuntoRemitente ?? null,
+            },
+            plazas: selectedPlazas.map(p => ({
+                catalogo_id: p.id,
+                plazas: p.qty,
+                nivel: p.nivel,
+                codigo: p.codigo,
+                denominacion: p.denominacion,
+            })),
+            tablas: {
+                desglose_por_nivel: resultado.tabla_2022,
+                desglose_por_concepto: resultado.tabla_q322_t348,
+            },
+            totales: {
+                por_nivel: totalesNivel,
+                por_concepto: resultado.total,
+            },
+        };
+    };
+
+    const handleGuardarValuacion = async () => {
+        const payload = buildValuacionPayload();
+        if (!payload || !selectedAsunto?.id) return;
+
+        setSavingValuacion(true);
+        setSaveFeedback(null);
+        try {
+            const actualizado = await CatTipoOficioService.guardarValuacion(selectedAsunto.id, payload);
+            setGuardadoEn(actualizado?.valuacion?.guardado_en || new Date().toISOString());
+            setSaveFeedback({ type: 'ok', msg: 'Valuación guardada correctamente' });
+            onValuacionGuardada?.(actualizado);
+        } catch (e) {
+            console.error('Error al guardar la valuación:', e);
+            setSaveFeedback({ type: 'error', msg: e.message || 'No se pudo guardar la valuación' });
+        } finally {
+            setSavingValuacion(false);
+        }
     };
 
     const conceptFormulas = {
@@ -1665,6 +1750,70 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
                                     })}
                                 </div>
                             </div>
+                        )}
+                    </div>
+
+                    {/* Guardar valuación — habilitado solo tras calcular */}
+                    <div className="shrink-0 border-t border-gray-100 pt-4 mt-4 space-y-2">
+                        <button
+                            onClick={handleGuardarValuacion}
+                            disabled={!resultado || savingValuacion}
+                            title={
+                                resultado
+                                    ? 'Guardar el resultado de la valuación en este asunto'
+                                    : 'Primero presiona «Calcular Valuación Presupuestaria»'
+                            }
+                            className="w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.25em]
+                                       flex items-center justify-center gap-3 transition-all duration-200
+                                       bg-[#621f32] text-white shadow-lg shadow-[#621f32]/30
+                                       hover:bg-[#4e1828] hover:shadow-xl hover:shadow-[#621f32]/40
+                                       active:scale-[0.98]
+                                       disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
+                                       disabled:hover:bg-[#621f32] disabled:active:scale-100"
+                        >
+                            {savingValuacion ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4 text-amber-400" />
+                                    Guardar Valuación
+                                </>
+                            )}
+                        </button>
+
+                        {!resultado && (
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider text-center leading-relaxed">
+                                Calcula la valuación presupuestaria para habilitar el guardado
+                            </p>
+                        )}
+
+                        {saveFeedback && (
+                            <div
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider
+                                    ${saveFeedback.type === 'ok'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                        : 'bg-red-50 text-red-600 border border-red-100'}`}
+                            >
+                                {saveFeedback.type === 'ok'
+                                    ? <CheckCircle2 className="size-3.5 shrink-0" />
+                                    : <AlertCircle className="size-3.5 shrink-0" />}
+                                {saveFeedback.msg}
+                            </div>
+                        )}
+
+                        {guardadoEn && (
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider text-center">
+                                Última valuación guardada:{' '}
+                                <span className="text-[#621f32]">
+                                    {new Date(guardadoEn).toLocaleString('es-MX', {
+                                        day: '2-digit', month: '2-digit', year: 'numeric',
+                                        hour: '2-digit', minute: '2-digit',
+                                    })}
+                                </span>
+                            </p>
                         )}
                     </div>
                 </div>

@@ -6,7 +6,8 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
-  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2
+  UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2,
+  MousePointerClick
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
@@ -14,10 +15,12 @@ import { VacantesService } from "@/services/vacantes.service";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
+import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
 import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import CeldaValorModal from "../../shared/CeldaValorModal";
@@ -28,6 +31,7 @@ import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/Advanc
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
 import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
@@ -42,8 +46,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
 
-// Clave de negocio (identifica la fila): no admite "Pegar valor en celda".
-const NON_EDITABLE_KEYS = new Set(["posicion"]);
+// Columna de presentación (no es un campo de la tabla): la fotografía se pide
+// bajo demanda por número de empleado, no viene en `detalle`. Se excluye de
+// exportaciones, filtros avanzados y tarjetas móviles, y no es editable.
+const FOTO_COLUMN_KEY = "foto";
+
+// Clave de negocio (identifica la fila) y columna de foto: no admiten
+// "Pegar valor en celda" ni edición inline.
+const NON_EDITABLE_KEYS = new Set(["posicion", FOTO_COLUMN_KEY]);
 
 // "fecha_anuencia_detalle" (columna AL) NO está aquí: se unificó con el
 // sistema de "Fecha de Anuencia" que ya existe en Mov. Posiciones (mismo
@@ -571,6 +581,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [movHoySelectedRecord, setMovHoySelectedRecord] = useState(null);
   const movHoyTableContainerRef = useRef(null);
 
+  // Clic en "No. Empleado" del detalle → modal "Detalle de Empleado" (mismo
+  // comportamiento que la columna homónima en MovimientosPersonalTab).
+  const [movHoyTimelineOpen, setMovHoyTimelineOpen] = useState(false);
+  const [movHoyTimelineNumEmpleado, setMovHoyTimelineNumEmpleado] = useState(null);
+
   // Reset de selección/scroll al cambiar de motivo — mismo dataset previo
   // podría dejar una celda/scroll apuntando fuera de rango del nuevo listado.
   useEffect(() => {
@@ -722,18 +737,31 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
     const rawValue = col.key === "nombre" ? buildMovHoyFullName(row) : row[col.key];
     const displayValue = rawValue === null || rawValue === undefined || String(rawValue).trim() === "" ? "" : (MOV_HOY_DATE_KEYS.includes(col.key) ? formatDateEsMx(rawValue) : String(rawValue));
+    const isEmpleadoLink = col.key === "num_empleado" && !!displayValue;
+    const handleClick = isEmpleadoLink
+      ? (e) => { e.stopPropagation(); setMovHoyTimelineNumEmpleado(displayValue); setMovHoyTimelineOpen(true); }
+      : onClick;
     return (
       <td
         key={col.key}
-        onClick={onClick}
+        onClick={handleClick}
         onContextMenu={onContextMenu}
         style={stickyStyle}
         className={`px-4 text-sm border-r truncate h-[37px] align-middle ${
           isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
-        } ${isMonoColumnMovHoy(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}`}
-        title={displayValue}
+        } ${isMonoColumnMovHoy(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}${
+          isEmpleadoLink ? " font-bold hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer" : ""
+        }`}
+        title={isEmpleadoLink ? "Clic para ver el detalle del empleado" : displayValue}
       >
-        {displayValue || <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>}
+        {isEmpleadoLink ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate">{displayValue}</span>
+            <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" />
+          </div>
+        ) : (
+          displayValue || <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
+        )}
       </td>
     );
   }, [isMonoColumnMovHoy]);
@@ -745,6 +773,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const canViewFotoDetalle = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
   const { toast } = useToast();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
+    { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, isBasic: true, noFilter: true },
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
     { key: "id_empleado", label: "Número de Empleado", width: 115, visible: true, isBasic: true },
@@ -827,6 +856,21 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "nj_operativo_comb", label: "NJ Operativo Combinado", width: 150, visible: false, isBasic: false },
   ], "plantilla_detalle_columns");
 
+  // `columns` es el estado persistido completo; para lo demás se usan dos vistas:
+  // - `tableColumns`: lo que ven la tabla y el selector de columnas — sin la
+  //   columna de foto si el usuario no tiene permiso de verla (así no ocupa
+  //   espacio ni se puede activar por error). `selectedCell.col` indexa las
+  //   columnas VISIBLES de esta lista, así que todo lo posicional debe partir
+  //   de aquí y no de `columns`.
+  // - `dataColumns`: sólo columnas que corresponden a un campo real de la fila
+  //   (sin la de foto) — exportaciones, filtros avanzados, historial y tarjetas
+  //   móviles, donde una columna de presentación no tiene ningún valor que dar.
+  const tableColumns = useMemo(
+    () => (canViewFotoDetalle ? columns : columns.filter(c => c.key !== FOTO_COLUMN_KEY)),
+    [columns, canViewFotoDetalle]
+  );
+  const dataColumns = useMemo(() => columns.filter(c => c.key !== FOTO_COLUMN_KEY), [columns]);
+
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
   const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort", { key: null, direction: null });
@@ -856,14 +900,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const formatHistorialValue = useCallback((colKey, val) => (
     colKey === "estado_nomina" ? mapEstadoNomina(val) : val
   ), []);
-  // El historial unificado (tabla="todos") incluye ediciones de "fecha_anuencia"
-  // (columna real en CeldaOverride/MOV_POS) — no está en `columns` porque en la
-  // tabla se muestra bajo la key "fecha_anuencia_detalle" (ver FECHA_ANUENCIA_COL).
+  // El historial unificado (el backend ya combina EMPLEADOS_COMPLETOS_SIG +
+  // PLANTILLA_QUINCENAL + MOV_POS para este endpoint, ver
+  // EmpleadosCompletosCeldaHistorialView) incluye ediciones de "fecha_anuencia"
+  // (columna real en CeldaOverride/MOV_POS) — no está en `dataColumns` porque
+  // en la tabla se muestra bajo la key "fecha_anuencia_detalle" (ver FECHA_ANUENCIA_COL).
   const historialColumns = useMemo(() => (
-    columns.some((c) => c.key === "fecha_anuencia")
-      ? columns
-      : [...columns, { key: "fecha_anuencia", label: "Fecha de Anuencia" }]
-  ), [columns]);
+    dataColumns.some((c) => c.key === "fecha_anuencia")
+      ? dataColumns
+      : [...dataColumns, { key: "fecha_anuencia", label: "Fecha de Anuencia" }]
+  ), [dataColumns]);
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
@@ -905,6 +951,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setCadenaFocusPos(null);
   }, []);
   useEscapeToClose(isCadenaModalOpen, () => setIsCadenaModalOpen(false));
+  useBodyScrollLock(isCadenaModalOpen);
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
 
@@ -1458,16 +1505,19 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     startTransition(() => { setColumnFilters(newFilters); setScrollTop(0); });
   };
 
+  // El índice llega desde DataTable y es relativo a `tableColumns` (lo que la
+  // tabla recibe), que puede no incluir la columna de foto; el ancho se aplica
+  // por clave sobre `columns` para no desfasarse con ese recorte.
   const handleMouseDown = (e, index, direction = 'right') => {
     e.preventDefault();
-    const startX = e.clientX, startWidth = columns[index].width;
+    const target = tableColumns[index];
+    if (!target) return;
+    const startX = e.clientX, startWidth = target.width;
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
       setColumns(prevCols => {
-        const newCols = [...prevCols];
         const newWidth = direction === 'left' ? startWidth - deltaX : startWidth + deltaX;
-        newCols[index] = { ...newCols[index], width: Math.max(60, newWidth) };
-        return newCols;
+        return prevCols.map(c => (c.key === target.key ? { ...c, width: Math.max(60, newWidth) } : c));
       });
     };
     const handleMouseUp = () => {
@@ -1826,6 +1876,27 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const renderCell = useCallback(({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu, onDoubleClick }) => {
     const stickyStyle = isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {};
+    // Fotografía: la fila NO trae la imagen (la tabla se sirve completa, sin
+    // paginar; mandarlas todas serían miles de imágenes por carga). Se pide una
+    // por una y sólo cuando la celda entra al viewport — ver FotoEmpleadoCell.
+    if (col.key === FOTO_COLUMN_KEY) {
+      return (
+        <td
+          key={col.key}
+          onClick={onClick}
+          onContextMenu={onContextMenu}
+          style={stickyStyle}
+          className={`relative px-1 border-r h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}
+        >
+          <FotoEmpleadoCell
+            numempleado={row.numempleado || row.id_empleado}
+            rootRef={tableContainerRef}
+            enabled={canViewFotoDetalle}
+            caption={[row.nombres, row.posicion ? `POS ${row.posicion}` : null].filter(Boolean).join(" — ")}
+          />
+        </td>
+      );
+    }
     if (editingCell && editingCell.posicion === row.posicion && editingCell.colKey === col.key) {
       return (
         <td key={col.key} style={stickyStyle} className={`relative px-1.5 text-xs border-r h-[37px] align-middle ring-2 ring-[#621f32] z-10 ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white dark:bg-slate-900"}`}>
@@ -1946,7 +2017,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       displayContent = String(value);
     }
     return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
-  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay]);
+  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -2019,8 +2090,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // Refs actualizadas sin re-suscribir el listener global de teclado (ver más abajo):
   // antes el efecto dependía de [columns, filteredSortedData], así que se removía y
   // re-agregaba en cada tecla de búsqueda (cualquier cambio en los datos filtrados).
-  const columnsRef = useRef(columns);
-  useEffect(() => { columnsRef.current = columns; }, [columns]);
+  const columnsRef = useRef(tableColumns);
+  useEffect(() => { columnsRef.current = tableColumns; }, [tableColumns]);
   const filteredSortedDataRef = useRef(filteredSortedData);
   useEffect(() => { filteredSortedDataRef.current = filteredSortedData; }, [filteredSortedData]);
   const selectedCellRef = useRef(selectedCell);
@@ -2180,7 +2251,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Plantilla_Empleados");
 
-      const visibleCols = columns.filter(c => c.visible);
+      const visibleCols = dataColumns.filter(c => c.visible);
 
       // Define columns
       worksheet.columns = visibleCols.map(col => ({
@@ -2313,7 +2384,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     exportConFotosAbortRef.current = controller;
     setIsExportingConFotos(true);
     try {
-      const visibleCols = columns.filter(c => c.visible);
+      const visibleCols = dataColumns.filter(c => c.visible);
       const posiciones = filteredSortedData.map(row => row.posicion);
       const res = await VacantesService.exportarPlantillaDetalleConFotos(
         {
@@ -2402,7 +2473,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     getTitle: (row) => (row.nombres && String(row.nombres).trim()) ? row.nombres : "Vacante",
     getSubtitle: (row) => (row.posicion ? `POS ${row.posicion}` : ""),
     renderBadge: renderEstadoBadge,
-    fields: columns
+    fields: dataColumns
       .filter((col) => col.visible && !MOBILE_CARD_EXCLUDED_KEYS.has(col.key))
       .map((col) => ({
         key: col.key,
@@ -2415,7 +2486,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           },
         } : {}),
       })),
-  }), [columns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS]);
+  }), [dataColumns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS]);
 
   // Auto-scroll when navigating with keyboard
   useEffect(() => {
@@ -2439,7 +2510,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
     
     // Horizontal scroll logic
-    const visibleCols = columns.filter(c => c.visible);
+    const visibleCols = tableColumns.filter(c => c.visible);
     if (!visibleCols[col]) return;
     
     const fixedWidth = 95; // # (50) + VER (45)
@@ -2464,7 +2535,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         container.scrollLeft = 0;
       }
     }
-  }, [selectedCell, columns]);
+  }, [selectedCell, tableColumns]);
 
 
   return (
@@ -2489,7 +2560,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
       <ModalShell
         open={isMovimientosHoyModalOpen}
-        onClose={() => setIsMovimientosHoyModalOpen(false)}
+        // Con el detalle de empleado encima, Escape solo debe cerrar ese modal:
+        // ambos escuchan la tecla a nivel documento.
+        onClose={() => { if (!movHoyTimelineOpen) setIsMovimientosHoyModalOpen(false); }}
         size="xl"
         resizable
         minWidth={900}
@@ -2683,6 +2756,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         </div>
       </ModalShell>
 
+      {/* Detalle de Empleado desde la columna "No. Empleado" del modal de hoy —
+          z por encima del ModalShell (z-[1000]) para que no quede debajo. */}
+      <EmpleadoTimelineModal
+        open={movHoyTimelineOpen}
+        onOpenChange={setMovHoyTimelineOpen}
+        numEmpleado={movHoyTimelineNumEmpleado}
+        zIndexClass="z-[1100]"
+      />
+
       <div className="w-full px-4 lg:px-6">
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">
@@ -2742,9 +2824,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex items-center gap-3 py-2 px-3.5 bg-[#621f32]/5 dark:bg-[#bc955c]/5 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-300 group">
                     <div className="flex items-center gap-2.5">
                       <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] flex-shrink-0">{getColumnLetter(selectedCell.col)}{selectedCell.row + 1}</span>
-                      <span className="hidden md:inline whitespace-nowrap">Col: <strong className="text-slate-700 dark:text-slate-200">{columns.filter(c => c.visible)[selectedCell.col]?.label}</strong></span>
+                      <span className="hidden md:inline whitespace-nowrap">Col: <strong className="text-slate-700 dark:text-slate-200">{tableColumns.filter(c => c.visible)[selectedCell.col]?.label}</strong></span>
                       <span className="opacity-30 hidden md:inline">|</span>
-                      <span className="max-w-[150px] sm:max-w-[300px] lg:max-w-[450px] truncate">Val: <strong className="text-slate-700 dark:text-slate-200">{(() => { const v = filteredSortedData[selectedCell.row]?.[columns.filter(c => c.visible)[selectedCell.col]?.key]; if (!v) return "-"; if (columns.filter(c => c.visible)[selectedCell.col]?.key === "estado_nomina") return mapEstadoNomina(v); return String(v); })()}</strong></span>
+                      <span className="max-w-[150px] sm:max-w-[300px] lg:max-w-[450px] truncate">Val: <strong className="text-slate-700 dark:text-slate-200">{(() => { const v = filteredSortedData[selectedCell.row]?.[tableColumns.filter(c => c.visible)[selectedCell.col]?.key]; if (!v) return "-"; if (tableColumns.filter(c => c.visible)[selectedCell.col]?.key === "estado_nomina") return mapEstadoNomina(v); return String(v); })()}</strong></span>
                       <button onClick={() => setIsCellModalOpen(true)} className="ml-1 p-1 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] rounded-md shadow-sm hover:opacity-90 active:scale-95 transition-all flex-shrink-0" title="Ver detalle completo"><ChevronRightIcon className="size-3" /></button>
                     </div>
                   </motion.div>
@@ -2813,7 +2895,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             containerRef={tableContainerRef}
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
-            columns={columns}
+            columns={tableColumns}
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             textFilters={textFilters}
@@ -2862,7 +2944,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         <>
         <ColumnsModal
           open={isColumnsModalOpen}
-          columns={columns}
+          columns={tableColumns}
           onToggle={toggleColumnVisibility}
           onShowAll={() => startTransition(() => setColumns(prev => prev.map(c => ({ ...c, visible: true }))))}
           onHideAll={() => startTransition(() => setColumns(prev => prev.map(c => ({ ...c, visible: false }))))}
@@ -3350,7 +3432,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         open={isAdvancedFiltersOpen}
         onClose={() => setIsAdvancedFiltersOpen(false)}
         mounted={mounted}
-        columns={columns}
+        columns={dataColumns}
         conditions={advancedConditions}
         onAddCondition={addAdvancedCondition}
         onRemoveCondition={removeAdvancedCondition}
@@ -3363,12 +3445,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       <CeldaValorModal
         open={isCellModalOpen && !!selectedCell}
         onClose={() => setIsCellModalOpen(false)}
-        columnLabel={selectedCell ? columns.filter(c => c.visible)[selectedCell.col]?.label : ""}
+        columnLabel={selectedCell ? tableColumns.filter(c => c.visible)[selectedCell.col]?.label : ""}
         cellRef={selectedCell ? `${getColumnLetter(selectedCell.col)}${selectedCell.row + 1}` : ""}
         value={(() => {
           if (!selectedCell) return null;
           const row = filteredSortedData[selectedCell.row];
-          const col = columns.filter(c => c.visible)[selectedCell.col];
+          const col = tableColumns.filter(c => c.visible)[selectedCell.col];
           const v = row?.[col?.key];
           if (!v) return null;
           if (col?.key === "estado_nomina") return mapEstadoNomina(v);
@@ -3381,7 +3463,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         onClose={() => setIsHistorialModalOpen(false)}
         columns={historialColumns}
         formatValue={formatHistorialValue}
-        tabla="todos"
+        subtitle="EMPLEADOS_COMPLETOS_SIG · Columnas quincenal · Fecha de Anuencia"
       />
 
       <CopyCellMenu

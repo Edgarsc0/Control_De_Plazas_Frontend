@@ -27,7 +27,12 @@ function ToastViewport({ className, position = 'bottom-right', ...props }) {
     <ToastPrimitive.Viewport
       data-slot="toast-viewport"
       className={cn(
-        'fixed z-[300] m-0 flex w-full max-w-[420px] list-none flex-col gap-2.5 p-4 outline-none sm:w-[380px]',
+        // z-[1200]: por encima de ModalShell (z-[1000]) y de los Dialog anidados
+        // (z-[1100]) — si no, un toast disparado desde dentro de un modal queda
+        // detrás del panel y el usuario nunca lo ve. `pointer-events-none` en el
+        // viewport (y `auto` en cada toast, ver toastVariants) evita que la caja
+        // vacía de la esquina intercepte clics del contenido que ahora tapa.
+        'fixed z-[1200] pointer-events-none m-0 flex w-full max-w-[420px] list-none flex-col gap-2.5 p-4 outline-none sm:w-[380px]',
         positions[position] ?? positions['bottom-right'],
         className
       )}
@@ -38,7 +43,7 @@ function ToastViewport({ className, position = 'bottom-right', ...props }) {
 }
 
 const toastVariants = cva(
-  'group/toast relative grid w-full grid-cols-[auto_1fr_auto] items-start gap-3 overflow-hidden rounded-xl border p-3.5 pl-4 shadow-md transition-all before:absolute before:inset-y-0 before:left-0 before:w-1 before:content-[""] data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[state=open]:animate-in data-[state=open]:slide-in-from-top-4 data-[state=open]:fade-in-0 data-[state=open]:duration-250 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right-1/2 data-[state=closed]:fade-out-0 data-[state=closed]:duration-200 data-[swipe=end]:animate-out',
+  'group/toast pointer-events-auto relative grid w-full grid-cols-[auto_1fr_auto] items-start gap-3 overflow-hidden rounded-xl border p-3.5 pl-4 shadow-md transition-all before:absolute before:inset-y-0 before:left-0 before:w-1 before:content-[""] data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[state=open]:animate-in data-[state=open]:slide-in-from-top-4 data-[state=open]:fade-in-0 data-[state=open]:duration-250 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right-1/2 data-[state=closed]:fade-out-0 data-[state=closed]:duration-200 data-[swipe=end]:animate-out',
   {
     variants: {
       variant: {

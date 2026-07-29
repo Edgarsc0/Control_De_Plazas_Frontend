@@ -13,6 +13,7 @@ import {
   normalizeForSearch,
   HIGH_CARDINALITY_THRESHOLD,
 } from "@/utils/columnFilters";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const ROW_HEIGHT = 36;
 const OVERSCAN = 6;
@@ -101,6 +102,8 @@ export default function ColumnFilterDropdown({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(280);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+
+  useBodyScrollLock(open);
 
   // Reordena localmente (sin tocar dropdownValues) en 3 grupos: seleccionados
   // arriba, disponibles (reachable, sin seleccionar) en medio, desactivados

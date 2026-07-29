@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { VacantesService } from "@/services/vacantes.service";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 import { formatDateEsMx } from "@/utils/columnFilters";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 // 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
@@ -24,6 +25,7 @@ export default function PosicionTimelineModal({ open, onOpenChange, posicion }) 
   const [loading, setLoading] = useState(false);
 
   useEscapeToClose(open, () => onOpenChange(false));
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (open && posicion) {

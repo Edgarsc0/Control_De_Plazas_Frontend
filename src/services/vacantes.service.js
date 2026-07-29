@@ -195,6 +195,22 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene el historial de ediciones manuales (CeldaOverride) sobre MOV_POS
+     * —hoy solo `fecha_anuencia`—, para el modal "Historial de Cambios" del tab
+     * Mov. Posiciones. Misma forma de respuesta que el historial de
+     * EMPLEADOS_COMPLETOS_SIG (count, resultados, estadisticas).
+     * @param {Object} [params={}] - Filtros: search, columna, posicion, activo ('true'|'false'), limit, offset.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getMovPosOverrideHistorial: (params = {}, options = {}) => {
+        return apiFetch(`/plantilla/mov_pos_detalle/override/historial/${buildQuery(params)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el detalle de movimientos de posiciones según filtros dinámicos.
      * @param {Object<string, (string|number)>} [query={}] - Filtros a aplicar (se omiten vacíos).
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.

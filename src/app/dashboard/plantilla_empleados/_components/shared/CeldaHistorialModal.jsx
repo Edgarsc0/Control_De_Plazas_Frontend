@@ -10,6 +10,7 @@ import {
 import { VacantesService } from "@/services/vacantes.service";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { formatDateEsMx } from "@/utils/columnFilters";
 
 const PAGE_SIZE = 60;
@@ -28,19 +29,31 @@ const formatFecha = (iso) => {
 
 /**
  * Modal de auditoría: historial completo de ediciones manuales (CeldaOverride)
- * sobre EMPLEADOS_COMPLETOS_SIG (o, vía `tabla`, también PLANTILLA_QUINCENAL/
- * MOV_POS). Solo lectura — consume
- * `VacantesService.getEmpleadoCompletoOverrideHistorial`.
+ * de una tabla (o varias — el tab Plantilla Detalle unifica EMPLEADOS_COMPLETOS_SIG
+ * + PLANTILLA_QUINCENAL + MOV_POS/fecha_anuencia en un solo historial, ya
+ * resuelto del lado del backend). Solo lectura. Por default consume el
+ * historial de EMPLEADOS_COMPLETOS_SIG (`VacantesService.getEmpleadoCompletoOverrideHistorial`);
+ * el tab Mov. Posiciones le pasa `fetchHistorial` para el historial de MOV_POS.
  *
  * @param {Object} props
  * @param {boolean} props.open - Si el modal está visible.
  * @param {() => void} props.onClose - Cierra el modal.
- * @param {Array<{key: string, label: string}>} [props.columns=[]] - Catálogo de columnas (para mostrar labels legibles y el filtro por columna).
+ * @param {Array<{key: string, label: string}>} [props.columns=[]] - Catálogo de columnas (para mostrar labels legibles y el filtro por columna). Con 1 sola columna el selector se oculta.
  * @param {(colKey: string, value: any) => string} [props.formatValue] - Formatea un valor crudo (p.ej. mapea `estado_nomina` de código a etiqueta).
- * @param {string} [props.tabla="empleados"] - Qué tabla(s) de CeldaOverride mostrar: "empleados" | "quincenal" | "fecha_anuencia" | "todos".
+ * @param {(params: Object) => Promise<Response>} [props.fetchHistorial] - Endpoint del historial; debe ser una referencia estable.
+ * @param {string} [props.subtitle] - Línea bajo el título (tabla auditada).
+ * @param {string} [props.posicionPlaceholder] - Placeholder del filtro por clave de negocio.
  * @returns {JSX.Element|null}
  */
-export default function CeldaHistorialModal({ open, onClose, columns = [], formatValue, tabla = "empleados" }) {
+export default function CeldaHistorialModal({
+  open,
+  onClose,
+  columns = [],
+  formatValue,
+  fetchHistorial: fetchHistorialEndpoint = VacantesService.getEmpleadoCompletoOverrideHistorial,
+  subtitle = "EMPLEADOS_COMPLETOS_SIG · Auditoría de ediciones manuales",
+  posicionPlaceholder = "Posición exacta...",
+}) {
   const [search, setSearch] = useState("");
   const [columnaFiltro, setColumnaFiltro] = useState("");
   const [posicionFiltro, setPosicionFiltro] = useState("");
@@ -55,6 +68,7 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
   const [error, setError] = useState(null);
 
   useEscapeToClose(open, onClose);
+  useBodyScrollLock(open);
 
   const debouncedSearch = useDebouncedValue(search, 350);
   const debouncedPosicion = useDebouncedValue(posicionFiltro, 350);
@@ -79,13 +93,13 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
     if (append) setIsLoadingMore(true); else setIsLoading(true);
     setError(null);
     try {
-      const params = { limit: PAGE_SIZE, offset: nextOffset, tabla };
+      const params = { limit: PAGE_SIZE, offset: nextOffset };
       if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       if (columnaFiltro) params.columna = columnaFiltro;
       if (debouncedPosicion.trim()) params.posicion = debouncedPosicion.trim();
       if (estadoTab !== "todos") params.activo = estadoTab;
 
-      const res = await VacantesService.getEmpleadoCompletoOverrideHistorial(params);
+      const res = await fetchHistorialEndpoint(params);
       const data = await res.json().catch(() => null);
       if (seq !== requestSeq.current) return;
       if (!res.ok) throw new Error(data?.detail || "No se pudo cargar el historial de cambios.");
@@ -103,13 +117,13 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab, tabla]);
+  }, [debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab, fetchHistorialEndpoint]);
 
   useEffect(() => {
     if (!open) return;
     fetchHistorial(0, { append: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab, tabla]);
+  }, [open, debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab]);
 
   useEffect(() => {
     if (!open) {
@@ -152,7 +166,7 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Historial de Cambios</h3>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Auditoría de ediciones manuales</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">{subtitle}</p>
                   </div>
                 </div>
                 <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-all active:scale-95"><X className="size-5" /></button>
@@ -185,18 +199,22 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
 
                 <div className="relative flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm lg:w-56 flex-shrink-0">
                   <Hash className="text-slate-400 size-4 mr-2.5 flex-shrink-0" />
-                  <input type="text" value={posicionFiltro} onChange={(e) => setPosicionFiltro(e.target.value)} placeholder="Posición exacta..." className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-bold w-full outline-none" />
+                  <input type="text" value={posicionFiltro} onChange={(e) => setPosicionFiltro(e.target.value)} placeholder={posicionPlaceholder} className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-bold w-full outline-none" />
                   {posicionFiltro && <button onClick={() => setPosicionFiltro("")} className="text-slate-400 hover:text-slate-600 ml-1.5"><X className="size-3.5" /></button>}
                 </div>
 
-                <select
-                  value={columnaFiltro}
-                  onChange={(e) => setColumnaFiltro(e.target.value)}
-                  className="px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm text-xs font-bold text-slate-700 dark:text-slate-200 outline-none lg:w-56 flex-shrink-0"
-                >
-                  <option value="">Todas las columnas</option>
-                  {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-                </select>
+                {/* Con una sola columna auditable (MOV_POS: fecha_anuencia) el
+                    selector no filtra nada — se oculta. */}
+                {columns.length > 1 && (
+                  <select
+                    value={columnaFiltro}
+                    onChange={(e) => setColumnaFiltro(e.target.value)}
+                    className="px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm text-xs font-bold text-slate-700 dark:text-slate-200 outline-none lg:w-56 flex-shrink-0"
+                  >
+                    <option value="">Todas las columnas</option>
+                    {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </select>
+                )}
 
                 <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl flex-shrink-0">
                   {ESTADO_TABS.map((t) => (
