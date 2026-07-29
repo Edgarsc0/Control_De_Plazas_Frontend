@@ -45,6 +45,35 @@ import { useToast } from "@/hooks/useToast";
 // Clave de negocio (identifica la fila): no admite "Pegar valor en celda".
 const NON_EDITABLE_KEYS = new Set(["posicion"]);
 
+// "fecha_anuencia_detalle" (columna AL) NO está aquí: se unificó con el
+// sistema de "Fecha de Anuencia" que ya existe en Mov. Posiciones (mismo
+// override, misma fecha en ambos tabs — ver FECHA_ANUENCIA_COL más abajo).
+const QUINCENAL_COLS = new Set([
+  "oficios_autorizacion_shcp",
+  "plazas_eventuales_autorizacion_2026",
+  "candidato",
+  "reportada",
+  "fecha_genera_vacante",
+  "cap_anual",
+  "cap_mensual",
+  "observaciones_plantillas_do",
+  "observaciones_proyectos_alineaciones",
+  "anno_vacancia"
+]);
+
+// "Fecha de Anuencia" edita/borra vía el MISMO endpoint que Mov. Posiciones
+// (VacantesService.patchFechaAnuenciaOverride/deleteFechaAnuenciaOverride,
+// keyed por posicion === no_pos_actual) — no por patchColumnaQuincenal.
+const FECHA_ANUENCIA_COL = "fecha_anuencia_detalle";
+
+// No siempre es una fecha: el Excel de origen trae, para algunas posiciones,
+// una de estas 4 categorías de texto fijo en vez de una fecha real (mismo
+// set que valida el backend, ver FECHA_ANUENCIA_CATEGORIAS_VALIDAS en
+// plantilla/models.py). El combobox (input + datalist) sugiere estas 4 más
+// permite escribir una fecha 'YYYY-MM-DD' libremente; el backend rechaza
+// cualquier otro texto con un mensaje de error bajo la celda.
+const FECHA_ANUENCIA_CATEGORIAS = ["Nueva Creación", "En Proceso", "Sin Anuencia", "N/A"];
+
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
 const STATUS_BADGE_STYLES = {
@@ -65,6 +94,41 @@ const mapEstadoNomina = (val) => {
     default: return "Vacante";
   }
 };
+
+// Códigos de partida confirmados con el usuario: 11301=Permanente,
+// 12201=Eventual (Eventual N.C. si además la posición inicia con "2026"),
+// 11401=PASEM (solo 2 posiciones). El código 12101 (119 posiciones, todas
+// vacantes, prefijo "2019", ninguna en el catálogo Plantilla1800Plazas —
+// probablemente plazas eventuales legadas fuera de la plantilla oficial
+// vigente) aún no tiene regla confirmada — se muestra tal cual (sin mapear)
+// en vez de adivinar.
+const mapPartida = (val, posicion) => {
+  const codigo = String(val ?? "").trim();
+  if (codigo === "11301") return "Permanente";
+  if (codigo === "11401") return "PASEM";
+  if (codigo === "12201") {
+    return String(posicion ?? "").trim().startsWith("2026") ? "Eventual N.C." : "Eventual";
+  }
+  return codigo;
+};
+
+const TIPO_CONTRATACION_LABELS = { SAT_CFZA: "Confianza", SAT_BSE: "Base" };
+const mapTipoContratacion = (val) => {
+  const codigo = String(val ?? "").trim();
+  return TIPO_CONTRATACION_LABELS[codigo] || codigo;
+};
+
+// "Rango" (grado militar) viene vacío para la gran mayoría del personal
+// (77% medido) porque solo aplica a personal SEDENA/SEMAR — para personal
+// Civil, el propio valor por default es "Civil" (confirmado con el usuario).
+const displayRango = (rango, tipoPersonal) => {
+  const val = String(rango ?? "").trim();
+  if (val) return val;
+  return String(tipoPersonal ?? "").trim().toLowerCase() === "civil" ? "Civil" : "";
+};
+
+const CURRENCY_KEYS = new Set(["smb", "smn", "cap_anual", "cap_mensual"]);
+const formatCurrency = (value) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
 
 const formatNumber = (num) => {
   if (num === undefined || num === null) return "0";
@@ -102,10 +166,14 @@ const ALL_DETAIL_KEYS = [
   "fecha_de_ingreso", "val_estat", "status_jefe_inm_posicion", "numempleado", 
   "sindicato", "entidad_federativa", "tipo_de_aduana", "dg_o_aduana_compactada", 
   "estado_en_nomina", "ua_validacion", "validando_posicion_por_documento", 
-  "nj_comp", "nj_ok", "columna", "nombre_nj", "nj_operativo_comb"
+  "nj_comp", "nj_ok", "columna", "nombre_nj", "nj_operativo_comb",
+  "codigo",
+  "fecha_anuencia_detalle", "oficios_autorizacion_shcp", "plazas_eventuales_autorizacion_2026",
+  "candidato", "reportada", "fecha_genera_vacante", "cap_anual", "cap_mensual",
+  "observaciones_plantillas_do", "observaciones_proyectos_alineaciones", "anno_vacancia"
 ];
 
-const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso"];
+const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso", "fecha_anuencia_detalle"];
 
 // Columnas que DEFINEN la vacancia de la posición: su dropdown debe iterar
 // `detalle` (con vacantes) y no `detalleParaFiltros` (que las excluye a
@@ -706,7 +774,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "departamento", label: "Departamento", width: 200, visible: true, isBasic: true },
     { key: "dependencia_directa", label: "Dependencia Directa", width: 250, visible: true, isBasic: true },
     // A partir de aqui todos los encabezados se pintan de verde
-    // falta agregar la columna Codigo 
+    { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
     { key: "entidad_federativa", label: "Entidad Federativa", width: 180, visible: true, isBasic: true },
     { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 130, visible: true, isBasic: true },
     { key: "ubicacion", label: "Ubicación", width: 200, visible: true, isBasic: true },
@@ -717,18 +785,17 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "fecha_de_ingreso", label: "Fecha de ingreso", width: 130, visible: true, isBasic: true },
     { key: "dg_o_aduana_compactada", label: "DG o Aduana compactada", width: 200, visible: true, isBasic: true },
     // Comienzan nuevamente las columnas pintadas de verde a partir de aqui
-    // Aqui va la columna de Fecha de Anuencia 
-    // Aqui va la columna de Oficios de Autorización SHCP
-    // Aqui va la columna de Plazas eventuales registradas para autorización 2026sharon
-    // Aqui va la columna de Candidato
-    // Aqui va la columna de Reportada
-    // Aqui va la columna de Fecha que se genera la vacante
-    // Aqui va la columna de CAP ANUAL 
-    // Aqui va la columna de CAP MENSUAL
-    // Aqui va la columna de Observaciones - Plantillas DO
-    // Aqui va la columna de Observaciones - Proyectos y Alineaciones
-    // Aqui va la columna de Año de Vacancia (Nuevo Reporte)
-
+    { key: "fecha_anuencia_detalle", label: "Fecha de Anuencia", width: 150, visible: true, isBasic: true },
+    { key: "oficios_autorizacion_shcp", label: "Oficios de Autorización SHCP", width: 200, visible: true, isBasic: true },
+    { key: "plazas_eventuales_autorizacion_2026", label: "Plazas eventuales registradas para autorización 2026", width: 350, visible: true, isBasic: true },
+    { key: "candidato", label: "Candidato", width: 150, visible: true, isBasic: true },
+    { key: "reportada", label: "Reportada", width: 120, visible: true, isBasic: true },
+    { key: "fecha_genera_vacante", label: "Fecha que se genera la vacante", width: 220, visible: true, isBasic: true },
+    { key: "cap_anual", label: "CAP ANUAL", width: 120, visible: true, isBasic: true },
+    { key: "cap_mensual", label: "CAP MENSUAL", width: 120, visible: true, isBasic: true },
+    { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true },
+    { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true },
+    { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true },
 
     { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
     { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
@@ -789,6 +856,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const formatHistorialValue = useCallback((colKey, val) => (
     colKey === "estado_nomina" ? mapEstadoNomina(val) : val
   ), []);
+  // El historial unificado (tabla="todos") incluye ediciones de "fecha_anuencia"
+  // (columna real en CeldaOverride/MOV_POS) — no está en `columns` porque en la
+  // tabla se muestra bajo la key "fecha_anuencia_detalle" (ver FECHA_ANUENCIA_COL).
+  const historialColumns = useMemo(() => (
+    columns.some((c) => c.key === "fecha_anuencia")
+      ? columns
+      : [...columns, { key: "fecha_anuencia", label: "Fecha de Anuencia" }]
+  ), [columns]);
   const [isCadenaModalOpen, setIsCadenaModalOpen] = useState(false);
   const [cadenaQuery, setCadenaQuery] = useState("");
   const [cadenaData, setCadenaData] = useState(null);
@@ -1183,7 +1258,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     return letter;
   }, []);
 
-  const isMonoColumn = useCallback((key) => ["posicion", "id_empleado", "rfc", "curp", "nivel", "codigo_presupuestal", "ua", "cd_ua", "cent", "dir", "subd", "jd", "depto", "numeral"].includes(key), []);
+  const isMonoColumn = useCallback((key) => ["posicion", "codigo", "id_empleado", "rfc", "curp", "nivel", "codigo_presupuestal", "ua", "cd_ua", "cent", "dir", "subd", "jd", "depto", "numeral"].includes(key), []);
 
 
   const isDateColumn = useCallback((colKey) => {
@@ -1716,7 +1791,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setEditingCell((c) => (c ? { ...c, saving: true, error: null } : c));
     setCellSaving(posicion, colKey);
     try {
-      const res = await VacantesService.patchEmpleadoCompletoOverride(posicion, colKey, value);
+      const isQuincenal = QUINCENAL_COLS.has(colKey);
+      const isFechaAnuencia = colKey === FECHA_ANUENCIA_COL;
+      const res = isFechaAnuencia
+        ? (value
+          ? await VacantesService.patchFechaAnuenciaOverride(posicion, value)
+          : await VacantesService.deleteFechaAnuenciaOverride(posicion))
+        : isQuincenal
+          ? await VacantesService.patchColumnaQuincenal(posicion, colKey, value)
+          : await VacantesService.patchEmpleadoCompletoOverride(posicion, colKey, value);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || "No se pudo guardar el cambio.");
@@ -1746,17 +1829,52 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     if (editingCell && editingCell.posicion === row.posicion && editingCell.colKey === col.key) {
       return (
         <td key={col.key} style={stickyStyle} className={`relative px-1.5 text-xs border-r h-[37px] align-middle ring-2 ring-[#621f32] z-10 ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white dark:bg-slate-900"}`}>
-          <input
-            autoFocus
-            type="text"
-            value={editingCell.value}
-            disabled={editingCell.saving}
-            onChange={(e) => setEditingCell((c) => (c ? { ...c, value: e.target.value, error: null } : c))}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={handleEditKeyDown}
-            onBlur={handleEditBlur}
-            className="w-full h-full bg-transparent outline-none text-xs font-bold text-[#621f32] dark:text-[#bc955c] disabled:opacity-50"
-          />
+          {col.key === "reportada" ? (
+            <select
+              autoFocus
+              value={editingCell.value}
+              disabled={editingCell.saving}
+              onChange={(e) => setEditingCell((c) => (c ? { ...c, value: e.target.value, error: null } : c))}
+              onKeyDown={handleEditKeyDown}
+              onBlur={handleEditBlur}
+              className="w-full h-full bg-transparent outline-none text-xs font-bold text-[#621f32] dark:text-[#bc955c] disabled:opacity-50"
+            >
+              <option value=""></option>
+              <option value="Si">Si</option>
+              <option value="No">No</option>
+            </select>
+          ) : col.key === FECHA_ANUENCIA_COL ? (
+            <>
+              <input
+                autoFocus
+                type="text"
+                list="fecha-anuencia-categorias"
+                placeholder="YYYY-MM-DD o categoría..."
+                value={editingCell.value}
+                disabled={editingCell.saving}
+                onChange={(e) => setEditingCell((c) => (c ? { ...c, value: e.target.value, error: null } : c))}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={handleEditKeyDown}
+                onBlur={handleEditBlur}
+                className="w-full h-full bg-transparent outline-none text-xs font-bold text-[#621f32] dark:text-[#bc955c] disabled:opacity-50"
+              />
+              <datalist id="fecha-anuencia-categorias">
+                {FECHA_ANUENCIA_CATEGORIAS.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </>
+          ) : (
+            <input
+              autoFocus
+              type="text"
+              value={editingCell.value}
+              disabled={editingCell.saving}
+              onChange={(e) => setEditingCell((c) => (c ? { ...c, value: e.target.value, error: null } : c))}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={handleEditKeyDown}
+              onBlur={handleEditBlur}
+              className="w-full h-full bg-transparent outline-none text-xs font-bold text-[#621f32] dark:text-[#bc955c] disabled:opacity-50"
+            />
+          )}
           {editingCell.error && (
             <span className="absolute left-1 top-full mt-0.5 z-20 text-[9px] font-bold text-red-600 bg-white dark:bg-slate-950 px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">{editingCell.error}</span>
           )}
@@ -1810,7 +1928,24 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         </Tooltip>
       );
     }
-    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : (isDateColumn(col.key) ? formatDateEsMx(value) : (['smb', 'smn'].includes(col.key) && !isNaN(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : String(value)))}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+    let displayContent;
+    if (col.key === "rango") {
+      const rangoVal = displayRango(value, row.tipo_de_personal_sedena_semar);
+      displayContent = rangoVal ? String(rangoVal) : <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
+    } else if (value === undefined || value === null || String(value).trim() === "") {
+      displayContent = <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
+    } else if (col.key === "partida") {
+      displayContent = mapPartida(value, row.posicion);
+    } else if (col.key === "tipo_de_contratacion") {
+      displayContent = mapTipoContratacion(value);
+    } else if (isDateColumn(col.key)) {
+      displayContent = formatDateEsMx(value);
+    } else if (CURRENCY_KEYS.has(col.key) && !isNaN(Number(value))) {
+      displayContent = formatCurrency(value);
+    } else {
+      displayContent = String(value);
+    }
+    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
   }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
@@ -1826,7 +1961,15 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
     setCellSaving(row.posicion, colKey);
     try {
-      const res = await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
+      const isQuincenal = QUINCENAL_COLS.has(colKey);
+      const isFechaAnuencia = colKey === FECHA_ANUENCIA_COL;
+      const res = isFechaAnuencia
+        ? (text
+          ? await VacantesService.patchFechaAnuenciaOverride(row.posicion, text)
+          : await VacantesService.deleteFechaAnuenciaOverride(row.posicion))
+        : isQuincenal
+          ? await VacantesService.patchColumnaQuincenal(row.posicion, colKey, text)
+          : await VacantesService.patchEmpleadoCompletoOverride(row.posicion, colKey, text);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || "No se pudo guardar el cambio.");
@@ -1854,7 +1997,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
     setCellSaving(row.posicion, colKey);
     try {
-      const res = await VacantesService.deleteEmpleadoCompletoOverride(row.posicion, colKey);
+      const isQuincenal = QUINCENAL_COLS.has(colKey);
+      const isFechaAnuencia = colKey === FECHA_ANUENCIA_COL;
+      const res = isFechaAnuencia
+        ? await VacantesService.deleteFechaAnuenciaOverride(row.posicion)
+        : isQuincenal
+          ? await VacantesService.deleteColumnaQuincenal(row.posicion, colKey)
+          : await VacantesService.deleteEmpleadoCompletoOverride(row.posicion, colKey);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || "No se pudo borrar el contenido.");
@@ -2048,7 +2197,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       filteredSortedData.forEach(row => {
         const dataRow = {};
         visibleCols.forEach(col => {
-          dataRow[col.key] = col.key === "estado_nomina" ? mapEstadoNomina(row[col.key]) : row[col.key];
+          if (col.key === "estado_nomina") dataRow[col.key] = mapEstadoNomina(row[col.key]);
+          else if (col.key === "partida") dataRow[col.key] = mapPartida(row[col.key], row.posicion);
+          else if (col.key === "tipo_de_contratacion") dataRow[col.key] = mapTipoContratacion(row[col.key]);
+          else if (col.key === "rango") dataRow[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
+          else dataRow[col.key] = row[col.key];
         });
         worksheet.addRow(dataRow);
       });
@@ -2243,7 +2396,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // sin mantener una lista separada. posicion/nombres/estado_nomina se excluyen porque
   // ya se muestran como título/subtítulo/badge.
   const MOBILE_CARD_EXCLUDED_KEYS = useMemo(() => new Set(["posicion", "nombres", "estado_nomina"]), []);
-  const MOBILE_CARD_CURRENCY_KEYS = useMemo(() => new Set(["smb", "smn"]), []);
+  const MOBILE_CARD_CURRENCY_KEYS = useMemo(() => CURRENCY_KEYS, []);
   const mobileCardConfig = useMemo(() => ({
     getRowId: (row, i) => row.id ?? row.posicion ?? i,
     getTitle: (row) => (row.nombres && String(row.nombres).trim()) ? row.nombres : "Vacante",
@@ -3226,8 +3379,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       <CeldaHistorialModal
         open={isHistorialModalOpen}
         onClose={() => setIsHistorialModalOpen(false)}
-        columns={columns}
+        columns={historialColumns}
         formatValue={formatHistorialValue}
+        tabla="todos"
       />
 
       <CopyCellMenu

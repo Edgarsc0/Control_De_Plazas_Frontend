@@ -138,6 +138,22 @@ export const VacantesService = {
         });
     },
 
+    patchColumnaQuincenal: (posicion, columna, valorNuevo, options = {}) => {
+        return apiFetch('/plantilla/plantilla_quincenal/columnas/', {
+            method: 'PATCH',
+            body: JSON.stringify({ posicion, columna, valor: valorNuevo }),
+            ...options
+        });
+    },
+
+    deleteColumnaQuincenal: (posicion, columna, options = {}) => {
+        return apiFetch('/plantilla/plantilla_quincenal/columnas/', {
+            method: 'DELETE',
+            body: JSON.stringify({ posicion, columna }),
+            ...options
+        });
+    },
+
     /**
      * Obtiene el historial completo de ediciones manuales (CeldaOverride) sobre
      * EMPLEADOS_COMPLETOS_SIG, para el modal "Historial de Cambios" del tab

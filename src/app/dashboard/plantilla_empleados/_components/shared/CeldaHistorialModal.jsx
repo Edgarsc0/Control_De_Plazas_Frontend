@@ -28,7 +28,8 @@ const formatFecha = (iso) => {
 
 /**
  * Modal de auditoría: historial completo de ediciones manuales (CeldaOverride)
- * sobre EMPLEADOS_COMPLETOS_SIG. Solo lectura — consume
+ * sobre EMPLEADOS_COMPLETOS_SIG (o, vía `tabla`, también PLANTILLA_QUINCENAL/
+ * MOV_POS). Solo lectura — consume
  * `VacantesService.getEmpleadoCompletoOverrideHistorial`.
  *
  * @param {Object} props
@@ -36,9 +37,10 @@ const formatFecha = (iso) => {
  * @param {() => void} props.onClose - Cierra el modal.
  * @param {Array<{key: string, label: string}>} [props.columns=[]] - Catálogo de columnas (para mostrar labels legibles y el filtro por columna).
  * @param {(colKey: string, value: any) => string} [props.formatValue] - Formatea un valor crudo (p.ej. mapea `estado_nomina` de código a etiqueta).
+ * @param {string} [props.tabla="empleados"] - Qué tabla(s) de CeldaOverride mostrar: "empleados" | "quincenal" | "fecha_anuencia" | "todos".
  * @returns {JSX.Element|null}
  */
-export default function CeldaHistorialModal({ open, onClose, columns = [], formatValue }) {
+export default function CeldaHistorialModal({ open, onClose, columns = [], formatValue, tabla = "empleados" }) {
   const [search, setSearch] = useState("");
   const [columnaFiltro, setColumnaFiltro] = useState("");
   const [posicionFiltro, setPosicionFiltro] = useState("");
@@ -77,7 +79,7 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
     if (append) setIsLoadingMore(true); else setIsLoading(true);
     setError(null);
     try {
-      const params = { limit: PAGE_SIZE, offset: nextOffset };
+      const params = { limit: PAGE_SIZE, offset: nextOffset, tabla };
       if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       if (columnaFiltro) params.columna = columnaFiltro;
       if (debouncedPosicion.trim()) params.posicion = debouncedPosicion.trim();
@@ -101,13 +103,13 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab]);
+  }, [debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab, tabla]);
 
   useEffect(() => {
     if (!open) return;
     fetchHistorial(0, { append: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab]);
+  }, [open, debouncedSearch, columnaFiltro, debouncedPosicion, estadoTab, tabla]);
 
   useEffect(() => {
     if (!open) {
@@ -150,7 +152,7 @@ export default function CeldaHistorialModal({ open, onClose, columns = [], forma
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Historial de Cambios</h3>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">EMPLEADOS_COMPLETOS_SIG · Auditoría de ediciones manuales</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Auditoría de ediciones manuales</p>
                   </div>
                 </div>
                 <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-all active:scale-95"><X className="size-5" /></button>

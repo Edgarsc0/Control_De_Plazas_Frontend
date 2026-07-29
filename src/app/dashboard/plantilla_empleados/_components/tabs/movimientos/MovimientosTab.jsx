@@ -103,7 +103,7 @@ const filterByEstado = (list, estadoKeys) => {
 };
 
 const ALL_MOV_KEYS = [
-  "no_pos_actual", "estado_psn", "f_efva", "cd_motivo", "motivo", "cd_un", 
+  "no_pos_actual", "codigo", "estado_psn", "f_efva", "cd_motivo", "motivo", "cd_un", 
   "unidad_de_negocio", "unidad_adva", "cd_departamento", "cd_puesto", 
   "puesto_ptal", "estado_ptal", "fecha_est", "maximo", "depnd_drt", 
   "depnd_indrt", "ubicacion", "nvl_direc", "plan_sal", "grado", "esc", 
@@ -154,6 +154,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
+    { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
@@ -255,7 +256,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const activeStatusFilter = columnFilters["estado_psn"] || [];
   const isLatestFilter = columnFilters.is_latest?.includes("true");
-  const isMonoColumn = useCallback((key) => ["no_pos_actual", "cd_un", "cd_departamento", "cd_puesto", "maximo", "grado", "esc", "partida_ptal"].includes(key), []);
+  const isMonoColumn = useCallback((key) => ["no_pos_actual", "codigo", "cd_un", "cd_departamento", "cd_puesto", "maximo", "grado", "esc", "partida_ptal"].includes(key), []);
 
   const [hoveredSlice, setHoveredSlice] = useState(null);
 
