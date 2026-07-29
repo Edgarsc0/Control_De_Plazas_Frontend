@@ -15,6 +15,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 function StatusBadge({ status, errorMessage }) {
@@ -113,6 +114,8 @@ export default function ClientComponent() {
   const [cacheLoading, setCacheLoading] = useState(false);
   const [cacheError, setCacheError] = useState(null);
   const [cacheResult, setCacheResult] = useState(null);
+
+  useBodyScrollLock(showSyncConfirm || showCacheConfirm || !!selectedLog);
 
   const getMinutesToNextSync = () => {
     const now = new Date();

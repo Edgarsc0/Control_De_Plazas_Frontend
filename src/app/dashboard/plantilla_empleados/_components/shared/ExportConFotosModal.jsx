@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ImageIcon, X, Loader2 } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 // Umbral a partir del cual se muestra la advertencia de "esto puede tardar" —
 // referencia real: ~13,300 filas (Plantilla Detalle completa sin filtro)
@@ -27,6 +28,8 @@ export default function ExportConFotosModal({ open, onClose, onConfirm, isExport
   useEffect(() => {
     if (open) setIncluirFotos(false);
   }, [open]);
+
+  useBodyScrollLock(open);
 
   if (!open) return null;
 

@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import { PresupuestoService } from '@/services/presupuesto.service';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { Database, Layers, FileText, Variable, Search, Check, AlertCircle, Filter, RotateCcw, Plus, XCircle } from 'lucide-react';
 import ColumnFilterDropdown from '@/app/dashboard/plantilla_empleados/_components/shared/ColumnFilterDropdown';
 import { useColumnFilters } from '@/app/dashboard/plantilla_empleados/_hooks/useColumnFilters';
@@ -156,6 +157,8 @@ function AddPlazaModal({ open, onClose, onCreated }) {
     useEffect(() => {
         if (open) { setForm(EMPTY_PLAZA_FORM); setError(''); }
     }, [open]);
+
+    useBodyScrollLock(open);
 
     if (!open) return null;
 

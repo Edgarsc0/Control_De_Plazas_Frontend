@@ -37,6 +37,7 @@ import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCat
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const TUVO_INSUBSISTENCIA_BADGE = {
   S: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", label: "Sí" },
@@ -733,6 +734,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
   const [activeModalTab, setActiveModalTab] = useState('timeline');
+  useBodyScrollLock(isHistoryModalOpen && !!selectedCell);
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
   const [copiedPorIndex, setCopiedPorIndex] = useState(null);

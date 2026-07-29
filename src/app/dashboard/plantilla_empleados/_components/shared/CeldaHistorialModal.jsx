@@ -10,6 +10,7 @@ import {
 import { VacantesService } from "@/services/vacantes.service";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { formatDateEsMx } from "@/utils/columnFilters";
 
 const PAGE_SIZE = 60;
@@ -65,6 +66,7 @@ export default function CeldaHistorialModal({
   const [error, setError] = useState(null);
 
   useEscapeToClose(open, onClose);
+  useBodyScrollLock(open);
 
   const debouncedSearch = useDebouncedValue(search, 350);
   const debouncedPosicion = useDebouncedValue(posicionFiltro, 350);

@@ -8,6 +8,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 import { useToast } from "@/hooks/useToast";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 // 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
@@ -125,6 +126,7 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado,
   const { toast } = useToast();
 
   useEscapeToClose(open, () => onOpenChange(false));
+  useBodyScrollLock(open);
 
   // navigator.clipboard requiere secure context (HTTPS o localhost);
   // en el servidor por IP/HTTP plano no existe, cae a execCommand.

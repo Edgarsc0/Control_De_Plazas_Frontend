@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { XCircle, Layers, FileText, CalendarDays, Landmark } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const fmt = (v) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(v) || 0);
@@ -28,6 +29,8 @@ export default function ValuacionGuardadaModal({ valuacion, oficioInfo = {}, onC
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
+
+    useBodyScrollLock(mounted && !!valuacion);
 
     if (!mounted || !valuacion) return null;
 

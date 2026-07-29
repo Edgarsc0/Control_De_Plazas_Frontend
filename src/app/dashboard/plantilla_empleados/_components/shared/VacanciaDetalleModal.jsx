@@ -3,6 +3,7 @@
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { X, XCircle, AlertTriangle, Info, User, Hash, Calendar, Eye, Activity, Layers } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 // Compartido con MovimientosTab (columna "Fecha de Vacancia" de su tabla, que
 // usa estos mismos textos en su propio tooltip) — única fuente de verdad para
@@ -74,6 +75,8 @@ const VACANCIA_CATEGORIA_DEFAULT = {
  * @param {boolean} props.isLoading
  */
 export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading }) {
+  useBodyScrollLock(open);
+
   if (typeof document === "undefined") return null;
 
   return createPortal(

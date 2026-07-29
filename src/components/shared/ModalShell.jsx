@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const SIZE_CLASSES = {
   sm: "sm:max-w-md",
@@ -40,6 +41,8 @@ export default function ModalShell({
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;

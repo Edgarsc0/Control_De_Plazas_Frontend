@@ -17,6 +17,7 @@ import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
 import ExportConFotosModal from "./ExportConFotosModal";
 import { useToast } from "@/hooks/useToast";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import {
     Select,
     SelectContent,
@@ -424,6 +425,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const [fotoUrl, setFotoUrl] = useState(null);
     const [fotoLoading, setFotoLoading] = useState(false);
     const [fotoExpandida, setFotoExpandida] = useState(false);
+    useBodyScrollLock(fotoExpandida);
     const numempleadoFoto = record?.numempleado || record?.id_empleado;
 
     useEffect(() => {

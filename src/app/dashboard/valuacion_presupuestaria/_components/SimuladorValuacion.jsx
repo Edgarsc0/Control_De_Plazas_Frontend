@@ -5,6 +5,7 @@ import autoTable from 'jspdf-autotable';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { addExcelLetterhead } from '@/utils/excelLetterhead';
 import {
     LETTERHEAD_LOGO_BASE64,
@@ -80,6 +81,7 @@ const FormulaTooltip = ({ formula, children }) => {
 
 // ─── NIVEL DETALLE MODAL ────────────────────────────────────────────────────
 const NivelDetalleModal = ({ nivel, detalle, onClose }) => {
+    useBodyScrollLock(!!nivel);
     if (!nivel) return null;
     const info = detalle || {};
     const codigos = info.codigos || [];

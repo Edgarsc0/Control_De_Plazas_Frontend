@@ -22,6 +22,7 @@ import EmployeesModal from "../../shared/EmployeesModal";
 import { VacantesService } from "@/services/vacantes.service";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 
@@ -1033,6 +1034,7 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
   const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
 
   useEscapeToClose(true, onClose);
+  useBodyScrollLock(true);
 
   const allLevels = useMemo(() => sortLevels(Object.keys(levelsData)), [levelsData]);
   const [selectedLevels, setSelectedLevels] = useState(new Set());
@@ -1301,6 +1303,7 @@ function UaDetailsModal({ uaName, levelsData, detalle, onClose, onSliceClick, ha
 function GlobalDownloadModal({ uasList, selectedUas, setSelectedUas, onClose, onConfirm, isExporting }) {
   const [search, setSearch] = useState("");
   useEscapeToClose(true, onClose);
+  useBodyScrollLock(true);
   const filtered = uasList.filter(ua => normalizeForSearch(ua).includes(normalizeForSearch(search)));
 
   const handleToggleAll = () => {
@@ -1430,6 +1433,7 @@ function LevelDownloadModal({
   const [searchQuery, setSearchQuery] = useState("");
 
   useEscapeToClose(true, onClose);
+  useBodyScrollLock(true);
 
   const filteredLevels = useMemo(() => {
     return levelsList.filter(lvl => normalizeForSearch(lvl).includes(normalizeForSearch(searchQuery)));

@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { User, X } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 /**
  * Celda de fotografía para las tablas de plantilla.
@@ -175,6 +176,8 @@ const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [isExpanded]);
+
+  useBodyScrollLock(isExpanded);
 
   const dimension = { width: size, height: size };
 

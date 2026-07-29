@@ -31,6 +31,7 @@ import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/Advanc
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
 import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
@@ -873,6 +874,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setCadenaFocusPos(null);
   }, []);
   useEscapeToClose(isCadenaModalOpen, () => setIsCadenaModalOpen(false));
+  useBodyScrollLock(isCadenaModalOpen);
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
 

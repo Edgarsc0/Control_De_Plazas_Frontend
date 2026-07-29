@@ -38,6 +38,7 @@ import DatePicker from "react-datepicker";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -213,6 +214,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const [modalHistoryData, setModalHistoryData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
+  useBodyScrollLock(isHistoryModalOpen && !!selectedCell);
   const [activeModalTab, setActiveModalTab] = useState('tabla');
   const [comparingIndex, setComparingIndex] = useState(null);
   const [timelineSearch, setTimelineSearch] = useState('');
