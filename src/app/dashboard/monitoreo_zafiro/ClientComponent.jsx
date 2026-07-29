@@ -9,7 +9,8 @@ import {
   RefreshCw, Terminal, Cpu, Zap,
   ShieldCheck, BarChart3, GitBranch, Layers,
   Filter, ChevronLeft, ChevronRight, Check,
-  LayoutDashboard, Timer, TrendingDown, X, ScrollText
+  LayoutDashboard, Timer, TrendingDown, X, ScrollText,
+  Trash2, AlertTriangle
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -107,6 +108,12 @@ export default function ClientComponent() {
   // Detalle de logs/errores de una sincronización (modal)
   const [selectedLog, setSelectedLog] = useState(null);
 
+  // Invalidación manual de caché del servidor
+  const [showCacheConfirm, setShowCacheConfirm] = useState(false);
+  const [cacheLoading, setCacheLoading] = useState(false);
+  const [cacheError, setCacheError] = useState(null);
+  const [cacheResult, setCacheResult] = useState(null);
+
   const getMinutesToNextSync = () => {
     const now = new Date();
     const currentMinute = now.getMinutes();
@@ -148,6 +155,34 @@ export default function ClientComponent() {
       setSyncError('Error de red al conectar con el servidor.');
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const handleClearCacheClick = () => {
+    setCacheError(null);
+    setCacheResult(null);
+    setShowCacheConfirm(true);
+  };
+
+  const handleConfirmClearCache = async () => {
+    setCacheLoading(true);
+    setCacheError(null);
+    try {
+      const response = await apiFetch('/plantilla/bitacora/invalidar-cache-manual/', {
+        method: 'POST',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCacheResult(data.cache_keys_borradas);
+      } else {
+        const errData = await response.json();
+        setCacheError(errData.error || 'Error al borrar la caché del servidor.');
+      }
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      setCacheError('Error de red al conectar con el servidor.');
+    } finally {
+      setCacheLoading(false);
     }
   };
 
@@ -421,6 +456,14 @@ export default function ClientComponent() {
               >
                 <RefreshCw className={`size-3.5 ${loading || refreshing ? 'animate-spin' : ''}`} />
                 REFRESH
+              </button>
+
+              <button
+                onClick={handleClearCacheClick}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black font-mono tracking-wider border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-900 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 shadow-sm hover:shadow active:scale-95 transition-all duration-300 cursor-pointer"
+              >
+                <Trash2 className="size-3.5" />
+                BORRAR CACHÉ DEL SERVIDOR
               </button>
             </div>
           </div>
@@ -869,6 +912,91 @@ export default function ClientComponent() {
                       </>
                     )}
                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Confirmation Modal — Borrar caché */}
+      <AnimatePresence>
+        {showCacheConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCacheConfirm(false)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            />
+
+            {/* Modal content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              className="relative w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl z-10"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="flex items-center justify-center size-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 mb-4">
+                  <AlertTriangle className="size-6" />
+                </div>
+
+                <h3 className="text-base font-black text-slate-850 dark:text-white uppercase tracking-wider font-mono">
+                  ¿Borrar Caché del Servidor?
+                </h3>
+
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-3 space-y-2 leading-relaxed w-full">
+                  <p>
+                    Estás a punto de borrar <strong>toda la caché</strong> del servidor.
+                  </p>
+                  <div className="p-3.5 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/15 rounded-xl text-amber-600 dark:text-amber-400 font-mono text-[11px] text-left">
+                    <span className="font-bold">⚠️ ADVERTENCIA:</span> Los siguientes requests de cualquier usuario podrían ralentizarse temporalmente, ya que el sistema tendrá que recalcular y regenerar la caché desde cero con datos frescos.
+                  </div>
+                  {cacheError && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl font-mono text-[10px] text-left">
+                      {cacheError}
+                    </div>
+                  )}
+                  {cacheResult !== null && (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl font-mono text-[10px] text-left">
+                      Caché borrada: {cacheResult} keys eliminadas.
+                    </div>
+                  )}
+                  <p>
+                    ¿Seguro que deseas proceder?
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 w-full mt-6">
+                  <button
+                    onClick={() => setShowCacheConfirm(false)}
+                    className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold font-mono tracking-wider border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-550 dark:text-slate-400 transition-all cursor-pointer"
+                  >
+                    {cacheResult !== null ? 'CERRAR' : 'CANCELAR'}
+                  </button>
+                  {cacheResult === null && (
+                    <button
+                      onClick={handleConfirmClearCache}
+                      disabled={cacheLoading}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black font-mono tracking-wider bg-red-600 text-white shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {cacheLoading ? (
+                        <>
+                          <RefreshCw className="size-3.5 animate-spin" />
+                          BORRANDO...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="size-3.5" />
+                          SÍ, BORRAR
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
