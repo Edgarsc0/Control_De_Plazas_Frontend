@@ -1665,6 +1665,20 @@ function OrganigramaContent() {
           onDrop={(e) => { e.preventDefault(); handleReorderDrop(draggingCode, node.departamento, e.clientX, e.currentTarget); }}
           className={`w-60 p-4 bg-white dark:bg-slate-900 rounded-2xl border text-center transition-all duration-200 cursor-pointer select-none flex flex-col justify-between h-48 relative ${cardBorder}`}
         >
+          {/* Fotografía del ocupante: centrada sobre el borde superior de la
+              tarjeta (mitad afuera, mitad adentro), igual que un avatar de
+              perfil — por eso vive fuera del flujo normal del contenido. */}
+          {node.num_posicion_gerente && node.num_posicion_gerente !== "(en blanco)" && node.ocupante?.activa && !node.ocupante.vacante && node.ocupante.numempleado && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 rounded-full bg-white dark:bg-slate-900 p-0.5">
+              <FotoEmpleadoCell
+                numempleado={node.ocupante.numempleado}
+                rootRef={containerRef}
+                enabled={canViewFotoOrganigrama}
+                size={56}
+                caption={`${node.ocupante.nombre} — ${node.descripcion_larga}`}
+              />
+            </div>
+          )}
           <div className="flex items-center justify-between gap-1.5 mb-2">
             <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase ${badgeColor}`}>
               {node.nivel_direccion || "Depto."}
@@ -1686,15 +1700,6 @@ function OrganigramaContent() {
               <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">Departamento vacante</p>
             ) : (
               <>
-                {node.ocupante.numempleado && (
-                  <FotoEmpleadoCell
-                    numempleado={node.ocupante.numempleado}
-                    rootRef={containerRef}
-                    enabled={canViewFotoOrganigrama}
-                    size={26}
-                    caption={`${node.ocupante.nombre} — ${node.descripcion_larga}`}
-                  />
-                )}
                 <p className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 leading-tight line-clamp-2">
                   {node.ocupante.nombre}
                 </p>
