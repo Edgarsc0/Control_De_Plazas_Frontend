@@ -3,8 +3,8 @@ import { apiFetch } from "@/lib/fetch-interceptor";
 /**
  * CRUD de los catálogos de estructura organizacional administrados desde el
  * tab "Catálogos" de `plantilla_empleados`: cat_acciones, cat_acciones_motivos,
- * CAT_PTO_FUNC y rc_cat_cod_presupuestal. Todas las peticiones pasan por
- * `apiFetch`, que inyecta el token de sesión.
+ * CAT_PTO_FUNC, rc_cat_cod_presupuestal y cat_correccion_posicion. Todas las
+ * peticiones pasan por `apiFetch`, que inyecta el token de sesión.
  */
 export const CatalogoEstructuraService = {
     // ── cat_acciones (pk: action) ──────────────────────────────────────────
@@ -69,6 +69,19 @@ export const CatalogoEstructuraService = {
         method: "PATCH", body: JSON.stringify(data), ...options,
     }),
     deleteOrganigramaAnam: (departamento, options = {}) => apiFetch(`/plantilla/cat-organigrama-anam/${encodeURIComponent(departamento)}/`, {
+        method: "DELETE", ...options,
+    }),
+
+    // ── cat_correccion_posicion (pk: posicion — vista "ancha" pivotada
+    // Código/Tipo de Aduana/DG de Aduana compactada, ver CatCorreccionPosicionListView) ──
+    getCatCorreccionPosicion: (options = {}) => apiFetch("/plantilla/cat-correccion-posicion/", { method: "GET", ...options }),
+    createCatCorreccionPosicion: (data, options = {}) => apiFetch("/plantilla/cat-correccion-posicion/", {
+        method: "POST", body: JSON.stringify(data), ...options,
+    }),
+    updateCatCorreccionPosicion: (posicion, data, options = {}) => apiFetch(`/plantilla/cat-correccion-posicion/${encodeURIComponent(posicion)}/`, {
+        method: "PUT", body: JSON.stringify(data), ...options,
+    }),
+    deleteCatCorreccionPosicion: (posicion, options = {}) => apiFetch(`/plantilla/cat-correccion-posicion/${encodeURIComponent(posicion)}/`, {
         method: "DELETE", ...options,
     }),
 

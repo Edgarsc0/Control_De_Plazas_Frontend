@@ -1,11 +1,16 @@
-import { Tags, MessageSquareText, Briefcase, Coins, Network } from "lucide-react";
+import { Tags, MessageSquareText, Briefcase, Coins, Network, MapPin } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 
 /**
- * Fuente única de verdad de los 4 catálogos administrados en el tab
+ * Fuente única de verdad de los catálogos administrados en el tab
  * "Catálogos". Cada entrada describe columnas de tabla, campos de
  * formulario y las funciones list/create/update/remove (uniformes pese a
  * que las pk difieren: string simple, autoincremental o compuesta).
+ *
+ * `lazy: true` (solo `correccion_posicion`, ~11,432 filas — mucho más grande
+ * que el resto): excluido de la carga automática de "todos los catálogos"
+ * al abrir el tab (ver CatalogosEstructuraTab.loadAll) y se pide al servidor
+ * solo cuando el usuario entra a ese sub-tab específico.
  */
 export const CATALOGOS_CONFIG = {
   acciones: {
@@ -159,11 +164,39 @@ export const CATALOGOS_CONFIG = {
     update: (record, data) => CatalogoEstructuraService.updateOrganigramaAnam(record.departamento, data),
     remove: (record) => CatalogoEstructuraService.deleteOrganigramaAnam(record.departamento),
   },
+
+  correccion_posicion: {
+    key: "correccion_posicion",
+    label: "Corrección Posición",
+    icon: MapPin,
+    tableName: "cat_correccion_posicion",
+    lazy: true,
+    getRowId: (row) => row.posicion,
+    columns: [
+      { key: "posicion", label: "Posición", width: 120, visible: true },
+      { key: "codigo", label: "Código", width: 200, visible: true },
+      { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 150, visible: true },
+      { key: "dg_o_aduana_compactada", label: "DG de Aduana compactada", width: 220, visible: true },
+      { key: "modificado_por", label: "Modificado Por", width: 220, audit: true, visible: true },
+      { key: "fecha_modificacion", label: "Última Modificación", width: 170, audit: true, type: "datetime", visible: true },
+    ],
+    formFields: [
+      { key: "posicion", label: "Posición", type: "text", required: true, disabledOnEdit: true, maxLength: 20 },
+      { key: "codigo", label: "Código", type: "text", maxLength: 100 },
+      { key: "tipo_de_aduana", label: "Tipo de Aduana", type: "text", maxLength: 100 },
+      { key: "dg_o_aduana_compactada", label: "DG de Aduana compactada", type: "text", maxLength: 100 },
+    ],
+    emptyRecord: { posicion: "", codigo: "", tipo_de_aduana: "", dg_o_aduana_compactada: "" },
+    list: (options) => CatalogoEstructuraService.getCatCorreccionPosicion(options),
+    create: (data) => CatalogoEstructuraService.createCatCorreccionPosicion(data),
+    update: (record, data) => CatalogoEstructuraService.updateCatCorreccionPosicion(record.posicion, data),
+    remove: (record) => CatalogoEstructuraService.deleteCatCorreccionPosicion(record.posicion),
+  },
 };
 
-export const CATALOGOS_ORDER = ["acciones", "motivos", "pto_func", "cod_presupuestal", "organigrama_anam"];
+export const CATALOGOS_ORDER = ["acciones", "motivos", "pto_func", "cod_presupuestal", "organigrama_anam", "correccion_posicion"];
 
 export const MONO_CATALOG_COLUMN_KEYS = [
   "action", "accion", "cd_motivo", "cd_pto_funcional", "cd_norm", "codigo_presupuestal", "escala",
-  "departamento", "unidad_negocio", "doaf", "num_posicion_gerente", "posicion_director",
+  "departamento", "unidad_negocio", "doaf", "num_posicion_gerente", "posicion_director", "posicion",
 ];

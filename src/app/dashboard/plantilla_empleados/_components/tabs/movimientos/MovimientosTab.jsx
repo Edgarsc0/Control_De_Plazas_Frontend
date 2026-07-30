@@ -31,6 +31,7 @@ import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, finalizeFilterDropdownValues, resolveColumnFilterCommit, sortValueCounts, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
+import { daysUntil, getAnuenciaColorClasses, FECHA_ANUENCIA_CATEGORIAS } from "@/utils/anuencia";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
@@ -52,39 +53,6 @@ const MOV_STATUS_BADGE_STYLES = {
 const formatNumber = (num) => {
   if (num === undefined || num === null) return "0";
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-};
-
-// Construye la fecha en horario LOCAL (no UTC) a partir de un string
-// 'YYYY-MM-DD' — `new Date(str)` interpreta ese formato como UTC medianoche,
-// lo que puede restar un día al comparar contra "hoy" en zonas horarias
-// negativas (México).
-const parseIsoDate = (str) => {
-  if (!str) return null;
-  const [y, m, d] = String(str).split("-").map(Number);
-  if (!y || !m || !d) return null;
-  const date = new Date(y, m - 1, d);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
-// Días restantes (positivo = futuro, negativo = ya venció) entre hoy y la
-// fecha ISO recibida — base de la "semaforización" de fecha_anuencia y del
-// tooltip de fecha_vacancia.
-const daysUntil = (str) => {
-  const target = parseIsoDate(str);
-  if (!target) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  target.setHours(0, 0, 0, 0);
-  return Math.round((target - today) / 86400000);
-};
-
-// Semáforo de "Fecha de Anuencia": 20+ días = verde, 10-19 = ámbar, 9 o
-// menos (incluye ya vencida) = rojo.
-const getAnuenciaColorClasses = (dias) => {
-  if (dias === null) return null;
-  if (dias >= 20) return "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400";
-  if (dias >= 10) return "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400";
-  return "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400";
 };
 
 const extractRawList = (data) => {
@@ -116,6 +84,15 @@ const ALL_MOV_KEYS = [
 ];
 
 const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia", "fecha_anuencia"];
+
+// El dropdown de filtro por columna agrupa las fechas en un árbol año>mes>día
+// (ver dateHierarchies) — pero "fecha_anuencia" puede traer texto (categorías
+// fijas: "Nueva Creación", "En Proceso", etc.), que ese árbol descarta (no
+// son fechas parseables), dejando el dropdown solo con el año visible y sin
+// poder filtrar las categorías. Se excluye aquí de MODO FILTRO (cae a lista
+// plana de valores únicos, que sí las incluye) sin afectar el formateo de
+// fecha en pantalla (que sigue usando DATE_KEYS_MOV/isDateColumn tal cual).
+const DATE_HIERARCHY_KEYS_MOV = DATE_KEYS_MOV.filter((k) => k !== "fecha_anuencia");
 
 // Server-side distinct_search only supports icontains; only safe to forward
 // for "positive" conditions (a match always implies icontains too).
@@ -935,7 +912,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
     const targetKeys = [];
-    if (activeFilterDropdown && DATE_KEYS_MOV.includes(activeFilterDropdown)) {
+    if (activeFilterDropdown && DATE_HIERARCHY_KEYS_MOV.includes(activeFilterDropdown)) {
       targetKeys.push(activeFilterDropdown);
     }
 
@@ -1275,7 +1252,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         return (
           <td key={col.key} style={stickyStyle} className={tdClassNameEdit}>
             <input
-              type="date"
+              type="text"
+              list="fecha-anuencia-categorias"
+              placeholder="YYYY-MM-DD o categoría..."
               autoFocus
               value={editingAnuencia.value}
               disabled={editingAnuencia.saving}
@@ -1284,6 +1263,9 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               onBlur={handleAnuenciaBlur}
               className="w-full h-full px-1 text-xs font-semibold bg-white dark:bg-slate-900 border border-[#621f32] rounded outline-none disabled:opacity-50"
             />
+            <datalist id="fecha-anuencia-categorias">
+              {FECHA_ANUENCIA_CATEGORIAS.map((c) => <option key={c} value={c} />)}
+            </datalist>
             {editingAnuencia.error && (
               <span className="absolute left-1 top-full mt-0.5 z-20 text-[9px] font-bold text-red-600 bg-white dark:bg-slate-950 px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">{editingAnuencia.error}</span>
             )}
@@ -2081,7 +2063,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             open={!!activeFilterDropdown}
             columnKey={activeFilterDropdown}
             columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
-            isDate={isDateColumn(activeFilterDropdown)}
+            isDate={DATE_HIERARCHY_KEYS_MOV.includes(activeFilterDropdown)}
             data={movPosData}
             filters={filters}
             dropdownValues={filterDropdownValues}

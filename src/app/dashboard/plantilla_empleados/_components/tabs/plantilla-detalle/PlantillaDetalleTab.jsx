@@ -24,6 +24,7 @@ import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import CeldaValorModal from "../../shared/CeldaValorModal";
+import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
@@ -42,6 +43,7 @@ import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { daysUntil, getAnuenciaColorClasses, FECHA_ANUENCIA_CATEGORIAS } from "@/utils/anuencia";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
@@ -53,17 +55,24 @@ const FOTO_COLUMN_KEY = "foto";
 
 // Clave de negocio (identifica la fila) y columna de foto: no admiten
 // "Pegar valor en celda" ni edición inline.
-const NON_EDITABLE_KEYS = new Set(["posicion", FOTO_COLUMN_KEY]);
+// "fecha_genera_vacante" tampoco es editable: siempre muestra la fecha
+// calculada (fecha_vacancia de MOV_POS), nunca la del Excel (que tiene
+// errores conocidos en esa columna) — ver comentario de QUINCENAL_COLS.
+const NON_EDITABLE_KEYS = new Set(["posicion", FOTO_COLUMN_KEY, "fecha_genera_vacante"]);
 
 // "fecha_anuencia_detalle" (columna AL) NO está aquí: se unificó con el
 // sistema de "Fecha de Anuencia" que ya existe en Mov. Posiciones (mismo
 // override, misma fecha en ambos tabs — ver FECHA_ANUENCIA_COL más abajo).
+// "fecha_genera_vacante" (columna AQ) tampoco: se unificó con "Fecha de
+// Vacancia" de Mov. Posiciones (fecha_vacancia calculada por el SP de
+// ZAFIRO) — el Excel tiene errores conocidos ahí, así que dejó de ser
+// editable y de cargarse del Excel (ver NON_EDITABLE_KEYS arriba y
+// plantilla.views._get_fecha_vacancia_bulk_map en el backend).
 const QUINCENAL_COLS = new Set([
   "oficios_autorizacion_shcp",
   "plazas_eventuales_autorizacion_2026",
   "candidato",
   "reportada",
-  "fecha_genera_vacante",
   "cap_anual",
   "cap_mensual",
   "observaciones_plantillas_do",
@@ -76,13 +85,32 @@ const QUINCENAL_COLS = new Set([
 // keyed por posicion === no_pos_actual) — no por patchColumnaQuincenal.
 const FECHA_ANUENCIA_COL = "fecha_anuencia_detalle";
 
-// No siempre es una fecha: el Excel de origen trae, para algunas posiciones,
-// una de estas 4 categorías de texto fijo en vez de una fecha real (mismo
-// set que valida el backend, ver FECHA_ANUENCIA_CATEGORIAS_VALIDAS en
-// plantilla/models.py). El combobox (input + datalist) sugiere estas 4 más
-// permite escribir una fecha 'YYYY-MM-DD' libremente; el backend rechaza
-// cualquier otro texto con un mensaje de error bajo la celda.
-const FECHA_ANUENCIA_CATEGORIAS = ["Nueva Creación", "En Proceso", "Sin Anuencia", "N/A"];
+// El filtro de columna de "Fecha de Anuencia" agrupa por el MISMO semáforo
+// de color que ya se ve en la celda (ver getAnuenciaColorClasses), en vez de
+// por fecha exacta — así se puede filtrar "todas las rojas", por ejemplo.
+// Las categorías de texto fijo (Nueva Creación, etc.) se conservan tal cual,
+// fuera del semáforo, para poder seguir filtrando por ellas también.
+const getFechaAnuenciaBucket = (row) => {
+  const value = row[FECHA_ANUENCIA_COL];
+  if (value === null || value === undefined || String(value).trim() === "") return "Sin fecha";
+  if (row.fecha_anuencia_detalle_override) return "🔵 Editado manualmente";
+  const dias = daysUntil(value);
+  if (dias === null) return String(value).trim();
+  if (dias >= 20) return "🟢 Verde (20+ días)";
+  if (dias >= 10) return "🟡 Ámbar (10-19 días)";
+  return "🔴 Rojo (≤9 días o vencida)";
+};
+
+// Valor "efectivo" de una celda para filtrar/agrupar por columna — centraliza
+// los casos especiales (estado_nomina se filtra por su etiqueta, no por el
+// código A/S/L/P; Fecha de Anuencia se filtra por semáforo, ver arriba) en un
+// solo lugar para que dropdown, conteos alcanzables y filtrado real nunca se
+// desincronicen entre sí.
+const getFilterCellValue = (row, key) => {
+  if (key === "estado_nomina") return mapEstadoNomina(row[key]);
+  if (key === FECHA_ANUENCIA_COL) return getFechaAnuenciaBucket(row);
+  return String(row[key] || "").trim();
+};
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
@@ -183,7 +211,17 @@ const ALL_DETAIL_KEYS = [
   "observaciones_plantillas_do", "observaciones_proyectos_alineaciones", "anno_vacancia"
 ];
 
-const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso", "fecha_anuencia_detalle"];
+const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso", "fecha_anuencia_detalle", "fecha_genera_vacante"];
+
+// El dropdown de filtro por columna agrupa las fechas en un árbol año>mes>día
+// (ver dateHierarchies) — pero "fecha_anuencia_detalle" puede traer texto
+// (categorías fijas: "Nueva Creación", "En Proceso", etc., ver
+// FECHA_ANUENCIA_COL), que ese árbol simplemente descarta (no son fechas
+// parseables) dejando el dropdown sin poder filtrarlas y con solo el año
+// visible. Se excluye aquí de MODO FILTRO (cae a lista plana de valores
+// únicos, que sí las incluye) sin afectar el formateo de fecha en pantalla
+// (que sigue usando DATE_KEYS/isDateColumn tal cual).
+const DATE_HIERARCHY_KEYS = DATE_KEYS.filter((k) => k !== FECHA_ANUENCIA_COL);
 
 // Columnas que DEFINEN la vacancia de la posición: su dropdown debe iterar
 // `detalle` (con vacantes) y no `detalleParaFiltros` (que las excluye a
@@ -802,30 +840,26 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "id_departamento", label: "Id Departamento", width: 120, visible: true, isBasic: true },
     { key: "departamento", label: "Departamento", width: 200, visible: true, isBasic: true },
     { key: "dependencia_directa", label: "Dependencia Directa", width: 250, visible: true, isBasic: true },
-    // A partir de aqui todos los encabezados se pintan de verde
-    { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
-    { key: "entidad_federativa", label: "Entidad Federativa", width: 180, visible: true, isBasic: true },
-    { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 130, visible: true, isBasic: true },
-    { key: "ubicacion", label: "Ubicación", width: 200, visible: true, isBasic: true },
-    { key: "descripcion_ubicacion", label: "Descripción ubicación", width: 200, visible: true, isBasic: true },
-    // hasta aqui termina la seccion con encabezados verdes
+    { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true, greenHeader: true },
+    { key: "entidad_federativa", label: "Entidad Federativa", width: 180, visible: true, isBasic: true, greenHeader: true },
+    { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 130, visible: true, isBasic: true, greenHeader: true },
+    { key: "ubicacion", label: "Ubicación", width: 200, visible: true, isBasic: true, greenHeader: true },
+    { key: "descripcion_ubicacion", label: "Descripción ubicación", width: 200, visible: true, isBasic: true, greenHeader: true },
     { key: "tipo_de_personal_sedena_semar", label: "Tipo de personal SEDENA / SEMAR", width: 220, visible: true, isBasic: true },
     { key: "rango", label: "Rango", width: 150, visible: true, isBasic: true },
     { key: "fecha_de_ingreso", label: "Fecha de ingreso", width: 130, visible: true, isBasic: true },
     { key: "dg_o_aduana_compactada", label: "DG o Aduana compactada", width: 200, visible: true, isBasic: true },
-    // Comienzan nuevamente las columnas pintadas de verde a partir de aqui
-    { key: "fecha_anuencia_detalle", label: "Fecha de Anuencia", width: 150, visible: true, isBasic: true },
-    { key: "oficios_autorizacion_shcp", label: "Oficios de Autorización SHCP", width: 200, visible: true, isBasic: true },
-    { key: "plazas_eventuales_autorizacion_2026", label: "Plazas eventuales registradas para autorización 2026", width: 350, visible: true, isBasic: true },
-    { key: "candidato", label: "Candidato", width: 150, visible: true, isBasic: true },
-    { key: "reportada", label: "Reportada", width: 120, visible: true, isBasic: true },
-    { key: "fecha_genera_vacante", label: "Fecha que se genera la vacante", width: 220, visible: true, isBasic: true },
-    { key: "cap_anual", label: "CAP ANUAL", width: 120, visible: true, isBasic: true },
-    { key: "cap_mensual", label: "CAP MENSUAL", width: 120, visible: true, isBasic: true },
-    { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true },
-    { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true },
-    { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true },
-
+    { key: "fecha_anuencia_detalle", label: "Fecha de Anuencia", width: 150, visible: true, isBasic: true, greenHeader: true },
+    { key: "oficios_autorizacion_shcp", label: "Oficios de Autorización SHCP", width: 200, visible: true, isBasic: true, greenHeader: true },
+    { key: "plazas_eventuales_autorizacion_2026", label: "Plazas eventuales registradas para autorización 2026", width: 350, visible: true, isBasic: true, greenHeader: true },
+    { key: "candidato", label: "Candidato", width: 150, visible: true, isBasic: true, greenHeader: true },
+    { key: "reportada", label: "Reportada", width: 120, visible: true, isBasic: true, greenHeader: true },
+    { key: "fecha_genera_vacante", label: "Fecha que se genera la vacante", width: 220, visible: true, isBasic: true, greenHeader: true },
+    { key: "cap_anual", label: "CAP ANUAL", width: 120, visible: true, isBasic: true, greenHeader: true },
+    { key: "cap_mensual", label: "CAP MENSUAL", width: 120, visible: true, isBasic: true, greenHeader: true },
+    { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true, greenHeader: true },
+    { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true, greenHeader: true },
+    { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true, greenHeader: true },
     { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
     { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
     { key: "cent", label: "Centro (Código)", width: 80, visible: false, isBasic: false },
@@ -890,6 +924,38 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     expandedDateNodes, setExpandedDateNodes,
     debouncedFilterSearchText,
   } = filters;
+  // Modal de Detalle de Vacancia (columna "Fecha que se genera la vacante")
+  // — mismo componente y mismo flujo que Mov. Posiciones (VacanciaDetalleModal),
+  // solo que aquí se abre con `row.mov_pos_id` (inyectado por el backend,
+  // ver EmpleadosCompletosActivosDetalleView) en vez de `row.id` (MovPos).
+  const [isVacanciaModalOpen, setIsVacanciaModalOpen] = useState(false);
+  const [vacanciaRowId, setVacanciaRowId] = useState(null);
+  const [vacanciaDetalle, setVacanciaDetalle] = useState(null);
+  const [isVacanciaLoading, setIsVacanciaLoading] = useState(false);
+  const openVacanciaModal = useCallback((row) => {
+    if (!row || row.mov_pos_id === undefined || row.mov_pos_id === null) return;
+    setVacanciaRowId(row.mov_pos_id);
+    setIsVacanciaModalOpen(true);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    if (isVacanciaModalOpen && vacanciaRowId !== null) {
+      setIsVacanciaLoading(true);
+      setVacanciaDetalle(null);
+      VacantesService.getMovPosVacanciaDetalle(vacanciaRowId)
+        .then(res => res.json())
+        .then(data => { if (active) setVacanciaDetalle(data); })
+        .catch(err => {
+          console.error("Error fetching vacancia detalle:", err);
+          if (active) setVacanciaDetalle({ error: "Error al cargar el detalle de la vacancia." });
+        })
+        .finally(() => { if (active) setIsVacanciaLoading(false); });
+    } else {
+      setVacanciaDetalle(null);
+    }
+    return () => { active = false; };
+  }, [isVacanciaModalOpen, vacanciaRowId]);
+
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   // Abre el modal y apaga el badge de "cambios de otros usuarios pendientes de ver"
   // (ver remoteUpdatesCount, contado en ClientComponent vía useCeldaUpdatesRealtime).
@@ -1356,7 +1422,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const dateHierarchies = useMemo(() => {
     const hierarchies = {};
     const targetKeys = [];
-    if (activeFilterDropdown && DATE_KEYS.includes(activeFilterDropdown)) {
+    if (activeFilterDropdown && DATE_HIERARCHY_KEYS.includes(activeFilterDropdown)) {
       targetKeys.push(activeFilterDropdown);
     }
 
@@ -1394,7 +1460,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       // aparecer nunca en su propio dropdown (ver VACANCY_DEFINING_KEYS).
       const sourceRows = VACANCY_DEFINING_KEYS.has(key) ? detalle : datosParaColumnaActiva;
       sourceRows.forEach(row => {
-        let val = key === "estado_nomina" ? mapEstadoNomina(row[key]) : String(row[key] || "").trim();
+        let val = getFilterCellValue(row, key);
         counts[val] = (counts[val] || 0) + 1;
       });
       valuesMap[key] = Object.entries(counts)
@@ -1602,14 +1668,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         if (!blob.includes(searchText)) return false;
       }
       for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
-        if (!selectedVals.includes(colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim())) return false;
+        if (!selectedVals.includes(getFilterCellValue(row, colKey))) return false;
       }
       for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
         if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
         const searchText = filterObj.value;
         const condition = filterObj.condition || (isMonoColumn(colKey) ? "starts_with" : "contains");
 
-        const val = colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "");
+        const val = getFilterCellValue(row, colKey);
         const lowerVal = normalizeForSearch(val).trim();
         const lowerSearch = normalizeForSearch(searchText).trim();
 
@@ -1697,13 +1763,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       }
       for (const [ck, selectedVals] of Object.entries(columnFilters)) {
         if (ck === colKey) continue;
-        if (!selectedVals.includes(ck === "estado_nomina" ? mapEstadoNomina(row[ck]) : String(row[ck] || "").trim())) return;
+        if (!selectedVals.includes(getFilterCellValue(row, ck))) return;
       }
       for (const [ck, filterObj] of Object.entries(deferredTextFilters)) {
         if (!filterObj || !filterObj.value || !filterObj.value.trim()) continue;
         const searchText = filterObj.value;
         const condition = filterObj.condition || (isMonoColumn(ck) ? "starts_with" : "contains");
-        const valStr = ck === "estado_nomina" ? mapEstadoNomina(row[ck]) : String(row[ck] || "");
+        const valStr = getFilterCellValue(row, ck);
         const lowerVal = normalizeForSearch(valStr).trim();
         const lowerSearch = normalizeForSearch(searchText).trim();
         let pass = false;
@@ -1721,7 +1787,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         if (!pass) return;
       }
       if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return;
-      const val = colKey === "estado_nomina" ? mapEstadoNomina(row[colKey]) : String(row[colKey] || "").trim();
+      const val = getFilterCellValue(row, colKey);
       counts[val] = (counts[val] || 0) + 1;
     });
     return counts;
@@ -1897,6 +1963,19 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         </td>
       );
     }
+    // "Fecha que se genera la vacante" = fecha_vacancia calculada (ver
+    // NON_EDITABLE_KEYS) — clic abre el mismo modal de Detalle de Vacancia
+    // que Mov. Posiciones (VacanciaDetalleModal), keyed por `row.mov_pos_id`
+    // en vez de `row.id` (MovPos) ya que esta tabla parte de EMPLEADOS_COMPLETOS_SIG.
+    if (col.key === "fecha_genera_vacante") {
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
+      const content = hasValue
+        ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>)
+        : <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+    }
     if (editingCell && editingCell.posicion === row.posicion && editingCell.colKey === col.key) {
       return (
         <td key={col.key} style={stickyStyle} className={`relative px-1.5 text-xs border-r h-[37px] align-middle ring-2 ring-[#621f32] z-10 ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white dark:bg-slate-900"}`}>
@@ -1951,6 +2030,43 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           )}
           {renderCellStatusOverlay(row.posicion, col.key)}
         </td>
+      );
+    }
+    // "Fecha de Anuencia": mismo semáforo de color (días restantes) y tooltip
+    // que ya existe en Mov. Posiciones (misma fecha/override, ver
+    // FECHA_ANUENCIA_COL) — solo entra aquí cuando NO se está editando esta
+    // celda (el modo edición ya se resolvió arriba, con el combobox).
+    if (col.key === FECHA_ANUENCIA_COL) {
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const dias = hasValue ? daysUntil(value) : null;
+      const isOverride = !!row.fecha_anuencia_detalle_override;
+      // El override manual (azul) tiene prioridad visual sobre el semáforo de
+      // urgencia — "editado a mano" es la señal más relevante para identificarlo.
+      const colorClasses = isOverride
+        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
+        : (dias !== null ? getAnuenciaColorClasses(dias) : null);
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle font-semibold ${
+        colorClasses || (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")
+      } ${isSelected ? "ring-2 ring-[#621f32] z-10 shadow-md" : ""} ${canEditCeldas ? "cursor-pointer" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = hasValue ? formatDateEsMx(value) : <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
+      if (dias === null) {
+        return (<td key={col.key} style={stickyStyle} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} className={tdClassName} title={canEditCeldas ? "Doble clic para editar" : undefined}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+      }
+      // Tooltip con los días restantes para llegar a esta fecha (o los que
+      // ya pasaron desde que venció) — ver daysUntil.
+      const tooltipMsg = (dias > 0
+        ? `Faltan ${dias} ${dias === 1 ? "día" : "días"} para la fecha de anuencia`
+        : dias === 0
+        ? "Hoy vence la fecha de anuencia"
+        : `La fecha de anuencia venció hace ${Math.abs(dias)} ${Math.abs(dias) === 1 ? "día" : "días"}`
+      ) + (isOverride ? " (fecha editada manualmente)" : "");
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td style={stickyStyle} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">{tooltipMsg}{canEditCeldas ? " — doble clic para editar" : ""}</TooltipContent>
+        </Tooltip>
       );
     }
     if (col.key === "estado_nomina") {
@@ -2017,7 +2133,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       displayContent = String(value);
     }
     return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
-  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle]);
+  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, canEditCeldas]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -3415,7 +3531,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         open={!!activeFilterDropdown}
         columnKey={activeFilterDropdown}
         columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
-        isDate={isDateColumn(activeFilterDropdown)}
+        isDate={DATE_HIERARCHY_KEYS.includes(activeFilterDropdown)}
         data={datosParaColumnaActiva}
         filters={filters}
         dropdownValues={filterDropdownValues}
@@ -3464,6 +3580,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         columns={historialColumns}
         formatValue={formatHistorialValue}
         subtitle="EMPLEADOS_COMPLETOS_SIG · Columnas quincenal · Fecha de Anuencia"
+      />
+
+      <VacanciaDetalleModal
+        open={isVacanciaModalOpen}
+        onClose={() => setIsVacanciaModalOpen(false)}
+        detalle={vacanciaDetalle}
+        isLoading={isVacanciaLoading}
       />
 
       <CopyCellMenu

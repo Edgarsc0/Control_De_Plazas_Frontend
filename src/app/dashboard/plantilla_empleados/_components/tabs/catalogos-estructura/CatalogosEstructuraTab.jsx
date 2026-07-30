@@ -27,6 +27,7 @@ const CATALOG_DESCRIPTIONS = {
   pto_func: "Catálogo de Puestos funcionales. Crea o edita códigos de puestos funcionales.",
   cod_presupuestal: "Catálogo de salarios brutos y netos por código presupuestal y escala.",
   organigrama_anam: "Catálogo de estructura organizacional ANAM: unidad de negocio, departamento, nivel de dirección y posiciones de gerente/director.",
+  correccion_posicion: "Corrige el Código, Tipo de Aduana y DG de Aduana compactada por posición cuando no coinciden con la plantilla del Excel (ej. al realinear una posición a otra unidad).",
 };
 
 const ROW_HEIGHT = 37;
@@ -117,11 +118,15 @@ function GenericCatalogSubtab({ activeCatalog }) {
     return res.json();
   }, []);
 
+  // Los catálogos "lazy" (hoy solo `correccion_posicion`, ~11,432 filas —
+  // mucho más grande que el resto) no se cargan aquí: se piden aparte, solo
+  // cuando el usuario entra a ese sub-tab (ver el efecto justo abajo).
   const loadAll = useCallback(async () => {
     setLoading(true);
     setLoadError("");
     try {
-      const entries = await Promise.all(CATALOGOS_ORDER.map(async (k) => [k, await fetchCatalog(k)]));
+      const eager = CATALOGOS_ORDER.filter((k) => !CATALOGOS_CONFIG[k].lazy);
+      const entries = await Promise.all(eager.map(async (k) => [k, await fetchCatalog(k)]));
       setDataByCatalog(Object.fromEntries(entries));
     } catch {
       setLoadError("No se pudieron cargar los catálogos. Intenta recargar.");
@@ -131,6 +136,21 @@ function GenericCatalogSubtab({ activeCatalog }) {
   }, [fetchCatalog]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Carga bajo demanda de catálogos "lazy" al entrar a su sub-tab — una sola
+  // vez por sesión de la pestaña (se cachea en `dataByCatalog`, igual que
+  // los demás, así que cambiar de sub-tab y volver no vuelve a pedir nada).
+  useEffect(() => {
+    if (!config?.lazy || dataByCatalog[activeCatalog]) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError("");
+    fetchCatalog(activeCatalog)
+      .then((data) => { if (!cancelled) setDataByCatalog((prev) => ({ ...prev, [activeCatalog]: data })); })
+      .catch(() => { if (!cancelled) setLoadError(`No se pudo cargar el catálogo "${config.label}".`); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeCatalog, config, dataByCatalog, fetchCatalog]);
 
   // Cambió de catálogo: los filtros/orden/selección de la tabla anterior no aplican (claves distintas).
   useEffect(() => {
