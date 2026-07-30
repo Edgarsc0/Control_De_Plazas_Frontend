@@ -935,17 +935,15 @@ function OrganigramaContent() {
     // Fast in-memory search over the global catalog, acotado a la vista
     // activa — debe sugerir solo nodos que existan en el árbol que se ve,
     // si no, al hacer clic el nodo no aparecería (espejo exacto de los
-    // filtros de organigrama_tree.build_tree):
+    // filtros de OrganigramaTreeView / organigrama_tree.build_tree):
     //   - SIG: solo isSIGInfo=1.
-    //   - Institucional: sin filtro extra (incluye todo, igual que el árbol).
+    //   - Institucional: solo isSIGInfo=0 (ORGANIGRAMA_ANAM ahora mezcla
+    //     ambos conjuntos en la misma tabla, ver merge de ORGANIGRAMA_ANAM_SIG).
     // normalizeForSearch quita acentos/mayúsculas de ambos lados — si no,
     // buscar "Victor" no encontraba a "Víctor" (mismo bug ya visto en otros
     // buscadores del repo, ver normalizeForSearch en columnFilters.js).
     const results = globalCatalog
-      .filter(n => {
-        if (vistaModo === "sig") return n.isSIGInfo;
-        return true;
-      })
+      .filter(n => (vistaModo === "sig" ? n.isSIGInfo : !n.isSIGInfo))
       .filter(n =>
         normalizeForSearch(n.departamento).includes(q) ||
         normalizeForSearch(n.descripcion_larga).includes(q) ||
@@ -1438,7 +1436,7 @@ function OrganigramaContent() {
         node.unidad_administrativa = payload.unidad_administrativa;
         node.doaf = payload.doaf;
       }
-      setGlobalCatalog(prev => prev.map(n => n.departamento === departamento ? { ...n, descripcion_larga } : n));
+      setGlobalCatalog(prev => prev.map(n => (n.departamento === departamento && !n.isSIGInfo) ? { ...n, descripcion_larga } : n));
       setSelectedNode(prev => (prev && node ? { ...node } : prev));
       bumpRender(t => t + 1);
       setIsEditingNode(false);
@@ -1462,7 +1460,7 @@ function OrganigramaContent() {
         throw new Error(body.detail || "No se pudo eliminar el departamento.");
       }
 
-      setGlobalCatalog(prev => prev.filter(n => n.departamento !== departamento));
+      setGlobalCatalog(prev => prev.filter(n => !(n.departamento === departamento && !n.isSIGInfo)));
       const parentId = parentsMap[departamento];
 
       if (!parentId) {
