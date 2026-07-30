@@ -1722,6 +1722,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     result.sort((a, b) => {
       let valA = key === "estado_nomina" ? mapEstadoNomina(a[key]) : String(a[key] || "").trim();
       let valB = key === "estado_nomina" ? mapEstadoNomina(b[key]) : String(b[key] || "").trim();
+      // Posiciones sin nivel jerárquico (laudos "103L...", etc.) van siempre al
+      // final, sin importar la dirección — no tienen un nj real para comparar.
+      if (key === "nj") {
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+      }
       const numA = Number(valA), numB = Number(valB);
       if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;
       return direction === "asc" ? valA.localeCompare(valB, undefined, { numeric: true }) : valB.localeCompare(valA, undefined, { numeric: true });
