@@ -1103,6 +1103,7 @@ function OrganigramaContent() {
           nombre: newOcupanteInfo.nombre,
           nivel: newOcupanteInfo.nivel,
           smb: newOcupanteInfo.smb,
+          numempleado: newOcupanteInfo.num_empleado,
         };
       }
       setPosInfo(prev => ({
@@ -1321,7 +1322,7 @@ function OrganigramaContent() {
         childPosSelectedEmp && childPosSelectedEmp.posicion === body.num_posicion_gerente
           ? childPosSelectedEmp.vacante
             ? { activa: true, vacante: true }
-            : { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb }
+            : { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb, numempleado: childPosSelectedEmp.num_empleado }
           : null;
       const newNode = {
         departamento: body.departamento,
