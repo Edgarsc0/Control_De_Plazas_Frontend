@@ -39,8 +39,23 @@ import { CatalogoEstructuraService } from "@/services/catalogo_estructura.servic
 import RequirePermission from "@/components/auth/RequirePermission";
 import { PERMISSIONS } from "@/config/permissions";
 import { useAuth } from "@/hooks/useAuth";
+import { useAnyPermission } from "@/hooks/usePermission";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { normalizeForSearch } from "@/utils/columnFilters";
+import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
+
+// Fotografía en el organigrama: mismo endpoint/permiso que las tablas de
+// Plantilla de Empleados (no hay un permiso propio de "foto en organigrama").
+// Basta con cualquiera de los permisos de foto — igual que el OR que ya
+// aplica el backend en EmpleadoFotoView.
+const FOTO_ORGANIGRAMA_PERMISSIONS = [
+  PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_BAJAS_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO,
+];
 
 // ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
 // Nivel → posición de segmento (G,C,A,S,D). "Titular" se trata como raíz (mismo rango que General).
@@ -543,6 +558,7 @@ function OrganigramaContent() {
   const canEditOrganigrama = hasPermission(PERMISSIONS.EDIT_ORGANIGRAMA);
   const canViewInstitucional = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL);
   const canViewSig = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_SIG);
+  const canViewFotoOrganigrama = useAnyPermission(FOTO_ORGANIGRAMA_PERMISSIONS);
   // Solo Institucional es editable; SIG es siempre solo lectura.
   const soloLectura = vistaModo !== "institucional" || !canEditOrganigrama;
   const TOOLTIP_SOLO_LECTURA = vistaModo === "sig"
@@ -1670,6 +1686,15 @@ function OrganigramaContent() {
               <p className="text-[9.5px] text-amber-700 dark:text-amber-400 font-semibold">Departamento vacante</p>
             ) : (
               <>
+                {node.ocupante.numempleado && (
+                  <FotoEmpleadoCell
+                    numempleado={node.ocupante.numempleado}
+                    rootRef={containerRef}
+                    enabled={canViewFotoOrganigrama}
+                    size={26}
+                    caption={`${node.ocupante.nombre} — ${node.descripcion_larga}`}
+                  />
+                )}
                 <p className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-300 leading-tight line-clamp-2">
                   {node.ocupante.nombre}
                 </p>
