@@ -39,8 +39,23 @@ import { CatalogoEstructuraService } from "@/services/catalogo_estructura.servic
 import RequirePermission from "@/components/auth/RequirePermission";
 import { PERMISSIONS } from "@/config/permissions";
 import { useAuth } from "@/hooks/useAuth";
+import { useAnyPermission } from "@/hooks/usePermission";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { normalizeForSearch } from "@/utils/columnFilters";
+import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
+
+// Fotografía en el organigrama: mismo endpoint/permiso que las tablas de
+// Plantilla de Empleados (no hay un permiso propio de "foto en organigrama").
+// Basta con cualquiera de los permisos de foto — igual que el OR que ya
+// aplica el backend en EmpleadoFotoView.
+const FOTO_ORGANIGRAMA_PERMISSIONS = [
+  PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_BAJAS_FOTO,
+  PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO,
+];
 
 // ─── Regla de negocio del determinante (ver eje_central_back plantilla/organigrama_tree.py) ─
 // Nivel → posición de segmento (G,C,A,S,D). "Titular" se trata como raíz (mismo rango que General).
@@ -543,6 +558,7 @@ function OrganigramaContent() {
   const canEditOrganigrama = hasPermission(PERMISSIONS.EDIT_ORGANIGRAMA);
   const canViewInstitucional = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL);
   const canViewSig = hasPermission(PERMISSIONS.VIEW_ORGANIGRAMA_SIG);
+  const canViewFotoOrganigrama = useAnyPermission(FOTO_ORGANIGRAMA_PERMISSIONS);
   // Solo Institucional es editable; SIG es siempre solo lectura.
   const soloLectura = vistaModo !== "institucional" || !canEditOrganigrama;
   const TOOLTIP_SOLO_LECTURA = vistaModo === "sig"
@@ -1087,6 +1103,7 @@ function OrganigramaContent() {
           nombre: newOcupanteInfo.nombre,
           nivel: newOcupanteInfo.nivel,
           smb: newOcupanteInfo.smb,
+          numempleado: newOcupanteInfo.num_empleado,
         };
       }
       setPosInfo(prev => ({
@@ -1305,7 +1322,7 @@ function OrganigramaContent() {
         childPosSelectedEmp && childPosSelectedEmp.posicion === body.num_posicion_gerente
           ? childPosSelectedEmp.vacante
             ? { activa: true, vacante: true }
-            : { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb }
+            : { activa: true, vacante: false, nombre: childPosSelectedEmp.nombre, nivel: childPosSelectedEmp.nivel, smb: childPosSelectedEmp.smb, numempleado: childPosSelectedEmp.num_empleado }
           : null;
       const newNode = {
         departamento: body.departamento,
@@ -1649,6 +1666,20 @@ function OrganigramaContent() {
           onDrop={(e) => { e.preventDefault(); handleReorderDrop(draggingCode, node.departamento, e.clientX, e.currentTarget); }}
           className={`w-60 p-4 bg-white dark:bg-slate-900 rounded-2xl border text-center transition-all duration-200 cursor-pointer select-none flex flex-col justify-between h-48 relative ${cardBorder}`}
         >
+          {/* Fotografía del ocupante: centrada sobre el borde superior de la
+              tarjeta (mitad afuera, mitad adentro), igual que un avatar de
+              perfil — por eso vive fuera del flujo normal del contenido. */}
+          {node.num_posicion_gerente && node.num_posicion_gerente !== "(en blanco)" && node.ocupante?.activa && !node.ocupante.vacante && node.ocupante.numempleado && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 rounded-full bg-white dark:bg-slate-900 p-0.5">
+              <FotoEmpleadoCell
+                numempleado={node.ocupante.numempleado}
+                rootRef={containerRef}
+                enabled={canViewFotoOrganigrama}
+                size={56}
+                caption={`${node.ocupante.nombre} — ${node.descripcion_larga}`}
+              />
+            </div>
+          )}
           <div className="flex items-center justify-between gap-1.5 mb-2">
             <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase ${badgeColor}`}>
               {node.nivel_direccion || "Depto."}
