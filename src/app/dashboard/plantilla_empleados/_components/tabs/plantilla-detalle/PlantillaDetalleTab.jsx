@@ -907,7 +907,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
-  const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort", { key: null, direction: null });
+  // Default: Nivel Jerárquico ascendente (menor a mayor) — key "_v2" para que
+  // usuarios con el viejo default ({key:null}) ya guardado también lo reciban.
+  const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort_v2", { key: "nj", direction: "asc" });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] }, storageKey: "plantilla_detalle_filters" });
@@ -1555,7 +1557,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       setColumnFilters({});
       setTextFilters({});
       setGlobalSearch("");
-      setSortConfig({ key: null, direction: null });
+      setSortConfig({ key: "nj", direction: "asc" });
     });
   };
 
