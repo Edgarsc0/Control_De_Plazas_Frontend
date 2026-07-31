@@ -840,6 +840,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, isBasic: true, noFilter: true },
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
+    { key: "solicitante", label: "Solicitante", width: 200, visible: false, isBasic: false, yellowHeader: true },
+    { key: "nombre_candidato", label: "Nombre del candidato", width: 200, visible: false, isBasic: false, yellowHeader: true },
+    { key: "motivo_solicitud", label: "Motivo de solicitud", width: 200, visible: false, isBasic: false, yellowHeader: true },
     { key: "id_empleado", label: "Número de Empleado", width: 115, visible: true, isBasic: true },
     { key: "rfc", label: "RFC", width: 140, visible: false, isBasic: true },
     { key: "curp", label: "CURP", width: 185, visible: false, isBasic: true },
@@ -886,9 +889,6 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true, greenHeader: true },
     { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true, greenHeader: true },
     { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true, greenHeader: true },
-    { key: "solicitante", label: "Solicitante", width: 200, visible: false, isBasic: false, greenHeader: true },
-    { key: "nombre_candidato", label: "Nombre del candidato", width: 200, visible: false, isBasic: false, greenHeader: true },
-    { key: "motivo_solicitud", label: "Motivo de solicitud", width: 200, visible: false, isBasic: false, greenHeader: true },
     { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
     { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
     { key: "cent", label: "Centro (Código)", width: 80, visible: false, isBasic: false },
@@ -2119,11 +2119,25 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       const est = getEstadoNominaDisplay(row), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
       // Solo Vacante/Solicitada tienen columnas de solicitud que mostrar/ocultar.
       const canToggleSolicitud = est === "Vacante" || est === "Solicitada";
-      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span
-        onClick={canToggleSolicitud ? (e) => { e.stopPropagation(); toggleSolicitudColumns(); } : undefined}
-        title={canToggleSolicitud ? "Clic para mostrar/ocultar los datos de la solicitud" : undefined}
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border} ${canToggleSolicitud ? "cursor-pointer hover:brightness-95 dark:hover:brightness-110" : ""}`}
-      ><Icon className="size-3" />{est}</span>{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+      const pill = (
+        <span
+          onClick={canToggleSolicitud ? (e) => { e.stopPropagation(); toggleSolicitudColumns(); } : undefined}
+          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border} ${canToggleSolicitud ? "cursor-pointer hover:brightness-95 dark:hover:brightness-110" : ""}`}
+        ><Icon className="size-3" />{est}</span>
+      );
+      const tdClassName = `relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      if (!canToggleSolicitud) {
+        return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{pill}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+      }
+      return (
+        <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>
+          <Tooltip>
+            <TooltipTrigger asChild>{pill}</TooltipTrigger>
+            <TooltipContent side="top">{est === "Vacante" ? "Da clic para agregar un candidato" : "Da clic para ver/ocultar los datos del candidato"}</TooltipContent>
+          </Tooltip>
+          {renderCellStatusOverlay(row.posicion, col.key)}
+        </td>
+      );
     }
     if (col.key === "depto" || col.key === "id_departamento") {
       const deptoInfo = getDeptoInfo(deptoCatalog, value);
@@ -2184,11 +2198,20 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     } else {
       displayContent = String(value);
     }
-    // Las 3 columnas de solicitud aparecen/desaparecen al vuelo con el pill de
-    // Estado Nómina (ver toggleSolicitudColumns) — un fade-in suave al montarse
-    // hace visible esa transición sin animar el ancho de la tabla completa.
-    const solicitudFadeClass = SOLICITUD_COLS.includes(col.key) ? "animate-in fade-in slide-in-from-left-1 duration-300" : "";
-    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''} ${solicitudFadeClass}`}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+    const tdClassNameDefault = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+    // Las 3 columnas de solicitud aparecen al vuelo con el pill de Estado
+    // Nómina (ver toggleSolicitudColumns) — motion.td (en vez de clases CSS
+    // "animate-in") garantiza la animación de entrada sin depender de que el
+    // JIT de Tailwind genere esas utilidades para una clase construida en
+    // tiempo de ejecución.
+    if (SOLICITUD_COLS.includes(col.key)) {
+      return (
+        <motion.td key={col.key} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassNameDefault}>
+          {displayContent}{renderCellStatusOverlay(row.posicion, col.key)}
+        </motion.td>
+      );
+    }
+    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassNameDefault}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
   }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, canEditCeldas, toggleSolicitudColumns]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
