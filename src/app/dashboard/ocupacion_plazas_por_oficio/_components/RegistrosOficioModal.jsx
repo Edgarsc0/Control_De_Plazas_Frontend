@@ -83,13 +83,13 @@ const renderStatusBadge = (val) => {
     mappedLabel = cleanVal === "R" ? "Retirado/Baja" : "Baja";
     styles = { bg: "bg-rose-50 dark:bg-rose-950/30", text: "text-rose-700 dark:text-rose-400", border: "border-rose-200 dark:border-rose-800/50" };
   } else if (cleanVal === "L" || cleanVal === "LICENCIA") {
-    mappedLabel = "Licencia";
+    mappedLabel = "Permiso";
     styles = { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200 dark:border-amber-800/50" };
   } else if (cleanVal === "S" || cleanVal === "SUSPENDIDO") {
     mappedLabel = "Suspendido";
     styles = { bg: "bg-blue-50 dark:bg-blue-950/30", text: "text-blue-700 dark:text-blue-400", border: "border-blue-200 dark:border-blue-800/50" };
   } else if (cleanVal === "P" || cleanVal === "LICENCIA MÉDICA" || cleanVal === "LICENCIA MEDICA") {
-    mappedLabel = "Licencia Médica";
+    mappedLabel = "Permiso Retribuido";
     styles = { bg: "bg-purple-50 dark:bg-purple-950/20", text: "text-purple-700 dark:text-purple-400", border: "border-purple-200 dark:border-purple-800/50" };
   } else if (cleanVal === "VACANTE") {
     mappedLabel = "Vacante";

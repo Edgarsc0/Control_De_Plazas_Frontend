@@ -7,7 +7,7 @@ import {
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
   UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2,
-  MousePointerClick
+  MousePointerClick, UserPlus
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "react-awesome-reveal";
@@ -77,8 +77,20 @@ const QUINCENAL_COLS = new Set([
   "cap_mensual",
   "observaciones_plantillas_do",
   "observaciones_proyectos_alineaciones",
-  "anno_vacancia"
+  "anno_vacancia",
+  "solicitante",
+  "nombre_candidato",
+  "motivo_solicitud"
 ]);
+
+// Columnas dedicadas para capturar el candidato de una plaza VACANTE que fue
+// solicitada (mismo dato que en el Excel se escribe sobre RFC/CURP/Nombres/
+// Motivo, pero en columnas propias — así nunca se pisan los datos reales del
+// empleado si la plaza se llega a ocupar). El backend ya las blanquea si la
+// posición está ocupada (ver COLUMNAS_SOLICITUD_VACANTE en el backend), así
+// que "hay datos de solicitud" es suficiente para derivar el estatus.
+const SOLICITUD_COLS = ["solicitante", "nombre_candidato", "motivo_solicitud"];
+const hasSolicitudData = (row) => SOLICITUD_COLS.some((k) => String(row[k] || "").trim() !== "");
 
 // "Fecha de Anuencia" edita/borra vía el MISMO endpoint que Mov. Posiciones
 // (VacantesService.patchFechaAnuenciaOverride/deleteFechaAnuenciaOverride,
@@ -107,30 +119,44 @@ const getFechaAnuenciaBucket = (row) => {
 // solo lugar para que dropdown, conteos alcanzables y filtrado real nunca se
 // desincronicen entre sí.
 const getFilterCellValue = (row, key) => {
-  if (key === "estado_nomina") return mapEstadoNomina(row[key]);
+  if (key === "estado_nomina") return getEstadoNominaDisplay(row);
   if (key === FECHA_ANUENCIA_COL) return getFechaAnuenciaBucket(row);
   return String(row[key] || "").trim();
 };
 
-const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Suspendido": "#3b82f6", "Licencia": "#8b5cf6", "Licencia Médica": "#10b981" };
-const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Suspendido": UserX, "Licencia": CalendarDays, "Licencia Médica": Activity };
+const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Solicitada": "#eab308", "Suspendido": "#3b82f6", "Permiso": "#8b5cf6", "Permiso Retribuido": "#10b981" };
+const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Solicitada": UserPlus, "Suspendido": UserX, "Permiso": CalendarDays, "Permiso Retribuido": Activity };
 const STATUS_BADGE_STYLES = {
   "Activo": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30" },
   "Vacante": { bg: "bg-[#bc955c]/8 dark:bg-[#bc955c]/15", text: "text-[#a37944] dark:text-[#ebd1ac]", border: "border-[#bc955c]/20 dark:border-[#bc955c]/30" },
+  "Solicitada": { bg: "bg-yellow-100 dark:bg-yellow-500/15", text: "text-yellow-700 dark:text-yellow-400", border: "border-yellow-300 dark:border-yellow-500/30" },
   "Suspendido": { bg: "bg-blue-50/50 dark:bg-blue-950/20", text: "text-blue-600 dark:text-blue-300", border: "border-blue-200/50 dark:border-blue-900/40" },
-  "Licencia": { bg: "bg-purple-50/50 dark:bg-purple-950/20", text: "text-purple-600 dark:text-purple-300", border: "border-purple-200/50 dark:border-purple-900/40" },
-  "Licencia Médica": { bg: "bg-emerald-50/50 dark:bg-emerald-950/20", text: "text-emerald-600 dark:text-emerald-300", border: "border-emerald-200/50 dark:border-emerald-900/40" }
+  "Permiso": { bg: "bg-purple-50/50 dark:bg-purple-950/20", text: "text-purple-600 dark:text-purple-300", border: "border-purple-200/50 dark:border-purple-900/40" },
+  "Permiso Retribuido": { bg: "bg-emerald-50/50 dark:bg-emerald-950/20", text: "text-emerald-600 dark:text-emerald-300", border: "border-emerald-200/50 dark:border-emerald-900/40" }
 };
 
+// Códigos crudos (A/S/L/P) tal como llegan de EmpleadosCompletosSig; las
+// etiquetas usan la nomenclatura de la plantilla de Excel (Permiso/Permiso
+// Retribuido), no los nombres históricos Licencia/Licencia Médica.
 const mapEstadoNomina = (val) => {
   if (!val || val.trim() === "") return "Vacante";
   switch (val.trim().toUpperCase()) {
     case "A": return "Activo";
     case "S": return "Suspendido";
-    case "L": return "Licencia";
-    case "P": return "Licencia Médica";
+    case "L": return "Permiso";
+    case "P": return "Permiso Retribuido";
     default: return "Vacante";
   }
+};
+
+// Estatus mostrado al usuario: igual que mapEstadoNomina, salvo que una plaza
+// Vacante con datos de candidato capturados (ver SOLICITUD_COLS) se muestra
+// como "Solicitada" — el backend ya garantiza que esos datos solo existen
+// mientras la plaza siga vacante (ver COLUMNAS_SOLICITUD_VACANTE), así que no
+// hace falta ninguna bandera guardada, solo derivarlo en cada lectura.
+const getEstadoNominaDisplay = (row) => {
+  const base = mapEstadoNomina(row.estado_nomina);
+  return base === "Vacante" && hasSolicitudData(row) ? "Solicitada" : base;
 };
 
 // Códigos de partida confirmados con el usuario: 11301=Permanente,
@@ -860,6 +886,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true, greenHeader: true },
     { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true, greenHeader: true },
     { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true, greenHeader: true },
+    { key: "solicitante", label: "Solicitante", width: 200, visible: false, isBasic: false, greenHeader: true },
+    { key: "nombre_candidato", label: "Nombre del candidato", width: 200, visible: false, isBasic: false, greenHeader: true },
+    { key: "motivo_solicitud", label: "Motivo de solicitud", width: 200, visible: false, isBasic: false, greenHeader: true },
     { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
     { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
     { key: "cent", label: "Centro (Código)", width: 80, visible: false, isBasic: false },
@@ -937,6 +966,19 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     setVacanciaRowId(row.mov_pos_id);
     setIsVacanciaModalOpen(true);
   }, []);
+
+  // Clic en el pill de "Vacante"/"Solicitada" (columna Estado Nómina): muestra
+  // u oculta en bloque las 3 columnas de solicitud. Si estaban en un estado
+  // mixto (alguna visible por "Configurar Columnas" y otra no), primero las
+  // deja a todas visibles en vez de alternar cada una por separado — evita
+  // que el pill deje una combinación inconsistente.
+  const toggleSolicitudColumns = useCallback(() => {
+    const allVisible = SOLICITUD_COLS.every((k) => columns.find((c) => c.key === k)?.visible);
+    SOLICITUD_COLS.forEach((k) => {
+      const col = columns.find((c) => c.key === k);
+      if (col && col.visible === allVisible) toggleColumnVisibility(k);
+    });
+  }, [columns, toggleColumnVisibility]);
   useEffect(() => {
     let active = true;
     if (isVacanciaModalOpen && vacanciaRowId !== null) {
@@ -1894,6 +1936,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const handleCellDoubleClick = useCallback((e, value, row, colKey) => {
     if (!canEditCeldas || !isPasteableColumn(colKey)) return;
+    // Los datos de solicitud solo tienen sentido mientras la plaza siga
+    // vacante — el backend los va a seguir blanqueando si ya se ocupó, así
+    // que ni siquiera se deja entrar en modo edición ahí.
+    if (SOLICITUD_COLS.includes(colKey) && getEstadoNominaDisplay(row) !== "Vacante" && getEstadoNominaDisplay(row) !== "Solicitada") return;
     const strValue = value === undefined || value === null ? "" : String(value);
     setEditingCell({ posicion: row.posicion, colKey, value: strValue, originalValue: strValue });
   }, [canEditCeldas, isPasteableColumn]);
@@ -2070,8 +2116,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       );
     }
     if (col.key === "estado_nomina") {
-      const est = mapEstadoNomina(value), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
-      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}><Icon className="size-3" />{est}</span>{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+      const est = getEstadoNominaDisplay(row), Icon = STATUS_ICONS[est] || UserCheck, badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
+      // Solo Vacante/Solicitada tienen columnas de solicitud que mostrar/ocultar.
+      const canToggleSolicitud = est === "Vacante" || est === "Solicitada";
+      return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span
+        onClick={canToggleSolicitud ? (e) => { e.stopPropagation(); toggleSolicitudColumns(); } : undefined}
+        title={canToggleSolicitud ? "Clic para mostrar/ocultar los datos de la solicitud" : undefined}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border} ${canToggleSolicitud ? "cursor-pointer hover:brightness-95 dark:hover:brightness-110" : ""}`}
+      ><Icon className="size-3" />{est}</span>{renderCellStatusOverlay(row.posicion, col.key)}</td>);
     }
     if (col.key === "depto" || col.key === "id_departamento") {
       const deptoInfo = getDeptoInfo(deptoCatalog, value);
@@ -2132,8 +2184,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     } else {
       displayContent = String(value);
     }
-    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
-  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, canEditCeldas]);
+    // Las 3 columnas de solicitud aparecen/desaparecen al vuelo con el pill de
+    // Estado Nómina (ver toggleSolicitudColumns) — un fade-in suave al montarse
+    // hace visible esa transición sin animar el ancho de la tabla completa.
+    const solicitudFadeClass = SOLICITUD_COLS.includes(col.key) ? "animate-in fade-in slide-in-from-left-1 duration-300" : "";
+    return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={`relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''} ${solicitudFadeClass}`}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, canEditCeldas, toggleSolicitudColumns]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -2145,6 +2201,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // compartido por el menú contextual ("Pegar valor") y el atajo Ctrl+V.
   const pasteValueToCell = useCallback(async (row, colKey, text) => {
     if (!row || !colKey || !isPasteableColumn(colKey)) return;
+    if (SOLICITUD_COLS.includes(colKey) && getEstadoNominaDisplay(row) !== "Vacante" && getEstadoNominaDisplay(row) !== "Solicitada") return;
     const previousValue = row[colKey] === undefined || row[colKey] === null ? "" : String(row[colKey]);
     setCellSaving(row.posicion, colKey);
     try {
@@ -2384,7 +2441,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       filteredSortedData.forEach(row => {
         const dataRow = {};
         visibleCols.forEach(col => {
-          if (col.key === "estado_nomina") dataRow[col.key] = mapEstadoNomina(row[col.key]);
+          if (col.key === "estado_nomina") dataRow[col.key] = getEstadoNominaDisplay(row);
           else if (col.key === "partida") dataRow[col.key] = mapPartida(row[col.key], row.posicion);
           else if (col.key === "tipo_de_contratacion") dataRow[col.key] = mapTipoContratacion(row[col.key]);
           else if (col.key === "rango") dataRow[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
@@ -2547,8 +2604,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       { label: "Activo", count: resumen?.Activo || 9421, color: STATUS_COLORS["Activo"] },
       { label: "Vacante", count: resumen?.Vacante || 2482, color: STATUS_COLORS["Vacante"] },
       { label: "Suspendido", count: resumen?.Suspendido || 23, color: STATUS_COLORS["Suspendido"] },
-      { label: "Licencia Médica", count: resumen?.Licencia_Medica || 27, color: STATUS_COLORS["Licencia Médica"] },
-      { label: "Licencia", count: resumen?.Licencia || 4, color: STATUS_COLORS["Licencia"] }
+      { label: "Permiso Retribuido", count: resumen?.Licencia_Medica || 27, color: STATUS_COLORS["Permiso Retribuido"] },
+      { label: "Permiso", count: resumen?.Licencia || 4, color: STATUS_COLORS["Permiso"] }
     ];
     let cumulativePercent = 0;
     return slices.map(slice => {
@@ -2567,7 +2624,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   // Badge de estado para la vista de tarjetas en móvil (mismo lenguaje visual que la celda).
   const renderEstadoBadge = useCallback((row) => {
-    const est = mapEstadoNomina(row.estado_nomina);
+    const est = getEstadoNominaDisplay(row);
     const Icon = STATUS_ICONS[est] || UserCheck;
     const badge = STATUS_BADGE_STYLES[est] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
     return (

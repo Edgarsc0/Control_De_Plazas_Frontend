@@ -7,8 +7,8 @@ const mapEstadoNomina = (val) => {
   switch (val.trim().toUpperCase()) {
     case "A": return "Activo";
     case "S": return "Suspendido";
-    case "L": return "Licencia";
-    case "P": return "Licencia Médica";
+    case "L": return "Permiso";
+    case "P": return "Permiso Retribuido";
     default: return "Vacante";
   }
 };
@@ -18,8 +18,8 @@ const STATUS_COLORS = {
   Activo: "FF621F32",         // Burgundy
   Vacante: "FFBC955C",        // Gold
   Suspendido: "FF3B82F6",     // Blue
-  Licencia: "FF8B5CF6",       // Purple
-  "Licencia Médica": "FF10B981" // Green
+  Permiso: "FF8B5CF6",         // Purple
+  "Permiso Retribuido": "FF10B981" // Green
 };
 
 const getEstatusColorHex = (label) => {

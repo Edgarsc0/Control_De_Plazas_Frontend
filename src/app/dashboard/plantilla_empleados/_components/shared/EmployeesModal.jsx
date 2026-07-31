@@ -123,6 +123,13 @@ export const ALL_AVAILABLE_COLUMNS = [
   { key: "nombre_nj", label: "NOMBRE NJ", category: "Otros" },
 ];
 
+// EstatusTab.jsx muestra "Permiso"/"Permiso Retribuido" (nomenclatura de la
+// plantilla de Excel), pero EmpleadosPorNivelYEstatusView en el backend sigue
+// esperando los nombres históricos Licencia/Licencia Médica para resolver el
+// código A/S/L/P — se traduce aquí, en el único punto donde el estatus viaja
+// al backend, sin necesidad de tocar el contrato existente.
+const ESTADO_NOMINA_BACKEND_LABELS = { "Permiso": "Licencia", "Permiso Retribuido": "Licencia Médica" };
+
 const DEFAULT_COLUMN_KEYS = [
   "id_empleado",
   "nombres",
@@ -1066,7 +1073,13 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         setLoading(true);
         setError(null);
         try {
-            const response = await VacantesService.getEmpleadosPorNivelYEstatus(nivel, effectiveEstatus);
+            // El backend de EmpleadosPorNivelYEstatusView todavía espera los
+            // nombres históricos Licencia/Licencia Médica (estatus_map_reverse
+            // en views.py); EstatusTab ya muestra Permiso/Permiso Retribuido
+            // en pantalla, así que aquí se traduce de vuelta justo antes de
+            // llamar al backend, sin tocar el contrato existente.
+            const backendEstatus = ESTADO_NOMINA_BACKEND_LABELS[effectiveEstatus] || effectiveEstatus;
+            const response = await VacantesService.getEmpleadosPorNivelYEstatus(nivel, backendEstatus);
             const data = await response.json();
             if (response.ok) {
                 let results = data.resultados || [];

@@ -35,19 +35,25 @@ const STATUS_COLORS = {
   Activo: "#621f32",
   Vacante: "#bc955c",
   Suspendido: "#3b82f6",
-  Licencia: "#8b5cf6",
-  "Licencia Médica": "#10b981",
+  Permiso: "#8b5cf6",
+  "Permiso Retribuido": "#10b981",
 };
 
-const STATUS_ORDER = ["Activo", "Vacante", "Suspendido", "Licencia", "Licencia Médica"];
+const STATUS_ORDER = ["Activo", "Vacante", "Suspendido", "Permiso", "Permiso Retribuido"];
 
+// Códigos crudos (A/S/L/P) tal como llegan de EmpleadosCompletosSig; las
+// etiquetas usan la nomenclatura de la plantilla de Excel (Permiso/Permiso
+// Retribuido en vez de los nombres históricos Licencia/Licencia Médica). Ojo:
+// EmployeesModal convierte de vuelta a Licencia/Licencia Médica justo antes
+// de llamar a getEmpleadosPorNivelYEstatus, porque el backend todavía espera
+// esos nombres — ver ESTADO_NOMINA_BACKEND_LABELS en EmployeesModal.jsx.
 const mapEstadoNomina = (val) => {
   if (!val || val.trim() === "") return "Vacante";
   switch (val.trim().toUpperCase()) {
     case "A": return "Activo";
     case "S": return "Suspendido";
-    case "L": return "Licencia";
-    case "P": return "Licencia Médica";
+    case "L": return "Permiso";
+    case "P": return "Permiso Retribuido";
     default: return "Vacante";
   }
 };
@@ -62,8 +68,8 @@ const getMappedEstatusData = (rawCounts) => {
     Activo: 0,
     Vacante: 0,
     Suspendido: 0,
-    Licencia: 0,
-    "Licencia Médica": 0,
+    Permiso: 0,
+    "Permiso Retribuido": 0,
   };
   Object.entries(rawCounts || {}).forEach(([key, count]) => {
     const label = mapEstadoNomina(key);

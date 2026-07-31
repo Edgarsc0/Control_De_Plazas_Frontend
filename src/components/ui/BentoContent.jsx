@@ -803,8 +803,8 @@ export function PlantillaEmpleados({ resumenEmpleados }) {
     { label: 'Activo', percent: 0.79, color: '#621f32' },
     { label: 'Vacante', percent: 0.20, color: '#bc955c' },
     { label: 'Suspendido', percent: 0.002, color: '#3b82f6' },
-    { label: 'Licencia', percent: 0.001, color: '#8b5cf6' },
-    { label: 'Licencia Médica', percent: 0.005, color: '#10b981' },
+    { label: 'Permiso', percent: 0.001, color: '#8b5cf6' },
+    { label: 'Permiso Retribuido', percent: 0.005, color: '#10b981' },
   ];
 
   let displayData = defaultData;
@@ -833,12 +833,12 @@ export function PlantillaEmpleados({ resumenEmpleados }) {
         color: '#3b82f6',
       },
       {
-        label: 'Licencia',
+        label: 'Permiso',
         percent: (resumenEmpleados.Licencia || 0) / total,
         color: '#8b5cf6',
       },
       {
-        label: 'Licencia Médica',
+        label: 'Permiso Retribuido',
         percent: (resumenEmpleados.Licencia_Medica || 0) / total,
         color: '#10b981',
       },
