@@ -1,6 +1,6 @@
 'use client';
 
-import { Zoom } from 'react-awesome-reveal';
+import { Zoom } from '@/components/shared/Reveal';
 import CodigoVerificacionDrawer from '@/components/shared/CodigoVerificacionDrawer';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';

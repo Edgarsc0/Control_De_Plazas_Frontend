@@ -1,6 +1,6 @@
 'use client';
 
-import { Zoom } from 'react-awesome-reveal';
+import { Zoom } from '@/components/shared/Reveal';
 import RotatingText from '@/components/ui/RotatingText';
 import { ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';

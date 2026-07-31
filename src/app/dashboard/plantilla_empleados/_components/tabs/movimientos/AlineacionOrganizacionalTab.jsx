@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import {
   AreaChart, Area, ResponsiveContainer, YAxis, Tooltip as RechartsTooltip,
 } from "recharts";

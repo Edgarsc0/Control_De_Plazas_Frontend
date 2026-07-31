@@ -10,7 +10,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Loader2, X, Filter, ChevronLeft, ChevronRight, Search, ArrowUpDown, FileText } from "lucide-react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 

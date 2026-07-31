@@ -8,7 +8,7 @@ import {
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
 , UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
@@ -52,6 +52,13 @@ const noop = () => {};
 
 const DATE_KEYS = ["fecha_efectiva", "fecha_captura", "salida_prevista", "fecha_ult_actz", "ult_inicio", "fecha_inicial", "fecha_entrada", "fecha_posicion"];
 const isDateColumn = (key) => DATE_KEYS.includes(key);
+
+// Únicas columnas realmente numéricas en el modelo (CpTblMovCompleto290526):
+// el resto son CharField aunque su contenido parezca numérico (códigos,
+// "grado", "escala" de texto, etc.) — filtrar backend >/< sobre esas
+// requeriría castear texto arbitrario, así que no se ofrecen ahí.
+const NUMBER_KEYS = ["sec", "sal_base", "antiguo_empr"];
+const isNumericColumn = (key) => NUMBER_KEYS.includes(key);
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 const getTodayString = () => {
@@ -349,6 +356,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   } = useAdvancedFilters({
     mode: "server",
     isDateColumn,
+    isNumericColumn,
     onApply: () => { setLoading(true); setPage(1); },
   });
 
@@ -2628,6 +2636,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         onUpdateCondition={updateAdvancedCondition}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
+        isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvValueSuggestions}
       />
 

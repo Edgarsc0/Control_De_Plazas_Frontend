@@ -9,7 +9,7 @@ import {
   Calendar, Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
@@ -28,7 +28,7 @@ import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
-import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
+import { evaluateAdvancedFilters, isColumnNumericByData } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -292,6 +292,13 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const getAdvCellValue = useCallback((row, key) =>
     row[key] === null || row[key] === undefined ? "" : String(row[key]), []);
 
+  // Sin lista hardcodeada: si los valores de la columna en el dataset actual
+  // parsean como número, se habilitan las condiciones >, <, >=, <= en el modal.
+  const isNumericColumn = useCallback((colKey) => {
+    if (isDateColumn(colKey)) return false;
+    return isColumnNumericByData(bajasData, colKey, getAdvCellValue);
+  }, [bajasData, isDateColumn, getAdvCellValue]);
+
   const fetchAdvSuggestions = useCallback((column) =>
     getUniqueColumnValues(bajasData, column, getAdvCellValue), [bajasData, getAdvCellValue]);
 
@@ -301,7 +308,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
-  } = useAdvancedFilters({ mode: "client", isDateColumn });
+  } = useAdvancedFilters({ mode: "client", isDateColumn, isNumericColumn });
 
   // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
   useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
@@ -570,9 +577,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
           if (!lowerVal.includes(lowerSearch)) return false;
       }
     }
-    if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return false;
+    if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn, isNumericColumn })) return false;
     return true;
-  }, [deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn]);
+  }, [deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn]);
 
   const filteredSortedData = useMemo(() => {
     let result = bajasData.filter(row => rowPassesFilters(row));
@@ -1363,6 +1370,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         onUpdateCondition={updateAdvancedCondition}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
+        isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvSuggestions}
       />
 

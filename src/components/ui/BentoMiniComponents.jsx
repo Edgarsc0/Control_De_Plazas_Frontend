@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useEffect, useId } from 'react';
+import { useState, useId, useRef } from 'react';
 import { ArrowUpRight } from 'lucide-react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(useGSAP);
 
 export function Sparkline({ values, color }) {
     const max = Math.max(...values), min = Math.min(...values);
@@ -44,18 +48,20 @@ export function MiniBars({ values, color }) {
 
 export function Counter({ target, prefix = '', suffix = '' }) {
     const [val, setVal] = useState(0);
-    useEffect(() => {
-        const t = setTimeout(() => {
-            const s = Date.now(), d = 1600;
-            const tick = () => {
-                const p = Math.min((Date.now() - s) / d, 1);
-                setVal(Math.round((1 - Math.pow(1 - p, 3)) * target));
-                if (p < 1) requestAnimationFrame(tick);
-            };
-            requestAnimationFrame(tick);
-        }, 400);
-        return () => clearTimeout(t);
+    const counterObj = useRef({ value: 0 });
+
+    useGSAP(() => {
+        const obj = counterObj.current;
+        obj.value = 0;
+        gsap.to(obj, {
+            value: target,
+            duration: 1.6,
+            delay: 0.4,
+            ease: 'power3.out',
+            onUpdate: () => setVal(Math.round(obj.value)),
+        });
     }, [target]);
+
     return <>{prefix}{val.toLocaleString('en-US')}{suffix}</>;
 }
 

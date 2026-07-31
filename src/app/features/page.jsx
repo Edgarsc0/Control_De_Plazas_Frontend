@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
-import { Zoom, Fade } from 'react-awesome-reveal';
+import { Zoom, Fade } from '@/components/shared/Reveal';
 import {
   LayoutDashboard,
   BarChart3,

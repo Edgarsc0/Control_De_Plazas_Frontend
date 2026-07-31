@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { Zoom, Fade } from "react-awesome-reveal"
+import { Zoom, Fade } from "@/components/shared/Reveal";
 import { motion, AnimatePresence } from 'motion/react';
 import {
     LayoutDashboard, ChevronRight, Table as TableIcon,

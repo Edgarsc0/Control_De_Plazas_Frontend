@@ -10,7 +10,7 @@ import {
   MousePointerClick, UserPlus
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
@@ -37,7 +37,7 @@ import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, applyColumnFilters, defaultGetCellValue } from "@/utils/columnFilters";
-import { evaluateAdvancedFilters } from "@/utils/advancedFilters";
+import { evaluateAdvancedFilters, isColumnNumericByData } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -121,6 +121,7 @@ const getFechaAnuenciaBucket = (row) => {
 const getFilterCellValue = (row, key) => {
   if (key === "estado_nomina") return getEstadoNominaDisplay(row);
   if (key === FECHA_ANUENCIA_COL) return getFechaAnuenciaBucket(row);
+  if (key === "nj") return mapNivelJerarquico(row[key], row.nombre_puesto_funcional);
   return String(row[key] || "").trim();
 };
 
@@ -180,6 +181,29 @@ const TIPO_CONTRATACION_LABELS = { SAT_CFZA: "Confianza", SAT_BSE: "Base" };
 const mapTipoContratacion = (val) => {
   const codigo = String(val ?? "").trim();
   return TIPO_CONTRATACION_LABELS[codigo] || codigo;
+};
+
+// Nivel Jerárquico (columna "nj"): códigos 0-8 del catálogo oficial. El 3 es
+// ambiguo por sí solo — "Director de Área" y "Titular de Aduana" comparten
+// código, así que se desambigua por el nombre del puesto funcional (mismo
+// criterio confirmado con el usuario que ya usa el resto del front).
+const NIVEL_JERARQUICO_LABELS = {
+  "0": "0. Titular ANAM",
+  "1": "1. Director General",
+  "2": "2. Director Central",
+  "4": "4. Subdirector",
+  "5": "5. Jefe de Departamento",
+  "6": "6. Enlace",
+  "7": "7. Operativo Confianza",
+  "8": "8. Operativo Base",
+};
+const mapNivelJerarquico = (val, nombrePuestoFuncional) => {
+  const codigo = String(val ?? "").trim();
+  if (codigo === "3") {
+    const esTitularAduana = String(nombrePuestoFuncional ?? "").trim().toUpperCase().startsWith("ADMINISTRADOR DE ADUANA");
+    return esTitularAduana ? "3. Titular de Aduana" : "3. Director Area";
+  }
+  return NIVEL_JERARQUICO_LABELS[codigo] || codigo;
 };
 
 // "Rango" (grado militar) viene vacío para la gran mayoría del personal
@@ -936,7 +960,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
-  const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort", { key: null, direction: null });
+  // Default: Nivel Jerárquico ascendente (menor a mayor) — key "_v2" para que
+  // usuarios con el viejo default ({key:null}) ya guardado también lo reciban.
+  const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort_v2", { key: "nj", direction: "asc" });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] }, storageKey: "plantilla_detalle_filters" });
@@ -1423,6 +1449,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const getAdvCellValue = useCallback((row, key) =>
     key === "estado_nomina" ? mapEstadoNomina(row[key]) : (row[key] === null || row[key] === undefined ? "" : String(row[key])), []);
 
+  // Sin lista hardcodeada: si los valores de la columna en el dataset actual
+  // parsean como número, se habilitan las condiciones >, <, >=, <= en el modal.
+  const isNumericColumn = useCallback((colKey) => {
+    if (isDateColumn(colKey)) return false;
+    return isColumnNumericByData(detalle, colKey, getAdvCellValue);
+  }, [detalle, isDateColumn, getAdvCellValue]);
+
   const fetchAdvSuggestions = useCallback((column) =>
     getUniqueColumnValues(detalle, column, getAdvCellValue), [detalle, getAdvCellValue]);
 
@@ -1432,7 +1465,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
-  } = useAdvancedFilters({ mode: "client", isDateColumn });
+  } = useAdvancedFilters({ mode: "client", isDateColumn, isNumericColumn });
 
   // BUG-05 QA: la selección es posicional ({row, col}); si cambia el filtro u
   // orden, la celda puede quedar apuntando a otro registro sin avisar.
@@ -1597,7 +1630,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       setColumnFilters({});
       setTextFilters({});
       setGlobalSearch("");
-      setSortConfig({ key: null, direction: null });
+      setSortConfig({ key: "nj", direction: "asc" });
     });
   };
 
@@ -1750,10 +1783,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             if (!lowerVal.includes(lowerSearch)) return false;
         }
       }
-      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return false;
+      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn, isNumericColumn })) return false;
       return true;
     });
-  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
+  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, searchIndex]);
 
   const filteredSortedData = useMemo(() => {
     if (!sortConfig.key || !sortConfig.direction) return filteredData;
@@ -1762,6 +1795,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     result.sort((a, b) => {
       let valA = key === "estado_nomina" ? mapEstadoNomina(a[key]) : String(a[key] || "").trim();
       let valB = key === "estado_nomina" ? mapEstadoNomina(b[key]) : String(b[key] || "").trim();
+      // Posiciones sin nivel jerárquico (laudos "103L...", etc.) van siempre al
+      // final, sin importar la dirección — no tienen un nj real para comparar.
+      if (key === "nj") {
+        if (!valA && !valB) return 0;
+        if (!valA) return 1;
+        if (!valB) return -1;
+      }
       const numA = Number(valA), numB = Number(valB);
       if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;
       return direction === "asc" ? valA.localeCompare(valB, undefined, { numeric: true }) : valB.localeCompare(valA, undefined, { numeric: true });
@@ -1828,12 +1868,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         }
         if (!pass) return;
       }
-      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn })) return;
+      if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn, isNumericColumn })) return;
       const val = getFilterCellValue(row, colKey);
       counts[val] = (counts[val] || 0) + 1;
     });
     return counts;
-  }, [detalle, datosParaColumnaActiva, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, searchIndex]);
+  }, [detalle, datosParaColumnaActiva, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, searchIndex]);
 
   const reachableCounts = useMemo(
     () => (activeFilterDropdown ? computeReachableCounts(activeFilterDropdown) : {}),
@@ -2191,6 +2231,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       displayContent = mapPartida(value, row.posicion);
     } else if (col.key === "tipo_de_contratacion") {
       displayContent = mapTipoContratacion(value);
+    } else if (col.key === "nj") {
+      displayContent = mapNivelJerarquico(value, row.nombre_puesto_funcional);
     } else if (isDateColumn(col.key)) {
       displayContent = formatDateEsMx(value);
     } else if (CURRENCY_KEYS.has(col.key) && !isNaN(Number(value))) {
@@ -2681,6 +2723,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             return isNaN(n) ? row[col.key] : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
           },
         } : {}),
+        ...(col.key === "nj" ? { render: (row) => mapNivelJerarquico(row.nj, row.nombre_puesto_funcional) } : {}),
       })),
   }), [dataColumns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS]);
 
@@ -3635,6 +3678,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         onUpdateCondition={updateAdvancedCondition}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
+        isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvSuggestions}
       />
 

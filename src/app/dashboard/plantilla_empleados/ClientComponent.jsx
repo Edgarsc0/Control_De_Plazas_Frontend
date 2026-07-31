@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef, useCallback, useMemo, use, Suspense } from "react";
-import { Zoom } from "react-awesome-reveal";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
+import { Zoom } from "@/components/shared/Reveal";
+
+gsap.registerPlugin(useGSAP);
 import {
   Users,
   Briefcase,
@@ -184,6 +188,31 @@ export default function PlantillaEmpleadosDetalle({
   useEffect(() => {
     setVisitedTabs((prev) => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
   }, [activeTab]);
+
+  // Fade+slide corto al cambiar de tab/subtab: los paneles ya están montados y
+  // solo se togglean con block/hidden (ver comentario más abajo), así que se
+  // anima el wrapper que los contiene en vez de cada panel por separado.
+  const tabContentRef = useRef(null);
+  useGSAP(
+    () => {
+      if (!tabContentRef.current) return;
+      gsap.fromTo(
+        tabContentRef.current,
+        { opacity: 0, y: 10 },
+        // clearProps quita el transform inline al terminar: si se queda (aunque
+        // sea translate(0,0)), el wrapper pasa a ser containing block de sus
+        // descendientes position:fixed (p.ej. el botón flotante de "Movimientos
+        // realizados hoy" en PlantillaDetalleTab), que dejan de posicionarse
+        // contra el viewport y caen mucho más abajo de lo esperado.
+        { opacity: 1, y: 0, duration: 0.18, ease: "power2.out", clearProps: "transform" }
+      );
+    },
+    {
+      scope: tabContentRef,
+      dependencies: [activeTab, activeMovimientosSubTab, activeMapaSubTab, activeCatalogoSubTab],
+      revertOnUpdate: true,
+    }
+  );
   // En móvil la tarjeta de header sólo aparece cuando el tab activo tiene
   // sub-controles (Agrupar/Ver); el cambio de tab principal vive en el Drawer
   // del BottomNav.
@@ -371,7 +400,7 @@ export default function PlantillaEmpleadosDetalle({
           )}
         </div>
 
-        <div className="w-full mt-2">
+        <div className="w-full mt-2" ref={tabContentRef}>
           {/* Tabs con estado propio (filtros, orden, scroll, datos por fetch de cliente):
               se mantienen montados una vez visitados y se ocultan con CSS al salir,
               en vez de desmontarse, para no perder su estado ni re-fetchear. */}
