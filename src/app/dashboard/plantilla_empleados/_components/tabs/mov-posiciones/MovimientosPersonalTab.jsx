@@ -8,7 +8,7 @@ import {
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
 , UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";

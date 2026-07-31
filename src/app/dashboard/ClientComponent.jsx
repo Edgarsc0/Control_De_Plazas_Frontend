@@ -18,7 +18,7 @@ import {
   PresupuestarVolumenContent,
   OrganigramaPreviewContent,
 } from '@/components/ui/BentoContent';
-import { Zoom } from 'react-awesome-reveal';
+import { Zoom } from '@/components/shared/Reveal';
 import { useAuth } from '@/hooks/useAuth';
 import { MODULES, isModuleVisible } from '@/config/modules';
 import { useRefreshOnZafiroUpdate } from '@/context/ZafiroUpdatesContext';

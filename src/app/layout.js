@@ -3,7 +3,7 @@ import "./globals.css";
 import Banner from "@/components/layout/Banner";
 import Navbar from "@/components/layout/Navbar";
 import BottomNav from "@/components/layout/BottomNav";
-import { Fade, Slide, Zoom } from "react-awesome-reveal";
+import { Fade } from "@/components/shared/Reveal";
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ZafiroUpdatesProvider } from "@/context/ZafiroUpdatesContext"
 import { PageTabsProvider } from "@/context/PageTabsContext"

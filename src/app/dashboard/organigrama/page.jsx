@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import {
   ChevronDown,
   ChevronRight,
@@ -43,6 +45,8 @@ import { useAnyPermission } from "@/hooks/usePermission";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
+
+gsap.registerPlugin(useGSAP);
 
 // Fotografía en el organigrama: mismo endpoint/permiso que las tablas de
 // Plantilla de Empleados (no hay un permiso propio de "foto en organigrama").
@@ -683,6 +687,62 @@ function OrganigramaContent() {
   useBodyScrollLock(!!selectedNode || showExportModal || showCreateGeneral || showCreateChild);
 
   const containerRef = useRef(null);
+
+  // Expand/collapse: anima solo lo que acaba de aparecer (nodos + conectores),
+  // no todo el árbol visible — se detecta comparando el set de
+  // data-node-id/data-parent-id presentes en el DOM contra el visto en el
+  // toggle anterior. El collapse es instantáneo (los nodos ya se desmontaron
+  // para cuando corre el effect, no hay nada que animar de salida).
+  const prevVisibleNodeIdsRef = useRef(new Set());
+  const prevVisibleConnectorIdsRef = useRef(new Set());
+  const isFirstExpandRunRef = useRef(true);
+  useGSAP(
+    () => {
+      if (!containerRef.current) return;
+      // Primera carga: solo establece la línea base, sin animar — si no, el
+      // árbol completo entraría con stagger (podría tardar segundos en un
+      // organigrama grande) en vez de pintarse de inmediato.
+      const isFirstRun = isFirstExpandRunRef.current;
+      isFirstExpandRunRef.current = false;
+
+      const prevNodeIds = prevVisibleNodeIdsRef.current;
+      const newNodeEls = [];
+      const currentNodeIds = new Set();
+      containerRef.current.querySelectorAll("[data-node-id]").forEach((el) => {
+        const id = el.dataset.nodeId;
+        currentNodeIds.add(id);
+        if (!isFirstRun && !prevNodeIds.has(id)) newNodeEls.push(el);
+      });
+      prevVisibleNodeIdsRef.current = currentNodeIds;
+      if (newNodeEls.length) {
+        gsap.fromTo(
+          newNodeEls,
+          { opacity: 0, scale: 0.85, y: -10 },
+          { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: "back.out(1.5)", stagger: 0.04 }
+        );
+      }
+
+      const prevConnectorIds = prevVisibleConnectorIdsRef.current;
+      const newPathEls = [];
+      const currentConnectorIds = new Set();
+      containerRef.current.querySelectorAll("svg path[data-parent-id]").forEach((el) => {
+        const id = el.dataset.parentId;
+        currentConnectorIds.add(id);
+        if (!isFirstRun && !prevConnectorIds.has(id)) newPathEls.push(el);
+      });
+      prevVisibleConnectorIdsRef.current = currentConnectorIds;
+      newPathEls.forEach((path) => {
+        const length = path.getTotalLength();
+        gsap.fromTo(
+          path,
+          { strokeDasharray: length, strokeDashoffset: length },
+          { strokeDashoffset: 0, duration: 0.4, ease: "power2.out" }
+        );
+      });
+    },
+    { scope: containerRef, dependencies: [expandedNodes], revertOnUpdate: true }
+  );
+
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
@@ -1989,6 +2049,7 @@ function OrganigramaContent() {
                 {connectors.map(c => (
                   <path
                     key={c.parentId}
+                    data-parent-id={c.parentId}
                     d={segmentsToSvgPath(c.segments)}
                     className="stroke-slate-400 dark:stroke-slate-600"
                     fill="none"
@@ -2012,6 +2073,7 @@ function OrganigramaContent() {
                         return (
                           <div
                             key={node.departamento}
+                            data-node-id={node.departamento}
                             className="absolute top-0"
                             style={{ left: cx - CARD_WIDTH / 2, width: CARD_WIDTH }}
                           >

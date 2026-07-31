@@ -9,7 +9,7 @@ import {
   Calendar, Eye
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Zoom } from "react-awesome-reveal";
+import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
