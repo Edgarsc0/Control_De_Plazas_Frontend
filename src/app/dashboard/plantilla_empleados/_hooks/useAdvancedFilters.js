@@ -18,8 +18,9 @@ import { useToast } from '@/hooks/useToast';
  * @param {'server'|'client'} [params.mode='client']
  * @param {(validConditions: Object[]) => void} [params.onApply] - Side-effect extra al aplicar (p. ej. `setLoading(true)`/`setPage(1)` en Movimientos).
  * @param {(key: string) => boolean} [params.isDateColumn=() => false] - Determina si una columna es de fecha (cambia las opciones de condición y resetea `condition` al cambiar de columna).
+ * @param {(key: string) => boolean} [params.isNumericColumn=() => false] - Determina si una columna es numérica (mismo efecto que `isDateColumn`, con sus propias condiciones).
  */
-export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = () => false } = {}) {
+export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = () => false, isNumericColumn = () => false } = {}) {
   const { toast } = useToast();
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const advConditionIdRef = useRef(1);
@@ -39,13 +40,13 @@ export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = ()
       if (c.id !== id) return c;
       const next = { ...c, ...patch };
       if (patch.column !== undefined && patch.column !== c.column) {
-        next.condition = isDateColumn(patch.column) ? 'before' : 'contains';
+        next.condition = isDateColumn(patch.column) ? 'before' : isNumericColumn(patch.column) ? 'equals' : 'contains';
         next.value = '';
         next.compareColumn = null;
       }
       return next;
     }));
-  }, [isDateColumn]);
+  }, [isDateColumn, isNumericColumn]);
 
   const applyAdvancedFilters = useCallback(() => {
     const valid = getValidAdvancedConditions(advancedConditions);

@@ -32,11 +32,44 @@ export const ADV_COMPARE_TYPE_OPTIONS = [
   { key: 'campo', label: 'Campo' },
 ];
 
+/** Condiciones para columnas numéricas (distintas a las de texto/fecha). */
+export const ADV_NUMBER_CONDITIONS = [
+  { key: 'greater_than', label: 'Es mayor que (>)' },
+  { key: 'less_than', label: 'Es menor que (<)' },
+  { key: 'greater_or_equal', label: 'Es mayor o igual que (>=)' },
+  { key: 'less_or_equal', label: 'Es menor o igual que (<=)' },
+  { key: 'equals', label: 'Es igual a (=)' },
+  { key: 'not_equals', label: 'Diferente de (!=)' },
+];
+
 /** Operador lógico entre una condición y la anterior. */
 export const ADV_LOGIC_OPTIONS = [
   { key: 'AND', label: 'Y (AND)' },
   { key: 'OR', label: 'O (OR)' },
 ];
+
+/**
+ * Detección de "columna numérica" por datos (no por nombre): toma hasta
+ * `sampleSize` valores no vacíos de la columna en `data`; si TODOS parsean
+ * como número, se considera numérica. Sin lista hardcodeada de columnas —
+ * funciona igual con columnas nuevas y no requiere tocarla si se agrega una.
+ * @param {Object[]} data - Filas sobre las que muestrear.
+ * @param {string} key - Columna a evaluar.
+ * @param {(row: Object, key: string) => string} [getCellValue=defaultGetCellValue] - Accesor de celda.
+ * @param {number} [sampleSize=30] - Tope de valores no vacíos a revisar.
+ * @returns {boolean} `true` si la columna parece numérica.
+ */
+export const isColumnNumericByData = (data, key, getCellValue = defaultGetCellValue, sampleSize = 30) => {
+  if (!key || !data) return false;
+  let sampled = 0, numeric = 0;
+  for (let i = 0; i < data.length && sampled < sampleSize; i++) {
+    const v = getCellValue(data[i], key);
+    if (v === null || v === undefined || String(v).trim() === '') continue;
+    sampled++;
+    if (!isNaN(Number(String(v).trim()))) numeric++;
+  }
+  return sampled > 0 && numeric === sampled;
+};
 
 /** Condición avanzada vacía, con el `id` que le toque asignar el caller. */
 export const emptyAdvancedCondition = (id = 0) => ({
@@ -83,16 +116,41 @@ const matchesDateCondition = (rowValue, condition, compareValue) => {
 };
 
 /**
- * Evalúa una condición avanzada (texto o fecha, valor o campo) sobre una fila.
+ * Evalúa una única condición numérica.
+ * @param {*} rowValue - Valor de la celda (columna numérica).
+ * @param {string} condition - Una de {@link ADV_NUMBER_CONDITIONS}.
+ * @param {*} compareValue - Valor contra el que se compara.
+ * @returns {boolean} `true` si la condición se cumple.
+ */
+const matchesNumberCondition = (rowValue, condition, compareValue) => {
+  if (compareValue === null || compareValue === undefined || String(compareValue).trim() === '') return true;
+  const a = Number(rowValue);
+  const b = Number(compareValue);
+  if (isNaN(a) || isNaN(b)) return false;
+  switch (condition) {
+    case 'greater_than': return a > b;
+    case 'less_than': return a < b;
+    case 'greater_or_equal': return a >= b;
+    case 'less_or_equal': return a <= b;
+    case 'not_equals': return a !== b;
+    case 'equals':
+    default: return a === b;
+  }
+};
+
+/**
+ * Evalúa una condición avanzada (texto, fecha o número, valor o campo) sobre
+ * una fila.
  * @param {Object} row - Fila de datos.
  * @param {Object} cond - Condición (ver modelo arriba).
  * @param {Object} [opts={}]
  * @param {(row: Object, key: string) => string} [opts.getCellValue] - Accesor de celda.
  * @param {(key: string) => boolean} [opts.isDateColumn] - Si la columna es de fecha.
+ * @param {(key: string) => boolean} [opts.isNumericColumn] - Si la columna es numérica.
  * @returns {boolean} `true` si la fila cumple la condición.
  */
 export const matchesAdvancedCondition = (row, cond, opts = {}) => {
-  const { getCellValue = defaultGetCellValue, isDateColumn = () => false } = opts;
+  const { getCellValue = defaultGetCellValue, isDateColumn = () => false, isNumericColumn = () => false } = opts;
   if (!cond.column) return true;
 
   const rowValue = getCellValue(row, cond.column);
@@ -107,10 +165,12 @@ export const matchesAdvancedCondition = (row, cond, opts = {}) => {
     const compareValue = getCellValue(row, cond.compareColumn);
     if (compareValue === null || compareValue === undefined || String(compareValue).trim() === '') return false;
     if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
+    if (isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, compareValue);
     return matchesTextCondition(rowValue, cond.condition, compareValue, { normalize: true });
   }
 
   if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, cond.value);
+  if (isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, cond.value);
   return matchesTextCondition(rowValue, cond.condition, cond.value, { normalize: true });
 };
 

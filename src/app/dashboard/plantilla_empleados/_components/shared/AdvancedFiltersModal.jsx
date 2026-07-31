@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2 } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
-import { ADV_DATE_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS } from "@/utils/advancedFilters";
+import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS } from "@/utils/advancedFilters";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 /** Select con panel flotante (portal), usado por las condiciones del modal de filtros avanzados. */
@@ -119,7 +119,7 @@ function toDateInputValue(val) {
  * calculan distinct values del arreglo en memoria) y se cachean por columna en
  * un ref local a esta instancia del modal.
  */
-function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestions }) {
+function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetchSuggestions }) {
   const [suggestions, setSuggestions] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [panelRect, setPanelRect] = useState(null);
@@ -191,6 +191,19 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
     );
   }
 
+  if (isNumber) {
+    return (
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!column}
+        placeholder={column ? "Escribe un número..." : "Selecciona una columna primero..."}
+        className="w-full px-3 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      />
+    );
+  }
+
   return (
     <div className="relative w-full">
       <input
@@ -257,13 +270,14 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, fetchSuggestion
  * @param {(id:any, patch:Object) => void} props.onUpdateCondition
  * @param {() => void} props.onApply
  * @param {(key:string) => boolean} props.isDateColumn
+ * @param {(key:string) => boolean} [props.isNumericColumn] - Si la columna es numérica (condiciones >, <, >=, <=).
  * @param {(column:string) => (Array<{value,count}>|Promise<Array<{value,count}>>)} [props.fetchSuggestions] - Sugerencias de valor para el autocompletado; omitir desactiva el autocompletado.
  */
 export default function AdvancedFiltersModal({
   open, onClose, mounted = true,
   columns, conditions,
   onAddCondition, onRemoveCondition, onUpdateCondition, onApply,
-  isDateColumn, fetchSuggestions,
+  isDateColumn, isNumericColumn = () => false, fetchSuggestions,
 }) {
   useEffect(() => {
     if (!open) return;
@@ -306,7 +320,8 @@ export default function AdvancedFiltersModal({
               {conditions.map((cond, idx) => {
                 const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
                 const isDateCol = cond.column && isDateColumn(cond.column);
-                const conditionOptions = isDateCol ? ADV_DATE_CONDITIONS : CONDITION_OPTIONS;
+                const isNumCol = cond.column && !isDateCol && isNumericColumn(cond.column);
+                const conditionOptions = isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? ADV_NUMBER_CONDITIONS : CONDITION_OPTIONS;
 
                 return (
                   <div key={cond.id} className="flex flex-col gap-2.5">
@@ -382,6 +397,7 @@ export default function AdvancedFiltersModal({
                             value={cond.value}
                             onChange={(val) => onUpdateCondition(cond.id, { value: val })}
                             isDate={isDateCol}
+                            isNumber={isNumCol}
                             fetchSuggestions={fetchSuggestions}
                           />
                         </div>
