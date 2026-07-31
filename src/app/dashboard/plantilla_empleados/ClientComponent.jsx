@@ -199,7 +199,12 @@ export default function PlantillaEmpleadosDetalle({
       gsap.fromTo(
         tabContentRef.current,
         { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.18, ease: "power2.out" }
+        // clearProps quita el transform inline al terminar: si se queda (aunque
+        // sea translate(0,0)), el wrapper pasa a ser containing block de sus
+        // descendientes position:fixed (p.ej. el botón flotante de "Movimientos
+        // realizados hoy" en PlantillaDetalleTab), que dejan de posicionarse
+        // contra el viewport y caen mucho más abajo de lo esperado.
+        { opacity: 1, y: 0, duration: 0.18, ease: "power2.out", clearProps: "transform" }
       );
     },
     {
