@@ -109,6 +109,7 @@ const getFechaAnuenciaBucket = (row) => {
 const getFilterCellValue = (row, key) => {
   if (key === "estado_nomina") return mapEstadoNomina(row[key]);
   if (key === FECHA_ANUENCIA_COL) return getFechaAnuenciaBucket(row);
+  if (key === "nj") return mapNivelJerarquico(row[key], row.nombre_puesto_funcional);
   return String(row[key] || "").trim();
 };
 
