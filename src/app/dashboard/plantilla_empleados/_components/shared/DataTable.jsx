@@ -78,7 +78,7 @@ const TableRow = memo(function TableRow({
  * @param {Object} props.containerRef - Ref del contenedor con scroll (para scroll-into-view del tab).
  * @param {Object} props.tbodyRef - Ref del `<tbody>`.
  * @param {(scrollTop: number) => void} props.onScroll - Reporta el scroll vertical (para virtualización en el tab).
- * @param {Array<{key: string, label: string, width: number, visible: boolean, noFilter?: boolean, greenHeader?: boolean, yellowHeader?: boolean}>} props.columns - Columnas (todas; se filtran las visibles internamente). `noFilter` marca columnas sin dato filtrable (ej. la de fotografía): se les oculta el orden, el botón de filtro y el buscador de texto del encabezado. `greenHeader` pinta el encabezado de esa columna en verde (grupos visuales definidos por el tab, ej. columnas AL-AV de Plantilla Detalle); `yellowHeader` lo pinta en ámbar (ej. columnas de solicitud de candidato en Plantilla Detalle) — ambos ceden ante el resaltado de selección/filtro activo.
+ * @param {Array<{key: string, label: string, width: number, visible: boolean, noFilter?: boolean, greenHeader?: boolean, yellowHeader?: boolean}>} props.columns - Columnas (todas; se filtran las visibles internamente). `noFilter` marca columnas sin dato filtrable (ej. la de fotografía): se les oculta el orden, el botón de filtro y el buscador de texto del encabezado. `greenHeader` pinta el encabezado de esa columna en verde (grupos visuales definidos por el tab, ej. columnas AL-AV de Plantilla Detalle); `yellowHeader` lo pinta en un amarillo oscuro (ej. columnas de solicitud de candidato en Plantilla Detalle, mismo tono que resalta esas filas pero más oscuro) — ambos ceden ante el resaltado de selección/filtro activo.
  * @param {Object<string, string[]>} props.columnFilters - Filtros de valores activos (resalta header).
  * @param {Function} props.setColumnFilters - Setter de `columnFilters` (checkboxes por columna); usado por "Limpiar filtros de columna" además de `setTextFilters`.
  * @param {Object<string, {value: string, condition?: string}>} props.textFilters - Filtros de texto por columna.
@@ -307,7 +307,7 @@ function DataTable({
                   const col = visible[index];
                   const { isSticky, leftOffset } = stickyMeta[index];
                   const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
-                  const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (col.greenHeader ? "bg-emerald-800 dark:bg-emerald-900 text-emerald-50" : (col.yellowHeader ? "bg-amber-600 dark:bg-amber-700 text-white" : "bg-[#501929] text-slate-200")));
+                  const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (col.greenHeader ? "bg-emerald-800 dark:bg-emerald-900 text-emerald-50" : (col.yellowHeader ? "bg-[#999900] dark:bg-[#7a7a00] text-white" : "bg-[#501929] text-slate-200")));
                   const filterTitle = columnFilters[col.key]?.length > 0
                     ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
                     : "Filtrar columna";
@@ -348,7 +348,7 @@ function DataTable({
                     const index = run.startIndex + offset;
                     const col = visible[index];
                     const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
-                    const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (col.greenHeader ? "bg-emerald-800 dark:bg-emerald-900 text-emerald-50" : (col.yellowHeader ? "bg-amber-600 dark:bg-amber-700 text-white" : "bg-[#501929] text-slate-200")));
+                    const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (col.greenHeader ? "bg-emerald-800 dark:bg-emerald-900 text-emerald-50" : (col.yellowHeader ? "bg-[#999900] dark:bg-[#7a7a00] text-white" : "bg-[#501929] text-slate-200")));
                     const filterTitle = columnFilters[col.key]?.length > 0
                       ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
                       : "Filtrar columna";
@@ -387,7 +387,7 @@ function DataTable({
             {visible.map((col, index) => {
               const { isSticky, leftOffset } = stickyMeta[index];
               const hasFilter = columnFilters[col.key]?.length > 0 || !!(textFilters[col.key] && textFilters[col.key].value);
-              const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (col.greenHeader ? "bg-emerald-800 dark:bg-emerald-900 text-emerald-50" : (col.yellowHeader ? "bg-amber-600 dark:bg-amber-700 text-white" : "bg-[#501929] text-slate-200")));
+              const bgClass = isColSelected(index) ? "bg-[#621f32] text-white" : (hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : (col.greenHeader ? "bg-emerald-800 dark:bg-emerald-900 text-emerald-50" : (col.yellowHeader ? "bg-[#999900] dark:bg-[#7a7a00] text-white" : "bg-[#501929] text-slate-200")));
               const filterTitle = columnFilters[col.key]?.length > 0
                 ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
                 : "Filtrar columna";

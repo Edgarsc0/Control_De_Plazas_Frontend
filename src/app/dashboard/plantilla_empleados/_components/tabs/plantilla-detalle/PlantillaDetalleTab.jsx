@@ -7,7 +7,7 @@ import {
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
   UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2,
-  MousePointerClick, UserPlus
+  MousePointerClick, UserPlus, Ban
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "@/components/shared/Reveal";
@@ -125,12 +125,13 @@ const getFilterCellValue = (row, key) => {
   return String(row[key] || "").trim();
 };
 
-const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Solicitada": "#eab308", "Suspendido": "#3b82f6", "Permiso": "#8b5cf6", "Permiso Retribuido": "#10b981" };
-const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Solicitada": UserPlus, "Suspendido": UserX, "Permiso": CalendarDays, "Permiso Retribuido": Activity };
+const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Solicitada": "#eab308", "No Disponible": "#64748b", "Suspendido": "#3b82f6", "Permiso": "#8b5cf6", "Permiso Retribuido": "#10b981" };
+const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Solicitada": UserPlus, "No Disponible": Ban, "Suspendido": UserX, "Permiso": CalendarDays, "Permiso Retribuido": Activity };
 const STATUS_BADGE_STYLES = {
   "Activo": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30" },
   "Vacante": { bg: "bg-[#bc955c]/8 dark:bg-[#bc955c]/15", text: "text-[#a37944] dark:text-[#ebd1ac]", border: "border-[#bc955c]/20 dark:border-[#bc955c]/30" },
   "Solicitada": { bg: "bg-yellow-100 dark:bg-yellow-500/15", text: "text-yellow-700 dark:text-yellow-400", border: "border-yellow-300 dark:border-yellow-500/30" },
+  "No Disponible": { bg: "bg-slate-100 dark:bg-slate-500/15", text: "text-slate-600 dark:text-slate-400", border: "border-slate-300 dark:border-slate-500/30" },
   "Suspendido": { bg: "bg-blue-50/50 dark:bg-blue-950/20", text: "text-blue-600 dark:text-blue-300", border: "border-blue-200/50 dark:border-blue-900/40" },
   "Permiso": { bg: "bg-purple-50/50 dark:bg-purple-950/20", text: "text-purple-600 dark:text-purple-300", border: "border-purple-200/50 dark:border-purple-900/40" },
   "Permiso Retribuido": { bg: "bg-emerald-50/50 dark:bg-emerald-950/20", text: "text-emerald-600 dark:text-emerald-300", border: "border-emerald-200/50 dark:border-emerald-900/40" }
@@ -151,13 +152,19 @@ const mapEstadoNomina = (val) => {
 };
 
 // Estatus mostrado al usuario: igual que mapEstadoNomina, salvo que una plaza
-// Vacante con datos de candidato capturados (ver SOLICITUD_COLS) se muestra
-// como "Solicitada" — el backend ya garantiza que esos datos solo existen
-// mientras la plaza siga vacante (ver COLUMNAS_SOLICITUD_VACANTE), así que no
-// hace falta ninguna bandera guardada, solo derivarlo en cada lectura.
+// Vacante se desdobla en 2 sub-estatus derivados — el backend ya garantiza
+// que ambas señales solo existen mientras la plaza siga vacante (ver
+// COLUMNAS_SOLICITUD_VACANTE), así que no hace falta ninguna bandera
+// guardada, solo derivarlo en cada lectura:
+//  - "No Disponible": el Excel trae RFC="No Disponible" (ej. plazas PASEM
+//    que no se pueden usar) — tiene prioridad sobre "Solicitada" porque son
+//    mutuamente excluyentes en el Excel de origen.
+//  - "Solicitada": tiene datos de candidato capturados (ver SOLICITUD_COLS).
 const getEstadoNominaDisplay = (row) => {
   const base = mapEstadoNomina(row.estado_nomina);
-  return base === "Vacante" && hasSolicitudData(row) ? "Solicitada" : base;
+  if (base !== "Vacante") return base;
+  if (String(row.marca_no_disponible || "").trim() !== "") return "No Disponible";
+  return hasSolicitudData(row) ? "Solicitada" : base;
 };
 
 // Códigos de partida confirmados con el usuario: 11301=Permanente,
@@ -280,6 +287,13 @@ const DATE_HIERARCHY_KEYS = DATE_KEYS.filter((k) => k !== FECHA_ANUENCIA_COL);
 // en su propio filtro. En BD son el mismo conjunto de filas: `Val_estat`
 // ='Vacante' <=> `Estado Nómina` vacío (mapEstadoNomina → "Vacante").
 const VACANCY_DEFINING_KEYS = new Set(["estado_nomina", "val_estat"]);
+
+// Etiquetas de Estado Nómina que representan una posición vacante (sin
+// importar el sub-estatus derivado — Solicitada/No Disponible siguen siendo
+// "vacante" a nivel de fila cruda) — usado para ampliar el universo de las
+// demás columnas cuando el filtro de Estado Nómina incluye cualquiera de
+// éstas, no solo el literal "Vacante" (ver filtroIncluyeVacantes).
+const VACANTE_FAMILY_LABELS = new Set(["Vacante", "Solicitada", "No Disponible"]);
 
 // CpTblMovCompleto290526 no trae un campo de nombre completo combinado (igual
 // que en MovimientosPersonalTab): se arma a partir de nombre + ap_pat + ap_mat.
@@ -1489,7 +1503,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // imposible filtrar por ellas) mientras "Vacante" siga marcado. Cuando aplica,
   // se usa `detalle` (con vacantes) como universo para el resto de columnas.
   const filtroIncluyeVacantes = [...VACANCY_DEFINING_KEYS].some(
-    (key) => (columnFilters[key] || []).includes("Vacante")
+    (key) => (columnFilters[key] || []).some((v) => VACANTE_FAMILY_LABELS.has(v))
   );
   const datosParaColumnaActiva = filtroIncluyeVacantes ? detalle : detalleParaFiltros;
 
@@ -1532,8 +1546,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       // (incluye vacantes): `detalleParaFiltros` las excluye a propósito para el
       // resto de columnas (BUG QA 2026-07-23), pero aplicado a estas columnas se
       // excluyen a sí mismas la opción "Vacante" antes de contarla, dejándola sin
-      // aparecer nunca en su propio dropdown (ver VACANCY_DEFINING_KEYS).
-      const sourceRows = VACANCY_DEFINING_KEYS.has(key) ? detalle : datosParaColumnaActiva;
+      // aparecer nunca en su propio dropdown (ver VACANCY_DEFINING_KEYS). Mismo
+      // motivo para las 3 columnas de solicitud (SOLICITUD_COLS): solo tienen
+      // dato en filas vacantes, así que su dropdown también necesita `detalle`
+      // completo, sin importar si "Vacante" está marcado en Estado Nómina.
+      const sourceRows = (VACANCY_DEFINING_KEYS.has(key) || SOLICITUD_COLS.includes(key)) ? detalle : datosParaColumnaActiva;
       sourceRows.forEach(row => {
         let val = getFilterCellValue(row, key);
         counts[val] = (counts[val] || 0) + 1;
@@ -1834,9 +1851,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const computeReachableCounts = useCallback((colKey) => {
     const counts = {};
     // Mismo motivo que en `uniqueColumnValues`: para las columnas de vacancia
-    // hay que iterar `detalle` (incluye vacantes), si no "Vacante" nunca es
-    // alcanzable ni seleccionable en su propio dropdown.
-    const sourceRows = VACANCY_DEFINING_KEYS.has(colKey) ? detalle : datosParaColumnaActiva;
+    // (y las de solicitud) hay que iterar `detalle` (incluye vacantes), si no
+    // "Vacante" (o cualquier valor de Solicitante/Nombre del candidato/Motivo
+    // de solicitud) nunca es alcanzable ni seleccionable en su propio dropdown.
+    const sourceRows = (VACANCY_DEFINING_KEYS.has(colKey) || SOLICITUD_COLS.includes(colKey)) ? detalle : datosParaColumnaActiva;
     sourceRows.forEach(row => {
       if (deferredGlobalSearch) {
         const searchText = normalizeForSearch(deferredGlobalSearch);
@@ -2028,6 +2046,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const renderCell = useCallback(({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu, onDoubleClick }) => {
     const stickyStyle = isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {};
+    // Fila de una plaza Solicitada: mismo amarillo que resalta esa fila en el
+    // Excel de origen (#ffff00) — la selección de celda sigue teniendo
+    // prioridad visual sobre este resaltado, igual que ya la tiene sobre el
+    // fondo normal.
+    const isSolicitadaRow = getEstadoNominaDisplay(row) === "Solicitada";
+    const rowBg = (selected, sticky) => selected
+      ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md"
+      : isSolicitadaRow
+        ? "bg-[#ffff00] dark:bg-[#ffff00]/20"
+        : (sticky ? "bg-white dark:bg-slate-950" : "bg-white/10");
     // Fotografía: la fila NO trae la imagen (la tabla se sirve completa, sin
     // paginar; mandarlas todas serían miles de imágenes por carga). Se pide una
     // por una y sólo cuando la celda entra al viewport — ver FotoEmpleadoCell.
@@ -2038,7 +2066,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           onClick={onClick}
           onContextMenu={onContextMenu}
           style={stickyStyle}
-          className={`relative px-1 border-r h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}
+          className={`relative px-1 border-r h-[37px] align-middle ${rowBg(isSelected, isSticky)} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}
         >
           <FotoEmpleadoCell
             numempleado={row.numempleado || row.id_empleado}
@@ -2055,7 +2083,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     // en vez de `row.id` (MovPos) ya que esta tabla parte de EMPLEADOS_COMPLETOS_SIG.
     if (col.key === "fecha_genera_vacante") {
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
-      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${rowBg(isSelected, isSticky)} ${isSelected ? "text-[#621f32]" : "text-slate-700 dark:text-slate-300"} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
       const content = hasValue
         ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>)
@@ -2132,7 +2160,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400"
         : (dias !== null ? getAnuenciaColorClasses(dias) : null);
       const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle font-semibold ${
-        colorClasses || (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")
+        colorClasses || `${rowBg(false, isSticky)} text-slate-700 dark:text-slate-300`
       } ${isSelected ? "ring-2 ring-[#621f32] z-10 shadow-md" : ""} ${canEditCeldas ? "cursor-pointer" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = hasValue ? formatDateEsMx(value) : <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
       if (dias === null) {
@@ -2165,7 +2193,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border} ${canToggleSolicitud ? "cursor-pointer hover:brightness-95 dark:hover:brightness-110" : ""}`}
         ><Icon className="size-3" />{est}</span>
       );
-      const tdClassName = `relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const tdClassName = `relative px-4 text-[10px] border-r align-middle h-[37px] transition-all ${rowBg(isSelected, isSticky)} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       if (!canToggleSolicitud) {
         return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{pill}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
       }
@@ -2181,7 +2209,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
     if (col.key === "depto" || col.key === "id_departamento") {
       const deptoInfo = getDeptoInfo(deptoCatalog, value);
-      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${rowBg(isSelected, isSticky)} ${isSelected ? "text-[#621f32]" : "text-slate-700 dark:text-slate-300"} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${deptoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
       if (!deptoInfo) {
         return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
@@ -2202,7 +2230,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
     if (col.key === "motivo") {
       const motivoInfo = getMotivoInfo(motivosCatalog, value);
-      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${rowBg(isSelected, isSticky)} ${isSelected ? "text-[#621f32]" : "text-slate-700 dark:text-slate-300"} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${motivoInfo ? "cursor-help" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const content = value === undefined || value === null || String(value).trim() === "" ? <span className="text-slate-300 dark:text-slate-700 italic">-</span> : String(value);
       if (!motivoInfo) {
         return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
@@ -2240,7 +2268,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     } else {
       displayContent = String(value);
     }
-    const tdClassNameDefault = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+    const tdClassNameDefault = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${rowBg(isSelected, isSticky)} ${isSelected ? "text-[#621f32]" : "text-slate-700 dark:text-slate-300"} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
     // Las 3 columnas de solicitud aparecen al vuelo con el pill de Estado
     // Nómina (ver toggleSolicitudColumns) — motion.td (en vez de clases CSS
     // "animate-in") garantiza la animación de entrada sin depender de que el
