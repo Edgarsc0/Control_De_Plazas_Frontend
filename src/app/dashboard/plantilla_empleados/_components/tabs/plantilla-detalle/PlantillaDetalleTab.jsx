@@ -1502,8 +1502,18 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // de columnas queda sin ningún valor alcanzable (checkboxes deshabilitados,
   // imposible filtrar por ellas) mientras "Vacante" siga marcado. Cuando aplica,
   // se usa `detalle` (con vacantes) como universo para el resto de columnas.
+  // El mismo caso se da si "Vacante" llega vía Filtros Avanzados (condición
+  // sobre Estado Nómina/Val_estat) en vez del checkbox del dropdown — se
+  // detecta evaluando la condición contra el literal "Vacante" (cubre
+  // "es igual a", "contiene", pero también "diferente de Activo", etc.).
+  // En ambos caminos se prueba contra TODA la familia "vacante"
+  // (VACANTE_FAMILY_LABELS: Vacante/Solicitada/No Disponible), no solo el
+  // literal "Vacante" — a nivel de fila cruda las 3 siguen siendo vacantes.
   const filtroIncluyeVacantes = [...VACANCY_DEFINING_KEYS].some(
     (key) => (columnFilters[key] || []).some((v) => VACANTE_FAMILY_LABELS.has(v))
+  ) || appliedAdvancedFilters.some(
+    (cond) => VACANCY_DEFINING_KEYS.has(cond.column) && cond.compareType === "valor"
+      && [...VACANTE_FAMILY_LABELS].some((label) => matchesTextCondition(label, cond.condition, cond.value, { normalize: true }))
   );
   const datosParaColumnaActiva = filtroIncluyeVacantes ? detalle : detalleParaFiltros;
 
