@@ -102,6 +102,15 @@ export default function PlantillaEmpleadosDetalle({
   // (CeldaOverride, tab Detalle) al instante y sin refetch, compartido con
   // los demás tabs que leen `detalle` (Estatus, Mov. Posiciones).
   const [detalleData, setDetalleData] = useState(detalle);
+  // `useState(detalle)` solo toma la prop como valor inicial: en renders
+  // posteriores (ej. tras router.refresh() al invalidar cache desde otro
+  // tab, ver NivelesJerarquicosPlazaSubtab) el Server Component recibe un
+  // `detalle` fresco pero React no reinicializa el estado solo porque cambió
+  // la prop. Sin este efecto, esta tabla se queda mostrando datos viejos
+  // indefinidamente aunque el fetch de arriba sí traiga datos nuevos.
+  useEffect(() => {
+    setDetalleData(detalle);
+  }, [detalle]);
   const updateDetalleCell = useCallback((posicion, columna, valorNuevo) => {
     setDetalleData((prev) => prev.map((row) =>
       row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
