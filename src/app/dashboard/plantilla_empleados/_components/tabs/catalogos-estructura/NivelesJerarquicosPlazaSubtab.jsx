@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "motion/react";
 import { Layers, Search, RotateCcw, CheckSquare, Square, X } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
+import { apiFetch } from "@/lib/fetch-interceptor";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
@@ -355,6 +356,18 @@ export default function NivelesJerarquicosPlazaSubtab() {
       setBanner({ type: "success", text: `Nivel jerárquico asignado a ${body.actualizadas} plaza(s).` });
       clearSelection();
       await load();
+      // El bulk-assign ya propagó el nivel a EMPLEADOS_COMPLETOS_SIG/MOV_POS
+      // en el backend; acá solo limpiamos la caché del servidor (Redis) y
+      // refrescamos el Server Component de la página para que Plantilla
+      // Detalle/Movimientos no sigan sirviendo el valor viejo hasta que
+      // expire el TTL del cache. No crítico: si falla (ej. el usuario no
+      // tiene permiso de Monitoreo ZAFIRO), el TTL lo resuelve solo.
+      try {
+        await apiFetch("/plantilla/bitacora/invalidar-cache-manual/", { method: "POST" });
+      } catch {
+        // silencioso a propósito, ver comentario arriba.
+      }
+      router.refresh();
     } catch (err) {
       setBanner({ type: "error", text: err?.message || "No se pudo asignar el nivel jerárquico." });
     } finally {
