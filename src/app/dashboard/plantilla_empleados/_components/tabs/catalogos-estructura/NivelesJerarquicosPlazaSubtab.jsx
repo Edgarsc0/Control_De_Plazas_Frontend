@@ -355,6 +355,13 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
       const body = await res.json();
       setBanner({ type: "success", text: `Nivel jerárquico asignado a ${body.actualizadas} plaza(s).` });
       clearSelection();
+      // Prende el skeleton de "Plantilla Detalle" DESDE ACÁ, no después de
+      // recargar el catálogo y limpiar la caché: esos dos pasos son
+      // request(s) de red que pueden tardar varios segundos, y si el
+      // usuario se cambia de tab durante esa ventana (antes de llegar al
+      // router.refresh() de abajo) no debe ver la tabla quieta sin ningún
+      // indicativo — el nivel ya se guardó, solo falta que se refleje.
+      onBeforeRefreshDetalle?.();
       await load();
       // El bulk-assign ya propagó el nivel a EMPLEADOS_COMPLETOS_SIG/MOV_POS
       // en el backend; acá solo limpiamos la caché del servidor (Redis) y
@@ -367,11 +374,6 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
       } catch {
         // silencioso a propósito, ver comentario arriba.
       }
-      // Prende el skeleton de "Plantilla Detalle" ANTES de refrescar: si el
-      // usuario se cambia a ese tab mientras el Server Component todavía no
-      // trae el nivel jerárquico nuevo, ve un skeleton en vez de una tabla
-      // quieta sin ningún indicativo de carga.
-      onBeforeRefreshDetalle?.();
       router.refresh();
     } catch (err) {
       setBanner({ type: "error", text: err?.message || "No se pudo asignar el nivel jerárquico." });

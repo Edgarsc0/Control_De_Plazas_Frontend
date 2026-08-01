@@ -116,7 +116,7 @@ export default function PlantillaEmpleadosDetalle({
     clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
     refrescoNivelJerarquicoTimeoutRef.current = setTimeout(() => {
       setIsRefrescandoDetalleTrasNivel(false);
-    }, 8000);
+    }, 15000);
   }, []);
   // `useState(detalle)` solo toma la prop como valor inicial: en renders
   // posteriores (ej. tras router.refresh() al invalidar cache desde otro
