@@ -114,9 +114,14 @@ export default function PlantillaEmpleadosDetalle({
   const startRefrescoDetalleTrasNivelJerarquico = useCallback(() => {
     setIsRefrescandoDetalleTrasNivel(true);
     clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
+    // Medido con playwright contra el servidor: el fetch del Server
+    // Component que dispara router.refresh() (arma resumen + detalle +
+    // movPosData + estatusPorNivelUa + distribucionGeografica en un solo
+    // render) tardó hasta ~22s en un run real — este timeout es solo un
+    // techo de seguridad, no el tiempo esperado normal.
     refrescoNivelJerarquicoTimeoutRef.current = setTimeout(() => {
       setIsRefrescandoDetalleTrasNivel(false);
-    }, 15000);
+    }, 30000);
   }, []);
   // `useState(detalle)` solo toma la prop como valor inicial: en renders
   // posteriores (ej. tras router.refresh() al invalidar cache desde otro
