@@ -102,6 +102,22 @@ export default function PlantillaEmpleadosDetalle({
   // (CeldaOverride, tab Detalle) al instante y sin refetch, compartido con
   // los demás tabs que leen `detalle` (Estatus, Mov. Posiciones).
   const [detalleData, setDetalleData] = useState(detalle);
+  // Skeleton dedicado SOLO para el refresh que dispara
+  // NivelesJerarquicosPlazaSubtab tras bulk-assign (no para cualquier
+  // router.refresh(), ej. "aplicar prioridad" no lo activa): se prende a
+  // mano justo antes de llamar router.refresh() (ver
+  // startRefrescoDetalleTrasNivelJerarquico) y se apaga solo cuando el
+  // `detalle` prop efectivamente cambia (abajo). El timeout de seguridad
+  // evita un skeleton pegado si el refresh nunca trae datos distintos.
+  const [isRefrescandoDetalleTrasNivel, setIsRefrescandoDetalleTrasNivel] = useState(false);
+  const refrescoNivelJerarquicoTimeoutRef = useRef(null);
+  const startRefrescoDetalleTrasNivelJerarquico = useCallback(() => {
+    setIsRefrescandoDetalleTrasNivel(true);
+    clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
+    refrescoNivelJerarquicoTimeoutRef.current = setTimeout(() => {
+      setIsRefrescandoDetalleTrasNivel(false);
+    }, 8000);
+  }, []);
   // `useState(detalle)` solo toma la prop como valor inicial: en renders
   // posteriores (ej. tras router.refresh() al invalidar cache desde otro
   // tab, ver NivelesJerarquicosPlazaSubtab) el Server Component recibe un
@@ -110,6 +126,8 @@ export default function PlantillaEmpleadosDetalle({
   // indefinidamente aunque el fetch de arriba sí traiga datos nuevos.
   useEffect(() => {
     setDetalleData(detalle);
+    setIsRefrescandoDetalleTrasNivel(false);
+    clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
   }, [detalle]);
   const updateDetalleCell = useCallback((posicion, columna, valorNuevo) => {
     setDetalleData((prev) => prev.map((row) =>
@@ -420,6 +438,7 @@ export default function PlantillaEmpleadosDetalle({
                 onCellEdited={updateDetalleCell}
                 resumen={resumen}
                 isPending={isPending}
+                isLoading={isRefrescandoDetalleTrasNivel}
                 startTransition={startTransition}
                 cardRef={cardRefDetalle}
                 remoteUpdatesCount={remoteUpdatesCount}
@@ -490,7 +509,10 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {visitedTabs.has("catalogos_estructura") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_CATALOGOS) && (
             <div className={activeTab === "catalogos_estructura" ? "block" : "hidden"}>
-              <CatalogosEstructuraTab activeCatalog={activeCatalogoSubTab} />
+              <CatalogosEstructuraTab
+                activeCatalog={activeCatalogoSubTab}
+                onBeforeRefreshDetalle={startRefrescoDetalleTrasNivelJerarquico}
+              />
             </div>
           )}
           {activeTab === "mapa" && activeMapaSubTab === "nacional" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) && (

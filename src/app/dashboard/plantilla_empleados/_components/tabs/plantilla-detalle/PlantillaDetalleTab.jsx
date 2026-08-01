@@ -3203,6 +3203,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             isMonoColumn={isMonoColumn}
             isPending={isPending}
             isLoading={isLoading}
+            loadingVariant="skeleton"
             loadingMessage="Cargando plantilla (11,955 registros)..."
             data={paginatedData}
             startIndex={startIndex}

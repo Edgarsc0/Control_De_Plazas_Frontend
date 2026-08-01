@@ -46,7 +46,7 @@ const COLUMNS = [
  * compartida (filtros/orden estilo Excel) pero reemplaza el botón "VER" de la
  * columna sticky por un checkbox de selección múltiple vía `renderRowAction`.
  */
-export default function NivelesJerarquicosPlazaSubtab() {
+export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }) {
   const router = useRouter();
   const [data, setData] = useState([]);
   const [opciones, setOpciones] = useState([]);
@@ -367,6 +367,11 @@ export default function NivelesJerarquicosPlazaSubtab() {
       } catch {
         // silencioso a propósito, ver comentario arriba.
       }
+      // Prende el skeleton de "Plantilla Detalle" ANTES de refrescar: si el
+      // usuario se cambia a ese tab mientras el Server Component todavía no
+      // trae el nivel jerárquico nuevo, ve un skeleton en vez de una tabla
+      // quieta sin ningún indicativo de carga.
+      onBeforeRefreshDetalle?.();
       router.refresh();
     } catch (err) {
       setBanner({ type: "error", text: err?.message || "No se pudo asignar el nivel jerárquico." });

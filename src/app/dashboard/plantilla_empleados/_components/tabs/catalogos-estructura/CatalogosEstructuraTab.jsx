@@ -39,9 +39,9 @@ const ROW_HEIGHT = 37;
  * Plaza" no encaja en ese molde (selección múltiple + asignación en bloque),
  * así que vive en su propio componente autocontenido.
  */
-export default function CatalogosEstructuraTab({ activeCatalog }) {
+export default function CatalogosEstructuraTab({ activeCatalog, onBeforeRefreshDetalle }) {
   if (activeCatalog === "niveles_jerarquicos") {
-    return <NivelesJerarquicosPlazaSubtab />;
+    return <NivelesJerarquicosPlazaSubtab onBeforeRefreshDetalle={onBeforeRefreshDetalle} />;
   }
   return <GenericCatalogSubtab activeCatalog={activeCatalog} />;
 }
