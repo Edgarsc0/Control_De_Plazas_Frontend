@@ -475,28 +475,37 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
   // Cuadros de Vacancia (Desglose Jerárquico), filtrados aquí por
   // Aduana+NJ+Nivel. Se cargan una sola vez, bajo demanda (primer clic).
   const detailDataRef = useRef({ vacantes: null, ocupados: null });
-  const [loadingDetalle, setLoadingDetalle] = useState(false);
+  // Promesa en vuelo compartida — evita refetch duplicado si el usuario abre
+  // otra celda mientras la primera carga sigue pendiente (ver ensureDetailData).
+  const detailPromiseRef = useRef(null);
   const [isDetalleModalOpen, setIsDetalleModalOpen] = useState(false);
-  const [detalleRows, setDetalleRows] = useState([]);
+  // null (no array) = todavía sin datos: EmployeesModal detecta que `rows` no
+  // es array y, al no recibir tampoco nivel/estatus, cae en su propio modo de
+  // "aún sin resolver" y pinta el skeleton interno solo — así el modal abre
+  // de inmediato al primer clic en vez de esperar a que resuelva el fetch.
+  const [detalleRows, setDetalleRows] = useState(null);
   const [detalleTitle, setDetalleTitle] = useState("");
   const [detalleDefaultColumnKeys, setDetalleDefaultColumnKeys] = useState(null);
 
-  const ensureDetailData = useCallback(async () => {
+  const ensureDetailData = useCallback(() => {
     if (detailDataRef.current.vacantes && detailDataRef.current.ocupados) {
-      return detailDataRef.current;
+      return Promise.resolve(detailDataRef.current);
     }
-    setLoadingDetalle(true);
-    try {
-      const [vacRes, ocuRes] = await Promise.all([
+    if (!detailPromiseRef.current) {
+      detailPromiseRef.current = Promise.all([
         VacantesService.getDesgloseJerarquico(),
         VacantesService.getDesgloseJerarquicoOcupados(),
-      ]);
-      const [vacantes, ocupados] = await Promise.all([vacRes.json(), ocuRes.json()]);
-      detailDataRef.current = { vacantes, ocupados };
-      return detailDataRef.current;
-    } finally {
-      setLoadingDetalle(false);
+      ])
+        .then(([vacRes, ocuRes]) => Promise.all([vacRes.json(), ocuRes.json()]))
+        .then(([vacantes, ocupados]) => {
+          detailDataRef.current = { vacantes, ocupados };
+          return detailDataRef.current;
+        })
+        .finally(() => {
+          detailPromiseRef.current = null;
+        });
     }
+    return detailPromiseRef.current;
   }, []);
 
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -533,58 +542,62 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
     });
   }, []);
 
-  const openDetalle = useCallback((rows, title, tipo) => {
+  // Abre el modal de inmediato (título + skeleton, `rows` aún null) y llena
+  // las filas cuando `loadRows` resuelve — separado de abrir para que el
+  // usuario nunca vea el modal "tardar" en aparecer al primer clic.
+  const openDetalle = useCallback((title, tipo, loadRows) => {
     setDetalleTitle(title);
-    setDetalleRows(rows.map(mapVacanteRowToEmployeeRow));
+    setDetalleRows(null);
     setDetalleDefaultColumnKeys(tipo === "ocupacion" ? OCUPACION_DEFAULT_COLUMN_KEYS : null);
     setIsDetalleModalOpen(true);
+    loadRows().then((rows) => setDetalleRows(rows.map(mapVacanteRowToEmployeeRow)));
   }, []);
 
   const handleCellClick = useCallback(
-    async (aduana, nj, nivel, tipo) => {
-      if (loadingDetalle) return;
-      const { vacantes, ocupados } = await ensureDetailData();
-      const source = tipo === "ocupacion" ? ocupados : vacantes;
-      const filtered = filterDetailRows(source, { aduana, nj, nivel });
-      openDetalle(filtered, `${aduana} — ${nivel} — ${tipo === "ocupacion" ? "Ocupación" : "Vacancia"}`, tipo);
+    (aduana, nj, nivel, tipo) => {
+      openDetalle(`${aduana} — ${nivel} — ${tipo === "ocupacion" ? "Ocupación" : "Vacancia"}`, tipo, async () => {
+        const { vacantes, ocupados } = await ensureDetailData();
+        const source = tipo === "ocupacion" ? ocupados : vacantes;
+        return filterDetailRows(source, { aduana, nj, nivel });
+      });
     },
-    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle]
+    [ensureDetailData, filterDetailRows, openDetalle]
   );
 
   const handleRowTotalClick = useCallback(
-    async (aduana, tipo) => {
-      if (loadingDetalle) return;
-      const { vacantes, ocupados } = await ensureDetailData();
-      const source = tipo === "ocupacion" ? ocupados : vacantes;
-      const filtered = filterDetailRows(source, { aduana });
-      openDetalle(filtered, `${aduana} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo);
+    (aduana, tipo) => {
+      openDetalle(`${aduana} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo, async () => {
+        const { vacantes, ocupados } = await ensureDetailData();
+        const source = tipo === "ocupacion" ? ocupados : vacantes;
+        return filterDetailRows(source, { aduana });
+      });
     },
-    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle]
+    [ensureDetailData, filterDetailRows, openDetalle]
   );
 
   const handleNivelTotalClick = useCallback(
-    async (nj, nivel, tipo) => {
-      if (loadingDetalle) return;
-      const { vacantes, ocupados } = await ensureDetailData();
-      const source = tipo === "ocupacion" ? ocupados : vacantes;
-      const allowedAduanas = new Set(filasFiltradas.map((f) => f.aduana));
-      const filtered = filterDetailRows(source, { nj, nivel, allowedAduanas });
-      openDetalle(filtered, `${nivel} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo);
+    (nj, nivel, tipo) => {
+      openDetalle(`${nivel} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo, async () => {
+        const { vacantes, ocupados } = await ensureDetailData();
+        const source = tipo === "ocupacion" ? ocupados : vacantes;
+        const allowedAduanas = new Set(filasFiltradas.map((f) => f.aduana));
+        return filterDetailRows(source, { nj, nivel, allowedAduanas });
+      });
     },
-    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle, filasFiltradas]
+    [ensureDetailData, filterDetailRows, openDetalle, filasFiltradas]
   );
 
   const handleNjTotalClick = useCallback(
-    async (nj, tipo) => {
-      if (loadingDetalle) return;
-      const { vacantes, ocupados } = await ensureDetailData();
-      const source = tipo === "ocupacion" ? ocupados : vacantes;
-      const allowedAduanas = new Set(filasFiltradas.map((f) => f.aduana));
-      const filtered = filterDetailRows(source, { nj, allowedAduanas });
+    (nj, tipo) => {
       const njLabel = (data?.grupos_nj || []).find((g) => g.nj === nj)?.label || nj;
-      openDetalle(filtered, `${njLabel} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo);
+      openDetalle(`${njLabel} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo, async () => {
+        const { vacantes, ocupados } = await ensureDetailData();
+        const source = tipo === "ocupacion" ? ocupados : vacantes;
+        const allowedAduanas = new Set(filasFiltradas.map((f) => f.aduana));
+        return filterDetailRows(source, { nj, allowedAduanas });
+      });
     },
-    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle, filasFiltradas, data]
+    [ensureDetailData, filterDetailRows, openDetalle, filasFiltradas, data]
   );
 
   return (
