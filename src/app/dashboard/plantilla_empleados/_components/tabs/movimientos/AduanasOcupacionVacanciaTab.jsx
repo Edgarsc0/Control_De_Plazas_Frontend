@@ -25,11 +25,63 @@ const OCUPACION_DEFAULT_COLUMN_KEYS = ["id_empleado", "nombres", "rfc", "curp", 
 // reusa DataTable (shared) porque esa trae filtros/orden/selección de celda
 // tipo Excel que no aplican a un resumen de ~10-20 filas — aquí se necesita
 // nada más un header de 3 niveles (grupo NJ + subcolumna Nivel + Ocup/Vac) vía colSpan.
-function GroupedCountTable({ gruposNj = [], filas = [], loading, aduanaFilterActive, onOpenAduanaFilter, onCellClick, headerRight }) {
+function GroupedCountTable({
+  gruposNj = [],
+  filas = [],
+  loading,
+  aduanaFilterActive,
+  onOpenAduanaFilter,
+  onCellClick,
+  onRowTotalClick,
+  onNivelTotalClick,
+  onNjTotalClick,
+  headerRight,
+}) {
   const totalCols = useMemo(
     () => gruposNj.reduce((acc, g) => acc + g.niveles.length * 2, 0),
     [gruposNj]
   );
+
+  // Totales por fila (aduana), por nivel (columna) y por NJ (grupo jerárquico).
+  const { filaTotales, totalesPorNivel, totalesPorNj } = useMemo(() => {
+    const filaTotales = new Map();
+    const totalesPorNivel = new Map();
+    const totalesPorNj = new Map();
+
+    gruposNj.forEach((g) => {
+      let ocupNj = 0;
+      let vacNj = 0;
+      g.niveles.forEach((nivel) => {
+        totalesPorNivel.set(`${g.nj}|${nivel}`, { ocup: 0, vac: 0 });
+      });
+      totalesPorNj.set(g.nj, { ocup: 0, vac: 0 });
+    });
+
+    filas.forEach((row) => {
+      let ocupFila = 0;
+      let vacFila = 0;
+      gruposNj.forEach((g) => {
+        g.niveles.forEach((nivel) => {
+          const key = `${g.nj}|${nivel}`;
+          const ocup = row.ocupacion?.[key] ?? 0;
+          const vac = row.vacancia?.[key] ?? 0;
+          ocupFila += ocup;
+          vacFila += vac;
+
+          const nivelAcc = totalesPorNivel.get(key);
+          nivelAcc.ocup += ocup;
+          nivelAcc.vac += vac;
+
+          const njAcc = totalesPorNj.get(g.nj);
+          njAcc.ocup += ocup;
+          njAcc.vac += vac;
+        });
+      });
+      filaTotales.set(row.aduana, { ocup: ocupFila, vac: vacFila });
+    });
+
+    return { filaTotales, totalesPorNivel, totalesPorNj };
+  }, [gruposNj, filas]);
 
   return (
     <div className="flex flex-col">
@@ -66,6 +118,22 @@ function GroupedCountTable({ gruposNj = [], filas = [], loading, aduanaFilterAct
                     <Filter className="size-3" />
                   </button>
                 </div>
+              </th>
+              <th
+                rowSpan={3}
+                className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 border-l-4 border-l-amber-400 p-2 text-center font-bold uppercase tracking-wider min-w-[70px] text-emerald-300"
+              >
+                Total
+                <br />
+                Ocupadas
+              </th>
+              <th
+                rowSpan={3}
+                className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 text-center font-bold uppercase tracking-wider min-w-[70px] text-amber-300"
+              >
+                Total
+                <br />
+                Vacantes
               </th>
               {gruposNj.map((g, gIdx) => (
                 <th
@@ -139,6 +207,40 @@ function GroupedCountTable({ gruposNj = [], filas = [], loading, aduanaFilterAct
                 >
                   {row.aduana}
                 </td>
+                <td
+                  onClick={
+                    (filaTotales.get(row.aduana)?.ocup ?? 0) > 0
+                      ? () => onRowTotalClick(row.aduana, "ocupacion")
+                      : undefined
+                  }
+                  title={
+                    (filaTotales.get(row.aduana)?.ocup ?? 0) > 0
+                      ? `Ver total ocupadas en ${row.aduana}`
+                      : undefined
+                  }
+                  className={`p-1 text-center border-r border-b-2 border-l-4 border-l-amber-400 border-slate-200 bg-emerald-50 font-black text-emerald-800 ${
+                    (filaTotales.get(row.aduana)?.ocup ?? 0) > 0 ? "cursor-pointer hover:bg-emerald-100" : ""
+                  }`}
+                >
+                  {filaTotales.get(row.aduana)?.ocup ?? 0}
+                </td>
+                <td
+                  onClick={
+                    (filaTotales.get(row.aduana)?.vac ?? 0) > 0
+                      ? () => onRowTotalClick(row.aduana, "vacancia")
+                      : undefined
+                  }
+                  title={
+                    (filaTotales.get(row.aduana)?.vac ?? 0) > 0
+                      ? `Ver total vacantes en ${row.aduana}`
+                      : undefined
+                  }
+                  className={`p-1 text-center border-r border-b-2 border-slate-200 bg-amber-50 font-black text-amber-800 ${
+                    (filaTotales.get(row.aduana)?.vac ?? 0) > 0 ? "cursor-pointer hover:bg-amber-100" : ""
+                  }`}
+                >
+                  {filaTotales.get(row.aduana)?.vac ?? 0}
+                </td>
                 {gruposNj.flatMap((g, gIdx) =>
                   g.niveles.flatMap((nivel, nIdx) => {
                     const ocup = row.ocupacion?.[`${g.nj}|${nivel}`] ?? 0;
@@ -181,12 +283,87 @@ function GroupedCountTable({ gruposNj = [], filas = [], loading, aduanaFilterAct
             ))}
             {!loading && filas.length === 0 && (
               <tr>
-                <td colSpan={totalCols + 1} className="p-6 text-center text-slate-400 font-semibold">
+                <td colSpan={totalCols + 3} className="p-6 text-center text-slate-400 font-semibold">
                   Sin datos
                 </td>
               </tr>
             )}
           </tbody>
+          {!loading && filas.length > 0 && (
+            <tfoot className="sticky bottom-0 z-20">
+              <tr className="bg-[#10243e] text-white">
+                <td colSpan={3} className="sticky left-0 z-30 bg-[#10243e] border border-slate-200/10 p-2 font-bold uppercase tracking-wider text-right">
+                  Total por Nivel
+                </td>
+                {gruposNj.flatMap((g, gIdx) =>
+                  g.niveles.flatMap((nivel, nIdx) => {
+                    const totales = totalesPorNivel.get(`${g.nj}|${nivel}`) || { ocup: 0, vac: 0 };
+                    const nivelBorder =
+                      nIdx === 0
+                        ? gIdx > 0
+                          ? "border-l-4 border-l-amber-400"
+                          : ""
+                        : "border-l-2 border-l-slate-400";
+                    return [
+                      <td
+                        key={`${g.nj}|${nivel}|ocup-total`}
+                        onClick={totales.ocup > 0 ? () => onNivelTotalClick(g.nj, nivel, "ocupacion") : undefined}
+                        title={totales.ocup > 0 ? `Ver total ocupadas en ${nivel}` : undefined}
+                        className={`p-1 text-center border border-slate-200/10 font-black text-emerald-300 ${nivelBorder} ${
+                          totales.ocup > 0 ? "cursor-pointer hover:bg-white/10" : ""
+                        }`}
+                      >
+                        {totales.ocup}
+                      </td>,
+                      <td
+                        key={`${g.nj}|${nivel}|vac-total`}
+                        onClick={totales.vac > 0 ? () => onNivelTotalClick(g.nj, nivel, "vacancia") : undefined}
+                        title={totales.vac > 0 ? `Ver total vacantes en ${nivel}` : undefined}
+                        className={`p-1 text-center border border-slate-200/10 font-black text-amber-300 ${
+                          totales.vac > 0 ? "cursor-pointer hover:bg-white/10" : ""
+                        }`}
+                      >
+                        {totales.vac}
+                      </td>,
+                    ];
+                  })
+                )}
+              </tr>
+              <tr className="bg-[#152e4f] text-white">
+                <td colSpan={3} className="sticky left-0 z-30 bg-[#152e4f] border border-slate-200/10 p-2 font-bold uppercase tracking-wider text-right">
+                  Total Nivel Jerárquico
+                </td>
+                {gruposNj.map((g, gIdx) => {
+                  const totales = totalesPorNj.get(g.nj) || { ocup: 0, vac: 0 };
+                  return (
+                    <td
+                      key={`${g.nj}|nj-total`}
+                      colSpan={g.niveles.length * 2}
+                      className={`p-1 text-center border border-slate-200/10 font-black whitespace-nowrap ${
+                        gIdx > 0 ? "border-l-4 border-l-amber-400" : ""
+                      }`}
+                    >
+                      <span
+                        onClick={totales.ocup > 0 ? () => onNjTotalClick(g.nj, "ocupacion") : undefined}
+                        title={totales.ocup > 0 ? `Ver total ocupadas en ${g.label}` : undefined}
+                        className={`text-emerald-300 ${totales.ocup > 0 ? "cursor-pointer hover:underline" : ""}`}
+                      >
+                        Ocup: {totales.ocup}
+                      </span>
+                      {" / "}
+                      <span
+                        onClick={totales.vac > 0 ? () => onNjTotalClick(g.nj, "vacancia") : undefined}
+                        title={totales.vac > 0 ? `Ver total vacantes en ${g.label}` : undefined}
+                        className={`text-amber-300 ${totales.vac > 0 ? "cursor-pointer hover:underline" : ""}`}
+                      >
+                        Vac: {totales.vac}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
         {loading && (
           <div className="p-6 text-center text-slate-400 font-semibold text-xs">Cargando…</div>
@@ -337,25 +514,77 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
     }
   }, [ensureDetailData, data, filasFiltradas]);
 
+  // Filtro genérico sobre el dataset fila-a-fila (ocupados/vacantes): cualquier
+  // criterio omitido (undefined) actúa como "todos" — así una misma función
+  // sirve para el detalle de una celda (aduana+nj+nivel), el total de fila
+  // (solo aduana), el total por columna de nivel (nj+nivel, todas las aduanas
+  // visibles) y el total por NJ (solo nj, todas las aduanas visibles).
+  const filterDetailRows = useCallback((source, { aduana, nj, nivel, allowedAduanas } = {}) => {
+    const njNorm = nj !== undefined ? nj || "" : undefined;
+    return (source || []).filter((item) => {
+      const itemAduana = String(item["Aduana"] || "").trim();
+      const itemNj = String(item["NJ"] ?? "").trim();
+      const itemNivel = String(item["Nivel"] || "").trim();
+      if (aduana !== undefined && itemAduana !== aduana) return false;
+      if (allowedAduanas && !allowedAduanas.has(itemAduana)) return false;
+      if (njNorm !== undefined && itemNj !== njNorm) return false;
+      if (nivel !== undefined && itemNivel !== nivel) return false;
+      return true;
+    });
+  }, []);
+
+  const openDetalle = useCallback((rows, title, tipo) => {
+    setDetalleTitle(title);
+    setDetalleRows(rows.map(mapVacanteRowToEmployeeRow));
+    setDetalleDefaultColumnKeys(tipo === "ocupacion" ? OCUPACION_DEFAULT_COLUMN_KEYS : null);
+    setIsDetalleModalOpen(true);
+  }, []);
+
   const handleCellClick = useCallback(
     async (aduana, nj, nivel, tipo) => {
       if (loadingDetalle) return;
       const { vacantes, ocupados } = await ensureDetailData();
       const source = tipo === "ocupacion" ? ocupados : vacantes;
-      const njNormalizado = nj || "";
-      const filtered = (source || []).filter((item) => {
-        const itemAduana = String(item["Aduana"] || "").trim();
-        const itemNj = String(item["NJ"] ?? "").trim();
-        const itemNivel = String(item["Nivel"] || "").trim();
-        return itemAduana === aduana && itemNj === njNormalizado && itemNivel === nivel;
-      });
-
-      setDetalleTitle(`${aduana} — ${nivel} — ${tipo === "ocupacion" ? "Ocupación" : "Vacancia"}`);
-      setDetalleRows(filtered.map(mapVacanteRowToEmployeeRow));
-      setDetalleDefaultColumnKeys(tipo === "ocupacion" ? OCUPACION_DEFAULT_COLUMN_KEYS : null);
-      setIsDetalleModalOpen(true);
+      const filtered = filterDetailRows(source, { aduana, nj, nivel });
+      openDetalle(filtered, `${aduana} — ${nivel} — ${tipo === "ocupacion" ? "Ocupación" : "Vacancia"}`, tipo);
     },
-    [loadingDetalle, ensureDetailData]
+    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle]
+  );
+
+  const handleRowTotalClick = useCallback(
+    async (aduana, tipo) => {
+      if (loadingDetalle) return;
+      const { vacantes, ocupados } = await ensureDetailData();
+      const source = tipo === "ocupacion" ? ocupados : vacantes;
+      const filtered = filterDetailRows(source, { aduana });
+      openDetalle(filtered, `${aduana} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo);
+    },
+    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle]
+  );
+
+  const handleNivelTotalClick = useCallback(
+    async (nj, nivel, tipo) => {
+      if (loadingDetalle) return;
+      const { vacantes, ocupados } = await ensureDetailData();
+      const source = tipo === "ocupacion" ? ocupados : vacantes;
+      const allowedAduanas = new Set(filasFiltradas.map((f) => f.aduana));
+      const filtered = filterDetailRows(source, { nj, nivel, allowedAduanas });
+      openDetalle(filtered, `${nivel} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo);
+    },
+    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle, filasFiltradas]
+  );
+
+  const handleNjTotalClick = useCallback(
+    async (nj, tipo) => {
+      if (loadingDetalle) return;
+      const { vacantes, ocupados } = await ensureDetailData();
+      const source = tipo === "ocupacion" ? ocupados : vacantes;
+      const allowedAduanas = new Set(filasFiltradas.map((f) => f.aduana));
+      const filtered = filterDetailRows(source, { nj, allowedAduanas });
+      const njLabel = (data?.grupos_nj || []).find((g) => g.nj === nj)?.label || nj;
+      openDetalle(filtered, `${njLabel} — Total ${tipo === "ocupacion" ? "Ocupadas" : "Vacantes"}`, tipo);
+    },
+    [loadingDetalle, ensureDetailData, filterDetailRows, openDetalle, filasFiltradas, data]
   );
 
   return (
@@ -368,6 +597,9 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
           aduanaFilterActive={aduanaSelected.length > 0}
           onOpenAduanaFilter={handleOpenAduanaFilter}
           onCellClick={handleCellClick}
+          onRowTotalClick={handleRowTotalClick}
+          onNivelTotalClick={handleNivelTotalClick}
+          onNjTotalClick={handleNjTotalClick}
           headerRight={
             <button
               type="button"

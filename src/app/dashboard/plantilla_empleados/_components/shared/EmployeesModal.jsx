@@ -1122,6 +1122,14 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 setRowData(rows);
                 setLoading(false);
                 setError(null);
+            } else if (!nivel || !effectiveEstatus) {
+                // El modal ya está abierto (open=true) aunque el padre todavía no
+                // haya resuelto nivel/estatus (p.ej. drill-down que arma esos
+                // valores en un segundo tick) — se muestra el skeleton en vez de
+                // una tabla vacía silenciosa hasta que lleguen y disparen el fetch.
+                setRowData([]);
+                setError(null);
+                setLoading(true);
             } else {
                 fetchData();
             }
@@ -1137,7 +1145,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             setIsVacanciaModalOpen(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, fetchData, isLocalMode, rows]);
+    }, [open, fetchData, isLocalMode, rows, nivel, effectiveEstatus]);
 
     // Columnas visibles por defecto: se recalculan solo al abrir (no en cada
     // cambio de `rows` dentro de una misma sesión abierta) para que no se
