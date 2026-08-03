@@ -1,0 +1,409 @@
+"use client";
+
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Filter, Download } from "lucide-react";
+import { VacantesService } from "@/services/vacantes.service";
+import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
+import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
+import EmployeesModal from "../../shared/EmployeesModal";
+import { mapVacanteRowToEmployeeRow } from "../../shared/mapVacanteRow";
+import {
+  getUniqueColumnValues,
+  finalizeFilterDropdownValues,
+  resolveColumnFilterCommit,
+  normalizeForSearch,
+} from "@/utils/columnFilters";
+
+// Columnas por defecto del modal de detalle cuando se abre desde una celda de
+// Ocupación (trae identidad de empleado) — en Vacancia se usa el default de
+// EmployeesModal en modo local (LOCAL_MODE_DEFAULT_COLUMN_KEYS), pensado para
+// plazas sin titular.
+const OCUPACION_DEFAULT_COLUMN_KEYS = ["id_empleado", "nombres", "rfc", "curp", "posicion", "nivel", "nombre_puesto_funcional"];
+
+// Tabla compacta de conteos agrupados (Aduana x NJ x Nivel x Ocup/Vac). No
+// reusa DataTable (shared) porque esa trae filtros/orden/selección de celda
+// tipo Excel que no aplican a un resumen de ~10-20 filas — aquí se necesita
+// nada más un header de 3 niveles (grupo NJ + subcolumna Nivel + Ocup/Vac) vía colSpan.
+function GroupedCountTable({ gruposNj = [], filas = [], loading, aduanaFilterActive, onOpenAduanaFilter, onCellClick, headerRight }) {
+  const totalCols = useMemo(
+    () => gruposNj.reduce((acc, g) => acc + g.niveles.length * 2, 0),
+    [gruposNj]
+  );
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-black text-[#10243e]">Ocupación vs Vacancia</h4>
+          <p className="text-[10px] font-semibold text-slate-400">
+            {filas.length} {filas.length === 1 ? "aduana" : "aduanas"}
+          </p>
+        </div>
+        {headerRight}
+      </div>
+
+      <div className="max-h-[560px] overflow-auto overscroll-contain">
+        <table className="w-full border-collapse text-[11px]">
+          <thead className="text-white sticky top-0 z-30">
+            <tr>
+              <th
+                rowSpan={3}
+                className="sticky left-0 top-0 z-40 bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 text-center font-bold uppercase tracking-wider min-w-[190px]"
+              >
+                <div className="flex items-center justify-center gap-1.5">
+                  <span>Aduana</span>
+                  <button
+                    type="button"
+                    onClick={onOpenAduanaFilter}
+                    title="Filtrar aduanas"
+                    className={`p-1 rounded-md transition-colors ${
+                      aduanaFilterActive
+                        ? "bg-amber-400 text-[#10243e]"
+                        : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+                    }`}
+                  >
+                    <Filter className="size-3" />
+                  </button>
+                </div>
+              </th>
+              {gruposNj.map((g, gIdx) => (
+                <th
+                  key={g.nj}
+                  colSpan={g.niveles.length * 2}
+                  className={`bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-1.5 text-center font-bold uppercase tracking-wider whitespace-nowrap ${
+                    gIdx > 0 ? "border-l-4 border-l-amber-400" : ""
+                  }`}
+                >
+                  {g.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              {gruposNj.flatMap((g, gIdx) =>
+                g.niveles.map((nivel, nIdx) => (
+                  <th
+                    key={`${g.nj}|${nivel}|lbl`}
+                    colSpan={2}
+                    className={`bg-[#152e4f] border border-slate-200/10 p-1 text-center font-semibold min-w-[84px] ${
+                      nIdx === 0
+                        ? gIdx > 0
+                          ? "border-l-4 border-l-amber-400"
+                          : ""
+                        : "border-l-2 border-l-slate-400"
+                    }`}
+                  >
+                    {nivel}
+                  </th>
+                ))
+              )}
+            </tr>
+            <tr>
+              {gruposNj.flatMap((g, gIdx) =>
+                g.niveles.flatMap((nivel, nIdx) => [
+                  <th
+                    key={`${g.nj}|${nivel}|ocup`}
+                    className={`bg-[#1c3a63] border border-slate-200/10 p-1 text-center font-semibold min-w-[42px] text-emerald-300 ${
+                      nIdx === 0
+                        ? gIdx > 0
+                          ? "border-l-4 border-l-amber-400"
+                          : ""
+                        : "border-l-2 border-l-slate-400"
+                    }`}
+                  >
+                    Ocup
+                  </th>,
+                  <th
+                    key={`${g.nj}|${nivel}|vac`}
+                    className="bg-[#1c3a63] border border-slate-200/10 p-1 text-center font-semibold min-w-[42px] text-amber-300 border-l border-l-slate-500/40"
+                  >
+                    Vac
+                  </th>,
+                ])
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((row, idx) => (
+              <tr
+                key={row.aduana}
+                className={`group border-b-2 border-slate-200 hover:bg-sky-50 ${
+                  idx % 2 === 0 ? "bg-white" : "bg-slate-50"
+                }`}
+              >
+                <td
+                  className={`sticky left-0 z-10 p-2 font-bold text-[#10243e] border-r border-b-2 border-slate-200 whitespace-nowrap group-hover:bg-sky-50 ${
+                    idx % 2 === 0 ? "bg-white" : "bg-slate-50"
+                  }`}
+                  title={row.aduana}
+                >
+                  {row.aduana}
+                </td>
+                {gruposNj.flatMap((g, gIdx) =>
+                  g.niveles.flatMap((nivel, nIdx) => {
+                    const ocup = row.ocupacion?.[`${g.nj}|${nivel}`] ?? 0;
+                    const vac = row.vacancia?.[`${g.nj}|${nivel}`] ?? 0;
+                    const nivelBorder =
+                      nIdx === 0
+                        ? gIdx > 0
+                          ? "border-l-4 border-l-amber-400"
+                          : ""
+                        : "border-l-2 border-l-slate-300";
+                    return [
+                      <td
+                        key={`${g.nj}|${nivel}|ocup`}
+                        onClick={ocup > 0 ? () => onCellClick(row.aduana, g.nj, nivel, "ocupacion") : undefined}
+                        title={ocup > 0 ? `Ver empleados ocupando ${nivel} en ${row.aduana}` : undefined}
+                        className={`p-1 text-center border-r border-b-2 border-slate-200 bg-emerald-50/60 group-hover:bg-emerald-100/60 ${
+                          ocup > 0
+                            ? "font-bold text-emerald-800 cursor-pointer hover:bg-emerald-100"
+                            : "text-slate-300"
+                        } ${nivelBorder}`}
+                      >
+                        {ocup}
+                      </td>,
+                      <td
+                        key={`${g.nj}|${nivel}|vac`}
+                        onClick={vac > 0 ? () => onCellClick(row.aduana, g.nj, nivel, "vacancia") : undefined}
+                        title={vac > 0 ? `Ver vacantes de ${nivel} en ${row.aduana}` : undefined}
+                        className={`p-1 text-center border-r border-l border-l-slate-200 border-b-2 border-slate-200 bg-amber-50/60 group-hover:bg-amber-100/60 ${
+                          vac > 0
+                            ? "font-bold text-amber-800 cursor-pointer hover:bg-amber-100"
+                            : "text-slate-300"
+                        }`}
+                      >
+                        {vac}
+                      </td>,
+                    ];
+                  })
+                )}
+              </tr>
+            ))}
+            {!loading && filas.length === 0 && (
+              <tr>
+                <td colSpan={totalCols + 1} className="p-6 text-center text-slate-400 font-semibold">
+                  Sin datos
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {loading && (
+          <div className="p-6 text-center text-slate-400 font-semibold text-xs">Cargando…</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function AduanasOcupacionVacanciaTab({ cardRef }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const { subscribe } = useZafiroUpdates();
+  const [zafiroTick, setZafiroTick] = useState(0);
+  useEffect(() => {
+    const unsubscribe = subscribe(() => setZafiroTick((t) => t + 1));
+    return unsubscribe;
+  }, [subscribe]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    VacantesService.getAduanasOcupacionVacancia({ signal: ctrl.signal })
+      .then((res) => res.json())
+      .then((resData) => setData(resData))
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error("Error cargando Aduanas Ocupación vs Vacantes:", err);
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setLoading(false);
+      });
+    return () => ctrl.abort();
+  }, [zafiroTick]);
+
+  const filasMerged = useMemo(() => {
+    const ocupacion = data?.ocupacion || [];
+    const vacancia = data?.vacancia || [];
+    const porAduana = new Map();
+
+    ocupacion.forEach((row) => {
+      porAduana.set(row.aduana, { aduana: row.aduana, ocupacion: row.valores, vacancia: {} });
+    });
+    vacancia.forEach((row) => {
+      const existente = porAduana.get(row.aduana);
+      if (existente) existente.vacancia = row.valores;
+      else porAduana.set(row.aduana, { aduana: row.aduana, ocupacion: {}, vacancia: row.valores });
+    });
+
+    return Array.from(porAduana.values()).sort((a, b) => a.aduana.localeCompare(b.aduana));
+  }, [data]);
+
+  const filters = useColumnFilters();
+  const [isAduanaFilterOpen, setIsAduanaFilterOpen] = useState(false);
+  const aduanaSelected = filters.columnFilters.aduana || [];
+
+  const baseUniqueValues = useMemo(
+    () => getUniqueColumnValues(filasMerged, "aduana"),
+    [filasMerged]
+  );
+  const filteredValues = useMemo(() => {
+    const q = normalizeForSearch(filters.filterSearchText);
+    return q ? baseUniqueValues.filter((v) => normalizeForSearch(v.value).includes(q)) : baseUniqueValues;
+  }, [baseUniqueValues, filters.filterSearchText]);
+  const dropdownValues = useMemo(
+    () =>
+      finalizeFilterDropdownValues({
+        baseUniqueValues,
+        filtered: filteredValues,
+        tempSelectedValues: filters.tempSelectedValues,
+        committedSelectedValues: aduanaSelected,
+      }),
+    [baseUniqueValues, filteredValues, filters.tempSelectedValues, aduanaSelected]
+  );
+
+  const filasFiltradas = useMemo(() => {
+    if (aduanaSelected.length === 0) return filasMerged;
+    const set = new Set(aduanaSelected);
+    return filasMerged.filter((row) => set.has(row.aduana));
+  }, [filasMerged, aduanaSelected]);
+
+  const handleOpenAduanaFilter = () => {
+    filters.setTempSelectedValues(aduanaSelected.length > 0 ? aduanaSelected : baseUniqueValues.map((v) => v.value));
+    setIsAduanaFilterOpen(true);
+  };
+  const handleApplyAduanaFilter = () => {
+    const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(filters.tempSelectedValues, dropdownValues.allVals);
+    filters.setColumnFilters((prev) => {
+      const next = { ...prev };
+      if (shouldClear) delete next.aduana;
+      else next.aduana = valuesToCommit;
+      return next;
+    });
+    setIsAduanaFilterOpen(false);
+  };
+  const handleClearAduanaFilter = () => {
+    filters.setColumnFilters((prev) => {
+      const next = { ...prev };
+      delete next.aduana;
+      return next;
+    });
+    filters.setTempSelectedValues(baseUniqueValues.map((v) => v.value));
+    setIsAduanaFilterOpen(false);
+  };
+
+  // Detalle por celda (Ocup/Vac) — el endpoint de este tab solo entrega
+  // conteos agregados (Aduana x NJ x Nivel), así que el listado de empleados
+  // se arma reutilizando los mismos datasets fila-a-fila que ya alimentan
+  // Cuadros de Vacancia (Desglose Jerárquico), filtrados aquí por
+  // Aduana+NJ+Nivel. Se cargan una sola vez, bajo demanda (primer clic).
+  const detailDataRef = useRef({ vacantes: null, ocupados: null });
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [isDetalleModalOpen, setIsDetalleModalOpen] = useState(false);
+  const [detalleRows, setDetalleRows] = useState([]);
+  const [detalleTitle, setDetalleTitle] = useState("");
+  const [detalleDefaultColumnKeys, setDetalleDefaultColumnKeys] = useState(null);
+
+  const ensureDetailData = useCallback(async () => {
+    if (detailDataRef.current.vacantes && detailDataRef.current.ocupados) {
+      return detailDataRef.current;
+    }
+    setLoadingDetalle(true);
+    try {
+      const [vacRes, ocuRes] = await Promise.all([
+        VacantesService.getDesgloseJerarquico(),
+        VacantesService.getDesgloseJerarquicoOcupados(),
+      ]);
+      const [vacantes, ocupados] = await Promise.all([vacRes.json(), ocuRes.json()]);
+      detailDataRef.current = { vacantes, ocupados };
+      return detailDataRef.current;
+    } finally {
+      setLoadingDetalle(false);
+    }
+  }, []);
+
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const handleExportExcel = useCallback(async () => {
+    setIsExportingExcel(true);
+    try {
+      const { vacantes, ocupados } = await ensureDetailData();
+      const { generateAduanasOcupacionVacanciaExcel } = await import("@/utils/aduanasOcupacionVacanciaExcel");
+      await generateAduanasOcupacionVacanciaExcel(data?.grupos_nj || [], filasFiltradas, vacantes, ocupados);
+    } catch (err) {
+      console.error("Error generando Excel de Ocupación vs Vacancia:", err);
+      alert("Error al generar Excel: " + err.message);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  }, [ensureDetailData, data, filasFiltradas]);
+
+  const handleCellClick = useCallback(
+    async (aduana, nj, nivel, tipo) => {
+      if (loadingDetalle) return;
+      const { vacantes, ocupados } = await ensureDetailData();
+      const source = tipo === "ocupacion" ? ocupados : vacantes;
+      const njNormalizado = nj || "";
+      const filtered = (source || []).filter((item) => {
+        const itemAduana = String(item["Aduana"] || "").trim();
+        const itemNj = String(item["NJ"] ?? "").trim();
+        const itemNivel = String(item["Nivel"] || "").trim();
+        return itemAduana === aduana && itemNj === njNormalizado && itemNivel === nivel;
+      });
+
+      setDetalleTitle(`${aduana} — ${nivel} — ${tipo === "ocupacion" ? "Ocupación" : "Vacancia"}`);
+      setDetalleRows(filtered.map(mapVacanteRowToEmployeeRow));
+      setDetalleDefaultColumnKeys(tipo === "ocupacion" ? OCUPACION_DEFAULT_COLUMN_KEYS : null);
+      setIsDetalleModalOpen(true);
+    },
+    [loadingDetalle, ensureDetailData]
+  );
+
+  return (
+    <div ref={cardRef} className="w-full flex flex-col gap-4">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        <GroupedCountTable
+          gruposNj={data?.grupos_nj || []}
+          filas={filasFiltradas}
+          loading={loading}
+          aduanaFilterActive={aduanaSelected.length > 0}
+          onOpenAduanaFilter={handleOpenAduanaFilter}
+          onCellClick={handleCellClick}
+          headerRight={
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel}
+              className="flex items-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isExportingExcel
+                ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                : <Download className="size-3.5" />}
+              <span>{isExportingExcel ? "Generando..." : "Descargar Excel"}</span>
+            </button>
+          }
+        />
+      </div>
+
+      <EmployeesModal
+        open={isDetalleModalOpen}
+        onOpenChange={setIsDetalleModalOpen}
+        rows={detalleRows}
+        title={detalleTitle}
+        defaultColumnKeys={detalleDefaultColumnKeys}
+      />
+
+      <ColumnFilterDropdown
+        open={isAduanaFilterOpen}
+        columnKey="aduana"
+        columnLabel="Aduana"
+        isDate={false}
+        data={filasMerged}
+        filters={filters}
+        dropdownValues={dropdownValues}
+        onApply={handleApplyAduanaFilter}
+        onClear={handleClearAduanaFilter}
+        onClose={() => setIsAduanaFilterOpen(false)}
+      />
+    </div>
+  );
+}

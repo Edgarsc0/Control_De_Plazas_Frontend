@@ -195,6 +195,19 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene la distribución de ocupación vs vacancia por Aduana, Nivel
+     * Jerárquico y Nivel, para el subtab "Aduanas Ocupación vs Vacantes".
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getAduanasOcupacionVacancia: (options = {}) => {
+        return apiFetch('/plantilla/aduanas_ocupacion_vacancia/', {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el historial de ediciones manuales (CeldaOverride) sobre MOV_POS
      * —hoy solo `fecha_anuencia`—, para el modal "Historial de Cambios" del tab
      * Mov. Posiciones. Misma forma de respuesta que el historial de

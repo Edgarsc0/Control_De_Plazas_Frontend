@@ -165,6 +165,11 @@ const isMonoColumn = (key) => {
 // 7.9 QA: formato de fecha consistente — todas las columnas de fecha de este modal empiezan con "fecha_".
 const isDateField = (key) => typeof key === 'string' && key.startsWith('fecha_');
 
+// Columnas monetarias (SMB/SMN) — mismo criterio y formato que PlantillaDetalleTab.jsx.
+const CURRENCY_KEYS = new Set(["smb", "smn"]);
+const isCurrencyField = (key) => CURRENCY_KEYS.has(key);
+const formatCurrency = (value) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
+
 const COLUMN_LABEL_BY_KEY = ALL_AVAILABLE_COLUMNS.reduce((acc, col) => {
     acc[col.key] = col.label;
     return acc;
@@ -783,7 +788,9 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                                             const clickHandler = fieldClickHandlers[field.key];
                                             const isClickable = hasValue && typeof clickHandler === "function";
                                             const displayValue = hasValue
-                                                ? (isDateField(field.key) ? formatDateEsMx(field.value) : field.value)
+                                                ? (isDateField(field.key)
+                                                    ? formatDateEsMx(field.value)
+                                                    : (isCurrencyField(field.key) && !isNaN(Number(field.value)) ? formatCurrency(field.value) : field.value))
                                                 : null;
                                             const isLong = (displayValue?.length || 0) > 34;
                                             return (
@@ -1377,7 +1384,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 } ${isMonoColumn(col.key) ? "font-mono text-[13px] font-semibold" : "font-medium"}`}
                 title={value}
             >
-                {value !== undefined && value !== null && String(value).trim() !== "" ? (isDateField(col.key) ? formatDateEsMx(value) : String(value)) : (
+                {value !== undefined && value !== null && String(value).trim() !== "" ? (
+                    isDateField(col.key)
+                        ? formatDateEsMx(value)
+                        : (isCurrencyField(col.key) && !isNaN(Number(value)) ? formatCurrency(value) : String(value))
+                ) : (
                     <span className="text-slate-300 dark:text-slate-700 italic font-normal">—</span>
                 )}
             </td>

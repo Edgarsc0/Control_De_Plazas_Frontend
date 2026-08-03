@@ -28,6 +28,7 @@ import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaD
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
 import AlineacionOrganizacionalTab from "./_components/tabs/movimientos/AlineacionOrganizacionalTab";
+import AduanasOcupacionVacanciaTab from "./_components/tabs/movimientos/AduanasOcupacionVacanciaTab";
 import MovimientosPersonalTab from "./_components/tabs/mov-posiciones/MovimientosPersonalTab";
 import MapaTab from "./_components/tabs/mapa/MapaTab";
 import BajasTab from "./_components/tabs/bajas/BajasTab";
@@ -189,6 +190,10 @@ export default function PlantillaEmpleadosDetalle({
   useEffect(() => {
     if (activeMovimientosSubTab === "alineacion") setAlineacionVisited(true);
   }, [activeMovimientosSubTab]);
+  const [aduanasVisited, setAduanasVisited] = useState(false);
+  useEffect(() => {
+    if (activeMovimientosSubTab === "aduanas") setAduanasVisited(true);
+  }, [activeMovimientosSubTab]);
   const [activeCatalogoSubTab, setActiveCatalogoSubTab] = useState(CATALOGOS_ORDER[0]);
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
@@ -202,11 +207,12 @@ export default function PlantillaEmpleadosDetalle({
   const cardRefMovimientos = useRef(null);
   const cardRefCuadros = useRef(null);
   const cardRefAlineacion = useRef(null);
+  const cardRefAduanas = useRef(null);
   const cardRefMovPersonal = useRef(null);
   const cardRefBajas = useRef(null);
   const activeCardRef =
     activeTab === "detalle" ? cardRefDetalle :
-    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : cardRefMovimientos) :
+    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : activeMovimientosSubTab === "aduanas" ? cardRefAduanas : cardRefMovimientos) :
     activeTab === "movimientos_personal" ? cardRefMovPersonal :
     activeTab === "bajas" ? cardRefBajas :
     null;
@@ -264,6 +270,7 @@ export default function PlantillaEmpleadosDetalle({
         { id: "tabla", label: "Tabla Principal" },
         { id: "cuadros", label: "Cuadros Vacancia" },
         { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
+        { id: "aduanas", label: "Aduanas Ocupación vs Vacantes", icon: Globe },
       ],
       active: activeMovimientosSubTab,
       setActive: setActiveMovimientosSubTab,
@@ -322,7 +329,11 @@ export default function PlantillaEmpleadosDetalle({
 
   // Window scroll clamping to prevent scrolling below the table
   useEffect(() => {
-    const isTableTab = isTightLayout && activeTab !== "mapa";
+    // "aduanas" queda fuera del clamp: sus tablas fluyen con altura natural
+    // (no una sola card de altura fija), así que clampear el scroll de la
+    // ventana a su offsetTop impedía bajar a ver contenido más abajo.
+    const isAduanas = activeTab === "movimientos" && activeMovimientosSubTab === "aduanas";
+    const isTableTab = isTightLayout && activeTab !== "mapa" && !isAduanas;
     if (!isTableTab || !activeCardRef) return;
 
     // El clamp es para la tabla sticky de DESKTOP. En móvil la lista de tarjetas
@@ -404,6 +415,10 @@ export default function PlantillaEmpleadosDetalle({
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Comprobar Alineación Organizacional
                         </span>
+                      ) : activeTab === "movimientos" && activeMovimientosSubTab === "aduanas" ? (
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                          Aduanas: Ocupación vs Vacantes
+                        </span>
                       ) : (
                         <>
                           Plantilla de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
@@ -423,7 +438,9 @@ export default function PlantillaEmpleadosDetalle({
                           ? "Gestión, consulta e histórico de los movimientos de personal, incluyendo altas, bajas y cambios de adscripción en la ANAM."
                           : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion"
                             ? "Comparación campo a campo entre MOV_POS y EMPLEADOS_COMPLETOS_SIG para las plazas activas: detecta discrepancias entre la estructura de la plaza y los datos de la persona que la ocupa."
-                            : "Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM."}
+                            : activeTab === "movimientos" && activeMovimientosSubTab === "aduanas"
+                              ? "Ocupación y vacancia de cada aduana, desglosadas por Nivel Jerárquico y Nivel, ubicadas sobre el mapa nacional."
+                              : "Detalle completo de plazas, estatus administrativo y estructura funcional en la ANAM."}
                     </p>
                   </div>
                 </div>
@@ -489,6 +506,11 @@ export default function PlantillaEmpleadosDetalle({
                 startTransition={startTransition}
                 cardRef={cardRefAlineacion}
               />
+            </div>
+          )}
+          {aduanasVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+            <div className={activeTab === "movimientos" && activeMovimientosSubTab === "aduanas" ? "block" : "hidden"}>
+              <AduanasOcupacionVacanciaTab cardRef={cardRefAduanas} />
             </div>
           )}
           {visitedTabs.has("movimientos_personal") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS) && (
