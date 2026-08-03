@@ -37,6 +37,13 @@ function GroupedCountTable({
   onNjTotalClick,
   headerRight,
 }) {
+  // Hover de fila manejado por estado de React (no CSS :hover/group-hover):
+  // con columnas sticky, el fast-path de scroll compuesto de Chrome deja
+  // "pegado" el tinte de hover de celdas ya scrolleadas fuera de pantalla,
+  // pintando un rastro fantasma detrás de la columna Aduana. Forzar el
+  // repintado vía estado de React evita ese bug de capas.
+  const [hoveredAduana, setHoveredAduana] = useState(null);
+
   const totalCols = useMemo(
     () => gruposNj.reduce((acc, g) => acc + g.niveles.length * 2, 0),
     [gruposNj]
@@ -101,6 +108,7 @@ function GroupedCountTable({
             <tr>
               <th
                 rowSpan={3}
+                style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
                 className="sticky left-0 top-0 z-40 bg-[#40121e] border border-[#621f32]/35 p-2 text-center font-bold uppercase tracking-wider min-w-[190px]"
               >
                 <div className="flex items-center justify-center gap-1.5">
@@ -192,16 +200,20 @@ function GroupedCountTable({
             </tr>
           </thead>
           <tbody>
-            {filas.map((row, idx) => (
+            {filas.map((row, idx) => {
+              const isHovered = hoveredAduana === row.aduana;
+              const zebraBg = idx % 2 === 0 ? "bg-white" : "bg-slate-50";
+              return (
               <tr
                 key={row.aduana}
-                className={`group border-b-2 border-slate-200 hover:bg-[#621f32]/5 ${
-                  idx % 2 === 0 ? "bg-white" : "bg-slate-50"
-                }`}
+                onMouseEnter={() => setHoveredAduana(row.aduana)}
+                onMouseLeave={() => setHoveredAduana(null)}
+                className={`border-b-2 border-slate-200 ${isHovered ? "bg-[#621f32]/5" : zebraBg}`}
               >
                 <td
-                  className={`sticky left-0 z-10 p-2 font-bold text-[#40121e] border-r border-b-2 border-slate-200 whitespace-nowrap group-hover:bg-[#621f32]/5 ${
-                    idx % 2 === 0 ? "bg-white" : "bg-slate-50"
+                  style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+                  className={`sticky left-0 z-10 p-2 font-bold text-[#40121e] border-r border-b-2 border-slate-200 whitespace-nowrap ${
+                    isHovered ? "bg-[#621f32]/5" : zebraBg
                   }`}
                   title={row.aduana}
                 >
@@ -256,7 +268,9 @@ function GroupedCountTable({
                         key={`${g.nj}|${nivel}|ocup`}
                         onClick={ocup > 0 ? () => onCellClick(row.aduana, g.nj, nivel, "ocupacion") : undefined}
                         title={ocup > 0 ? `Ver empleados ocupando ${nivel} en ${row.aduana}` : undefined}
-                        className={`p-1 text-center border-r border-b-2 border-slate-200 bg-[#621f32]/[0.04] group-hover:bg-[#621f32]/10 ${
+                        className={`p-1 text-center border-r border-b-2 border-slate-200 ${
+                          isHovered ? "bg-[#621f32]/10" : "bg-[#621f32]/[0.04]"
+                        } ${
                           ocup > 0
                             ? "font-bold text-[#621f32] cursor-pointer hover:bg-[#621f32]/10"
                             : "text-slate-300"
@@ -268,7 +282,9 @@ function GroupedCountTable({
                         key={`${g.nj}|${nivel}|vac`}
                         onClick={vac > 0 ? () => onCellClick(row.aduana, g.nj, nivel, "vacancia") : undefined}
                         title={vac > 0 ? `Ver vacantes de ${nivel} en ${row.aduana}` : undefined}
-                        className={`p-1 text-center border-r border-l border-l-slate-200 border-b-2 border-slate-200 bg-[#bc955c]/[0.06] group-hover:bg-[#bc955c]/15 ${
+                        className={`p-1 text-center border-r border-l border-l-slate-200 border-b-2 border-slate-200 ${
+                          isHovered ? "bg-[#bc955c]/15" : "bg-[#bc955c]/[0.06]"
+                        } ${
                           vac > 0
                             ? "font-bold text-[#8a6739] cursor-pointer hover:bg-[#bc955c]/15"
                             : "text-slate-300"
@@ -280,7 +296,8 @@ function GroupedCountTable({
                   })
                 )}
               </tr>
-            ))}
+              );
+            })}
             {!loading && filas.length === 0 && (
               <tr>
                 <td colSpan={totalCols + 3} className="p-6 text-center text-slate-400 font-semibold">
@@ -292,7 +309,11 @@ function GroupedCountTable({
           {!loading && filas.length > 0 && (
             <tfoot className="sticky bottom-0 z-20">
               <tr className="bg-[#40121e] text-white">
-                <td colSpan={3} className="sticky left-0 z-30 bg-[#40121e] border border-[#621f32]/35 p-2 font-bold uppercase tracking-wider text-right">
+                <td
+                  colSpan={3}
+                  style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+                  className="sticky left-0 z-30 bg-[#40121e] border border-[#621f32]/35 p-2 font-bold uppercase tracking-wider text-right"
+                >
                   Total por Nivel
                 </td>
                 {gruposNj.flatMap((g, gIdx) =>
@@ -330,7 +351,11 @@ function GroupedCountTable({
                 )}
               </tr>
               <tr className="bg-[#2b0d15] text-white">
-                <td colSpan={3} className="sticky left-0 z-30 bg-[#2b0d15] border border-[#621f32]/35 p-2 font-bold uppercase tracking-wider text-right">
+                <td
+                  colSpan={3}
+                  style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+                  className="sticky left-0 z-30 bg-[#2b0d15] border border-[#621f32]/35 p-2 font-bold uppercase tracking-wider text-right"
+                >
                   Total Nivel Jerárquico
                 </td>
                 {gruposNj.map((g, gIdx) => {
