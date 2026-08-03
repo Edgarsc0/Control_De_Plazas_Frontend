@@ -87,7 +87,7 @@ function GroupedCountTable({
     <div className="flex flex-col">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-black text-[#10243e]">Ocupación vs Vacancia</h4>
+          <h4 className="text-sm font-black text-[#621f32]">Ocupación vs Vacancia</h4>
           <p className="text-[10px] font-semibold text-slate-400">
             {filas.length} {filas.length === 1 ? "aduana" : "aduanas"}
           </p>
@@ -101,7 +101,7 @@ function GroupedCountTable({
             <tr>
               <th
                 rowSpan={3}
-                className="sticky left-0 top-0 z-40 bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 text-center font-bold uppercase tracking-wider min-w-[190px]"
+                className="sticky left-0 top-0 z-40 bg-[#40121e] border border-[#621f32]/35 p-2 text-center font-bold uppercase tracking-wider min-w-[190px]"
               >
                 <div className="flex items-center justify-center gap-1.5">
                   <span>Aduana</span>
@@ -111,7 +111,7 @@ function GroupedCountTable({
                     title="Filtrar aduanas"
                     className={`p-1 rounded-md transition-colors ${
                       aduanaFilterActive
-                        ? "bg-amber-400 text-[#10243e]"
+                        ? "bg-[#bc955c] text-[#40121e]"
                         : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
                     }`}
                   >
@@ -121,7 +121,7 @@ function GroupedCountTable({
               </th>
               <th
                 rowSpan={3}
-                className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 border-l-4 border-l-amber-400 p-2 text-center font-bold uppercase tracking-wider min-w-[70px] text-emerald-300"
+                className="bg-[#501929] border border-[#621f32]/35 border-l-4 border-l-[#bc955c] p-2 text-center font-bold uppercase tracking-wider min-w-[70px] text-[#f2e5d0]"
               >
                 Total
                 <br />
@@ -129,7 +129,7 @@ function GroupedCountTable({
               </th>
               <th
                 rowSpan={3}
-                className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 text-center font-bold uppercase tracking-wider min-w-[70px] text-amber-300"
+                className="bg-[#501929] border border-[#621f32]/35 p-2 text-center font-bold uppercase tracking-wider min-w-[70px] text-[#bc955c]"
               >
                 Total
                 <br />
@@ -139,8 +139,8 @@ function GroupedCountTable({
                 <th
                   key={g.nj}
                   colSpan={g.niveles.length * 2}
-                  className={`bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-1.5 text-center font-bold uppercase tracking-wider whitespace-nowrap ${
-                    gIdx > 0 ? "border-l-4 border-l-amber-400" : ""
+                  className={`bg-[#501929] border border-[#621f32]/35 p-1.5 text-center font-bold uppercase tracking-wider whitespace-nowrap ${
+                    gIdx > 0 ? "border-l-4 border-l-[#bc955c]" : ""
                   }`}
                 >
                   {g.label}
@@ -153,10 +153,10 @@ function GroupedCountTable({
                   <th
                     key={`${g.nj}|${nivel}|lbl`}
                     colSpan={2}
-                    className={`bg-[#152e4f] border border-slate-200/10 p-1 text-center font-semibold min-w-[84px] ${
+                    className={`bg-[#40121e] border border-[#621f32]/35 p-1 text-center font-semibold min-w-[84px] ${
                       nIdx === 0
                         ? gIdx > 0
-                          ? "border-l-4 border-l-amber-400"
+                          ? "border-l-4 border-l-[#bc955c]"
                           : ""
                         : "border-l-2 border-l-slate-400"
                     }`}
@@ -171,10 +171,10 @@ function GroupedCountTable({
                 g.niveles.flatMap((nivel, nIdx) => [
                   <th
                     key={`${g.nj}|${nivel}|ocup`}
-                    className={`bg-[#1c3a63] border border-slate-200/10 p-1 text-center font-semibold min-w-[42px] text-emerald-300 ${
+                    className={`bg-[#2b0d15] border border-[#621f32]/35 p-1 text-center font-semibold min-w-[42px] text-[#f2e5d0] ${
                       nIdx === 0
                         ? gIdx > 0
-                          ? "border-l-4 border-l-amber-400"
+                          ? "border-l-4 border-l-[#bc955c]"
                           : ""
                         : "border-l-2 border-l-slate-400"
                     }`}
@@ -183,7 +183,7 @@ function GroupedCountTable({
                   </th>,
                   <th
                     key={`${g.nj}|${nivel}|vac`}
-                    className="bg-[#1c3a63] border border-slate-200/10 p-1 text-center font-semibold min-w-[42px] text-amber-300 border-l border-l-slate-500/40"
+                    className="bg-[#2b0d15] border border-[#621f32]/35 p-1 text-center font-semibold min-w-[42px] text-[#bc955c] border-l border-l-slate-500/40"
                   >
                     Vac
                   </th>,
@@ -195,12 +195,12 @@ function GroupedCountTable({
             {filas.map((row, idx) => (
               <tr
                 key={row.aduana}
-                className={`group border-b-2 border-slate-200 hover:bg-sky-50 ${
+                className={`group border-b-2 border-slate-200 hover:bg-[#621f32]/5 ${
                   idx % 2 === 0 ? "bg-white" : "bg-slate-50"
                 }`}
               >
                 <td
-                  className={`sticky left-0 z-10 p-2 font-bold text-[#10243e] border-r border-b-2 border-slate-200 whitespace-nowrap group-hover:bg-sky-50 ${
+                  className={`sticky left-0 z-10 p-2 font-bold text-[#40121e] border-r border-b-2 border-slate-200 whitespace-nowrap group-hover:bg-[#621f32]/5 ${
                     idx % 2 === 0 ? "bg-white" : "bg-slate-50"
                   }`}
                   title={row.aduana}
@@ -218,8 +218,8 @@ function GroupedCountTable({
                       ? `Ver total ocupadas en ${row.aduana}`
                       : undefined
                   }
-                  className={`p-1 text-center border-r border-b-2 border-l-4 border-l-amber-400 border-slate-200 bg-emerald-50 font-black text-emerald-800 ${
-                    (filaTotales.get(row.aduana)?.ocup ?? 0) > 0 ? "cursor-pointer hover:bg-emerald-100" : ""
+                  className={`p-1 text-center border-r border-b-2 border-l-4 border-l-[#bc955c] border-slate-200 bg-[#621f32]/[0.06] font-black text-[#621f32] ${
+                    (filaTotales.get(row.aduana)?.ocup ?? 0) > 0 ? "cursor-pointer hover:bg-[#621f32]/10" : ""
                   }`}
                 >
                   {filaTotales.get(row.aduana)?.ocup ?? 0}
@@ -235,8 +235,8 @@ function GroupedCountTable({
                       ? `Ver total vacantes en ${row.aduana}`
                       : undefined
                   }
-                  className={`p-1 text-center border-r border-b-2 border-slate-200 bg-amber-50 font-black text-amber-800 ${
-                    (filaTotales.get(row.aduana)?.vac ?? 0) > 0 ? "cursor-pointer hover:bg-amber-100" : ""
+                  className={`p-1 text-center border-r border-b-2 border-slate-200 bg-[#bc955c]/[0.10] font-black text-[#8a6739] ${
+                    (filaTotales.get(row.aduana)?.vac ?? 0) > 0 ? "cursor-pointer hover:bg-[#bc955c]/15" : ""
                   }`}
                 >
                   {filaTotales.get(row.aduana)?.vac ?? 0}
@@ -248,7 +248,7 @@ function GroupedCountTable({
                     const nivelBorder =
                       nIdx === 0
                         ? gIdx > 0
-                          ? "border-l-4 border-l-amber-400"
+                          ? "border-l-4 border-l-[#bc955c]"
                           : ""
                         : "border-l-2 border-l-slate-300";
                     return [
@@ -256,9 +256,9 @@ function GroupedCountTable({
                         key={`${g.nj}|${nivel}|ocup`}
                         onClick={ocup > 0 ? () => onCellClick(row.aduana, g.nj, nivel, "ocupacion") : undefined}
                         title={ocup > 0 ? `Ver empleados ocupando ${nivel} en ${row.aduana}` : undefined}
-                        className={`p-1 text-center border-r border-b-2 border-slate-200 bg-emerald-50/60 group-hover:bg-emerald-100/60 ${
+                        className={`p-1 text-center border-r border-b-2 border-slate-200 bg-[#621f32]/[0.04] group-hover:bg-[#621f32]/10 ${
                           ocup > 0
-                            ? "font-bold text-emerald-800 cursor-pointer hover:bg-emerald-100"
+                            ? "font-bold text-[#621f32] cursor-pointer hover:bg-[#621f32]/10"
                             : "text-slate-300"
                         } ${nivelBorder}`}
                       >
@@ -268,9 +268,9 @@ function GroupedCountTable({
                         key={`${g.nj}|${nivel}|vac`}
                         onClick={vac > 0 ? () => onCellClick(row.aduana, g.nj, nivel, "vacancia") : undefined}
                         title={vac > 0 ? `Ver vacantes de ${nivel} en ${row.aduana}` : undefined}
-                        className={`p-1 text-center border-r border-l border-l-slate-200 border-b-2 border-slate-200 bg-amber-50/60 group-hover:bg-amber-100/60 ${
+                        className={`p-1 text-center border-r border-l border-l-slate-200 border-b-2 border-slate-200 bg-[#bc955c]/[0.06] group-hover:bg-[#bc955c]/15 ${
                           vac > 0
-                            ? "font-bold text-amber-800 cursor-pointer hover:bg-amber-100"
+                            ? "font-bold text-[#8a6739] cursor-pointer hover:bg-[#bc955c]/15"
                             : "text-slate-300"
                         }`}
                       >
@@ -291,8 +291,8 @@ function GroupedCountTable({
           </tbody>
           {!loading && filas.length > 0 && (
             <tfoot className="sticky bottom-0 z-20">
-              <tr className="bg-[#10243e] text-white">
-                <td colSpan={3} className="sticky left-0 z-30 bg-[#10243e] border border-slate-200/10 p-2 font-bold uppercase tracking-wider text-right">
+              <tr className="bg-[#40121e] text-white">
+                <td colSpan={3} className="sticky left-0 z-30 bg-[#40121e] border border-[#621f32]/35 p-2 font-bold uppercase tracking-wider text-right">
                   Total por Nivel
                 </td>
                 {gruposNj.flatMap((g, gIdx) =>
@@ -301,7 +301,7 @@ function GroupedCountTable({
                     const nivelBorder =
                       nIdx === 0
                         ? gIdx > 0
-                          ? "border-l-4 border-l-amber-400"
+                          ? "border-l-4 border-l-[#bc955c]"
                           : ""
                         : "border-l-2 border-l-slate-400";
                     return [
@@ -309,7 +309,7 @@ function GroupedCountTable({
                         key={`${g.nj}|${nivel}|ocup-total`}
                         onClick={totales.ocup > 0 ? () => onNivelTotalClick(g.nj, nivel, "ocupacion") : undefined}
                         title={totales.ocup > 0 ? `Ver total ocupadas en ${nivel}` : undefined}
-                        className={`p-1 text-center border border-slate-200/10 font-black text-emerald-300 ${nivelBorder} ${
+                        className={`p-1 text-center border border-[#621f32]/35 font-black text-[#f2e5d0] ${nivelBorder} ${
                           totales.ocup > 0 ? "cursor-pointer hover:bg-white/10" : ""
                         }`}
                       >
@@ -319,7 +319,7 @@ function GroupedCountTable({
                         key={`${g.nj}|${nivel}|vac-total`}
                         onClick={totales.vac > 0 ? () => onNivelTotalClick(g.nj, nivel, "vacancia") : undefined}
                         title={totales.vac > 0 ? `Ver total vacantes en ${nivel}` : undefined}
-                        className={`p-1 text-center border border-slate-200/10 font-black text-amber-300 ${
+                        className={`p-1 text-center border border-[#621f32]/35 font-black text-[#bc955c] ${
                           totales.vac > 0 ? "cursor-pointer hover:bg-white/10" : ""
                         }`}
                       >
@@ -329,8 +329,8 @@ function GroupedCountTable({
                   })
                 )}
               </tr>
-              <tr className="bg-[#152e4f] text-white">
-                <td colSpan={3} className="sticky left-0 z-30 bg-[#152e4f] border border-slate-200/10 p-2 font-bold uppercase tracking-wider text-right">
+              <tr className="bg-[#2b0d15] text-white">
+                <td colSpan={3} className="sticky left-0 z-30 bg-[#2b0d15] border border-[#621f32]/35 p-2 font-bold uppercase tracking-wider text-right">
                   Total Nivel Jerárquico
                 </td>
                 {gruposNj.map((g, gIdx) => {
@@ -339,14 +339,14 @@ function GroupedCountTable({
                     <td
                       key={`${g.nj}|nj-total`}
                       colSpan={g.niveles.length * 2}
-                      className={`p-1 text-center border border-slate-200/10 font-black whitespace-nowrap ${
-                        gIdx > 0 ? "border-l-4 border-l-amber-400" : ""
+                      className={`p-1 text-center border border-[#621f32]/35 font-black whitespace-nowrap ${
+                        gIdx > 0 ? "border-l-4 border-l-[#bc955c]" : ""
                       }`}
                     >
                       <span
                         onClick={totales.ocup > 0 ? () => onNjTotalClick(g.nj, "ocupacion") : undefined}
                         title={totales.ocup > 0 ? `Ver total ocupadas en ${g.label}` : undefined}
-                        className={`text-emerald-300 ${totales.ocup > 0 ? "cursor-pointer hover:underline" : ""}`}
+                        className={`text-[#f2e5d0] ${totales.ocup > 0 ? "cursor-pointer hover:underline" : ""}`}
                       >
                         Ocup: {totales.ocup}
                       </span>
@@ -354,7 +354,7 @@ function GroupedCountTable({
                       <span
                         onClick={totales.vac > 0 ? () => onNjTotalClick(g.nj, "vacancia") : undefined}
                         title={totales.vac > 0 ? `Ver total vacantes en ${g.label}` : undefined}
-                        className={`text-amber-300 ${totales.vac > 0 ? "cursor-pointer hover:underline" : ""}`}
+                        className={`text-[#bc955c] ${totales.vac > 0 ? "cursor-pointer hover:underline" : ""}`}
                       >
                         Vac: {totales.vac}
                       </span>
@@ -618,7 +618,7 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
               type="button"
               onClick={handleExportExcel}
               disabled={isExportingExcel}
-              className="flex items-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8d2c48] hover:from-[#7a2942] hover:to-[#a13456] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
             >
               {isExportingExcel
                 ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />

@@ -1077,7 +1077,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 px-0 sm:px-4 lg:px-6">
 
             {/* KPI 1: Plazas Totales */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#10243e]/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-[#10243e] dark:border-t-[#10243e] border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Totales</p>
@@ -1096,7 +1096,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
 
             {/* KPI 2: Plazas Ocupadas */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#bc955c]/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-emerald-500 border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Ocupadas</p>
@@ -1120,7 +1120,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
 
             {/* KPI 3: Plazas Vacantes */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-[#621f32]/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-[#621f32] border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Vacantes</p>
@@ -1145,23 +1145,23 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
 
             {/* KPI 4: Relación Ocupación */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl hover:border-blue-500/30 transition-all duration-300 group">
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-[#bc955c] border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Quincena de Reporte</p>
-                  <h4 className="text-sm font-black text-slate-700 dark:text-slate-200 mt-2.5 tracking-tight line-clamp-1">
+                  <h4 className="text-xl font-black text-slate-700 dark:text-slate-200 mt-1 tracking-tight line-clamp-1">
                     {kpis.fechaActual}
                   </h4>
                 </div>
-                <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <div className="p-3 bg-[#bc955c]/10 dark:bg-[#bc955c]/15 text-[#8a6739] dark:text-[#bc955c] rounded-xl group-hover:scale-110 transition-transform duration-300">
                   <Activity className="size-5" />
                 </div>
               </div>
-              <div className="mt-5">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60">
                 <div className="w-full bg-rose-100 dark:bg-rose-950/40 h-2 rounded-full overflow-hidden flex">
                   <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${kpis.ocupadasPct}%` }} />
                 </div>
-                <div className="flex justify-between items-center mt-1.5 text-[9px] text-slate-500 dark:text-slate-500 font-bold uppercase tracking-wider">
+                <div className="flex justify-between items-center mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
                   <span>{kpis.ocupadasPct}% Ocupadas</span>
                   <span>{kpis.vacantesPct}% Vacantes</span>
                 </div>
@@ -1202,54 +1202,56 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex flex-col sm:items-end gap-2.5">
                   {hasActiveFilters && (
                     <button
                       onClick={clearAllFilters}
-                      className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 shadow-sm border border-slate-200/30 dark:border-slate-700/30 cursor-pointer"
+                      className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 shadow-sm border border-slate-200/30 dark:border-slate-700/30 cursor-pointer self-start sm:self-end"
                     >
                       <FilterX className="size-3.5" />
                       <span>Borrar filtros</span>
                     </button>
                   )}
 
-                  <button
-                    onClick={handleExportExcel}
-                    disabled={isExportingExcel}
-                    className="flex items-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {isExportingExcel
-                      ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                      : <Download className="size-3.5" />}
-                    <span>{isExportingExcel ? 'Generando...' : 'Descargar Excel'}</span>
-                  </button>
+                  <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-1.5 shadow-sm shadow-slate-200/40 dark:shadow-black/20">
+                    <button
+                      onClick={handleExportExcel}
+                      disabled={isExportingExcel}
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {isExportingExcel
+                        ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        : <Download className="size-3.5" />}
+                      <span>{isExportingExcel ? 'Generando...' : 'Excel'}</span>
+                    </button>
 
-                  <button
-                    onClick={handleExportImage}
-                    disabled={isExporting}
-                    className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-sm border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <Download className={`size-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
-                    <span>{isExporting ? 'Exportando...' : 'Exportar Imagen'}</span>
-                  </button>
+                    <button
+                      onClick={handleExportImage}
+                      disabled={isExporting}
+                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Download className={`size-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
+                      <span>{isExporting ? 'Exportando...' : 'Imagen'}</span>
+                    </button>
 
-                  <button
-                    onClick={handleGeneratePdf}
-                    disabled={isGeneratingPdf}
-                    className="flex items-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8c2d4a] hover:from-[#7a2740] hover:to-[#a33658] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md shadow-[#621f32]/25 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <FileText className={`size-3.5 ${isGeneratingPdf ? 'animate-pulse' : ''}`} />
-                    <span>{isGeneratingPdf ? 'Generando PDF...' : 'Reporte PDF'}</span>
-                  </button>
+                    <button
+                      onClick={handleGeneratePdf}
+                      disabled={isGeneratingPdf}
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8c2d4a] hover:from-[#7a2740] hover:to-[#a33658] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <FileText className={`size-3.5 ${isGeneratingPdf ? 'animate-pulse' : ''}`} />
+                      <span>{isGeneratingPdf ? 'Generando...' : 'PDF'}</span>
+                    </button>
 
-                  <button
-                    onClick={handleGenerateWord}
-                    disabled={isGeneratingWord}
-                    className="flex items-center gap-2 bg-gradient-to-r from-[#2e5890] to-[#3b6ba8] hover:from-[#254a79] hover:to-[#2e5890] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md shadow-[#2e5890]/25 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    <FileEdit className={`size-3.5 ${isGeneratingWord ? 'animate-pulse' : ''}`} />
-                    <span>{isGeneratingWord ? 'Generando Word...' : 'Reporte Word'}</span>
-                  </button>
+                    <button
+                      onClick={handleGenerateWord}
+                      disabled={isGeneratingWord}
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#2e5890] to-[#3b6ba8] hover:from-[#254a79] hover:to-[#2e5890] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <FileEdit className={`size-3.5 ${isGeneratingWord ? 'animate-pulse' : ''}`} />
+                      <span>{isGeneratingWord ? 'Generando...' : 'Word'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1265,22 +1267,22 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   <table className="w-full text-xs sm:text-sm text-left border-collapse">
                     <thead ref={theadRef} className="text-white sticky top-0 z-20">
                       <tr>
-                        <th colSpan={isCompactChart ? 1 : 2} className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan={isCompactChart ? 1 : 2} className="bg-[#501929] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Periodo
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-[#501929] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Ocupadas
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-[#501929] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Vacantes
                         </th>
-                        <th colSpan="3" className="bg-[#10243e] border border-slate-200/10 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-[#40121e] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
                           Total
                         </th>
                       </tr>
-                      <tr className="bg-[#163052] border-t border-slate-200/10">
+                      <tr className="bg-[#2b0d15] border-t border-[#621f32]/35">
                         {!isCompactChart && (
-                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#2b0d15] border border-[#621f32]/35 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                             <div className="flex items-center justify-center gap-2">
                               Año
                               <div className="relative" ref={yearFilterRef}>
@@ -1293,7 +1295,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                                     }
                                     setYearFilterOpen(!yearFilterOpen);
                                   }}
-                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedYears.length > 0 ? 'bg-[#bc955c] text-[#10243e] font-bold' : 'hover:bg-white/20'}`}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedYears.length > 0 ? 'bg-[#bc955c] text-[#621f32] font-bold' : 'hover:bg-white/20'}`}
                                 >
                                   <Filter className="size-3" />
                                 </button>
@@ -1301,7 +1303,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             </div>
                           </th>
                         )}
-                        <th className="sticky left-0 sm:left-20 z-30 bg-[#163052] border border-slate-200/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th className="sticky left-0 sm:left-20 z-30 bg-[#2b0d15] border border-[#621f32]/35 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                           <div className="flex items-center justify-center gap-2">
                             Qna.
                             <div className="relative" ref={qnaFilterRef}>
@@ -1314,7 +1316,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                                   }
                                   setQnaFilterOpen(!qnaFilterOpen);
                                 }}
-                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedQnas.length > 0 ? 'bg-[#bc955c] text-[#10243e] font-bold' : 'hover:bg-white/20'}`}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${selectedQnas.length > 0 ? 'bg-[#bc955c] text-[#621f32] font-bold' : 'hover:bg-white/20'}`}
                               >
                                 <Filter className="size-3" />
                               </button>
@@ -1322,33 +1324,33 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           </div>
                         </th>
                         {/* Ocupadas */}
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Permanente
                         </th>
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Eventual
                         </th>
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-slate-200/10">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-[#40121e]/20">
                           Total
                         </th>
                         {/* Vacantes */}
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Permanente
                         </th>
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Eventual
                         </th>
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-slate-200/10">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-[#40121e]/20">
                           Total
                         </th>
                         {/* Total */}
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Permanente
                         </th>
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
                           Eventual
                         </th>
-                        <th className="border border-slate-200/10 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-slate-200/10">
+                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-[#40121e]/20">
                           Total
                         </th>
                       </tr>

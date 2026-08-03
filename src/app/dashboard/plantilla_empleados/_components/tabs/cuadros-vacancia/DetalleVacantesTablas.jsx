@@ -157,10 +157,10 @@ function calcMergedTotal(rows) {
 function ClickableNum({ value, onClick, tone }) {
   if (value <= 0) return <span className="text-slate-350 dark:text-slate-700 font-medium">—</span>;
   const toneClasses = tone === 'ocup'
-    ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-600 hover:text-white'
+    ? 'text-[#621f32] dark:text-[#f2e5d0] bg-[#621f32]/10 dark:bg-[#621f32]/20 hover:bg-[#621f32] hover:text-white'
     : tone === 'vac'
-      ? 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-600 hover:text-white'
-      : 'text-[#10243e] dark:text-[#bc955c] bg-[#10243e]/5 dark:bg-[#bc955c]/5 hover:bg-[#10243e] hover:text-white dark:hover:bg-[#bc955c] dark:hover:text-[#10243e]';
+      ? 'text-[#8a6739] dark:text-[#bc955c] bg-[#bc955c]/10 dark:bg-[#bc955c]/15 hover:bg-[#bc955c] hover:text-[#40121e]'
+      : 'text-[#621f32] dark:text-[#bc955c] bg-[#621f32]/5 dark:bg-[#bc955c]/5 hover:bg-[#621f32] hover:text-white dark:hover:bg-[#bc955c] dark:hover:text-[#40121e]';
   return (
     <button
       onClick={onClick}
@@ -198,7 +198,7 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
             <tr>
               <th
                 rowSpan={2}
-                className="sticky left-0 top-0 z-40 bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider"
+                className="sticky left-0 top-0 z-40 bg-[#40121e] border border-[#621f32]/35 p-3 text-center font-bold text-[11px] uppercase tracking-wider"
               >
                 Nivel
               </th>
@@ -206,8 +206,8 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
                 <th
                   key={g.key}
                   colSpan={2}
-                  className={`bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-2 text-center font-bold text-[11px] uppercase tracking-wider whitespace-nowrap ${
-                    i > 0 ? "border-l-4 border-l-amber-400/60" : ""
+                  className={`bg-[#501929] border border-[#621f32]/35 p-2 text-center font-bold text-[11px] uppercase tracking-wider whitespace-nowrap ${
+                    i > 0 ? "border-l-4 border-l-[#bc955c]/60" : ""
                   }`}
                 >
                   {g.label}
@@ -218,15 +218,15 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
               {PLAZA_GROUPS.flatMap((g, i) => [
                 <th
                   key={`${g.key}|ocup`}
-                  className={`bg-[#152e4f] border border-slate-200/10 p-1.5 text-center font-semibold text-[10px] text-emerald-300 ${
-                    i > 0 ? "border-l-4 border-l-amber-400/60" : ""
+                  className={`bg-[#2b0d15] border border-[#621f32]/35 p-1.5 text-center font-semibold text-[10px] text-[#f2e5d0] ${
+                    i > 0 ? "border-l-4 border-l-[#bc955c]/60" : ""
                   }`}
                 >
                   Ocup
                 </th>,
                 <th
                   key={`${g.key}|vac`}
-                  className="bg-[#152e4f] border border-slate-200/10 p-1.5 text-center font-semibold text-[10px] text-amber-300 border-l border-l-slate-500/40"
+                  className="bg-[#2b0d15] border border-[#621f32]/35 p-1.5 text-center font-semibold text-[10px] text-[#bc955c] border-l border-l-slate-500/40"
                 >
                   Vac
                 </th>,
@@ -242,7 +242,7 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
                 }`}
               >
                 <td
-                  className={`sticky left-0 z-10 p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60 ${
+                  className={`sticky left-0 z-10 p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60 ${
                     idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50 dark:bg-slate-800"
                   }`}
                 >
@@ -270,30 +270,30 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
-              <td className="sticky left-0 z-10 bg-[#10243e] p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">
+            <tr className="bg-[#40121e] text-white font-bold border-t-2 border-[#bc955c]/45">
+              <td className="sticky left-0 z-10 bg-[#40121e] p-3 text-center border-r border-[#621f32]/35 uppercase text-[10px] tracking-wider font-black">
                 Total
               </td>
               {PLAZA_GROUPS.flatMap((g, i) => [
-                <td key={`total|${g.key}|ocup`} className={`p-2 text-center border-r border-slate-200/10 ${i > 0 ? "border-l-4 border-l-amber-400/45" : ""} ${g.key === "total" ? "bg-[#1a3b63]" : ""}`}>
+                <td key={`total|${g.key}|ocup`} className={`p-2 text-center border-r border-[#621f32]/35 ${i > 0 ? "border-l-4 border-l-[#bc955c]/45" : ""} ${g.key === "total" ? "bg-[#621f32]" : ""}`}>
                   <button
                     onClick={() => onCellClick("__ALL__", g.key, "ocup")}
                     className={`text-xs font-black rounded-lg border transition-all active:scale-95 cursor-pointer ${
                       g.key === "total"
-                        ? "px-3.5 py-1.5 bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white border-[#bc955c] shadow-md shadow-[#bc955c]/20"
-                        : "px-3 py-1 bg-white/10 hover:bg-white hover:text-[#10243e] text-white border-white/20"
+                        ? "px-3.5 py-1.5 bg-[#bc955c] text-[#621f32] hover:bg-[#d0ab75] hover:text-white border-[#bc955c] shadow-md shadow-[#bc955c]/20"
+                        : "px-3 py-1 bg-white/10 hover:bg-white hover:text-[#621f32] text-white border-white/20"
                     }`}
                   >
                     {formatNumber(totalRow[g.key].ocup)}
                   </button>
                 </td>,
-                <td key={`total|${g.key}|vac`} className={`p-2 text-center border-r border-slate-200/10 ${g.key === "total" ? "bg-[#1a3b63]" : ""}`}>
+                <td key={`total|${g.key}|vac`} className={`p-2 text-center border-r border-[#621f32]/35 ${g.key === "total" ? "bg-[#621f32]" : ""}`}>
                   <button
                     onClick={() => onCellClick("__ALL__", g.key, "vac")}
                     className={`text-xs font-black rounded-lg border transition-all active:scale-95 cursor-pointer ${
                       g.key === "total"
-                        ? "px-3.5 py-1.5 bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white border-[#bc955c] shadow-md shadow-[#bc955c]/20"
-                        : "px-3 py-1 bg-white/10 hover:bg-white hover:text-[#10243e] text-white border-white/20"
+                        ? "px-3.5 py-1.5 bg-[#bc955c] text-[#621f32] hover:bg-[#d0ab75] hover:text-white border-[#bc955c] shadow-md shadow-[#bc955c]/20"
+                        : "px-3 py-1 bg-white/10 hover:bg-white hover:text-[#621f32] text-white border-white/20"
                     }`}
                   >
                     {formatNumber(totalRow[g.key].vac)}
@@ -431,7 +431,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-8 relative z-10">
-          <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
+          <div className="p-3.5 bg-gradient-to-br from-[#621f32] to-[#8d2c48] rounded-2xl shadow-lg shadow-[#621f32]/30 text-white">
             <TableProperties className="size-6" />
           </div>
           <div>
@@ -484,13 +484,13 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                       <table className="w-full text-sm text-left border-collapse">
                         <thead className="text-white">
                           <tr>
-                            <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
-                            <th className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
+                            <th className="bg-[#501929] border border-[#621f32]/35 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
+                            <th className="bg-[#501929] border border-[#621f32]/35 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr className="bg-white dark:bg-slate-900 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
-                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
+                            <td className="p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
                             <td className="p-3 text-center">
                               <ClickableNum
                                 value={observaciones.base}
@@ -506,7 +506,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                             </td>
                           </tr>
                           <tr className="bg-slate-50/20 dark:bg-slate-800/10 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
-                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
+                            <td className="p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
                             <td className="p-3 text-center">
                               <ClickableNum
                                 value={observaciones.oic}
@@ -522,7 +522,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                             </td>
                           </tr>
                           <tr className="bg-white dark:bg-slate-900 transition-colors hover:bg-[#bc955c]/5">
-                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
+                            <td className="p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
                             <td className="p-3 text-center">
                               <ClickableNum
                                 value={observaciones.titulares}
@@ -537,9 +537,9 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                               />
                             </td>
                           </tr>
-                          <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
-                            <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
-                            <td className="p-3 text-center bg-[#1a3b63]">
+                          <tr className="bg-[#40121e] text-white font-bold border-t-2 border-[#bc955c]/45">
+                            <td className="p-3 text-center border-r border-[#621f32]/35 uppercase text-[10px] tracking-wider font-black">Total</td>
+                            <td className="p-3 text-center bg-[#621f32]">
                               <button
                                 onClick={() => {
                                   const rows = data.filter(i =>
@@ -553,7 +553,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                                   setModalDefaultColumnKeys(null);
                                   setModalOpen(true);
                                 }}
-                                className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
+                                className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#621f32] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
                               >
                                 {formatNumber(observaciones.total)}
                               </button>
@@ -577,13 +577,13 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                       <table className="w-full text-sm text-left border-collapse">
                         <thead className="text-white">
                           <tr>
-                            <th className="bg-gradient-to-r from-[#10243e] to-[#152e4f] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
-                            <th className="bg-[#10243e] border border-slate-200/10 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
+                            <th className="bg-[#501929] border border-[#621f32]/35 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Observación</th>
+                            <th className="bg-[#501929] border border-[#621f32]/35 p-3 text-center font-bold text-[11px] uppercase tracking-wider">Total</th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr className="bg-white dark:bg-slate-900 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
-                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
+                            <td className="p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Contratación Base</td>
                             <td className="p-3 text-center">
                               <ClickableNum
                                 value={observacionesOcup.base}
@@ -599,7 +599,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                             </td>
                           </tr>
                           <tr className="bg-slate-50/20 dark:bg-slate-800/10 transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5">
-                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
+                            <td className="p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Órgano Interno de Control</td>
                             <td className="p-3 text-center">
                               <ClickableNum
                                 value={observacionesOcup.oic}
@@ -615,7 +615,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                             </td>
                           </tr>
                           <tr className="bg-white dark:bg-slate-900 transition-colors hover:bg-[#bc955c]/5">
-                            <td className="p-3 text-center font-extrabold text-[#10243e] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
+                            <td className="p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60">Titulares de Aduanas</td>
                             <td className="p-3 text-center">
                               <ClickableNum
                                 value={observacionesOcup.titulares}
@@ -630,9 +630,9 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                               />
                             </td>
                           </tr>
-                          <tr className="bg-[#10243e] text-white font-bold border-t-2 border-[#bc955c]/45">
-                            <td className="p-3 text-center border-r border-slate-200/10 uppercase text-[10px] tracking-wider font-black">Total</td>
-                            <td className="p-3 text-center bg-[#1a3b63]">
+                          <tr className="bg-[#40121e] text-white font-bold border-t-2 border-[#bc955c]/45">
+                            <td className="p-3 text-center border-r border-[#621f32]/35 uppercase text-[10px] tracking-wider font-black">Total</td>
+                            <td className="p-3 text-center bg-[#621f32]">
                               <button
                                 onClick={() => {
                                   const rows = ocupadosData.filter(i =>
@@ -646,7 +646,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                                   setModalDefaultColumnKeys(DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS);
                                   setModalOpen(true);
                                 }}
-                                className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#10243e] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
+                                className="px-3.5 py-1.5 text-xs font-black bg-[#bc955c] text-[#621f32] hover:bg-[#d0ab75] hover:text-white rounded-lg border border-[#bc955c] transition-all active:scale-95 cursor-pointer shadow-md shadow-[#bc955c]/20"
                               >
                                 {formatNumber(observacionesOcup.total)}
                               </button>
