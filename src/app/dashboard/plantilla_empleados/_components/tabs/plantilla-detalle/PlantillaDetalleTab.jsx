@@ -655,7 +655,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   // DataTable del detalle acción+motivo (tabla dentro del modal "Movimientos
   // realizados hoy"): estado propio y desacoplado del de la tabla principal
-  // — mismo patrón que el modo local de EmployeesModal, pero acotado a las 7
+  // — mismo patrón que el modo local de EmployeesModal, pero acotado a las 8
   // columnas pedidas y sin selector de columnas (siempre las mismas).
   const MOV_HOY_MONO_KEYS = useMemo(() => new Set(["posicion", "num_empleado"]), []);
   const isMonoColumnMovHoy = useCallback((key) => MOV_HOY_MONO_KEYS.has(key), [MOV_HOY_MONO_KEYS]);
@@ -681,7 +681,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   } = movHoyFiltersHook;
   const [movHoySortConfig, setMovHoySortConfig] = useState({ key: null, direction: "asc" });
   const [movHoyColumnWidths, setMovHoyColumnWidths] = useState({
-    posicion: 100, num_empleado: 110, nombre: 220, accion_nombre: 170, motivo_nombre: 170, fecha_efectiva: 130, fecha_captura: 130,
+    posicion: 100, num_empleado: 110, nombre: 220, accion_nombre: 170, motivo_nombre: 170, fecha_efectiva: 130, fecha_captura: 130, por: 120,
   });
   const [movHoySelectedRecord, setMovHoySelectedRecord] = useState(null);
   const movHoyTableContainerRef = useRef(null);
@@ -710,6 +710,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     { key: "motivo_nombre", label: "Motivo" },
     { key: "fecha_efectiva", label: "Fecha Efectiva" },
     { key: "fecha_captura", label: "Fecha Captura" },
+    { key: "por", label: "Por" },
   ]), []);
   const movHoyColumns = useMemo(() => MOV_HOY_COLUMNS_BASE.map(col => ({
     key: col.key,
