@@ -11,7 +11,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion } from "lucide-react";
 import { copyToClipboard } from "@/utils/clipboard";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
@@ -372,6 +372,72 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys, av
 const EXPEDIENTE_CATEGORY_ORDER = ["Básicos", "Estructura", "Plaza", "Validación", "Otros"];
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
+// Grupos del tab "Datos personales" (tabla DATOS_PERSONALES, ver
+// DatosPersonalesEmpleadoView en el backend) — campos mono para los que se
+// ven/copian tal cual (folios, RFC, CURP...), el resto en fuente normal.
+const DATOS_PERSONALES_GROUPS = [
+    {
+        title: "Identificación",
+        icon: IdCard,
+        fields: [
+            { key: "no_empleado", label: "No. Empleado", mono: true },
+            { key: "hr_id_persona", label: "ID Persona (HR)", mono: true },
+            { key: "position_nbr", label: "No. Posición", mono: true },
+            { key: "nombre_completo", label: "Nombre completo" },
+            { key: "rfc", label: "RFC", mono: true },
+            { key: "curp", label: "CURP", mono: true },
+        ],
+    },
+    {
+        title: "Puesto y adscripción",
+        icon: Briefcase,
+        fields: [
+            { key: "puesto", label: "Puesto" },
+            { key: "puesto_estructural", label: "Puesto estructural" },
+            { key: "puesto_funcional", label: "Puesto funcional" },
+            { key: "unidad_administrativa", label: "Unidad administrativa" },
+            { key: "deptid", label: "ID Departamento", mono: true },
+            { key: "humanos_status", label: "Status RH" },
+            { key: "estatus_nomina", label: "Estatus nómina" },
+        ],
+    },
+    {
+        title: "Escolaridad",
+        icon: GraduationCap,
+        fields: [
+            { key: "escolaridad_tipo", label: "Tipo" },
+            { key: "escolaridad_nivrl", label: "Nivel" },
+            { key: "escolaridad_area", label: "Área" },
+            { key: "carrera", label: "Carrera" },
+            { key: "centro_escolar", label: "Centro escolar" },
+        ],
+    },
+    {
+        title: "Contacto",
+        icon: Phone,
+        fields: [
+            { key: "phone", label: "Teléfono" },
+            { key: "phone1", label: "Teléfono alterno" },
+            { key: "extension", label: "Extensión", mono: true },
+            { key: "email_addr", label: "Correo electrónico" },
+            { key: "email_addr2", label: "Correo alterno" },
+        ],
+    },
+    {
+        title: "Domicilio",
+        icon: MapPin,
+        fields: [
+            { key: "calle", label: "Calle" },
+            { key: "hr_numero_exterior", label: "No. exterior", mono: true },
+            { key: "hr_numero_interior", label: "No. interior", mono: true },
+            { key: "colonia", label: "Colonia" },
+            { key: "postal", label: "C.P.", mono: true },
+            { key: "hr_municipio", label: "Municipio" },
+            { key: "estado", label: "Estado" },
+        ],
+    },
+];
+
 // Valor "presentable" o null: unifica undefined / null / cadenas en blanco, que
 // en estos datasets significan lo mismo (campo sin capturar).
 const cleanFieldValue = (v) => (v !== undefined && v !== null && String(v).trim() !== "" ? String(v) : null);
@@ -392,6 +458,105 @@ const CopyValueButton = ({ label, copied, onCopy, className = "" }) => (
     </button>
 );
 
+// --- PESTAÑA "DATOS PERSONALES" (tabla DATOS_PERSONALES, ver DATOS_PERSONALES_GROUPS) ---
+// Recibe `estado` = { status: "idle"|"loading"|"success"|"empty"|"error", data }
+// del fetch bajo demanda en EmployeeRecordModal (mismo patrón que la foto).
+const DatosPersonalesTab = ({ estado, copiedKey, onCopy }) => {
+    if (estado.status === "loading" || estado.status === "idle") {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 sm:py-20 text-center">
+                <Loader2 className="size-7 text-[#621f32]/40 dark:text-slate-600 animate-spin mb-3" />
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Cargando datos personales...</p>
+            </div>
+        );
+    }
+
+    if (estado.status === "error") {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 sm:py-20 text-center px-4">
+                <div className="size-14 bg-red-50 dark:bg-red-950/30 rounded-full flex items-center justify-center mb-4 border-2 border-double border-red-200 dark:border-red-900/50">
+                    <AlertTriangle className="size-6 text-red-400 dark:text-red-500" />
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest">No se pudieron cargar los datos personales</p>
+                <p className="text-xs text-slate-400 mt-1">Intenta cerrar y volver a abrir el expediente</p>
+            </div>
+        );
+    }
+
+    if (estado.status === "empty") {
+        return (
+            <div className="flex flex-col items-center justify-center py-16 sm:py-20 text-center px-4">
+                <div className="size-14 bg-[#621f32]/8 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4 border-2 border-double border-[#621f32]/20">
+                    <FileQuestion className="size-6 text-[#621f32]/40 dark:text-slate-500" />
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest">Sin datos personales registrados</p>
+                <p className="text-xs text-slate-400 mt-1">Este empleado no tiene un registro en DATOS_PERSONALES</p>
+            </div>
+        );
+    }
+
+    const record = estado.data || {};
+    const groups = DATOS_PERSONALES_GROUPS
+        .map((group) => ({
+            ...group,
+            fields: group.fields.map((f) => ({ ...f, value: cleanFieldValue(record[f.key]) })),
+        }))
+        .map((group) => ({ ...group, filled: group.fields.filter((f) => f.value !== null).length }));
+
+    return (
+        <div className="flex flex-col gap-6 sm:gap-7 mb-2">
+            {groups.map((group) => {
+                const GroupIcon = group.icon;
+                return (
+                    <section key={group.title} className="flex flex-col gap-2.5">
+                        <div className="flex items-center gap-2.5">
+                            <span className="shrink-0 size-6 rounded-md bg-[#621f32] dark:bg-[#3e131f] text-[#bc955c] flex items-center justify-center">
+                                <GroupIcon className="size-3.5" />
+                            </span>
+                            <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em] text-[#621f32] dark:text-[#e3c793] whitespace-nowrap">
+                                {group.title}
+                            </h4>
+                            <span className="flex-1 h-px bg-gradient-to-r from-[#bc955c]/50 to-transparent" />
+                            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                                {group.filled}/{group.fields.length} con dato
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-7 rounded-xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/40 px-2.5 py-1.5 sm:px-3.5 sm:py-2">
+                            {group.fields.map((field) => {
+                                const hasValue = field.value !== null;
+                                const isLong = (field.value?.length || 0) > 34;
+                                return (
+                                    <div
+                                        key={field.key}
+                                        className={`group flex items-baseline gap-2 py-1.5 px-1.5 rounded-md transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 ${isLong ? "sm:col-span-2" : ""}`}
+                                    >
+                                        <span className="shrink-0 max-w-[52%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                            {field.label}
+                                        </span>
+                                        <span className="flex-1 min-w-[10px] self-end mb-[5px] border-b border-dotted border-slate-200 dark:border-slate-800" />
+                                        <span className={`text-right text-[12px] sm:text-[13px] font-semibold break-words ${isLong ? "max-w-[75%]" : "max-w-[60%]"} ${field.mono ? "font-mono font-bold text-slate-700 dark:text-slate-300" : "text-slate-800 dark:text-slate-200"}`}>
+                                            {hasValue ? field.value : <span className="text-slate-300 dark:text-slate-700 italic font-normal">Sin dato</span>}
+                                        </span>
+                                        {hasValue && (
+                                            <CopyValueButton
+                                                label={field.label}
+                                                copied={copiedKey === field.key}
+                                                onCopy={() => onCopy(field.key, field.value)}
+                                                className="self-center"
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                );
+            })}
+        </div>
+    );
+};
+
 export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldClickHandlers = {}, canViewPhoto = true }) => {
     const [fieldSearch, setFieldSearch] = useState("");
     // Un expediente completo son ~60 campos y la mayoría suele venir vacía; el
@@ -404,12 +569,20 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const [copiedKey, setCopiedKey] = useState(null);
     const copiedTimeoutRef = useRef(null);
 
+    // Pestaña interna del expediente: "Expediente" (plaza, todas las columnas
+    // de la tabla) vs. "Datos personales" (tabla DATOS_PERSONALES, cargada
+    // bajo demanda igual que la fotografía — ver useEffect de fetch abajo).
+    const [activeTab, setActiveTab] = useState("expediente");
+    const [datosPersonales, setDatosPersonales] = useState({ status: "idle", data: null });
+
     useEffect(() => {
         if (isOpen) {
             setFieldSearch("");
             setHideEmptyFields(false);
             setActiveSection(null);
             setCopiedKey(null);
+            setActiveTab("expediente");
+            setDatosPersonales({ status: "idle", data: null });
         }
     }, [isOpen]);
 
@@ -471,6 +644,29 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         document.addEventListener("keydown", handler);
         return () => document.removeEventListener("keydown", handler);
     }, [fotoExpandida]);
+
+    // Datos personales (DATOS_PERSONALES vía DatosPersonalesEmpleadoView) —
+    // igual que la foto, sólo se piden cuando el usuario abre esa pestaña, y
+    // una sola vez por apertura del modal (status "idle" -> se dispara, luego
+    // queda en loading/success/error/empty hasta el próximo open).
+    useEffect(() => {
+        if (!isOpen || activeTab !== "personales" || !numempleadoFoto) return;
+        if (datosPersonales.status !== "idle") return;
+        let cancelado = false;
+        setDatosPersonales({ status: "loading", data: null });
+        VacantesService.getDatosPersonales(numempleadoFoto)
+            .then(async (res) => {
+                if (res.status === 404) {
+                    if (!cancelado) setDatosPersonales({ status: "empty", data: null });
+                    return;
+                }
+                if (!res.ok) throw new Error("request failed");
+                const json = await res.json();
+                if (!cancelado) setDatosPersonales({ status: "success", data: json });
+            })
+            .catch(() => { if (!cancelado) setDatosPersonales({ status: "error", data: null }); });
+        return () => { cancelado = true; };
+    }, [isOpen, activeTab, numempleadoFoto, datosPersonales.status]);
 
     // Apartados del expediente: mismo filtrado de siempre (label / valor /
     // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
@@ -682,6 +878,32 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                     </div>
                 </div>
 
+                {/* ── Pestañas internas: expediente de la plaza vs. datos personales del titular ── */}
+                <div className="flex items-center gap-2 border-b-2 border-dashed border-[#621f32]/12 dark:border-slate-800/60">
+                    <button
+                        onClick={() => setActiveTab("expediente")}
+                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "expediente"
+                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
+                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
+                    >
+                        <Stamp className="size-3.5" />
+                        Expediente
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("personales")}
+                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "personales"
+                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
+                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
+                    >
+                        <IdCard className="size-3.5" />
+                        Datos personales
+                    </button>
+                </div>
+
+                {activeTab === "personales" ? (
+                    <DatosPersonalesTab estado={datosPersonales} copiedKey={copiedKey} onCopy={handleCopyField} />
+                ) : (
+                <>
                 {/* ── Barra de consulta: buscador de campos + depuración de vacíos ── */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                     <div className="flex-1 flex items-center gap-2.5 sm:gap-3 bg-white dark:bg-slate-900 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 focus-within:ring-2 focus-within:ring-[#bc955c]/10 transition-all shadow-sm">
@@ -829,6 +1051,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                             ))}
                         </div>
                     </div>
+                )}
+                </>
                 )}
             </div>
         </ModalShell>

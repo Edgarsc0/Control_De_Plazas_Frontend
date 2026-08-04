@@ -253,6 +253,21 @@ export const VacantesService = {
     },
 
     /**
+     * Datos personales (tabla DATOS_PERSONALES, importada de ZAFIRO) de un
+     * empleado — cargados bajo demanda por el tab "Datos personales" del
+     * expediente (EmployeeRecordModal).
+     * @param {string|number} noEmpleado
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getDatosPersonales: (noEmpleado, options = {}) => {
+        return apiFetch(`/plantilla/datos_personales/${encodeURIComponent(noEmpleado)}/`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Genera el Excel de Plantilla Detalle en el backend, opcionalmente con
      * fotografías de empleados embebidas en la celda (.xlsm con macro VBA).
      * Camino opt-in — el export normal (sin fotos) sigue siendo client-side.
