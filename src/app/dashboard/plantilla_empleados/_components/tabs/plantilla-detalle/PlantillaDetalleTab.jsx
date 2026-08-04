@@ -7,7 +7,7 @@ import {
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Users, UserCheck, UserMinus,
   UserX, CalendarDays, Briefcase, Network, ArrowUp, ArrowUpCircle, ArrowDown, Eye, History, Loader2,
-  MousePointerClick, UserPlus, Ban
+  MousePointerClick, UserPlus, Ban, ListFilter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "@/components/shared/Reveal";
@@ -28,6 +28,9 @@ import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
+import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
+import MobileColumnPickerDrawer from "@/components/ui/MobileColumnPickerDrawer";
+import ActiveFilterChips from "@/components/ui/ActiveFilterChips";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
@@ -2753,6 +2756,29 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // ColumnsModal): así, activar una columna ahí la agrega también a la tarjeta móvil,
   // sin mantener una lista separada. posicion/nombres/estado_nomina se excluyen porque
   // ya se muestran como título/subtítulo/badge.
+  const [isSortDrawerOpen, setIsSortDrawerOpen] = useState(false);
+  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
+
+  // Preset móvil: con las ~35 columnas visibles por defecto cada tarjeta medía
+  // 932px de alto (10 tarjetas = ~9 300px de scroll por página). En `< md` se
+  // muestran sólo estos campos y el resto queda a un toque, en el expediente.
+  // Si el usuario personaliza columnas (modal "Columnas"), manda su elección.
+  const MOBILE_CARD_DEFAULT_FIELD_KEYS = useMemo(
+    () => ["id_empleado", "nj", "unidad_administrativa", "fecha_efectiva_personal", "motivo", "codigo_presupuestal"],
+    []
+  );
+  // "Personalizado" = el conjunto visible cambió respecto al que había al
+  // montar (muchas columnas vienen `visible:false` de fábrica, así que mirar
+  // sólo `!c.visible` daba siempre true y el preset nunca se aplicaba).
+  const visibilidadInicialRef = useRef(null);
+  if (visibilidadInicialRef.current === null && dataColumns.length) {
+    visibilidadInicialRef.current = dataColumns.filter((c) => c.visible).map((c) => c.key).sort().join("|");
+  }
+  const columnsPersonalizadas = useMemo(() => {
+    const inicial = visibilidadInicialRef.current;
+    if (!inicial) return false;
+    return dataColumns.filter((c) => c.visible).map((c) => c.key).sort().join("|") !== inicial;
+  }, [dataColumns]);
   const MOBILE_CARD_EXCLUDED_KEYS = useMemo(() => new Set(["posicion", "nombres", "estado_nomina"]), []);
   const MOBILE_CARD_CURRENCY_KEYS = useMemo(() => CURRENCY_KEYS, []);
   const mobileCardConfig = useMemo(() => ({
@@ -2762,6 +2788,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     renderBadge: renderEstadoBadge,
     fields: dataColumns
       .filter((col) => col.visible && !MOBILE_CARD_EXCLUDED_KEYS.has(col.key))
+      .filter((col) => columnsPersonalizadas || MOBILE_CARD_DEFAULT_FIELD_KEYS.includes(col.key))
       .map((col) => ({
         key: col.key,
         label: col.label,
@@ -2774,7 +2801,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         } : {}),
         ...(col.key === "nj" ? { render: (row) => mapNivelJerarquico(row.nj, row.nombre_puesto_funcional) } : {}),
       })),
-  }), [dataColumns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS]);
+  }), [dataColumns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS, columnsPersonalizadas, MOBILE_CARD_DEFAULT_FIELD_KEYS]);
 
   // Auto-scroll when navigating with keyboard
   useEffect(() => {
@@ -2833,7 +2860,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         type="button"
         onClick={() => setIsMovimientosHoyModalOpen(true)}
         title="Ver resumen de movimientos de hoy"
-        className="fixed top-36 sm:top-48 right-4 md:right-8 z-30 flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
+        aria-label="Movimientos realizados por dirección operativa"
+        className="fixed bottom-[calc(var(--bottomnav-h)+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
       >
         <div className="relative shrink-0 flex items-center justify-center size-8 rounded-xl bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[#621f32] dark:text-[#bc955c]">
           <ArrowUpDown className="size-4" />
@@ -2841,7 +2869,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             {movimientosHoyCount > 99 ? "99+" : movimientosHoyCount}
           </span>
         </div>
-        <span className="text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
+        {/* En móvil es un FAB compacto (el texto largo lo aporta el title y el
+            aria-label): a ancho completo tapaba media pantalla. */}
+        <span className="hidden md:block text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
           Movimientos realizados por dirección operativa
         </span>
       </button>
@@ -3059,11 +3089,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
               <div className="relative size-28 flex items-center justify-center">
-                <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none"><defs><mask id="donut-mask-detalle"><circle cx="0" cy="0" r="1" fill="white" /><circle cx="0" cy="0" r="0.65" fill="black" /></mask></defs><g mask="url(#donut-mask-detalle)">{donutData.map((slice, i) => (<path key={slice.label} d={slice.pathData} fill={slice.color} className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90" style={{ transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)", opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.label) ? 0.35 : 1 }} onMouseEnter={() => setHoveredSlice(i)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} />))}</g></svg>
+                <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none"><defs><mask id="donut-mask-detalle"><circle cx="0" cy="0" r="1" fill="white" /><circle cx="0" cy="0" r="0.65" fill="black" /></mask></defs><g mask="url(#donut-mask-detalle)">{donutData.map((slice, i) => (<path key={slice.label} d={slice.pathData} fill={slice.color} className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90" style={{ transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)", opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.label) ? 0.35 : 1 }} onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} />))}</g></svg>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1"><AnimatePresence mode="wait">{activeHoverData ? (<motion.div key={activeHoverData.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{activeHoverData.label}</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(activeHoverData.count)}</span><br /><span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current" style={{ color: activeHoverData.color, backgroundColor: `${activeHoverData.color}15` }}>{(activeHoverData.percent * 100).toFixed(1)}%</span></motion.div>) : (<motion.div key="total" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(resumen?.total_registros || 11957)}</span><br /><span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">100%</span></motion.div>)}</AnimatePresence></div>
               </div>
             </div>
-            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-7 gap-3">{donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante") return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumen?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
+            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-7 gap-3">{donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => handleStatusFilter(slice.label)} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante") return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumen?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
           </div>
         </Zoom>
       </div>
@@ -3078,17 +3108,63 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel }}
             actions={[
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0 },
+              // El orden vive en los encabezados de `DataTable`, que en móvil
+              // está oculta: sin esta acción no había forma de ordenar.
+              { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
+              // Idem: el embudo por columna sólo existía en el encabezado.
+              { icon: ListFilter, label: "Filtrar por columna", onClick: () => setIsColumnPickerOpen(true), badge: Object.keys(columnFilters).length + Object.values(textFilters).filter(f => f?.value).length },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
               { icon: History, label: "Historial de Cambios", onClick: openHistorialModal, badge: remoteUpdatesCount },
             ]}
-            chips={activeStatusFilter.map(status => (
-              <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
-                {STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}
-                <span>{status}</span><X className="size-3" />
-              </button>
-            ))}
+            chips={<>
+              {activeStatusFilter.map(status => (
+                <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 min-h-11 py-2 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
+                  {STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}
+                  <span>{status}</span><X className="size-3" />
+                </button>
+              ))}
+              {/* Antes sólo se veían los chips de estatus: un filtro de columna
+                  o avanzado aplicado era invisible en móvil. */}
+              <ActiveFilterChips
+                globalSearch={globalSearch}
+                onClearSearch={() => { setSearchQuery(""); setGlobalSearch(""); }}
+                columnFilters={columnFilters}
+                onClearColumnFilter={(colKey) => setColumnFilters(prev => { const next = { ...prev }; delete next[colKey]; return next; })}
+                textFilters={textFilters}
+                onClearTextFilter={(colKey) => setTextFilters(prev => { const next = { ...prev }; delete next[colKey]; return next; })}
+                advancedCount={appliedAdvancedFilters.length}
+                onClearAdvanced={resetAdvancedFilters}
+                columns={columns}
+                getConditionLabel={getConditionLabel}
+              />
+            </>}
+          />
+
+          <MobileColumnPickerDrawer
+
+            open={isColumnPickerOpen}
+
+            onOpenChange={setIsColumnPickerOpen}
+
+            columns={dataColumns}
+
+            columnFilters={columnFilters}
+
+            textFilters={textFilters}
+
+            onPick={openFilterDropdown}
+
+          />
+
+
+          <MobileSortDrawer
+            open={isSortDrawerOpen}
+            onOpenChange={setIsSortDrawerOpen}
+            columns={dataColumns}
+            sortConfig={sortConfig}
+            onSort={setSortConfig}
           />
 
           <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
@@ -3259,8 +3335,9 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                   <button onClick={() => setIsCadenaModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-all active:scale-95"><X className="size-5" /></button>
                 </div>
                 
-                <form onSubmit={handleBuscarCadena} className="relative flex items-center bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] rounded-[1.2rem] px-4 py-3 shadow-sm transition-all">
-                  <Search className="size-5 text-slate-400 mr-3" />
+                <form onSubmit={handleBuscarCadena} className="relative flex flex-col sm:flex-row items-stretch sm:items-center bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 focus-within:border-[#621f32] dark:focus-within:border-[#bc955c] rounded-[1.2rem] px-4 py-3 shadow-sm transition-all gap-2 sm:gap-0">
+                  <div className="flex items-center min-w-0 flex-1">
+                  <Search className="size-5 text-slate-400 mr-3 shrink-0" />
                   <input 
                     type="text" 
                     value={cadenaQuery} 
@@ -3271,10 +3348,11 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                     }} 
                     onFocus={() => setShowCadenaSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowCadenaSuggestions(false), 200)}
-                    placeholder="Buscar por Número de Posición, Nombre o Num Empleado..." 
+                    placeholder="Buscar por posición, nombre o núm. empleado..." 
                     className="bg-transparent text-sm sm:text-base w-full outline-none text-slate-700 dark:text-slate-200 font-bold placeholder-slate-400" 
                   />
-                  <button type="submit" disabled={isCadenaLoading || !cadenaQuery.trim()} className="ml-2 px-5 py-2.5 bg-[#621f32] dark:bg-[#bc955c] hover:bg-[#802842] dark:hover:bg-[#d0ab75] text-white dark:text-[#3e131f] text-xs font-black uppercase rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
+                  </div>
+                  <button type="submit" disabled={isCadenaLoading || !cadenaQuery.trim()} className="shrink-0 min-h-11 sm:ml-2 px-5 py-2.5 bg-[#621f32] dark:bg-[#bc955c] hover:bg-[#802842] dark:hover:bg-[#d0ab75] text-white dark:text-[#3e131f] text-xs font-black uppercase rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
                     {isCadenaLoading ? "Buscando..." : "Buscar"}
                   </button>
 
@@ -3518,7 +3596,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                       <button
                         type="button"
                         onClick={() => setCadenaSoloDirectos((v) => !v)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${cadenaSoloDirectos ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] shadow-sm" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
+                        className={`flex items-center gap-1.5 px-3 py-2 min-h-11 md:min-h-0 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${cadenaSoloDirectos ? "bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] shadow-sm" : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
                         title="Mostrar solo subordinados directos"
                       >
                         <Users className="size-3" /><span>Solo directos</span>

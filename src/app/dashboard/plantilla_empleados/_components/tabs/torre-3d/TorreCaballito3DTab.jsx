@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Html, ContactShadows } from "@react-three/drei";
 import { VacantesService } from "@/services/vacantes.service";
-import { Search, MapPin, RotateCcw } from "lucide-react";
+import { Search, MapPin, RotateCcw, ChevronDown } from "lucide-react";
 import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
 import * as THREE from "three";
 import { useAuth } from "@/hooks/useAuth";
@@ -440,7 +440,11 @@ export default function TorreCaballito3DTab() {
   const [selectedInfo, setSelectedInfo] = useState(null);
   const [hoveredUaRemote, setHoveredUaRemote] = useState(null);
   const [selectedUaRemote, setSelectedUaRemote] = useState(null);
-  const [viewMode, setViewMode] = useState("heat"); // "heat" | "ua"
+  const [viewMode, setViewMode] = useState("heat");
+  // En móvil los paneles flotantes tapaban el modelo entero: las listas
+  // (ranking de pisos / leyenda de unidades) arrancan colapsadas y se abren
+  // con un botón. En `md+` siempre están visibles, como antes.
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false); // "heat" | "ua"
   
   const [empleadosData, setEmpleadosData] = useState(null);
   const [loadingEmpleados, setLoadingEmpleados] = useState(false);
@@ -633,17 +637,17 @@ export default function TorreCaballito3DTab() {
       </Canvas>
       
       {/* UI Overlay: Title & Mode Toggle */}
-      <div className="absolute top-24 left-6 pointer-events-auto flex flex-col gap-4">
+      <div className="absolute top-20 left-4 right-4 md:top-24 md:left-6 md:right-auto pointer-events-auto flex flex-col gap-3 md:gap-4">
         <div className="pointer-events-none">
-          <h2 className="text-3xl font-black text-[#621f32] drop-shadow-md">Torre del Caballito</h2>
-          <p className="text-slate-800 font-medium text-lg">Paseo de la Reforma 10</p>
+          <h2 className="text-xl md:text-3xl font-black text-[#621f32] drop-shadow-md leading-tight">Torre del Caballito</h2>
+          <p className="hidden md:block text-slate-800 font-medium text-lg">Paseo de la Reforma 10</p>
         </div>
         
         {/* Toggle Switch */}
         {/* Toggle Switch & Reset View Button Container */}
-        <div className="flex items-center gap-3 w-max">
+        <div className="flex items-center gap-2 md:gap-3 w-full md:w-max overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {/* Toggle Switch */}
-          <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 flex shadow-lg">
+          <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 flex shadow-lg shrink-0">
             <button 
               onClick={() => {
                 setViewMode("heat");
@@ -652,7 +656,7 @@ export default function TorreCaballito3DTab() {
                 setSelectedUaRemote(null);
                 setHoveredUaRemote(null);
               }}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === "heat" ? "bg-[#bc955c] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+              className={`px-4 py-2 min-h-11 md:min-h-0 rounded-xl text-sm font-bold transition-all ${viewMode === "heat" ? "bg-[#bc955c] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
             >
               Mapa de Calor
             </button>
@@ -664,7 +668,7 @@ export default function TorreCaballito3DTab() {
                 setSelectedUaRemote(null);
                 setHoveredUaRemote(null);
               }}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === "ua" ? "bg-[#621f32] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+              className={`px-4 py-2 min-h-11 md:min-h-0 rounded-xl text-sm font-bold transition-all ${viewMode === "ua" ? "bg-[#621f32] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
             >
               Color por Unidad
             </button>
@@ -673,7 +677,7 @@ export default function TorreCaballito3DTab() {
           {/* Reset View Button */}
           <button
             onClick={resetView}
-            className="bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200 text-slate-800 hover:text-[#621f32] shadow-lg flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer h-full"
+            className="bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200 text-slate-800 hover:text-[#621f32] shadow-lg flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer h-full shrink-0"
             title="Restablecer Vista"
           >
             <RotateCcw className="w-5 h-5" />
@@ -683,19 +687,28 @@ export default function TorreCaballito3DTab() {
         {/* Legend for Heatmap mode */}
         {viewMode === "heat" && (
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3 bg-white/80 backdrop-blur-md p-3 rounded-2xl border border-slate-200 w-max pointer-events-none">
-              <div className="w-4 h-4 rounded-full bg-[#fcd34d]" />
-              <span className="text-xs text-slate-900 font-bold uppercase tracking-wider">Menos</span>
-              <div className="w-32 h-1.5 rounded-full bg-gradient-to-r from-[#fcd34d] to-[#e11d48]" />
-              <span className="text-xs text-slate-900 font-bold uppercase tracking-wider">Más Empleados</span>
-              <div className="w-4 h-4 rounded-full bg-[#e11d48]" />
+            <div className="flex items-center gap-2 md:gap-3 bg-white/80 backdrop-blur-md p-2 md:p-3 rounded-2xl border border-slate-200 w-full md:w-max pointer-events-none">
+              <div className="w-3 h-3 md:w-4 md:h-4 rounded-full bg-[#fcd34d] shrink-0" />
+              <span className="text-[10px] md:text-xs text-slate-900 font-bold uppercase tracking-wider">Menos</span>
+              <div className="flex-1 md:flex-none md:w-32 h-1.5 rounded-full bg-gradient-to-r from-[#fcd34d] to-[#e11d48]" />
+              <span className="text-[10px] md:text-xs text-slate-900 font-bold uppercase tracking-wider whitespace-nowrap">Más Empleados</span>
+              <div className="w-3 h-3 md:w-4 md:h-4 rounded-full bg-[#e11d48] shrink-0" />
             </div>
 
             {/* Ranked Floors List */}
             {sortedFloors.length > 0 && (
-              <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 w-80 pointer-events-auto flex flex-col shadow-lg max-h-[50vh]">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 shrink-0">Ranking de Pisos</h4>
-                <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2">
+              <div className={`bg-white/90 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-slate-200 w-full md:w-80 pointer-events-auto flex flex-col shadow-lg ${mobilePanelOpen ? "max-h-[40dvh]" : "max-h-none"} md:max-h-[50vh]`}>
+                {/* En móvil el encabezado es el botón de colapso: con la lista
+                    siempre abierta, los paneles tapaban el modelo 3D entero. */}
+                <button
+                  type="button"
+                  onClick={() => setMobilePanelOpen((o) => !o)}
+                  className="md:pointer-events-none flex items-center justify-between gap-2 w-full text-left shrink-0 md:mb-3 min-h-11 md:min-h-0"
+                >
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Ranking de Pisos</h4>
+                  <ChevronDown className={`md:hidden size-4 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
+                </button>
+                <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 mt-2 md:mt-0`}>
                   {sortedFloors.map((floor, idx) => {
                     const color = getColor(floor.count, Math.max(...data.map(d => d.count))).getHexString();
                     return (
@@ -732,9 +745,16 @@ export default function TorreCaballito3DTab() {
 
         {/* Legend for UA mode */}
         {viewMode === "ua" && uniqueUas.length > 0 && (
-          <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 w-80 pointer-events-auto max-h-[60vh] overflow-y-auto custom-scrollbar shadow-lg">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Leyenda de Unidades</h4>
-            <div className="flex flex-col gap-2.5">
+          <div className={`bg-white/90 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-slate-200 w-full md:w-80 pointer-events-auto ${mobilePanelOpen ? "max-h-[40dvh]" : "max-h-none"} md:max-h-[60vh] overflow-y-auto custom-scrollbar shadow-lg`}>
+            <button
+              type="button"
+              onClick={() => setMobilePanelOpen((o) => !o)}
+              className="md:pointer-events-none flex items-center justify-between gap-2 w-full text-left md:mb-3 min-h-11 md:min-h-0"
+            >
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Leyenda de Unidades</h4>
+              <ChevronDown className={`md:hidden size-4 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
+            </button>
+            <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex flex-col gap-2.5 mt-2 md:mt-0`}>
               {uniqueUas.map((ua, idx) => {
                 const color = getUaColor(ua).getHexString();
                 const isLegendSelected = selectedUaRemote === ua;
@@ -756,7 +776,7 @@ export default function TorreCaballito3DTab() {
         )}
       </div>
       {/* Hover Info Panel (Top Right Sidebar) */}
-      <div className={`absolute bottom-6 right-6 w-80 transition-all duration-300 ${displayInfo || uaDetails ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8 pointer-events-none"}`}>
+      <div className={`absolute bottom-4 inset-x-4 md:bottom-6 md:right-6 md:left-auto md:inset-x-auto md:w-80 z-30 transition-all duration-300 ${displayInfo || uaDetails ? "opacity-100 translate-x-0" : "opacity-0 md:translate-x-8 pointer-events-none"}`}>
         {(displayInfo || uaDetails) && (
           <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[85vh] pointer-events-auto">
             
@@ -907,7 +927,7 @@ export default function TorreCaballito3DTab() {
       
 
       {/* Search Bar */}
-      <div className="absolute top-24 right-6 z-40 w-80">
+      <div className="absolute top-4 inset-x-4 z-40 md:top-24 md:right-6 md:left-auto md:inset-x-auto md:w-80">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="size-4 text-slate-400" style={{ width: '1rem', height: '1rem' }} />

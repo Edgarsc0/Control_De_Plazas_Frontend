@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTabs } from '@/context/PageTabsContext';
 import { getVisibleModules } from '@/config/modules';
@@ -27,7 +27,26 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageTabsOpen, setPageTabsOpen] = useState(false);
-  const { activeConfig } = usePageTabs();
+  const { activeConfig, openSignal } = usePageTabs();
+  const activeTabRef = useRef(null);
+
+  // Al abrir el drawer de secciones, deja a la vista el tab activo. La lista
+  // puede pasar del alto del drawer (7 tabs + los 7 subtabs de Catálogos) y sin
+  // esto el usuario aterriza siempre arriba del todo. El timeout espera a que
+  // termine la animación de entrada de vaul (si no, mide posiciones en pleno
+  // translateY y el scroll queda mal).
+  useEffect(() => {
+    if (!pageTabsOpen) return;
+    const t = setTimeout(() => {
+      activeTabRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    }, 260);
+    return () => clearTimeout(t);
+  }, [pageTabsOpen]);
+
+  // La página puede pedir abrir el drawer de secciones (breadcrumb del header).
+  useEffect(() => {
+    if (openSignal > 0) setPageTabsOpen(true);
+  }, [openSignal]);
 
   // Sólo navegación de dashboard: si no hay sesión, no se muestra.
   if (!isAuthenticated) return null;
@@ -127,17 +146,18 @@ export default function BottomNav() {
               <div className="flex flex-col gap-2">
                 {MORE.map((item) => {
                   const active = pathname.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMoreOpen(false)}
-                      className={`flex items-center gap-3 p-3 rounded-2xl border transition-colors ${
-                        active
-                          ? 'border-[#621f32]/30 bg-[#621f32]/5'
-                          : 'border-slate-100 bg-slate-50/70 active:bg-white'
-                      }`}
-                    >
+                  // Si ya estamos en la página del módulo y ésta registró tabs,
+                  // el ítem abre el Drawer de secciones en vez de re-navegar:
+                  // los módulos "Más" no tienen ícono propio en la barra, así
+                  // que sin esto sus tabs/subtabs quedaban inalcanzables en móvil.
+                  const asTabs = active && activeConfig?.tabs?.length > 0;
+                  const cardClass = `flex items-center gap-3 p-3 rounded-2xl border transition-colors w-full text-left ${
+                    active
+                      ? 'border-[#621f32]/30 bg-[#621f32]/5'
+                      : 'border-slate-100 bg-slate-50/70 active:bg-white'
+                  }`;
+                  const inner = (
+                    <>
                       <span
                         className="p-2 rounded-xl shrink-0"
                         style={{ backgroundColor: `${item.color}1a` }}
@@ -146,8 +166,35 @@ export default function BottomNav() {
                       </span>
                       <span className="flex flex-col">
                         <span className="text-sm font-black text-slate-800">{item.title}</span>
-                        <span className="text-[11px] text-slate-400">{item.description}</span>
+                        <span className="text-[11px] text-slate-400">
+                          {asTabs ? 'Ver secciones' : item.description}
+                        </span>
                       </span>
+                    </>
+                  );
+                  if (asTabs) {
+                    return (
+                      <button
+                        key={item.href}
+                        type="button"
+                        onClick={() => {
+                          setMoreOpen(false);
+                          setPageTabsOpen(true);
+                        }}
+                        className={cardClass}
+                      >
+                        {inner}
+                      </button>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      className={cardClass}
+                    >
+                      {inner}
                     </Link>
                   );
                 })}
@@ -173,7 +220,9 @@ export default function BottomNav() {
           <DrawerTitle className="sr-only">{activeConfig?.title || 'Secciones'}</DrawerTitle>
           <DrawerDescription className="sr-only">Cambiar de sección</DrawerDescription>
           <div className="mx-auto w-full max-w-md">
-            <div className="flex items-center justify-between pt-2 pb-3">
+            {/* Sticky: la lista puede ser larga (7 tabs + 7 subtabs en Catálogos)
+                y al desplazarla se perdían el título y la ✕ de cerrar. */}
+            <div className="sticky top-0 z-10 flex items-center justify-between pt-2 pb-3 bg-popover">
               <h3 className="text-sm font-black uppercase tracking-widest text-[#621f32]">
                 {activeConfig?.title || 'Secciones'}
               </h3>
@@ -187,7 +236,14 @@ export default function BottomNav() {
                 const active = tab.id === activeConfig.activeTab;
                 const subtabConfig = activeConfig.subtabConfigs?.[tab.id];
                 return (
-                  <div key={tab.id} className="flex flex-col gap-1.5">
+                  <div
+                    key={tab.id}
+                    // Al abrir el drawer se centra el tab activo: con la lista
+                    // larga el usuario aterrizaba arriba del todo sin ver dónde
+                    // estaba parado.
+                    ref={active ? activeTabRef : undefined}
+                    className="flex flex-col gap-1.5"
+                  >
                     <button
                       type="button"
                       onClick={() => {
@@ -221,7 +277,7 @@ export default function BottomNav() {
                                 subtabConfig.setActive(sub.id);
                                 setPageTabsOpen(false);
                               }}
-                              className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                              className={`flex items-center justify-between gap-3 px-3 py-2.5 min-h-11 rounded-xl border text-left transition-colors ${
                                 isSubActive
                                   ? 'border-[#621f32]/20 bg-[#621f32]/5'
                                   : 'border-transparent bg-slate-50/50 active:bg-white'

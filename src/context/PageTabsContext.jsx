@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 const PageTabsContext = createContext(null);
 
@@ -12,9 +12,14 @@ const PageTabsContext = createContext(null);
 export function PageTabsProvider({ children }) {
   // activeConfig: { tabs:[{id,label}], activeTab, onSelect, title } | null
   const [activeConfig, setActiveConfig] = useState(null);
+  // Señal para abrir el Drawer de secciones desde fuera del BottomNav (la
+  // página necesita ofrecer un acceso visible: nada en pantalla indicaba que
+  // los tabs vivían en la barra inferior).
+  const [openSignal, setOpenSignal] = useState(0);
+  const openPageTabs = useCallback(() => setOpenSignal((n) => n + 1), []);
 
   return (
-    <PageTabsContext.Provider value={{ activeConfig, setActiveConfig }}>
+    <PageTabsContext.Provider value={{ activeConfig, setActiveConfig, openSignal, openPageTabs }}>
       {children}
     </PageTabsContext.Provider>
   );

@@ -205,6 +205,23 @@ body::before {
   .maplibregl-popup-tip {
     @apply hidden!;
   }
+  /* El popup del marcador lo dibuja maplibre dentro del contenedor del mapa,
+     que en el DOM va ANTES del panel de leyenda de MapaTab (z-10): sin esto el
+     popup quedaba debajo del panel y en móvil sólo se leía el título. */
+  .maplibregl-popup {
+    z-index: 20;
+  }
+  /* Los controles nativos de maplibre miden 29px: por debajo del objetivo
+     táctil mínimo. En escritorio se dejan como vienen. */
+  @media (max-width: 767px) {
+    .maplibregl-ctrl button {
+      width: 44px;
+      height: 44px;
+    }
+    .maplibregl-ctrl button .maplibregl-ctrl-icon {
+      background-size: 20px 20px;
+    }
+  }
 }
 
 .text-rotate {

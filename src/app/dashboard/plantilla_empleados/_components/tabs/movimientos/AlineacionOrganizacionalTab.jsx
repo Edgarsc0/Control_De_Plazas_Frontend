@@ -8,7 +8,7 @@ import {
 import {
   Search, Download, Columns, X, RotateCcw,
   ChevronLeft, ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight, CheckCircle2, XCircle,
-  Layers, Users, GitCompareArrows, ListFilter, Check,
+  Layers, Users, GitCompareArrows, ListFilter, Check, ArrowUpDown,
 } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
@@ -21,6 +21,9 @@ import CopyCellMenu from "../../shared/CopyCellMenu";
 import AlineacionDetalleModal from "../../modals/AlineacionDetalleModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
+import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
+import MobileColumnPickerDrawer from "@/components/ui/MobileColumnPickerDrawer";
+import MobileServerPager from "@/components/ui/MobileServerPager";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
@@ -128,6 +131,8 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   const [debouncedSearch, setDebouncedSearch] = useState("");
   // 7.3 QA: persistir configuración por usuario en localStorage.
   const [sortConfig, setSortConfig] = usePersistedState("alineacion_sort", { key: null, direction: null });
+  const [isSortDrawerOpen, setIsSortDrawerOpen] = useState(false);
+  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [cardWidth, setCardWidth] = useState(null);
   const [detalleRow, setDetalleRow] = useState(null);
   const [isDetalleOpen, setIsDetalleOpen] = useState(false);
@@ -804,9 +809,50 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
             count={count}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
             actions={[
+              // El orden vive en los encabezados de `DataTable` (oculta en móvil).
+              { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
+              // Idem: el embudo por columna sólo existía en el encabezado.
+              { icon: ListFilter, label: "Filtrar por columna", onClick: () => setIsColumnPickerOpen(true), badge: Object.keys(columnFilters).length + Object.values(textFilters).filter(f => f?.value).length },
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: !canReset },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
             ]}
+          />
+
+          {/* Paginación de servidor en móvil: sin esto sólo era alcanzable la
+              primera página (50 de 11 451 filas). */}
+          <MobileServerPager
+            page={page}
+            totalPages={totalPages}
+            count={count}
+            onPage={setPage}
+            pageSize={pageSize}
+            onPageSize={setPageSize}
+            loading={loading}
+          />
+
+          <MobileColumnPickerDrawer
+
+            open={isColumnPickerOpen}
+
+            onOpenChange={setIsColumnPickerOpen}
+
+            columns={columns}
+
+            columnFilters={columnFilters}
+
+            textFilters={textFilters}
+
+            onPick={openFilterDropdown}
+
+          />
+
+
+          <MobileSortDrawer
+            open={isSortDrawerOpen}
+            onOpenChange={setIsSortDrawerOpen}
+            columns={columns}
+            sortConfig={sortConfig}
+            onSort={setSortConfig}
           />
 
           <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
@@ -983,6 +1029,9 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
               onCardClick={handleShowRecord}
               isLoading={loading}
               isPending={isPending}
+              /* `data` ya es UNA página del servidor: se muestra entera y la
+                 navegación la lleva MobileServerPager. */
+              pageSize={pageSize}
             />
           </div>
 

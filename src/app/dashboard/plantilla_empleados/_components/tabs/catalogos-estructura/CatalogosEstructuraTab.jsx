@@ -2,11 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence } from "motion/react";
-import { Search, RotateCcw, Plus, RefreshCw } from "lucide-react";
+import { Search, RotateCcw, Plus, RefreshCw, ArrowUpDown } from "lucide-react";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import CatalogRecordModal from "./CatalogRecordModal";
+import MobileCardList from "@/components/ui/MobileCardList";
+import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
+import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
 import NivelesJerarquicosPlazaSubtab from "./NivelesJerarquicosPlazaSubtab";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
@@ -53,6 +56,8 @@ export default function CatalogosEstructuraTab({ activeCatalog, onBeforeRefreshD
  */
 function GenericCatalogSubtab({ activeCatalog }) {
   const config = CATALOGOS_CONFIG[activeCatalog];
+
+  const [isSortDrawerOpen, setIsSortDrawerOpen] = useState(false);
 
   const [dataByCatalog, setDataByCatalog] = useState({});
   const [loading, setLoading] = useState(true);
@@ -104,6 +109,17 @@ function GenericCatalogSubtab({ activeCatalog }) {
   useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, activeCatalog]);
 
   const isMonoColumn = useCallback((key) => MONO_CATALOG_COLUMN_KEYS.includes(key), []);
+
+  // Tarjetas móviles: las 2 primeras columnas de negocio hacen de
+  // subtítulo/título y el resto (sin las de auditoría) van como campos.
+  const mobileTitleColumns = useMemo(
+    () => columns.filter((c) => c.visible && !c.audit).slice(0, 2),
+    [columns]
+  );
+  const mobileFieldColumns = useMemo(() => {
+    const titleKeys = new Set(mobileTitleColumns.map((c) => c.key));
+    return columns.filter((c) => c.visible && !titleKeys.has(c.key));
+  }, [columns, mobileTitleColumns]);
 
   const getCellValue = useCallback((row, key) => {
     const v = row?.[key];
@@ -389,8 +405,11 @@ function GenericCatalogSubtab({ activeCatalog }) {
           </div>
         </div>
 
-        {/* Controles de búsqueda y filtros (Alineado a la derecha) */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* Controles de búsqueda y filtros (Alineado a la derecha).
+            Sólo desktop: la tabla que operan vive en `hidden md:flex`, así que
+            en móvil eran botones que no llevaban a ninguna parte — "Nuevo
+            Registro" incluso abría el alta sobre una tabla invisible. */}
+        <div className="hidden md:flex items-center gap-2.5 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-3.5 h-3.5 pointer-events-none" />
             <input
@@ -465,10 +484,53 @@ function GenericCatalogSubtab({ activeCatalog }) {
         />
       </div>
 
-      {/* ── Aviso móvil: la administración de catálogos requiere escritorio ── */}
-      <div className="md:hidden flex flex-col items-center justify-center py-16 px-6 text-center gap-2">
-        <p className="text-sm font-bold text-gray-600 dark:text-slate-300">Vista de escritorio recomendada</p>
-        <p className="text-xs text-gray-400">Este catálogo se administra mejor desde una pantalla más grande.</p>
+      {/* ── Vista móvil: toolbar + tarjetas (la tabla densa es sólo desktop) ── */}
+      <div className="md:hidden">
+        <MobileTableToolbar
+          searchValue={globalSearch}
+          onSearch={setGlobalSearch}
+          count={sortedData.length}
+          searchPlaceholder={`Buscar en ${config?.label || "catálogo"}...`}
+          primaryAction={{ icon: Plus, label: "Nuevo Registro", onClick: openCreateModal }}
+          actions={[
+            { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
+            { icon: RotateCcw, label: "Reiniciar filtros", onClick: resetAllFilters, disabled: !hasActiveFilters },
+            { icon: RefreshCw, label: "Recargar", onClick: loadAll },
+          ]}
+        />
+
+        <MobileSortDrawer
+          open={isSortDrawerOpen}
+          onOpenChange={setIsSortDrawerOpen}
+          columns={columns}
+          sortConfig={sortConfig}
+          onSort={setSortConfig}
+        />
+
+        <MobileCardList
+          data={sortedData}
+          isLoading={loading}
+          config={{
+            getRowId: (row, i) => config?.getRowId?.(row) ?? i,
+            // Título/subtítulo: las dos primeras columnas visibles no-auditoría
+            // (en todos los catálogos son código + descripción).
+            getTitle: (row) => {
+              const c = mobileTitleColumns[1] || mobileTitleColumns[0];
+              return c ? String(row[c.key] ?? "") || "—" : "—";
+            },
+            getSubtitle: (row) => {
+              const c = mobileTitleColumns[0];
+              return c ? String(row[c.key] ?? "") : "";
+            },
+            fields: mobileFieldColumns.map((c) => ({
+              key: c.key,
+              label: c.label,
+              mono: isMonoColumn(c.key),
+              render: (row) => getCellValue(row, c.key) || "—",
+            })),
+          }}
+          onCardClick={(row) => openEditModal(row)}
+        />
       </div>
 
       <AnimatePresence>

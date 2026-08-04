@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
   X, Check, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, Users,
-  Calendar, Eye
+  Calendar, Eye, ListFilter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "@/components/shared/Reveal";
@@ -21,6 +21,8 @@ import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
+import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
+import MobileColumnPickerDrawer from "@/components/ui/MobileColumnPickerDrawer";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
@@ -194,6 +196,8 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario en localStorage.
   const [sortConfig, setSortConfig] = usePersistedState("bajas_sort", { key: null, direction: null });
+  const [isSortDrawerOpen, setIsSortDrawerOpen] = useState(false);
+  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const filters = useColumnFilters({ storageKey: "bajas_filters" });
@@ -962,7 +966,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                         stroke="white"
                         strokeWidth="1.5"
                         className="transition-all duration-200 cursor-pointer"
-                        onMouseEnter={() => setHoveredSlice(i)}
+                        onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)}
                         onMouseLeave={() => setHoveredSlice(null)}
                         onClick={() => handleMotiveClick(slice.motivo)}
                         style={hoveredSlice === i ? { filter: 'brightness(1.15)' } : {}}
@@ -984,7 +988,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                   {pieSlices.map((slice, i) => (
                     <div
                       key={i}
-                      onMouseEnter={() => setHoveredSlice(i)}
+                      onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)}
                       onMouseLeave={() => setHoveredSlice(null)}
                       onClick={() => handleMotiveClick(slice.motivo)}
                       className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 ${
@@ -1031,7 +1035,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                     </div>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 border border-slate-200/40 dark:border-slate-700/40">
-                      Pasa el cursor por los puntos
+                      {/* En móvil no hay cursor: el copy pedía un gesto imposible. */}
+                      <span className="md:hidden">Toca los puntos</span>
+                      <span className="hidden md:inline">Pasa el cursor por los puntos</span>
                     </span>
                   )}
                 </div>
@@ -1130,7 +1136,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                           stroke="#621f32"
                           strokeWidth={hoveredPointIndex === i ? 2.5 : 2}
                           className="transition-all duration-150 cursor-pointer"
-                          onMouseEnter={() => setHoveredPointIndex(i)}
+                          onMouseEnter={() => setHoveredPointIndex(i)} onPointerDown={() => setHoveredPointIndex(i)}
                           onMouseLeave={() => setHoveredPointIndex(null)}
                         />
                         {/* Interactive overlay for easier hovering */}
@@ -1140,7 +1146,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                           r="15"
                           fill="transparent"
                           className="cursor-pointer"
-                          onMouseEnter={() => setHoveredPointIndex(i)}
+                          onMouseEnter={() => setHoveredPointIndex(i)} onPointerDown={() => setHoveredPointIndex(i)}
                           onMouseLeave={() => setHoveredPointIndex(null)}
                         />
                       </g>
@@ -1209,10 +1215,39 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             count={filteredSortedData.length}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel }}
             actions={[
+              // El orden vive en los encabezados de `DataTable` (oculta en móvil).
+              { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
+              // Idem: el embudo por columna sólo existía en el encabezado.
+              { icon: ListFilter, label: "Filtrar por columna", onClick: () => setIsColumnPickerOpen(true), badge: Object.keys(columnFilters).length + Object.values(textFilters).filter(f => f?.value).length },
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
             ]}
+          />
+
+          <MobileColumnPickerDrawer
+
+            open={isColumnPickerOpen}
+
+            onOpenChange={setIsColumnPickerOpen}
+
+            columns={columns}
+
+            columnFilters={columnFilters}
+
+            textFilters={textFilters}
+
+            onPick={openFilterDropdown}
+
+          />
+
+
+          <MobileSortDrawer
+            open={isSortDrawerOpen}
+            onOpenChange={setIsSortDrawerOpen}
+            columns={columns}
+            sortConfig={sortConfig}
+            onSort={setSortConfig}
           />
 
           <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">

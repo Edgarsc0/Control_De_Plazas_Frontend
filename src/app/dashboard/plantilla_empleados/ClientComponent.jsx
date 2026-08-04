@@ -392,6 +392,7 @@ export default function PlantillaEmpleadosDetalle({
           {activeTab !== "mapa" && (
             <Zoom triggerOnce>
               <div className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-8 transition-all duration-300 ${isTightLayout ? "mb-4" : "mb-12"}`}>
+                <div className="flex flex-col gap-3 w-full md:w-auto">
                 <div className="flex items-start sm:items-center gap-6">
                   <div className="relative p-4 sm:p-5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] rounded-[1.8rem] sm:rounded-[2.2rem] shadow-xl shadow-[#621f32]/20 flex-shrink-0 group overflow-hidden transition-all duration-300 hover:scale-105">
                     <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -444,12 +445,16 @@ export default function PlantillaEmpleadosDetalle({
                     </p>
                   </div>
                 </div>
+                </div>
               </div>
             </Zoom>
           )}
         </div>
 
-        <div className="w-full mt-2" ref={tabContentRef}>
+        {/* El tab de mapa calcula su alto exacto contra el viewport
+            (`100dvh - stack - bottomnav`); el `mt-2` lo empujaba 8px y dejaba el
+            borde inferior del mapa por debajo del BottomNav. */}
+        <div className={`w-full ${activeTab === "mapa" ? "mt-0" : "mt-2"}`} ref={tabContentRef}>
           {/* Tabs con estado propio (filtros, orden, scroll, datos por fetch de cliente):
               se mantienen montados una vez visitados y se ocultan con CSS al salir,
               en vez de desmontarse, para no perder su estado ni re-fetchear. */}

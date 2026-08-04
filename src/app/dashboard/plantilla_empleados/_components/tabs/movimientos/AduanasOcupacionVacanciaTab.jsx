@@ -7,6 +7,7 @@ import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import EmployeesModal, { LOCAL_MODE_DEFAULT_COLUMN_KEYS } from "../../shared/EmployeesModal";
+import AduanasMobileView from "./AduanasMobileView";
 import { mapVacanteRowToEmployeeRow } from "../../shared/mapVacanteRow";
 import {
   getUniqueColumnValues,
@@ -518,6 +519,25 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
     return filasMerged.filter((row) => set.has(row.aduana));
   }, [filasMerged, aduanaSelected]);
 
+  // Totales por aduana para la vista móvil (GroupedCountTable calcula los
+  // suyos por dentro, pero esa tabla es `hidden md:block`).
+  const filaTotalesMovil = useMemo(() => {
+    const map = new Map();
+    filasFiltradas.forEach((row) => {
+      let ocup = 0;
+      let vac = 0;
+      (data?.grupos_nj || []).forEach((g) => {
+        g.niveles.forEach((nivel) => {
+          const key = `${g.nj}|${nivel}`;
+          ocup += row.ocupacion?.[key] ?? 0;
+          vac += row.vacancia?.[key] ?? 0;
+        });
+      });
+      map.set(row.aduana, { ocup, vac });
+    });
+    return map;
+  }, [filasFiltradas, data]);
+
   const handleOpenAduanaFilter = () => {
     filters.setTempSelectedValues(aduanaSelected.length > 0 ? aduanaSelected : baseUniqueValues.map((v) => v.value));
     setIsAduanaFilterOpen(true);
@@ -675,7 +695,8 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
 
   return (
     <div ref={cardRef} className="w-full flex flex-col gap-4">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+      {/* Matriz densa (~8 000px de ancho): sólo desktop. */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <GroupedCountTable
           gruposNj={data?.grupos_nj || []}
           filas={filasFiltradas}
@@ -691,12 +712,38 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
               type="button"
               onClick={handleExportExcel}
               disabled={isExportingExcel}
-              className="flex items-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8d2c48] hover:from-[#7a2942] hover:to-[#a13456] text-white px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8d2c48] hover:from-[#7a2942] hover:to-[#a13456] text-white px-5 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
             >
               {isExportingExcel
                 ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 : <Download className="size-3.5" />}
               <span>{isExportingExcel ? "Generando..." : "Descargar Excel"}</span>
+            </button>
+          }
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden md:hidden">
+        <AduanasMobileView
+          gruposNj={data?.grupos_nj || []}
+          filas={filasFiltradas}
+          filaTotales={filaTotalesMovil}
+          loading={loading}
+          aduanaFilterActive={aduanaSelected.length > 0}
+          onOpenAduanaFilter={handleOpenAduanaFilter}
+          onCellClick={handleCellClick}
+          onRowTotalClick={handleRowTotalClick}
+          headerRight={
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel}
+              aria-label="Descargar Excel"
+              className="shrink-0 size-11 flex items-center justify-center rounded-2xl bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white shadow-md active:scale-95 transition-transform disabled:opacity-70"
+            >
+              {isExportingExcel
+                ? <div className="size-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                : <Download className="size-4" />}
             </button>
           }
         />

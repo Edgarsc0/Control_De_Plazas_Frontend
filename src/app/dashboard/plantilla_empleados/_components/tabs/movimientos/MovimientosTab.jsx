@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck,
-  MousePointerClick, Loader2, Copy, Check, History,
+  MousePointerClick, Loader2, Copy, Check, History, ListFilter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/useToast";
@@ -23,6 +23,9 @@ import CeldaValorModal from "../../shared/CeldaValorModal";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
+import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
+import MobileColumnPickerDrawer from "@/components/ui/MobileColumnPickerDrawer";
+import MobileServerPager from "@/components/ui/MobileServerPager";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
@@ -200,6 +203,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario en localStorage.
   const [sortConfig, setSortConfig] = usePersistedState("movimientos_sort", { key: null, direction: null });
+  const [isSortDrawerOpen, setIsSortDrawerOpen] = useState(false);
+  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
@@ -1646,7 +1651,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                           transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)",
                           opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.key) ? 0.35 : 1
                         }}
-                        onMouseEnter={() => setHoveredSlice(i)}
+                        onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)}
                         onMouseLeave={() => setHoveredSlice(null)}
                         onClick={() => handleTabCardClick(slice.key)}
                       />
@@ -1716,6 +1721,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                     key={card.key}
                     onMouseEnter={() => {
                       if (card.hoverIndex !== null) setHoveredSlice(card.hoverIndex);
+                    }} onPointerDown={() => {
+                      if (card.hoverIndex !== null) setHoveredSlice(card.hoverIndex);
                     }}
                     onMouseLeave={() => setHoveredSlice(null)}
                     className={`rounded-xl border-2 transition-all duration-200 shadow-sm flex flex-col relative overflow-hidden ${
@@ -1782,7 +1789,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                         <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                           <button
                             onClick={(e) => handleOcupacionFilter(e, "Ocupada")}
-                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 min-h-11 md:min-h-0 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
                               activeOcupacionFilter === "Ocupada"
                                 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
                                 : "bg-slate-50 dark:bg-slate-800/40 text-slate-500 border-slate-200/60 dark:border-slate-700/60 hover:text-emerald-600 hover:border-emerald-300"
@@ -1792,7 +1799,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                           </button>
                           <button
                             onClick={(e) => handleOcupacionFilter(e, "Vacante")}
-                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 min-h-11 md:min-h-0 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
                               activeOcupacionFilter === "Vacante"
                                 ? "bg-[#bc955c]/10 text-[#8d6a3d] dark:text-[#ebd1ac] border-[#bc955c]/30"
                                 : "bg-slate-50 dark:bg-slate-800/40 text-slate-500 border-slate-200/60 dark:border-slate-700/60 hover:text-[#bc955c] hover:border-[#bc955c]/40"
@@ -1816,19 +1823,63 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           <MobileTableToolbar
             searchValue={searchQuery}
             onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
-            count={filteredSortedData.length}
+            /* En modo `is_latest` el dataset llega completo y `filteredSortedData`
+               ES el total; fuera de ese modo la lista es sólo la página del
+               servidor y el total real lo lleva `count`. */
+            count={isLatestFilter ? filteredSortedData.length : count}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
             actions={[
+              // El orden vive en los encabezados de `DataTable` (oculta en móvil).
+              { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
+              // Idem: el embudo por columna sólo existía en el encabezado.
+              { icon: ListFilter, label: "Filtrar por columna", onClick: () => setIsColumnPickerOpen(true), badge: Object.keys(columnFilters).length + Object.values(textFilters).filter(f => f?.value).length },
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: !canReset },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
               { icon: History, label: "Historial de Cambios", onClick: openHistorialModal },
             ]}
             chips={activeStatusFilter.map(status => (
-              <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}>
+              <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 min-h-11 py-2 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}>
                 <span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" />
               </button>
             ))}
+          />
+
+          {/* Sólo aparece en modo histórico (paginado por servidor): en
+              `is_latest` totalPages vale 1 y el componente no renderiza nada. */}
+          <MobileServerPager
+            page={page}
+            totalPages={totalPages}
+            count={count}
+            onPage={setPage}
+            pageSize={pageSize}
+            onPageSize={setPageSize}
+            loading={loading}
+          />
+
+          <MobileColumnPickerDrawer
+
+            open={isColumnPickerOpen}
+
+            onOpenChange={setIsColumnPickerOpen}
+
+            columns={columns}
+
+            columnFilters={columnFilters}
+
+            textFilters={textFilters}
+
+            onPick={openFilterDropdown}
+
+          />
+
+
+          <MobileSortDrawer
+            open={isSortDrawerOpen}
+            onOpenChange={setIsSortDrawerOpen}
+            columns={columns}
+            sortConfig={sortConfig}
+            onSort={setSortConfig}
           />
 
           <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
@@ -1993,6 +2044,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           <div className="md:hidden">
             <MobileCardList
               data={filteredSortedData}
+              /* En modo histórico `data` ya es una página del servidor: se
+                 muestra entera y navega MobileServerPager. En `is_latest` llega
+                 el dataset completo (11k filas) y sí hace falta paginar local. */
+              pageSize={isLatestFilter ? undefined : pageSize}
               config={{
                 getRowId: (r, i) => r.id ?? r.no_pos_actual ?? i,
                 getTitle: (r) => r.nombre_puesto || (r.no_pos_actual ? `Posición ${r.no_pos_actual}` : "Posición"),

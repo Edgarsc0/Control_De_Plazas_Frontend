@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, 
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
-, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight } from "lucide-react";
+, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight, ListFilter } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -23,6 +23,9 @@ import CeldaValorModal from "../../shared/CeldaValorModal";
 import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
+import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
+import MobileColumnPickerDrawer from "@/components/ui/MobileColumnPickerDrawer";
+import MobileServerPager from "@/components/ui/MobileServerPager";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { normalizeForSearch, finalizeFilterDropdownValues, resolveColumnFilterCommit, sortValueCounts, formatDateEsMx, normalizeDateSearchTerm } from "@/utils/columnFilters";
 import { labelUN, labelUA } from "@/utils/catalogosUnUa";
@@ -344,6 +347,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [debouncedSearch, setDebouncedSearch] = useState("");
   // 7.3 QA: persistir configuración por usuario en localStorage.
   const [sortConfig, setSortConfig] = usePersistedState("movimientos_personal_sort", { key: "fecha_efectiva,fecha_captura", direction: "desc" });
+  const [isSortDrawerOpen, setIsSortDrawerOpen] = useState(false);
+  const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const arrowRepeatRef = useRef(0);
 
@@ -1926,17 +1931,17 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       {/* Statistics Card and Pie Chart */}
         <Zoom triggerOnce>
           <div className="flex flex-col gap-3 mb-6 w-full">
-            {/* Tabs Toggle (Moved here) */}
-            <div className="flex items-center gap-2 self-start bg-slate-100/80 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800 backdrop-blur-sm relative z-10 shadow-sm ml-1">
+            {/* Tabs Toggle (Moved here) — oculto en móvil, sólo pie ahí */}
+            <div className="hidden md:flex items-center gap-2 self-start bg-slate-100/80 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200 dark:border-slate-800 backdrop-blur-sm relative z-10 shadow-sm ml-1">
               <button
                 onClick={() => setStatsViewMode("pie")}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${statsViewMode === "pie" ? "bg-white dark:bg-slate-800 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                className={`min-h-11 md:min-h-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${statsViewMode === "pie" ? "bg-white dark:bg-slate-800 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
               >
                 Distribución (Pie)
               </button>
               <button
                 onClick={() => setStatsViewMode("bar")}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${statsViewMode === "bar" ? "bg-white dark:bg-slate-800 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                className={`min-h-11 md:min-h-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${statsViewMode === "bar" ? "bg-white dark:bg-slate-800 text-[#621f32] dark:text-[#bc955c] shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
               >
                 En el tiempo (Barras)
               </button>
@@ -2048,7 +2053,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                         stroke="white"
                         strokeWidth="1.5"
                         className="transition-all duration-200 cursor-pointer"
-                        onMouseEnter={() => setHoveredSlice(i)}
+                        onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)}
                         onMouseLeave={() => setHoveredSlice(null)}
                         onClick={() => handleActionClick(slice.accion_nombre)}
                         style={hoveredSlice === i ? { filter: 'brightness(1.15)', transform: 'scale(1.03)', transformOrigin: 'center' } : {}}
@@ -2070,7 +2075,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                   {pieSlices.map((slice, i) => (
                     <div
                       key={i}
-                      onMouseEnter={() => setHoveredSlice(i)}
+                      onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)}
                       onMouseLeave={() => setHoveredSlice(null)}
                       onClick={() => handleActionClick(slice.accion_nombre)}
                       className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 ${
@@ -2329,7 +2334,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                                   stroke="white"
                                   strokeWidth="1.5"
                                   className="transition-all duration-200 cursor-pointer"
-                                  onMouseEnter={() => setHoveredMotifSlice(i)}
+                                  onMouseEnter={() => setHoveredMotifSlice(i)} onPointerDown={() => setHoveredMotifSlice(i)}
                                   onMouseLeave={() => setHoveredMotifSlice(null)}
                                   onClick={() => handleMotifClick(slice.motivo_nombre)}
                                   style={hoveredMotifSlice === i ? { filter: 'brightness(1.15)', transform: 'scale(1.03)', transformOrigin: 'center' } : {}}
@@ -2349,7 +2354,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                             {motifPieSlices.map((slice, i) => (
                               <div
                                 key={i}
-                                onMouseEnter={() => setHoveredMotifSlice(i)}
+                                onMouseEnter={() => setHoveredMotifSlice(i)} onPointerDown={() => setHoveredMotifSlice(i)}
                                 onMouseLeave={() => setHoveredMotifSlice(null)}
                                 onClick={() => handleMotifClick(slice.motivo_nombre)}
                                 className={`flex items-center gap-2 cursor-pointer hover:bg-slate-500/5 dark:hover:bg-white/5 rounded-lg px-1.5 py-0.5 transition-all duration-150 ${
@@ -2402,13 +2407,32 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           <MobileTableToolbar
             searchValue={searchQuery}
             onSearch={(v) => setSearchQuery(v)}
-            count={data.length}
+            /* El total lo manda el servidor: `data.length` es sólo la página
+               actual y hacía que el chip dijera "50" con 152 526 registros
+               detrás. */
+            count={count}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel, disabled: data.length === 0 }}
             actions={[
+              // El orden vive en los encabezados de `DataTable` (oculta en móvil).
+              { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
+              // Idem: el embudo por columna sólo existía en el encabezado.
+              { icon: ListFilter, label: "Filtrar por columna", onClick: () => setIsColumnPickerOpen(true), badge: Object.keys(columnFilters).length + Object.values(textFilters).filter(f => f?.value).length },
               { icon: RotateCcw, label: "Restablecer filtros", onClick: () => { setTextFilters({}); setColumnFilters({}); setSortConfig({ key: null, direction: null }); setSearchQuery(""); resetAdvancedFilters(); } },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
             ]}
+          />
+
+          {/* Paginación de servidor en móvil: sin esto sólo era alcanzable la
+              primera página (ver MobileServerPager). */}
+          <MobileServerPager
+            page={page}
+            totalPages={totalPages}
+            count={count}
+            onPage={setPage}
+            pageSize={pageSize}
+            onPageSize={setPageSize}
+            loading={loading}
           />
 
           {activeSubTab === "bitacora" && (
@@ -2427,6 +2451,31 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               </button>
             </div>
           )}
+
+          <MobileColumnPickerDrawer
+
+            open={isColumnPickerOpen}
+
+            onOpenChange={setIsColumnPickerOpen}
+
+            columns={columns}
+
+            columnFilters={columnFilters}
+
+            textFilters={textFilters}
+
+            onPick={openFilterDropdown}
+
+          />
+
+
+          <MobileSortDrawer
+            open={isSortDrawerOpen}
+            onOpenChange={setIsSortDrawerOpen}
+            columns={columns}
+            sortConfig={sortConfig}
+            onSort={setSortConfig}
+          />
 
           <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
             <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
@@ -2471,7 +2520,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                       setPageSize(Number(e.target.value));
                       setPage(1);
                     }}
-                    className="bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 px-2 py-1 rounded-xl font-bold outline-none text-[#621f32] dark:text-[#bc955c] text-[11px] cursor-pointer"
+                    className="bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-800 px-2 py-1 min-h-11 md:min-h-0 rounded-xl font-bold outline-none text-[#621f32] dark:text-[#bc955c] text-[11px] cursor-pointer"
                   >
                     {[25, 50, 100, 200].map((sz) => (
                       <option key={sz} value={sz}>{sz}</option>
@@ -2609,6 +2658,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                 onCardClick={(row) => setSelectedRowData(row)}
                 isLoading={loading}
                 isPending={false}
+                /* `data` ya es UNA página del servidor: se muestra entera para
+                   que la única navegación sea la de MobileServerPager (dos
+                   paginadores encadenados confundían de dónde venía cada
+                   "página"). */
+                pageSize={pageSize}
               />
             </div>
 

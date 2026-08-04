@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "motion/react";
-import { Layers, Search, RotateCcw, CheckSquare, Square, X } from "lucide-react";
+import { Layers, Search, RotateCcw, CheckSquare, Square, X, Monitor } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import { apiFetch } from "@/lib/fetch-interceptor";
 import DataTable from "../../shared/DataTable";
@@ -496,7 +496,8 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* Sólo desktop: operan sobre la tabla, que vive en `hidden md:flex`. */}
+        <div className="hidden md:flex items-center gap-2.5 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 w-3.5 h-3.5 pointer-events-none" />
             <input
@@ -610,9 +611,16 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
       </div>
 
       {/* ── Aviso móvil: la administración de catálogos requiere escritorio ── */}
-      <div className="md:hidden flex flex-col items-center justify-center py-16 px-6 text-center gap-2">
-        <p className="text-sm font-bold text-gray-600 dark:text-slate-300">Vista de escritorio recomendada</p>
-        <p className="text-xs text-gray-400">Este catálogo se administra mejor desde una pantalla más grande.</p>
+      <div className="md:hidden flex flex-col items-center justify-center py-16 px-6 text-center gap-3">
+        <div className="p-3 rounded-2xl bg-[#621f32]/8 text-[#621f32] dark:text-[#bc955c]">
+          <Monitor className="size-6" />
+        </div>
+        <p className="text-sm font-bold text-gray-600 dark:text-slate-300">
+          «Niveles Jerárquicos por Plaza» requiere pantalla grande
+        </p>
+        <p className="text-xs text-gray-400 max-w-xs">
+          Esta vista asigna niveles a varias plazas a la vez sobre una tabla ancha; ábrela desde una computadora.
+        </p>
       </div>
 
       <AnimatePresence>

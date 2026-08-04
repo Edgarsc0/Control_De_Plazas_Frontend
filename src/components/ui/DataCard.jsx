@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "motion/react";
 import { ChevronRight } from "lucide-react";
 
@@ -21,6 +22,10 @@ import { ChevronRight } from "lucide-react";
  */
 export default function DataCard({ row, index = 0, config = {}, onClick }) {
   const { getTitle, getSubtitle, renderBadge, fields = [] } = config;
+  // `title` no existe en táctil: los valores largos ("Agencia Nacional de
+  // Adua…", una CURP) quedaban truncados sin forma de leerlos. Un toque sobre
+  // el valor lo despliega en su sitio (y no abre el expediente).
+  const [expanded, setExpanded] = useState(() => new Set());
   const title = getTitle ? getTitle(row) : "";
   const subtitle = getSubtitle ? getSubtitle(row) : "";
 
@@ -44,9 +49,11 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {renderBadge && renderBadge(row)}
-          <ChevronRight className="size-4 text-slate-300 dark:text-slate-600 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c] transition-colors" />
+        {/* El badge se acota y el chevron va en columna propia: con badges
+            largos ("Licencia Médica S/Sueldo") ambos se pisaban. */}
+        <div className="flex items-center gap-1.5 shrink-0 max-w-[52%]">
+          <span className="min-w-0 flex justify-end">{renderBadge && renderBadge(row)}</span>
+          <ChevronRight className="size-4 shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c] transition-colors" />
         </div>
       </div>
 
@@ -63,9 +70,25 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
                   {f.label}
                 </span>
                 <span
-                  onClick={clickable ? (e) => { e.stopPropagation(); f.onClick(row); } : undefined}
+                  onClick={
+                    clickable
+                      ? (e) => { e.stopPropagation(); f.onClick(row); }
+                      : empty
+                        ? undefined
+                        : (e) => {
+                            e.stopPropagation();
+                            const key = f.key || f.label;
+                            setExpanded((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(key)) next.delete(key); else next.add(key);
+                              return next;
+                            });
+                          }
+                  }
                   title={empty ? undefined : String(raw)}
-                  className={`block text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate ${f.mono ? "font-mono" : ""} ${clickable ? "cursor-pointer" : ""} ${extraClass}`}
+                  className={`block text-[11px] font-bold text-slate-700 dark:text-slate-300 ${
+                    expanded.has(f.key || f.label) ? "whitespace-normal break-words" : "truncate"
+                  } ${f.mono ? "font-mono" : ""} ${clickable || !empty ? "cursor-pointer" : ""} ${extraClass}`}
                 >
                   {empty ? <span className="text-slate-300 dark:text-slate-700 italic">—</span> : String(raw)}
                 </span>

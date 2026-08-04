@@ -106,7 +106,7 @@ export default function MobileCardList({
   const atEnd = safePage >= totalPages - 1;
 
   const navBtn =
-    "size-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-[#621f32] dark:text-[#bc955c] shadow-sm active:scale-95 transition-transform disabled:opacity-30 disabled:pointer-events-none";
+    "size-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-[#621f32] dark:text-[#bc955c] shadow-sm active:scale-95 transition-transform disabled:opacity-30 disabled:pointer-events-none";
 
   return (
     <div className="relative flex flex-col gap-3 p-4">

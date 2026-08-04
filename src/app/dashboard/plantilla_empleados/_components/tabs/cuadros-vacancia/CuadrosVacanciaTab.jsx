@@ -1217,7 +1217,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <button
                       onClick={handleExportExcel}
                       disabled={isExportingExcel}
-                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                     >
                       {isExportingExcel
                         ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
@@ -1228,7 +1228,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <button
                       onClick={handleExportImage}
                       disabled={isExporting}
-                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                      className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <Download className={`size-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
                       <span>{isExporting ? 'Exportando...' : 'Imagen'}</span>
@@ -1237,7 +1237,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <button
                       onClick={handleGeneratePdf}
                       disabled={isGeneratingPdf}
-                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8c2d4a] hover:from-[#7a2740] hover:to-[#a33658] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8c2d4a] hover:from-[#7a2740] hover:to-[#a33658] text-white px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <FileText className={`size-3.5 ${isGeneratingPdf ? 'animate-pulse' : ''}`} />
                       <span>{isGeneratingPdf ? 'Generando...' : 'PDF'}</span>
@@ -1246,7 +1246,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <button
                       onClick={handleGenerateWord}
                       disabled={isGeneratingWord}
-                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#2e5890] to-[#3b6ba8] hover:from-[#254a79] hover:to-[#2e5890] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#2e5890] to-[#3b6ba8] hover:from-[#254a79] hover:to-[#2e5890] text-white px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                     >
                       <FileEdit className={`size-3.5 ${isGeneratingWord ? 'animate-pulse' : ''}`} />
                       <span>{isGeneratingWord ? 'Generando...' : 'Word'}</span>
@@ -1452,7 +1452,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   {filteredData.length > 1 && (
                     <button
                       onClick={() => setIsTableExpanded(prev => !prev)}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-[#10243e] dark:hover:text-[#bc955c] hover:bg-slate-50 dark:hover:bg-slate-800/60 border-t border-slate-200/60 dark:border-slate-800/60 transition-all duration-200 cursor-pointer group"
+                      className="w-full flex items-center justify-center gap-2 py-2.5 min-h-11 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-[#10243e] dark:hover:text-[#bc955c] hover:bg-slate-50 dark:hover:bg-slate-800/60 border-t border-slate-200/60 dark:border-slate-800/60 transition-all duration-200 cursor-pointer group"
                     >
                       {isTableExpanded ? (
                         <>
@@ -1546,7 +1546,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                                   cy={cy}
                                   r={18}
                                   fill="transparent"
-                                  onMouseEnter={() => setHoveredPointKey(s.key)}
+                                  onMouseEnter={() => setHoveredPointKey(s.key)} onPointerDown={() => setHoveredPointKey(s.key)}
                                   onMouseLeave={() => setHoveredPointKey(null)}
                                 />
                                 <circle

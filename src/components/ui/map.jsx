@@ -615,7 +615,8 @@ function ControlButton({
       aria-label={label}
       type="button"
       className={cn(
-        "flex size-8 items-center justify-center transition-all",
+        // 32px queda por debajo del objetivo táctil mínimo en móvil.
+        "flex size-11 md:size-8 items-center justify-center transition-all",
         "first:rounded-t-md last:rounded-b-md",
         "hover:bg-accent dark:hover:bg-accent/40",
         "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",

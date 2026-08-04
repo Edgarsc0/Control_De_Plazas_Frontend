@@ -80,20 +80,27 @@ export default function Navbar() {
               className="h-10 w-auto"
             />
             <div className="hidden md:block h-8 w-[1px] bg-gray-300"></div>
-            <div className="flex flex-col">
-              <span className="text-[#621f32] font-semibold text-sm md:text-lg leading-none md:leading-tight max-w-[200px] md:max-w-none">
+            {/* El bloque de texto debe caber en los 64px de la barra: en móvil el
+                título envuelve a 2 líneas, así que las DOS líneas de "última
+                actualización" se colapsan en una sola (tocable, abre el detalle
+                completo). Con las dos líneas el contenido medía ~70px y se
+                pintaba por encima del banner gob.mx y por debajo, sobre la
+                página. */}
+            <div className="flex flex-col min-w-0">
+              <span className="text-[#621f32] font-semibold text-[13px] md:text-lg leading-tight max-w-[200px] md:max-w-none">
                 Sistema de Control de Plazas
               </span>
               {lastUpdate && (
-                <span className="text-[9px] md:text-[10px] text-gray-500 font-light mt-0.5 leading-none md:leading-normal">
+                <span className="hidden md:block text-[10px] text-gray-500 font-light mt-0.5 leading-normal">
                   Última actualización de información: <span className="font-semibold text-[#621f32]/85">{lastUpdate}</span>
                 </span>
               )}
-              {systemUpdate && (
+              {(systemUpdate || lastUpdate) && (
                 <div className="relative" ref={systemUpdateRef}>
                   <span
                     role="button"
                     tabIndex={0}
+                    aria-label="Ver detalle de últimas actualizaciones"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -106,9 +113,18 @@ export default function Navbar() {
                         setShowCommitMessage((prev) => !prev);
                       }
                     }}
-                    className="block text-[9px] md:text-[10px] text-gray-500 font-light mt-0.5 leading-none md:leading-normal hover:text-[#621f32] transition-colors cursor-pointer outline-none"
+                    className="relative block text-[9px] md:text-[10px] text-gray-500 font-light mt-0.5 leading-none md:leading-normal hover:text-[#621f32] transition-colors cursor-pointer outline-none py-[18px] -my-[18px] md:py-0 md:my-0"
                   >
-                    Última actualización del sistema: <span className="font-semibold text-[#621f32]/85">{systemUpdate.fecha}</span>
+                    {/* Móvil: una sola línea resumida */}
+                    <span className="md:hidden">
+                      Actualizado: <span className="font-semibold text-[#621f32]/85">{lastUpdate || systemUpdate?.fecha}</span>
+                    </span>
+                    {/* Escritorio: la línea de sistema, como siempre */}
+                    {systemUpdate && (
+                      <span className="hidden md:inline">
+                        Última actualización del sistema: <span className="font-semibold text-[#621f32]/85">{systemUpdate.fecha}</span>
+                      </span>
+                    )}
                   </span>
 
                   <AnimatePresence>
@@ -117,7 +133,13 @@ export default function Navbar() {
                         onClick={(e) => e.preventDefault()}
                         className="absolute top-full left-0 mt-1 w-64 max-w-[80vw] rounded-md border border-gray-200 bg-white shadow-lg p-2.5 text-xs text-gray-700 z-50"
                       >
-                        {systemUpdate.mensaje}
+                        {/* En móvil este popover es el único sitio donde se ven
+                            las dos fechas completas (arriba sólo cabe una). */}
+                        <div className="md:hidden flex flex-col gap-1 mb-2 pb-2 border-b border-gray-100">
+                          {lastUpdate && <span><span className="font-semibold">Información:</span> {lastUpdate}</span>}
+                          {systemUpdate && <span><span className="font-semibold">Sistema:</span> {systemUpdate.fecha}</span>}
+                        </div>
+                        {systemUpdate?.mensaje}
                       </div>
                     )}
                   </AnimatePresence>

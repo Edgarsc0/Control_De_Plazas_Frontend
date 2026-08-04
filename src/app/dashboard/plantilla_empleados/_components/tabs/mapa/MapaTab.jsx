@@ -13,11 +13,14 @@ import {
 export default function MapaTab({ distribucionGeografica = [] }) {
   const [mapFilter, setMapFilter] = useState("all");
 
+  // En móvil hay que descontar también el BottomNav: con `100vh-144px` el panel
+  // de filtros y la atribución quedaban por debajo de la barra fija. `100dvh`
+  // evita además el salto de la barra dinámica de Safari iOS.
   return (
-    <div className="w-full h-[calc(100vh-144px)] flex justify-center">
+    <div className="w-full h-[calc(100dvh-var(--stack-h)-var(--bottomnav-h))] md:h-[calc(100dvh-var(--stack-h))] flex justify-center">
       <div className="w-full h-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex flex-col relative">
         {/* Header Panel */}
-        <div className="absolute bottom-6 left-6 right-6 lg:left-auto p-4 rounded-2xl flex flex-col items-start gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-10 shadow-xl border border-slate-200 dark:border-slate-800/80 pointer-events-auto">
+        <div className="absolute bottom-4 md:bottom-6 left-4 right-4 md:left-6 md:right-6 lg:left-auto p-4 rounded-2xl flex flex-col items-start gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-10 shadow-xl border border-slate-200 dark:border-slate-800/80 pointer-events-auto">
           <div>
             <h3 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
               <Globe className="size-5 text-[#bc955c]" />
@@ -40,7 +43,7 @@ export default function MapaTab({ distribucionGeografica = [] }) {
               <button
                 key={key}
                 onClick={() => setMapFilter(key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-xl border transition-all ${
                   mapFilter === key
                     ? key === "all"
                       ? "bg-slate-800 text-white border-slate-800"

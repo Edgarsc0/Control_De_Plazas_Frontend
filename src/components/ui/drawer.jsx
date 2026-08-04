@@ -61,7 +61,15 @@ function DrawerContent({
         {...props}>
         <div
           className="mx-auto mt-4 hidden h-1 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
-        {children}
+        {/* El contenido va en su propio contenedor desplazable: `DrawerContent`
+            está capado a `max-h-[80vh]` y sin esto cualquier lista más alta que
+            ese tope (p.ej. los 7 tabs + los 7 subtabs de Catálogos en móvil) se
+            salía por debajo del viewport SIN posibilidad de scroll. El asa de
+            arrastre queda fuera del scroller para que vaul siga pudiendo cerrar
+            el drawer arrastrando desde arriba. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+          {children}
+        </div>
       </DrawerPrimitive.Content>
     </DrawerPortal>
   );

@@ -239,6 +239,19 @@ const GradientBar = (props) => {
 /* ── Componente principal ── */
 const OCUPADAS_COLOR = '#2f855a';
 
+// Etiquetas del eje Y abreviadas: con el margen izquierdo negativo de estas
+// gráficas, "10000" no cabía y se recortaba el primer dígito ("0000" en el QA
+// móvil). "10k" entra siempre y se lee igual de bien en desktop.
+const formatAxisTick = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return v;
+  if (Math.abs(n) >= 1000) {
+    const k = n / 1000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  }
+  return String(n);
+};
+
 export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false }) {
   const { hasPermission } = useAuth();
   const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
@@ -884,6 +897,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    tickFormatter={formatAxisTick}
                     width={45}
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
@@ -984,6 +998,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    tickFormatter={formatAxisTick}
                     width={45}
                   />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
@@ -1106,6 +1121,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    tickFormatter={formatAxisTick}
                     width={45}
                   />
                   <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
@@ -1313,6 +1329,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    tickFormatter={formatAxisTick}
                     width={45}
                   />
                   <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
@@ -1509,6 +1526,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    tickFormatter={formatAxisTick}
                     width={45}
                   />
                   <Tooltip content={<Chart3Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />

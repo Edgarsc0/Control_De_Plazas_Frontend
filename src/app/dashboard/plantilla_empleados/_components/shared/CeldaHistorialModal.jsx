@@ -155,10 +155,14 @@ export default function CeldaHistorialModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 20 }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="relative bg-slate-50 dark:bg-slate-950 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col z-[110] overflow-hidden"
+            className="relative bg-slate-50 dark:bg-slate-950 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl w-full max-h-[92dvh] flex flex-col z-[110] overflow-hidden"
           >
             {/* Header */}
-            <div className="p-6 sm:p-8 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-30 sticky top-0">
+            {/* `shrink-0` + `max-h`/scroll propio: con el contenido intrínseco (5 tarjetas
+                de stats + 4 filtros) la cabecera medía 681px dentro de un modal de
+                606px en móvil y empujaba la lista fuera de la pantalla, sin scroll
+                posible por el `overflow-hidden` del contenedor. */}
+            <div className="shrink-0 max-h-[45dvh] overflow-y-auto custom-scrollbar p-4 sm:p-8 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-30">
               <div className="flex items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-gradient-to-br from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] rounded-2xl shadow-lg shadow-[#621f32]/20 dark:shadow-[#bc955c]/20">
@@ -173,18 +177,20 @@ export default function CeldaHistorialModal({
               </div>
 
               {/* Stat cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+              {/* Móvil: fila horizontal desplazable (el grid de 2 columnas aportaba
+                  ~180px de alto a una cabecera que ya no cabía). */}
+              <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden -mx-4 px-4 mb-4 sm:mx-0 sm:px-0 sm:mb-6 sm:grid sm:grid-cols-3 lg:grid-cols-5 sm:gap-3 sm:overflow-visible">
                 {estadisticas ? statCards.map((s) => (
-                  <div key={s.label} className="rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-sm flex flex-col gap-1.5">
+                  <div key={s.label} className="shrink-0 min-w-[9.5rem] sm:min-w-0 rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-sm flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${s.color}15`, color: s.color }}><s.icon className="size-3.5" /></div>
-                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{s.label}</span>
+                      <span title={s.label} className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{s.label}</span>
                     </div>
                     <span className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{new Intl.NumberFormat("es-MX").format(s.value || 0)}</span>
                   </div>
                 )) : (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white dark:bg-slate-900 h-[62px] animate-pulse" />
+                    <div key={i} className="shrink-0 min-w-[9.5rem] sm:min-w-0 rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white dark:bg-slate-900 h-[62px] animate-pulse" />
                   ))
                 )}
               </div>
@@ -237,7 +243,7 @@ export default function CeldaHistorialModal({
             </div>
 
             {/* Lista */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 sm:p-8">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-8">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-24">
                   <div className="size-12 border-4 border-[#621f32]/20 border-t-[#621f32] dark:border-[#bc955c]/20 dark:border-t-[#bc955c] rounded-full animate-spin mb-4" />

@@ -140,7 +140,7 @@ function DonutChart({ data, maskId, onSliceClick }) {
                 fill={slice.color}
                 className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90"
                 style={{ transform: hoveredIndex === i ? "scale(1.05)" : "scale(1.0)" }}
-                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseEnter={() => setHoveredIndex(i)} onPointerDown={() => setHoveredIndex(i)}
                 onMouseLeave={() => setHoveredIndex(null)}
                 onClick={() => onSliceClick && onSliceClick(slice.label)}
               />
@@ -197,7 +197,7 @@ function DonutChart({ data, maskId, onSliceClick }) {
                 ? "bg-slate-100/80 dark:bg-slate-800/50 text-slate-900 dark:text-white"
                 : "text-slate-500 dark:text-slate-400"
             }`}
-            onMouseEnter={() => setHoveredIndex(i)}
+            onMouseEnter={() => setHoveredIndex(i)} onPointerDown={() => setHoveredIndex(i)}
             onMouseLeave={() => setHoveredIndex(null)}
             onClick={() => onSliceClick && onSliceClick(slice.label)}
           >
@@ -319,7 +319,7 @@ function SortToggle({ mode, onChange }) {
     <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 rounded-xl p-1 gap-1 shrink-0">
       <button
         onClick={() => onChange("alpha")}
-        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+        className={`min-h-11 md:min-h-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
           mode === "alpha"
             ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm"
             : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -329,7 +329,7 @@ function SortToggle({ mode, onChange }) {
       </button>
       <button
         onClick={() => onChange("plazas")}
-        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+        className={`min-h-11 md:min-h-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
           mode === "plazas"
             ? "bg-white dark:bg-slate-700 text-[#621f32] dark:text-[#bc955c] shadow-sm"
             : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -633,7 +633,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
             <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full md:w-auto">
               <button
                 onClick={handleOpenLevelDownloadModal}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white font-extrabold uppercase tracking-wider text-[10px] rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-300 w-full sm:w-auto cursor-pointer"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 min-h-11 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white font-extrabold uppercase tracking-wider text-[10px] rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-300 w-full sm:w-auto cursor-pointer"
               >
                 Descargar Excel
               </button>
@@ -682,7 +682,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
                   <select
                     value={levelsPageSize}
                     onChange={(e) => { setLevelsPageSize(Number(e.target.value)); setLevelsPage(1); }}
-                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-[#621f32]/20 dark:focus:ring-[#bc955c]/20 outline-none cursor-pointer transition-all shadow-sm"
+                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl px-3 py-1.5 min-h-11 md:min-h-0 focus:ring-2 focus:ring-[#621f32]/20 dark:focus:ring-[#bc955c]/20 outline-none cursor-pointer transition-all shadow-sm"
                   >
                     {[4, 8, 12, 16, 24].map((sz) => <option key={sz} value={sz}>{sz}</option>)}
                   </select>
@@ -833,7 +833,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
             <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full md:w-auto">
               <button
                 onClick={handleOpenUaDownloadModal}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white font-extrabold uppercase tracking-wider text-[10px] rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-300 w-full sm:w-auto cursor-pointer"
+                className="flex items-center justify-center gap-2 px-5 py-2.5 min-h-11 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white font-extrabold uppercase tracking-wider text-[10px] rounded-2xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-300 w-full sm:w-auto cursor-pointer"
               >
                 Descargar Excel
               </button>
@@ -882,7 +882,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
                   <select
                     value={uasPageSize}
                     onChange={(e) => { setUasPageSize(Number(e.target.value)); setUasPage(1); }}
-                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-[#621f32]/20 dark:focus:ring-[#bc955c]/20 outline-none cursor-pointer transition-all shadow-sm"
+                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl px-3 py-1.5 min-h-11 md:min-h-0 focus:ring-2 focus:ring-[#621f32]/20 dark:focus:ring-[#bc955c]/20 outline-none cursor-pointer transition-all shadow-sm"
                   >
                     {[4, 8, 12, 24, 48].map((sz) => <option key={sz} value={sz}>{sz}</option>)}
                   </select>

@@ -8,7 +8,9 @@ import { motion, AnimatePresence } from 'motion/react';
 /**
  * Barra de tabs fija (desktop) tipo pill flotante con indicador animado.
  * En móvil la navegación de tabs vive en el Drawer del BottomNav
- * (ver PageTabsContext); esta barra sólo se muestra en sm+.
+ * (ver PageTabsContext); esta barra sólo se muestra en md+. El breakpoint debe
+ * coincidir con el `md:hidden` del BottomNav: con `sm:` ambas navegaciones se
+ * mostraban a la vez entre 640 y 767px.
  *
  * @param {{id:string,label:string,icon?:Function}[]} tabs
  * @param {string} activeTab
@@ -90,7 +92,7 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
     }, [openSubtabId, openDropdown]);
 
     return (
-        <div className="fixed top-36 inset-x-0 z-30 hidden sm:flex justify-center">
+        <div className="fixed top-36 inset-x-0 z-30 hidden md:flex justify-center">
             <div
                 ref={barRef}
                 className="relative flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none [&::-webkit-scrollbar]:hidden"
