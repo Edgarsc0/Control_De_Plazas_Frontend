@@ -12,21 +12,37 @@ import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 const FILAS_ADVERTENCIA_TARDANZA = 3000;
 
 /**
- * Modal de confirmación que se muestra ÚNICAMENTE cuando el usuario tiene el
- * permiso "ver fotografía" del tab correspondiente (VIEW_PLANTILLA_*_FOTO) —
- * si no lo tiene, el botón "Exportar a Excel" nunca abre este modal y exporta
- * directo, sin fotos, como siempre.
+ * Modal de confirmación de export a Excel. En MovimientosPersonalTab y
+ * BajasTab se abre ÚNICAMENTE cuando el usuario tiene el permiso "ver
+ * fotografía" del tab (VIEW_PLANTILLA_*_FOTO) — si no lo tiene, exportan
+ * directo sin abrir este modal. PlantillaDetalleTab lo abre siempre (usa
+ * `canIncluirFotos`/`showDatosPersonalesOption` para decidir qué checkboxes
+ * mostrar), porque además ofrece "Incluir datos personales" sin depender de
+ * ese permiso.
  *
  * Reutilizado por PlantillaDetalleTab, MovimientosPersonalTab y BajasTab.
- * El armado real del archivo (con o sin fotos) lo hace el llamador vía
- * `onConfirm(incluirFotos)`; este componente solo maneja la elección y el
- * estado "generando" con opción de cancelar.
+ * El armado real del archivo lo hace el llamador vía
+ * `onConfirm(incluirFotos, incluirDatosPersonales)`; este componente solo
+ * maneja la elección y el estado "generando" con opción de cancelar.
  */
-export default function ExportConFotosModal({ open, onClose, onConfirm, isExporting, onCancelExport, rowCount }) {
+export default function ExportConFotosModal({
+  open, onClose, onConfirm, isExporting, onCancelExport, rowCount,
+  // Fase 2 (solo Plantilla Detalle, ver PlantillaDetalleTab): cruzar por
+  // numempleado con DATOS_PERSONALES y agregar sus columnas al Excel.
+  // `canIncluirFotos=false` oculta el checkbox de fotos (el llamador ya no
+  // gatea la apertura del modal por permiso, ver handleOpenExportClick) sin
+  // afectar a Movimientos/Bajas, que siguen abriendo el modal solo cuando
+  // el usuario SÍ tiene el permiso de foto (canIncluirFotos=true implícito).
+  canIncluirFotos = true, showDatosPersonalesOption = false,
+}) {
   const [incluirFotos, setIncluirFotos] = useState(false);
+  const [incluirDatosPersonales, setIncluirDatosPersonales] = useState(false);
 
   useEffect(() => {
-    if (open) setIncluirFotos(false);
+    if (open) {
+      setIncluirFotos(false);
+      setIncluirDatosPersonales(false);
+    }
   }, [open]);
 
   useBodyScrollLock(open);
@@ -72,7 +88,13 @@ export default function ExportConFotosModal({ open, onClose, onConfirm, isExport
                   </div>
                   <div>
                     <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-tight">Exportar a Excel</h3>
-                    <p className="text-xs font-semibold text-slate-400">Elige si quieres incluir las fotografías de los empleados</p>
+                    <p className="text-xs font-semibold text-slate-400">
+                      {canIncluirFotos && showDatosPersonalesOption
+                        ? "Elige qué información adicional incluir en el archivo"
+                        : canIncluirFotos
+                          ? "Elige si quieres incluir las fotografías de los empleados"
+                          : "Elige si quieres incluir los datos personales de los empleados"}
+                    </p>
                   </div>
                 </div>
                 <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors cursor-pointer">
@@ -81,15 +103,28 @@ export default function ExportConFotosModal({ open, onClose, onConfirm, isExport
               </div>
 
               <div className="p-6 flex flex-col gap-3">
-                <label className="flex items-center justify-between p-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Incluir fotografías de los empleados</span>
-                  <input
-                    type="checkbox"
-                    checked={incluirFotos}
-                    onChange={(e) => setIncluirFotos(e.target.checked)}
-                    className="size-4.5 rounded border-gray-300 dark:border-slate-700 text-[#621f32] focus:ring-[#621f32]/20 cursor-pointer"
-                  />
-                </label>
+                {canIncluirFotos && (
+                  <label className="flex items-center justify-between p-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Incluir fotografías de los empleados</span>
+                    <input
+                      type="checkbox"
+                      checked={incluirFotos}
+                      onChange={(e) => setIncluirFotos(e.target.checked)}
+                      className="size-4.5 rounded border-gray-300 dark:border-slate-700 text-[#621f32] focus:ring-[#621f32]/20 cursor-pointer"
+                    />
+                  </label>
+                )}
+                {showDatosPersonalesOption && (
+                  <label className="flex items-center justify-between p-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Incluir datos personales</span>
+                    <input
+                      type="checkbox"
+                      checked={incluirDatosPersonales}
+                      onChange={(e) => setIncluirDatosPersonales(e.target.checked)}
+                      className="size-4.5 rounded border-gray-300 dark:border-slate-700 text-[#621f32] focus:ring-[#621f32]/20 cursor-pointer"
+                    />
+                  </label>
+                )}
                 {showWarning && (
                   <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 rounded-xl px-3 py-2.5">
                     El archivo tiene {rowCount.toLocaleString("es-MX")} filas — incrustar fotografías en un archivo así de grande puede tardar hasta un minuto.
@@ -105,7 +140,7 @@ export default function ExportConFotosModal({ open, onClose, onConfirm, isExport
                   Cancelar
                 </button>
                 <button
-                  onClick={() => onConfirm(incluirFotos)}
+                  onClick={() => onConfirm(incluirFotos, incluirDatosPersonales)}
                   className="px-5 py-2 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all shadow-md shadow-[#621f32]/20 cursor-pointer"
                 >
                   Generar Excel

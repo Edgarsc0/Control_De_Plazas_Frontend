@@ -273,6 +273,45 @@ const ALL_DETAIL_KEYS = [
 
 const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso", "fecha_anuencia_detalle", "fecha_genera_vacante"];
 
+// Columnas agregadas por la opción "Incluir datos personales" del export a
+// Excel (cruce por numempleado con DATOS_PERSONALES, ver
+// DatosPersonalesBulkView en el backend) — mismos campos/etiquetas que ahí,
+// prefijados "dp_" para no pisar columnas homónimas de Plantilla Detalle.
+const DATOS_PERSONALES_EXPORT_FIELDS = [
+  ["hr_id_persona", "HR ID Persona"],
+  ["position_nbr", "Position NBR (Datos Personales)"],
+  ["nombre_completo", "Nombre Completo (Datos Personales)"],
+  ["rfc", "RFC (Datos Personales)"],
+  ["curp", "CURP (Datos Personales)"],
+  ["puesto_estructural", "Puesto Estructural (Datos Personales)"],
+  ["puesto_funcional", "Puesto Funcional (Datos Personales)"],
+  ["puesto", "Puesto (Datos Personales)"],
+  ["escolaridad_tipo", "Escolaridad Tipo"],
+  ["escolaridad_nivrl", "Escolaridad Nivel"],
+  ["escolaridad_area", "Escolaridad Área"],
+  ["carrera", "Carrera"],
+  ["centro_escolar", "Centro Escolar"],
+  ["humanos_status", "Status RH"],
+  ["estatus_nomina", "Estatus Nómina (Datos Personales)"],
+  ["phone", "Teléfono"],
+  ["phone1", "Teléfono 2"],
+  ["extension", "Extensión"],
+  ["email_addr", "Correo Electrónico"],
+  ["email_addr2", "Correo Electrónico 2"],
+  ["calle", "Calle"],
+  ["hr_numero_exterior", "Número Exterior"],
+  ["hr_numero_interior", "Número Interior"],
+  ["colonia", "Colonia"],
+  ["postal", "Código Postal"],
+  ["hr_municipio", "Municipio"],
+  ["estado", "Estado (Domicilio)"],
+  ["deptid", "Dept ID (Datos Personales)"],
+  ["unidad_administrativa", "Unidad Administrativa (Datos Personales)"],
+];
+const DATOS_PERSONALES_EXPORT_COLUMNS = DATOS_PERSONALES_EXPORT_FIELDS.map(([field, label]) => ({
+  key: `dp_${field}`, label, isDatosPersonales: true, dpField: field,
+}));
+
 // El dropdown de filtro por columna agrupa las fechas en un árbol año>mes>día
 // (ver dateHierarchies) — pero "fecha_anuencia_detalle" puede traer texto
 // (categorías fijas: "Nueva Creación", "En Proceso", etc., ver
@@ -2525,14 +2564,32 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   }, []);
 
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = async (incluirDatosPersonales = false) => {
     setIsExportingExcel(true);
     try {
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Plantilla_Empleados");
 
-      const visibleCols = dataColumns.filter(c => c.visible);
+      let visibleCols = dataColumns.filter(c => c.visible);
+
+      // "Incluir datos personales": cruce por numempleado con DATOS_PERSONALES
+      // (tabla importada de ZAFIRO, ver DatosPersonalesBulkView en el backend)
+      // — se agregan sus columnas al final, prefijadas "dp_" para no pisar
+      // columnas homónimas de Plantilla Detalle (RFC, CURP, etc. pueden
+      // diferir entre ambas fuentes).
+      let datosPersonalesMap = {};
+      if (incluirDatosPersonales) {
+        const numEmpleados = [...new Set(filteredSortedData.map(row => row.numempleado).filter(Boolean))];
+        if (numEmpleados.length > 0) {
+          const res = await VacantesService.getDatosPersonalesBulk(numEmpleados);
+          if (res.ok) {
+            const body = await res.json();
+            datosPersonalesMap = body?.results || {};
+          }
+        }
+        visibleCols = [...visibleCols, ...DATOS_PERSONALES_EXPORT_COLUMNS];
+      }
 
       // Define columns
       worksheet.columns = visibleCols.map(col => ({
@@ -2548,11 +2605,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       // Add rows
       filteredSortedData.forEach(row => {
         const dataRow = {};
+        const registroDp = incluirDatosPersonales ? (datosPersonalesMap[String(row.numempleado || "").trim()] || {}) : null;
         visibleCols.forEach(col => {
           if (col.key === "estado_nomina") dataRow[col.key] = getEstadoNominaDisplay(row);
           else if (col.key === "partida") dataRow[col.key] = mapPartida(row[col.key], row.posicion);
           else if (col.key === "tipo_de_contratacion") dataRow[col.key] = mapTipoContratacion(row[col.key]);
           else if (col.key === "rango") dataRow[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
+          else if (col.isDatosPersonales) dataRow[col.key] = registroDp?.[col.dpField] ?? "";
           else dataRow[col.key] = row[col.key];
         });
         worksheet.addRow(dataRow);
@@ -2643,22 +2702,18 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
   };
 
-  // Botón "Exportar a Excel": si el usuario tiene permiso de ver fotografía
-  // en este tab, se le ofrece elegir incluirlas (modal) antes de exportar;
-  // si no tiene el permiso, exporta directo como siempre (sin fotos, 100%
-  // client-side vía handleExportExcel, sin cambios).
+  // Botón "Exportar a Excel": el modal siempre se abre para ofrecer
+  // "Incluir datos personales" (cruce con DATOS_PERSONALES); el checkbox de
+  // fotografías dentro del modal solo aparece si el usuario tiene el
+  // permiso VIEW_PLANTILLA_DETALLE_FOTO (ver canIncluirFotos más abajo).
   const handleOpenExportClick = () => {
-    if (canViewFotoDetalle) {
-      setIsExportFotosModalOpen(true);
-    } else {
-      handleExportExcel();
-    }
+    setIsExportFotosModalOpen(true);
   };
 
-  const handleConfirmExportConFotos = async (incluirFotos) => {
+  const handleConfirmExportConFotos = async (incluirFotos, incluirDatosPersonales = false) => {
     if (!incluirFotos) {
       setIsExportFotosModalOpen(false);
-      handleExportExcel();
+      handleExportExcel(incluirDatosPersonales);
       return;
     }
     const controller = new AbortController();
@@ -2672,6 +2727,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
           posiciones,
           columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
           incluirFotos: true,
+          incluirDatosPersonales,
         },
         { signal: controller.signal }
       );
@@ -3867,6 +3923,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         isExporting={isExportingConFotos}
         onCancelExport={handleCancelExportConFotos}
         rowCount={filteredSortedData.length}
+        canIncluirFotos={canViewFotoDetalle}
+        showDatosPersonalesOption
       />
     </div>
   );

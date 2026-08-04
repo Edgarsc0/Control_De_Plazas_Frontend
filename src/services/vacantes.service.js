@@ -268,17 +268,53 @@ export const VacantesService = {
     },
 
     /**
+     * Datos personales (tabla DATOS_PERSONALES) de VARIOS empleados en una
+     * sola consulta — usado por la opción "Incluir datos personales" del
+     * export a Excel de Plantilla Detalle (cruce por numempleado, 100%
+     * client-side vía ExcelJS).
+     * @param {(string|number)[]} noEmpleados
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` -> `{ results: { [no_empleado]: {...} } }`.
+     */
+    getDatosPersonalesBulk: (noEmpleados, options = {}) => {
+        return apiFetch('/plantilla/datos_personales_bulk/', {
+            method: 'POST',
+            body: JSON.stringify({ no_empleados: noEmpleados }),
+            ...options
+        });
+    },
+
+    /**
+     * Edita una celda de DATOS_PERSONALES (Escolaridad/Contacto/Domicilio en
+     * el tab "Datos personales" del expediente, permiso edit_datos_personales).
+     * Registra el cambio en CeldaOverride y lo aplica de inmediato sobre la
+     * fila viva; sobrevive a la siguiente importación de ZAFIRO.
+     * @param {string|number} noEmpleado - Clave de negocio (columna `no_empleado`).
+     * @param {string} columna - Nombre del campo del modelo a editar.
+     * @param {*} valorNuevo - Nuevo valor de la celda.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    patchDatosPersonalesOverride: (noEmpleado, columna, valorNuevo, options = {}) => {
+        return apiFetch('/plantilla/datos_personales/override/', {
+            method: 'POST',
+            body: JSON.stringify({ no_empleado: noEmpleado, columna, valor_nuevo: valorNuevo }),
+            ...options
+        });
+    },
+
+    /**
      * Genera el Excel de Plantilla Detalle en el backend, opcionalmente con
      * fotografías de empleados embebidas en la celda (.xlsm con macro VBA).
      * Camino opt-in — el export normal (sin fotos) sigue siendo client-side.
-     * @param {{posiciones: string[], columnas: {key:string,label:string}[], incluirFotos: boolean}} payload
+     * @param {{posiciones: string[], columnas: {key:string,label:string}[], incluirFotos: boolean, incluirDatosPersonales?: boolean}} payload
      * @param {RequestInit} [options={}]
      * @returns {Promise<Response>} Respuesta cruda; usar `.blob()` para el archivo.
      */
-    exportarPlantillaDetalleConFotos: ({ posiciones, columnas, incluirFotos }, options = {}) => {
+    exportarPlantillaDetalleConFotos: ({ posiciones, columnas, incluirFotos, incluirDatosPersonales = false }, options = {}) => {
         return apiFetch('/plantilla/exportar_plantilla_detalle_con_fotos/', {
             method: 'POST',
-            body: JSON.stringify({ posiciones, columnas, incluir_fotos: incluirFotos }),
+            body: JSON.stringify({ posiciones, columnas, incluir_fotos: incluirFotos, incluir_datos_personales: incluirDatosPersonales }),
             ...options
         });
     },

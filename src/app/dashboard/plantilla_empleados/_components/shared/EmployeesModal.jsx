@@ -11,7 +11,9 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 import { copyToClipboard } from "@/utils/clipboard";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
@@ -438,6 +440,12 @@ const DATOS_PERSONALES_GROUPS = [
     },
 ];
 
+// Apartados de DATOS_PERSONALES editables desde el permiso
+// authentication.edit_datos_personales (ver DatosPersonalesCeldaOverrideView,
+// backend) — el resto del expediente (identificación, puesto/adscripción)
+// no es editable desde aquí.
+const EDITABLE_DATOS_PERSONALES_GROUPS = new Set(["Escolaridad", "Contacto", "Domicilio"]);
+
 // Valor "presentable" o null: unifica undefined / null / cadenas en blanco, que
 // en estos datasets significan lo mismo (campo sin capturar).
 const cleanFieldValue = (v) => (v !== undefined && v !== null && String(v).trim() !== "" ? String(v) : null);
@@ -461,7 +469,43 @@ const CopyValueButton = ({ label, copied, onCopy, className = "" }) => (
 // --- PESTAÑA "DATOS PERSONALES" (tabla DATOS_PERSONALES, ver DATOS_PERSONALES_GROUPS) ---
 // Recibe `estado` = { status: "idle"|"loading"|"success"|"empty"|"error", data }
 // del fetch bajo demanda en EmployeeRecordModal (mismo patrón que la foto).
-const DatosPersonalesTab = ({ estado, copiedKey, onCopy }) => {
+const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, onFieldSaved }) => {
+    const { toast } = useToast();
+    const [editingKey, setEditingKey] = useState(null);
+    const [editValue, setEditValue] = useState("");
+    const [savingKey, setSavingKey] = useState(null);
+
+    const startEdit = (field) => {
+        setEditingKey(field.key);
+        setEditValue(field.value ?? "");
+    };
+
+    const cancelEdit = () => {
+        setEditingKey(null);
+        setEditValue("");
+    };
+
+    const saveEdit = async (field) => {
+        const valorNuevo = editValue.trim();
+        setSavingKey(field.key);
+        try {
+            const res = await VacantesService.patchDatosPersonalesOverride(noEmpleado, field.key, valorNuevo);
+            if (!res.ok) {
+                const body = await res.json().catch(() => null);
+                throw new Error(body?.detail || "No se pudo guardar el cambio.");
+            }
+            const body = await res.json();
+            onFieldSaved?.(field.key, body.sin_cambios ? valorNuevo : (body.valor_nuevo ?? valorNuevo));
+            setEditingKey(null);
+            setEditValue("");
+            toast.success("Dato actualizado");
+        } catch (err) {
+            toast.error(err.message || "No se pudo guardar el cambio.");
+        } finally {
+            setSavingKey(null);
+        }
+    };
+
     if (estado.status === "loading" || estado.status === "idle") {
         return (
             <div className="flex flex-col items-center justify-center py-16 sm:py-20 text-center">
@@ -499,6 +543,7 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy }) => {
     const groups = DATOS_PERSONALES_GROUPS
         .map((group) => ({
             ...group,
+            editable: canEdit && EDITABLE_DATOS_PERSONALES_GROUPS.has(group.title),
             fields: group.fields.map((f) => ({ ...f, value: cleanFieldValue(record[f.key]) })),
         }))
         .map((group) => ({ ...group, filled: group.fields.filter((f) => f.value !== null).length }));
@@ -526,6 +571,51 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy }) => {
                             {group.fields.map((field) => {
                                 const hasValue = field.value !== null;
                                 const isLong = (field.value?.length || 0) > 34;
+                                const isEditing = editingKey === field.key;
+                                const isSaving = savingKey === field.key;
+
+                                if (isEditing) {
+                                    return (
+                                        <div key={field.key} className="flex items-center gap-2 py-1.5 px-1.5 rounded-md bg-[#621f32]/[0.04] dark:bg-slate-900/60 sm:col-span-2">
+                                            <span className="shrink-0 max-w-[35%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                                {field.label}
+                                            </span>
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                value={editValue}
+                                                disabled={isSaving}
+                                                onChange={(e) => setEditValue(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") saveEdit(field);
+                                                    if (e.key === "Escape") cancelEdit();
+                                                }}
+                                                className="flex-1 min-w-[10px] text-[12px] sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-[#bc955c]/50 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#bc955c]/30"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => saveEdit(field)}
+                                                disabled={isSaving}
+                                                title="Guardar"
+                                                aria-label="Guardar"
+                                                className="shrink-0 p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={cancelEdit}
+                                                disabled={isSaving}
+                                                title="Cancelar"
+                                                aria-label="Cancelar"
+                                                className="shrink-0 p-1 rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <X className="size-3.5" />
+                                            </button>
+                                        </div>
+                                    );
+                                }
+
                                 return (
                                     <div
                                         key={field.key}
@@ -546,6 +636,17 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy }) => {
                                                 className="self-center"
                                             />
                                         )}
+                                        {group.editable && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); startEdit(field); }}
+                                                title={`Editar ${field.label}`}
+                                                aria-label={`Editar ${field.label}`}
+                                                className="shrink-0 p-1 rounded-md transition-all cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 text-slate-300 hover:text-[#621f32] hover:bg-[#621f32]/8 dark:text-slate-600 dark:hover:text-[#bc955c] dark:hover:bg-slate-800"
+                                            >
+                                                <Pencil className="size-3.5" />
+                                            </button>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -565,6 +666,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const [activeSection, setActiveSection] = useState(null);
     const sectionRefs = useRef({});
     const { toast } = useToast();
+    const { hasPermission } = useAuth();
+    const canEditDatosPersonales = hasPermission(PERMISSIONS.EDIT_DATOS_PERSONALES);
     // Clave del último campo copiado — sólo para la palomita temporal del botón.
     const [copiedKey, setCopiedKey] = useState(null);
     const copiedTimeoutRef = useRef(null);
@@ -610,6 +713,15 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         clearTimeout(copiedTimeoutRef.current);
         copiedTimeoutRef.current = setTimeout(() => setCopiedKey(null), 1400);
     }, [toast]);
+
+    // Refleja en el estado local el valor recién guardado en DATOS_PERSONALES
+    // (CeldaOverride), sin volver a pedir el registro completo al servidor.
+    const handleDatosPersonalesFieldSaved = useCallback((columna, valorNuevo) => {
+        setDatosPersonales((prev) => ({
+            ...prev,
+            data: { ...(prev.data || {}), [columna]: valorNuevo },
+        }));
+    }, []);
 
     // ── Foto del empleado — carga bajo demanda (solo al abrir este modal, no
     // precargada en la tabla, ver decisión de diseño: prioriza que la tabla
@@ -913,7 +1025,14 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                 </div>
 
                 {activeTab === "personales" ? (
-                    <DatosPersonalesTab estado={datosPersonales} copiedKey={copiedKey} onCopy={handleCopyField} />
+                    <DatosPersonalesTab
+                        estado={datosPersonales}
+                        copiedKey={copiedKey}
+                        onCopy={handleCopyField}
+                        canEdit={canEditDatosPersonales}
+                        noEmpleado={numempleadoFoto}
+                        onFieldSaved={handleDatosPersonalesFieldSaved}
+                    />
                 ) : (
                 <>
                 {/* ── Barra de consulta: buscador de campos + depuración de vacíos ── */}
