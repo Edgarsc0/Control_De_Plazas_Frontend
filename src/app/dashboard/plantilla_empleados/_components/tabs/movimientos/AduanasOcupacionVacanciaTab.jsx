@@ -6,7 +6,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
-import EmployeesModal from "../../shared/EmployeesModal";
+import EmployeesModal, { LOCAL_MODE_DEFAULT_COLUMN_KEYS } from "../../shared/EmployeesModal";
 import { mapVacanteRowToEmployeeRow } from "../../shared/mapVacanteRow";
 import {
   getUniqueColumnValues,
@@ -16,10 +16,18 @@ import {
 } from "@/utils/columnFilters";
 
 // Columnas por defecto del modal de detalle cuando se abre desde una celda de
-// Ocupación (trae identidad de empleado) — en Vacancia se usa el default de
-// EmployeesModal en modo local (LOCAL_MODE_DEFAULT_COLUMN_KEYS), pensado para
-// plazas sin titular.
+// Ocupación (trae identidad de empleado). Para Vacancia se pasa explícitamente
+// LOCAL_MODE_DEFAULT_COLUMN_KEYS (mismo default que Cuadros de Vacancia) en vez
+// de dejar que EmployeesModal la infiera sola: el modal abre con `rows` aún en
+// null (skeleton) y solo se llena después vía loadRows, así que si no se fija
+// aquí el default queda capturado como si fuera modo no-local (columnas de
+// empleado) y nunca se corrige aunque las filas lleguen después.
 const OCUPACION_DEFAULT_COLUMN_KEYS = ["id_empleado", "nombres", "rfc", "curp", "posicion", "nivel", "nombre_puesto_funcional"];
+
+// Filas placeholder pintadas en tbody mientras carga (mismo shape de la tabla
+// real, cols dinámicas por gruposNj) — evita layout shift al llegar datos.
+const SKELETON_ROW_COUNT = 8;
+const SKELETON_ROW_INDEXES = Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => i);
 
 // Tabla compacta de conteos agrupados (Aduana x NJ x Nivel x Ocup/Vac). No
 // reusa DataTable (shared) porque esa trae filtros/orden/selección de celda
@@ -298,6 +306,49 @@ function GroupedCountTable({
               </tr>
               );
             })}
+            {loading &&
+              SKELETON_ROW_INDEXES.map((rIdx) => (
+                <tr key={`skeleton-${rIdx}`} className={rIdx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                  <td
+                    style={{ transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+                    className={`sticky left-0 z-10 p-2 border-r border-b-2 border-slate-200 ${
+                      rIdx % 2 === 0 ? "bg-white" : "bg-slate-50"
+                    }`}
+                  >
+                    <div className="h-3 rounded bg-slate-200 animate-pulse" style={{ width: `${60 + (rIdx % 3) * 15}px` }} />
+                  </td>
+                  <td className="p-1 text-center border-r border-b-2 border-slate-200">
+                    <div className="h-3 w-6 mx-auto rounded bg-slate-200 animate-pulse" />
+                  </td>
+                  <td className="p-1 text-center border-r border-b-2 border-slate-200">
+                    <div className="h-3 w-6 mx-auto rounded bg-slate-200 animate-pulse" />
+                  </td>
+                  {gruposNj.flatMap((g, gIdx) =>
+                    g.niveles.flatMap((nivel, nIdx) => {
+                      const nivelBorder =
+                        nIdx === 0
+                          ? gIdx > 0
+                            ? "border-l-4 border-l-[#bc955c]"
+                            : ""
+                          : "border-l-2 border-l-slate-300";
+                      return [
+                        <td
+                          key={`${g.nj}|${nivel}|ocup-skeleton`}
+                          className={`p-1 text-center border-r border-b-2 border-slate-200 ${nivelBorder}`}
+                        >
+                          <div className="h-3 w-5 mx-auto rounded bg-slate-200 animate-pulse" />
+                        </td>,
+                        <td
+                          key={`${g.nj}|${nivel}|vac-skeleton`}
+                          className="p-1 text-center border-r border-l border-l-slate-200 border-b-2 border-slate-200"
+                        >
+                          <div className="h-3 w-5 mx-auto rounded bg-slate-200 animate-pulse" />
+                        </td>,
+                      ];
+                    })
+                  )}
+                </tr>
+              ))}
             {!loading && filas.length === 0 && (
               <tr>
                 <td colSpan={totalCols + 3} className="p-6 text-center text-slate-400 font-semibold">
@@ -390,9 +441,6 @@ function GroupedCountTable({
             </tfoot>
           )}
         </table>
-        {loading && (
-          <div className="p-6 text-center text-slate-400 font-semibold text-xs">Cargando…</div>
-        )}
       </div>
     </div>
   );
@@ -573,7 +621,7 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
   const openDetalle = useCallback((title, tipo, loadRows) => {
     setDetalleTitle(title);
     setDetalleRows(null);
-    setDetalleDefaultColumnKeys(tipo === "ocupacion" ? OCUPACION_DEFAULT_COLUMN_KEYS : null);
+    setDetalleDefaultColumnKeys(tipo === "ocupacion" ? OCUPACION_DEFAULT_COLUMN_KEYS : LOCAL_MODE_DEFAULT_COLUMN_KEYS);
     setIsDetalleModalOpen(true);
     loadRows().then((rows) => setDetalleRows(rows.map(mapVacanteRowToEmployeeRow)));
   }, []);

@@ -147,7 +147,7 @@ const DEFAULT_COLUMN_KEYS = [
 // no trae rfc/curp/nombres/fecha_de_ingreso — así que el set por defecto
 // de arriba se vería casi vacío. Replica los defaults de la extinta
 // DetalleVacantesModal.
-const LOCAL_MODE_DEFAULT_COLUMN_KEYS = [
+export const LOCAL_MODE_DEFAULT_COLUMN_KEYS = [
   "posicion",
   "nivel",
   "fecha_vacancia",
