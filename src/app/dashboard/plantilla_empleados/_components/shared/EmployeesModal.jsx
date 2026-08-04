@@ -574,6 +574,16 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // bajo demanda igual que la fotografía — ver useEffect de fetch abajo).
     const [activeTab, setActiveTab] = useState("expediente");
     const [datosPersonales, setDatosPersonales] = useState({ status: "idle", data: null });
+    // Guarda si ya se disparó el fetch para esta apertura del modal — en un ref
+    // (no en `datosPersonales.status`) para no meter ese estado en las deps del
+    // useEffect de abajo: si estuviera ahí, el propio `setDatosPersonales`
+    // dentro del efecto (idle -> loading) dispara un re-render que reprograma
+    // el efecto, cuyo cleanup marca `cancelado = true` ANTES de que la
+    // petición en vuelo resuelva — la respuesta llega bien (rápido, ver
+    // request en prod) pero el `if (!cancelado)` la descarta y el spinner se
+    // queda pegado en "loading" para siempre. Bug real detectado en prod: la
+    // API respondía en ~450ms pero el tab nunca salía de "Cargando...".
+    const datosPersonalesFetchedRef = useRef(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -583,6 +593,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             setCopiedKey(null);
             setActiveTab("expediente");
             setDatosPersonales({ status: "idle", data: null });
+            datosPersonalesFetchedRef.current = false;
         }
     }, [isOpen]);
 
@@ -651,7 +662,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // queda en loading/success/error/empty hasta el próximo open).
     useEffect(() => {
         if (!isOpen || activeTab !== "personales" || !numempleadoFoto) return;
-        if (datosPersonales.status !== "idle") return;
+        if (datosPersonalesFetchedRef.current) return;
+        datosPersonalesFetchedRef.current = true;
         let cancelado = false;
         setDatosPersonales({ status: "loading", data: null });
         VacantesService.getDatosPersonales(numempleadoFoto)
@@ -666,7 +678,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             })
             .catch(() => { if (!cancelado) setDatosPersonales({ status: "error", data: null }); });
         return () => { cancelado = true; };
-    }, [isOpen, activeTab, numempleadoFoto, datosPersonales.status]);
+    }, [isOpen, activeTab, numempleadoFoto]);
 
     // Apartados del expediente: mismo filtrado de siempre (label / valor /
     // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
