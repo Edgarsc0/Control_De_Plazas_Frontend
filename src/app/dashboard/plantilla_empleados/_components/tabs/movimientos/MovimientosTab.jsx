@@ -1157,7 +1157,12 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const filteredSortedData = movPosData;
 
   const filterDropdownValues = useMemo(() => {
-    if (!activeFilterDropdown || isDateColumn(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
+    // Usa DATE_HIERARCHY_KEYS_MOV (no isDateColumn/DATE_KEYS_MOV): "fecha_anuencia"
+    // es fecha para formateo pero cae a lista plana en el dropdown (ver
+    // DATE_HIERARCHY_KEYS_MOV arriba). Con isDateColumn aquí, esta rama vaciaba
+    // sus valores aunque el dropdown se renderizara en modo lista (isDate usa
+    // DATE_HIERARCHY_KEYS_MOV en el JSX) — dropdown siempre "0 de 0".
+    if (!activeFilterDropdown || DATE_HIERARCHY_KEYS_MOV.includes(activeFilterDropdown)) return { allVals: [], sliced: [], filteredCount: 0, isAllSelected: false };
 
     // El universo (alcanzables + búsqueda en toda la columna cuando aplica) ya
     // llega resuelto del backend (ver los dos useEffect de arriba) — no hay

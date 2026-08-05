@@ -86,10 +86,17 @@ export const parseFlexibleDate = (d) => {
  * @param {string|number|Date} val - Valor de fecha.
  * @returns {{year: string, month: string, day: string, monthName: string}|null} Partes o `null` si no es válida.
  */
+// `fh_ult_actz` llega como "AAAA-MM-DD-HH.MM.SS.ffffff" (hora pegada a la
+// fecha con el mismo separador "-", en vez de espacio/T) — sin este strip,
+// el split por "-" da 4+ partes en vez de 3 y toda fecha con esa hora se
+// interpreta como inválida (celda cruda sin formatear, árbol de fechas del
+// filtro vacío pese a tener datos).
+const stripDashJoinedTime = (str) => str.replace(/-(\d{2}\.\d{2}\.\d{2}(?:\.\d+)?)$/, '');
+
 export const parseDateParts = (val) => {
   if (val === null || val === undefined || String(val).trim() === '') return null;
   const str = String(val).trim();
-  const dateSection = str.split(/[T ]/)[0];
+  const dateSection = stripDashJoinedTime(str).split(/[T ]/)[0];
   const sep = dateSection.includes('/') ? '/' : dateSection.includes('-') ? '-' : null;
   if (!sep) return null;
   const parts = dateSection.split(sep);
@@ -130,7 +137,7 @@ export const formatDateEsMx = (val, opts = {}) => {
   if (val === null || val === undefined || String(val).trim() === '') return '';
   const str = String(val).trim();
 
-  const dateSection = str.split(/[T ]/)[0];
+  const dateSection = stripDashJoinedTime(str).split(/[T ]/)[0];
   const sep = dateSection.includes('/') ? '/' : dateSection.includes('-') ? '-' : null;
   let base = null;
   if (sep) {
