@@ -11,7 +11,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -420,7 +420,8 @@ const DATOS_PERSONALES_GROUPS = [
         fields: [
             { key: "phone", label: "Teléfono" },
             { key: "phone1", label: "Teléfono alterno" },
-            { key: "extension", label: "Extensión", mono: true },
+            { key: "conmutador", label: "Conmutador", mono: true },
+            { key: "extension", label: "Extensión", mono: true, json: true },
             { key: "email_addr", label: "Correo electrónico" },
             { key: "email_addr2", label: "Correo alterno" },
         ],
@@ -450,6 +451,38 @@ const EDITABLE_DATOS_PERSONALES_GROUPS = new Set(["Escolaridad", "Contacto", "Do
 // en estos datasets significan lo mismo (campo sin capturar).
 const cleanFieldValue = (v) => (v !== undefined && v !== null && String(v).trim() !== "" ? String(v) : null);
 
+// `extension` (DATOS_PERSONALES, ver DatosPersonalesBase en el backend) es un
+// JSONField: la mayoría de los empleados tiene un solo número (string simple,
+// p.ej. "0229"), pero quien cubre varias áreas/módulos trae una lista
+// `[{"extension": "...", "area": "..."}, ...]` (ver Directorio ANAM, casos
+// como "Luis Ernesto Sena Hernandez" con 14 extensiones). Estos helpers
+// normalizan ambas formas a filas {extension, area} para edición, y de vuelta
+// al contrato que espera el backend al guardar.
+const parseExtensionRows = (raw) => {
+    if (raw === null || raw === undefined || raw === "") return [];
+    if (Array.isArray(raw)) {
+        return raw
+            .map((item) => ({
+                extension: item?.extension != null ? String(item.extension) : "",
+                area: item?.area != null ? String(item.area) : "",
+            }))
+            .filter((row) => row.extension || row.area);
+    }
+    return [{ extension: String(raw), area: "" }];
+};
+
+// Filas -> valor a mandar al backend: string simple si es una sola extensión
+// sin área capturada (caso típico), arreglo de objetos si hay más de una fila
+// o la única trae área, null si no queda ninguna fila con dato.
+const serializeExtensionRows = (rows) => {
+    const limpias = rows
+        .map((r) => ({ extension: r.extension.trim(), area: r.area.trim() }))
+        .filter((r) => r.extension || r.area);
+    if (limpias.length === 0) return null;
+    if (limpias.length === 1 && !limpias[0].area) return limpias[0].extension;
+    return limpias;
+};
+
 // Botón de copiado por campo. Sólo aparece al pasar el cursor en escritorio;
 // en pantallas táctiles (sin hover) queda siempre visible.
 const CopyValueButton = ({ label, copied, onCopy, className = "" }) => (
@@ -473,20 +506,27 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
     const { toast } = useToast();
     const [editingKey, setEditingKey] = useState(null);
     const [editValue, setEditValue] = useState("");
+    const [editExtensionRows, setEditExtensionRows] = useState([]);
     const [savingKey, setSavingKey] = useState(null);
 
     const startEdit = (field) => {
         setEditingKey(field.key);
-        setEditValue(field.value ?? "");
+        if (field.json) {
+            const rows = field.extensionRows.length > 0 ? field.extensionRows.map((r) => ({ ...r })) : [{ extension: "", area: "" }];
+            setEditExtensionRows(rows);
+        } else {
+            setEditValue(field.value ?? "");
+        }
     };
 
     const cancelEdit = () => {
         setEditingKey(null);
         setEditValue("");
+        setEditExtensionRows([]);
     };
 
     const saveEdit = async (field) => {
-        const valorNuevo = editValue.trim();
+        const valorNuevo = field.json ? serializeExtensionRows(editExtensionRows) : editValue.trim();
         setSavingKey(field.key);
         try {
             const res = await VacantesService.patchDatosPersonalesOverride(noEmpleado, field.key, valorNuevo);
@@ -498,6 +538,7 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
             onFieldSaved?.(field.key, body.sin_cambios ? valorNuevo : (body.valor_nuevo ?? valorNuevo));
             setEditingKey(null);
             setEditValue("");
+            setEditExtensionRows([]);
             toast.success("Dato actualizado");
         } catch (err) {
             toast.error(err.message || "No se pudo guardar el cambio.");
@@ -505,6 +546,12 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
             setSavingKey(null);
         }
     };
+
+    const updateExtensionRow = (idx, key, val) => {
+        setEditExtensionRows((rows) => rows.map((r, i) => (i === idx ? { ...r, [key]: val } : r)));
+    };
+    const addExtensionRow = () => setEditExtensionRows((rows) => [...rows, { extension: "", area: "" }]);
+    const removeExtensionRow = (idx) => setEditExtensionRows((rows) => rows.filter((_, i) => i !== idx));
 
     if (estado.status === "loading" || estado.status === "idle") {
         return (
@@ -544,9 +591,14 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
         .map((group) => ({
             ...group,
             editable: canEdit && EDITABLE_DATOS_PERSONALES_GROUPS.has(group.title),
-            fields: group.fields.map((f) => ({ ...f, value: cleanFieldValue(record[f.key]) })),
+            fields: group.fields.map((f) => f.json
+                ? { ...f, extensionRows: parseExtensionRows(record[f.key]), value: null }
+                : { ...f, value: cleanFieldValue(record[f.key]) }),
         }))
-        .map((group) => ({ ...group, filled: group.fields.filter((f) => f.value !== null).length }));
+        .map((group) => ({
+            ...group,
+            filled: group.fields.filter((f) => (f.json ? f.extensionRows.length > 0 : f.value !== null)).length,
+        }));
 
     return (
         <div className="flex flex-col gap-6 sm:gap-7 mb-2">
@@ -569,10 +621,146 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-7 rounded-xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/40 px-2.5 py-1.5 sm:px-3.5 sm:py-2">
                             {group.fields.map((field) => {
-                                const hasValue = field.value !== null;
-                                const isLong = (field.value?.length || 0) > 34;
                                 const isEditing = editingKey === field.key;
                                 const isSaving = savingKey === field.key;
+
+                                // `extension`: JSONField (string simple o lista de {extension, area}
+                                // para quien cubre varias áreas, ver parseExtensionRows/serializeExtensionRows).
+                                if (field.json) {
+                                    const rows = field.extensionRows;
+                                    const hasRows = rows.length > 0;
+                                    const copyText = rows.map((r) => (r.area ? `${r.extension} (${r.area})` : r.extension)).join(", ");
+
+                                    if (isEditing) {
+                                        return (
+                                            <div key={field.key} className="flex flex-col gap-2 py-2 px-1.5 rounded-md bg-[#621f32]/[0.04] dark:bg-slate-900/60 sm:col-span-2">
+                                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                                    {field.label}
+                                                </span>
+                                                <div className="flex flex-col gap-1.5">
+                                                    {editExtensionRows.map((row, idx) => (
+                                                        <div key={idx} className="flex items-center gap-1.5">
+                                                            <input
+                                                                autoFocus={idx === 0}
+                                                                type="text"
+                                                                placeholder="Extensión"
+                                                                value={row.extension}
+                                                                disabled={isSaving}
+                                                                onChange={(e) => updateExtensionRow(idx, "extension", e.target.value)}
+                                                                onKeyDown={(e) => { if (e.key === "Escape") cancelEdit(); }}
+                                                                className="w-24 shrink-0 text-[12px] sm:text-[13px] font-mono font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-[#bc955c]/50 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#bc955c]/30"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Área / módulo (opcional)"
+                                                                value={row.area}
+                                                                disabled={isSaving}
+                                                                onChange={(e) => updateExtensionRow(idx, "area", e.target.value)}
+                                                                onKeyDown={(e) => { if (e.key === "Escape") cancelEdit(); }}
+                                                                className="flex-1 min-w-[10px] text-[12px] sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-[#bc955c]/50 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#bc955c]/30"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeExtensionRow(idx)}
+                                                                disabled={isSaving || editExtensionRows.length === 1}
+                                                                title="Quitar extensión"
+                                                                aria-label="Quitar extensión"
+                                                                className="shrink-0 p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-30 cursor-pointer"
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={addExtensionRow}
+                                                        disabled={isSaving}
+                                                        className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-[#621f32] dark:text-[#bc955c] hover:underline disabled:opacity-50 cursor-pointer"
+                                                    >
+                                                        <Plus className="size-3" /> Agregar extensión
+                                                    </button>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => saveEdit(field)}
+                                                            disabled={isSaving}
+                                                            title="Guardar"
+                                                            aria-label="Guardar"
+                                                            className="shrink-0 p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 disabled:opacity-50 cursor-pointer"
+                                                        >
+                                                            {isSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={cancelEdit}
+                                                            disabled={isSaving}
+                                                            title="Cancelar"
+                                                            aria-label="Cancelar"
+                                                            className="shrink-0 p-1 rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                                                        >
+                                                            <X className="size-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div
+                                            key={field.key}
+                                            className="group flex flex-col gap-1 py-1.5 px-1.5 rounded-md transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 sm:col-span-2"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="shrink-0 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                                    {field.label}
+                                                </span>
+                                                <span className="flex-1 h-px bg-gradient-to-r from-[#bc955c]/50 to-transparent" />
+                                                {hasRows && (
+                                                    <CopyValueButton
+                                                        label={field.label}
+                                                        copied={copiedKey === field.key}
+                                                        onCopy={() => onCopy(field.key, copyText)}
+                                                    />
+                                                )}
+                                                {group.editable && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); startEdit(field); }}
+                                                        title={`Editar ${field.label}`}
+                                                        aria-label={`Editar ${field.label}`}
+                                                        className="shrink-0 p-1 rounded-md transition-all cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 text-slate-300 hover:text-[#621f32] hover:bg-[#621f32]/8 dark:text-slate-600 dark:hover:text-[#bc955c] dark:hover:bg-slate-800"
+                                                    >
+                                                        <Pencil className="size-3.5" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {hasRows ? (
+                                                <div className="flex flex-col gap-0.5 pl-0.5">
+                                                    {rows.map((row, idx) => (
+                                                        <div key={idx} className="flex items-baseline gap-2.5">
+                                                            <span className="shrink-0 min-w-[56px] font-mono font-bold text-[12px] sm:text-[13px] text-slate-700 dark:text-slate-300">
+                                                                {row.extension}
+                                                            </span>
+                                                            {row.area && (
+                                                                <span className="text-[11px] sm:text-[12px] text-slate-500 dark:text-slate-400 truncate" title={row.area}>
+                                                                    {row.area}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="pl-0.5 text-[12px] sm:text-[13px] text-slate-300 dark:text-slate-700 italic font-normal">Sin dato</span>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                const hasValue = field.value !== null;
+                                const isLong = (field.value?.length || 0) > 34;
 
                                 if (isEditing) {
                                     return (
