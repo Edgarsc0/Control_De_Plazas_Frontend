@@ -418,12 +418,12 @@ const DATOS_PERSONALES_GROUPS = [
         title: "Contacto",
         icon: Phone,
         fields: [
-            { key: "phone", label: "Teléfono" },
-            { key: "phone1", label: "Teléfono alterno" },
+            { key: "phone", label: "Teléfono 1" },
+            { key: "phone1", label: "Teléfono 2" },
             { key: "conmutador", label: "Conmutador", mono: true },
             { key: "extension", label: "Extensión", mono: true, json: true },
-            { key: "email_addr", label: "Correo electrónico" },
-            { key: "email_addr2", label: "Correo alterno" },
+            { key: "email_addr", label: "Correo personal" },
+            { key: "email_addr2", label: "Correo institucional" },
         ],
     },
     {
