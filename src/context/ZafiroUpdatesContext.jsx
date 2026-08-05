@@ -9,6 +9,10 @@ const ZafiroUpdatesContext = createContext(null);
 export function ZafiroUpdatesProvider({ children }) {
   const [lastUpdate, setLastUpdate] = useState(null);
   const listenersRef = useRef(new Set());
+  // Valor ISO crudo del último "fecha" conocido (a diferencia de `lastUpdate`,
+  // ya formateado para mostrar) — permite detectar si el timestamp cambió
+  // entre dos llamadas a fetchLastUpdate, ver comentario en 'init' más abajo.
+  const lastUpdateRawRef = useRef(null);
 
   const formatAndSetDate = (isoString) => {
     const date = new Date(isoString);
@@ -29,13 +33,29 @@ export function ZafiroUpdatesProvider({ children }) {
   useEffect(() => {
     let active = true;
 
-    const fetchLastUpdate = async () => {
+    // `notifyIfChanged`: al reconectar (cada 300s por tope del backend, o
+    // antes si se cae la conexión por VPN/red) el servidor manda 'init', que
+    // solo dispara este fetch REST — nunca los `listenersRef` (eso solo
+    // pasaba con un mensaje real de datos por el pubsub de Redis). Si el
+    // import de ZAFIRO publicó su aviso de éxito justo en el hueco entre
+    // desconexión y reconexión, ese mensaje se pierde para siempre (el
+    // pubsub no tiene replay) y ningún tab vuelve a pedir datos frescos
+    // hasta un F5 manual, aunque el letrero de "última actualización" (este
+    // fetch) sí quede al día. Comparando contra el último timestamp
+    // conocido, un 'init' que trae una fecha distinta se trata igual que un
+    // mensaje real y sí dispara `router.refresh()` en los suscriptores.
+    const fetchLastUpdate = async ({ notifyIfChanged = false } = {}) => {
       try {
         const response = await PlantillaService.getUltimaActualizacion();
         if (response.ok && active) {
           const res = await response.json();
           if (res && res.fecha) {
+            const changed = lastUpdateRawRef.current !== null && lastUpdateRawRef.current !== res.fecha;
+            lastUpdateRawRef.current = res.fecha;
             formatAndSetDate(res.fecha);
+            if (notifyIfChanged && changed) {
+              listenersRef.current.forEach((callback) => callback(res.fecha));
+            }
           }
         }
       } catch (err) {
@@ -69,8 +89,9 @@ export function ZafiroUpdatesProvider({ children }) {
       eventSource.onmessage = (event) => {
         if (!active) return;
         if (event.data === 'init') {
-          fetchLastUpdate();
+          fetchLastUpdate({ notifyIfChanged: true });
         } else if (event.data !== 'ping' && event.data) {
+          lastUpdateRawRef.current = event.data;
           formatAndSetDate(event.data);
           listenersRef.current.forEach((callback) => callback(event.data));
         }
