@@ -263,6 +263,21 @@ export default function ColumnFilterDropdown({
   // el usuario vería la lista "vacía" hasta expandir manualmente cada nodo).
   const isDateNodeExpanded = (path) => (dateSearchText ? true : expandedDateNodes[path]);
 
+  // Hojas visibles tras el buscador del árbol (subconjunto de
+  // resolvedAllDateLeafValues) — "Marcar/Desmarcar Todo" debe operar solo
+  // sobre esto cuando hay búsqueda activa, igual que "Seleccionar Todo" en
+  // columnas no-fecha (ver dropdownValues.visibleVals más abajo).
+  const visibleDateLeafValues = useMemo(() => {
+    if (!isDate) return [];
+    if (!dateSearchText) return resolvedAllDateLeafValues;
+    return dateLeaves((p) => {
+      const yearData = filteredDateHierarchy[p.year];
+      const monthData = yearData?.months?.[p.month];
+      return !!monthData && Object.prototype.hasOwnProperty.call(monthData.days, p.day);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDate, dateSearchText, filteredDateHierarchy, resolvedAllDateLeafValues]);
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -352,8 +367,8 @@ export default function ColumnFilterDropdown({
                   <div className="flex flex-col gap-1">
                     {resolvedAllDateLeafValues.length > 0 && (
                       <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 flex gap-2 px-1 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
-                        <button onClick={() => setTempSelectedValues(filterReachable(resolvedAllDateLeafValues))} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
-                        <button onClick={() => setTempSelectedValues([])} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
+                        <button onClick={() => markValues(visibleDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Marcar Todo</button>
+                        <button onClick={() => unmarkValues(visibleDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
                       </div>
                     )}
                     {Object.keys(filteredDateHierarchy).length === 0 && (
@@ -473,15 +488,15 @@ export default function ColumnFilterDropdown({
                   <div className="shrink-0 p-2 pb-1 border-b border-slate-50 dark:border-slate-800/50">
                     <button
                       onClick={() => {
-                        const { allVals, isAllSelected } = dropdownValues;
-                        const reachableAllVals = filterReachable(allVals);
-                        setTempSelectedValues((prev) => (isAllSelected ? prev.filter((v) => !allVals.includes(v)) : [...new Set([...prev, ...reachableAllVals])]));
+                        const { visibleVals, isVisibleAllSelected } = dropdownValues;
+                        const reachableVisibleVals = filterReachable(visibleVals);
+                        setTempSelectedValues((prev) => (isVisibleAllSelected ? prev.filter((v) => !visibleVals.includes(v)) : [...new Set([...prev, ...reachableVisibleVals])]));
                       }}
                       className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-colors text-left group w-full"
                     >
-                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${dropdownValues.isAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
-                        {dropdownValues.isAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
-                        {dropdownValues.isPartialSelected && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
+                      <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${dropdownValues.isVisibleAllSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                        {dropdownValues.isVisibleAllSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                        {dropdownValues.isVisiblePartialSelected && <div className="size-1.5 bg-[#621f32] dark:bg-[#bc955c] rounded-sm" />}
                       </div>
                       <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-[#621f32] dark:group-hover:text-[#bc955c]">
                         Seleccionar Todo

@@ -125,6 +125,14 @@ const getFilterCellValue = (row, key) => {
   if (key === "estado_nomina") return getEstadoNominaDisplay(row);
   if (key === FECHA_ANUENCIA_COL) return getFechaAnuenciaBucket(row);
   if (key === "nj") return mapNivelJerarquico(row[key], row.nombre_puesto_funcional);
+  if (key === "partida") return mapPartida(row[key], row.posicion);
+  if (key === "tipo_de_contratacion") return mapTipoContratacion(row[key]);
+  if (key === "rango") return displayRango(row[key], row.tipo_de_personal_sedena_semar);
+  if (CURRENCY_KEYS.has(key)) {
+    const raw = row[key];
+    if (raw === null || raw === undefined || String(raw).trim() === "" || isNaN(Number(raw))) return "";
+    return formatCurrency(raw);
+  }
   return String(row[key] || "").trim();
 };
 
@@ -329,6 +337,18 @@ const DATE_HIERARCHY_KEYS = DATE_KEYS.filter((k) => k !== FECHA_ANUENCIA_COL);
 // en su propio filtro. En BD son el mismo conjunto de filas: `Val_estat`
 // ='Vacante' <=> `Estado Nómina` vacío (mapEstadoNomina → "Vacante").
 const VACANCY_DEFINING_KEYS = new Set(["estado_nomina", "val_estat"]);
+
+// "fecha_genera_vacante" (columna AU, "greenHeader"): igual que las 3
+// columnas de SOLICITUD_COLS, sólo tiene dato en filas VACANTES — verificado
+// en datos reales: de 958 posiciones vacantes, las 958 traen
+// fecha_genera_vacante; ninguna posición ocupada la trae nunca. Su dropdown/
+// árbol de fecha necesita el mismo universo `detalle` completo que esas 3
+// columnas, o siempre sale "Sin resultados" para cualquier usuario que no
+// tenga ya "Vacante" marcado en Estado Nómina. No se agrega a SOLICITUD_COLS
+// porque esa lista también alimenta `hasSolicitudData` (deriva el
+// sub-estatus "Solicitada"); agregarla ahí marcaría como "Solicitada"
+// prácticamente cualquier vacante (todas traen fecha de vacancia calculada).
+const isVacancyScopedColumn = (key) => VACANCY_DEFINING_KEYS.has(key) || SOLICITUD_COLS.includes(key) || key === "fecha_genera_vacante";
 
 // Etiquetas de Estado Nómina que representan una posición vacante (sin
 // importar el sub-estatus derivado — Solicitada/No Disponible siguen siendo
@@ -1570,7 +1590,8 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
     targetKeys.forEach(key => {
       const years = {};
-      datosParaColumnaActiva.forEach(row => {
+      const sourceRows = isVacancyScopedColumn(key) ? detalle : datosParaColumnaActiva;
+      sourceRows.forEach(row => {
         const val = row[key];
         const parts = parseDateParts(val);
         if (!parts) return;
@@ -1584,7 +1605,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       hierarchies[key] = years;
     });
     return hierarchies;
-  }, [datosParaColumnaActiva, activeFilterDropdown, parseDateParts]);
+  }, [detalle, datosParaColumnaActiva, activeFilterDropdown, parseDateParts]);
 
   const uniqueColumnValues = useMemo(() => {
     const valuesMap = {};
@@ -1603,7 +1624,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       // motivo para las 3 columnas de solicitud (SOLICITUD_COLS): solo tienen
       // dato en filas vacantes, así que su dropdown también necesita `detalle`
       // completo, sin importar si "Vacante" está marcado en Estado Nómina.
-      const sourceRows = (VACANCY_DEFINING_KEYS.has(key) || SOLICITUD_COLS.includes(key)) ? detalle : datosParaColumnaActiva;
+      const sourceRows = isVacancyScopedColumn(key) ? detalle : datosParaColumnaActiva;
       sourceRows.forEach(row => {
         let val = getFilterCellValue(row, key);
         counts[val] = (counts[val] || 0) + 1;
@@ -1623,9 +1644,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     const hierarchy = dateHierarchies[colKey];
     if (!hierarchy) return;
 
+    const sourceRows = isVacancyScopedColumn(colKey) ? detalle : datosParaColumnaActiva;
     let targetRawValues = [];
     if (type === 'year') {
-      targetRawValues = datosParaColumnaActiva
+      targetRawValues = sourceRows
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === value;
@@ -1633,7 +1655,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     } else if (type === 'month') {
       const year = parentPath;
-      targetRawValues = datosParaColumnaActiva
+      targetRawValues = sourceRows
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === year && p.month === value;
@@ -1641,7 +1663,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         .map(row => String(row[colKey] || "").trim());
     } else if (type === 'day') {
       const [year, month] = parentPath.split('-');
-      targetRawValues = datosParaColumnaActiva
+      targetRawValues = sourceRows
         .filter(row => {
           const p = parseDateParts(row[colKey]);
           return p && p.year === year && p.month === month && p.day === value;
@@ -1670,7 +1692,20 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       setFilterSearchText("");
       // Inline (no vía el memo `reachableValues`, que es lazy y aún no se ha
       // recomputado para la columna recién activada).
-      setTempSelectedValues(columnFilters[colKey] || Object.keys(computeReachableCounts(colKey)));
+      const defaultSelection = columnFilters[colKey] || Object.keys(computeReachableCounts(colKey));
+      // Columnas de fecha: el árbol año/mes/día no puede representar ni
+      // togglear el bucket "(Vacío)" (fechas vacías/no parseables) — ni
+      // "Marcar/Desmarcar Todo" ni los nodos individuales lo tocan nunca
+      // (dateLeaves() descarta valores no parseables). Si el default "todo
+      // seleccionado" lo incluye, queda atascado ahí para siempre: cualquier
+      // filtro que el usuario arme desde el árbol termina colando también
+      // TODAS las filas sin fecha, sin que el usuario lo vea ni pueda
+      // quitarlo. Grave en columnas donde la mayoría de filas no tiene fecha
+      // (ej. fecha_genera_vacante: sólo las vacantes la traen) — un filtro
+      // "sólo un día" terminaba incluyendo de regalo todas las posiciones
+      // ocupadas. Se excluye "" del default sólo para columnas de fecha; las
+      // demás siguen mostrando "(Vacío)" como fila togglable normal.
+      setTempSelectedValues(DATE_HIERARCHY_KEYS.includes(colKey) ? defaultSelection.filter((v) => v !== "") : defaultSelection);
     }
   };
 
@@ -1813,6 +1848,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         if (!blob.includes(searchText)) return false;
       }
       for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
+        // BUG QA 2026-08-05: el dropdown de esta columna (uniqueColumnValues/
+        // computeReachableCounts, ver datosParaColumnaActiva más arriba) ya
+        // excluye posiciones vacantes para columnas no-vacancia — si no se
+        // replica aquí la misma exclusión, el filtro aplicado "encuentra" filas
+        // vacantes que el usuario nunca vio ni pudo excluir en el dropdown.
+        const esColumnaVacancia = isVacancyScopedColumn(colKey);
+        if (!esColumnaVacancia && !filtroIncluyeVacantes && mapEstadoNomina(row.estado_nomina) === "Vacante") return false;
         if (!selectedVals.includes(getFilterCellValue(row, colKey))) return false;
       }
       for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
@@ -1856,7 +1898,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn, isNumericColumn })) return false;
       return true;
     });
-  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, searchIndex]);
+  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, searchIndex, filtroIncluyeVacantes]);
 
   const filteredSortedData = useMemo(() => {
     if (!sortConfig.key || !sortConfig.direction) return filteredData;
@@ -1907,7 +1949,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     // (y las de solicitud) hay que iterar `detalle` (incluye vacantes), si no
     // "Vacante" (o cualquier valor de Solicitante/Nombre del candidato/Motivo
     // de solicitud) nunca es alcanzable ni seleccionable en su propio dropdown.
-    const sourceRows = (VACANCY_DEFINING_KEYS.has(colKey) || SOLICITUD_COLS.includes(colKey)) ? detalle : datosParaColumnaActiva;
+    const sourceRows = isVacancyScopedColumn(colKey) ? detalle : datosParaColumnaActiva;
     sourceRows.forEach(row => {
       if (deferredGlobalSearch) {
         const searchText = normalizeForSearch(deferredGlobalSearch);
@@ -3840,7 +3882,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         columnKey={activeFilterDropdown}
         columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
         isDate={DATE_HIERARCHY_KEYS.includes(activeFilterDropdown)}
-        data={datosParaColumnaActiva}
+        data={activeFilterDropdown && isVacancyScopedColumn(activeFilterDropdown) ? detalle : datosParaColumnaActiva}
         filters={filters}
         dropdownValues={filterDropdownValues}
         dateHierarchy={dateHierarchies[activeFilterDropdown]}
