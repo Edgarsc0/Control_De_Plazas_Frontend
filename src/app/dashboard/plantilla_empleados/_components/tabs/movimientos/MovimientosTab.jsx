@@ -19,6 +19,7 @@ import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import CopyCellMenu from "../../shared/CopyCellMenu";
+import NotificacionesPosicionBell from "../../shared/NotificacionesPosicionBell";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import MobileCardList from "@/components/ui/MobileCardList";
@@ -1642,6 +1643,13 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   return (
     <TooltipProvider delayDuration={150}>
     <div className="w-full flex flex-col">
+      {/* Campana de notificaciones de posición: esquina superior derecha,
+          debajo del Navbar (mismo anclaje fijo que su contraparte en
+          PlantillaDetalleTab.jsx). */}
+      <div className="fixed bottom-[calc(var(--bottomnav-h)+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-3">
+        <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
+      </div>
+
       <div className="w-full px-4 lg:px-6 pt-2">
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch max-w-6xl mx-auto">

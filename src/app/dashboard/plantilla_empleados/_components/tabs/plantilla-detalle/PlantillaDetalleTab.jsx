@@ -22,6 +22,7 @@ import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 import CopyCellMenu from "../../shared/CopyCellMenu";
+import NotificacionesPosicionBell from "../../shared/NotificacionesPosicionBell";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
@@ -2964,26 +2965,32 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   return (
     <div className="w-full flex flex-col">
-      {/* Indicador flotante: movimientos capturados hoy (fecha_captura = hoy en cp_tbl_mov_completo_29_05_26) */}
-      <button
-        type="button"
-        onClick={() => setIsMovimientosHoyModalOpen(true)}
-        title="Ver resumen de movimientos de hoy"
-        aria-label="Movimientos realizados por dirección operativa"
-        className="fixed bottom-[calc(var(--bottomnav-h)+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
-      >
-        <div className="relative shrink-0 flex items-center justify-center size-8 rounded-xl bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[#621f32] dark:text-[#bc955c]">
-          <ArrowUpDown className="size-4" />
-          <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950">
-            {movimientosHoyCount > 99 ? "99+" : movimientosHoyCount}
+      {/* Fila flotante superior derecha (debajo del Navbar): campana de
+          notificaciones de posición + indicador de movimientos capturados
+          hoy (fecha_captura = hoy en cp_tbl_mov_completo_29_05_26). La
+          campana va a la izquierda del indicador de movimientos. */}
+      <div className="fixed bottom-[calc(var(--bottomnav-h)+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-3">
+        <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
+        <button
+          type="button"
+          onClick={() => setIsMovimientosHoyModalOpen(true)}
+          title="Ver resumen de movimientos de hoy"
+          aria-label="Movimientos realizados por dirección operativa"
+          className="flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
+        >
+          <div className="relative shrink-0 flex items-center justify-center size-8 rounded-xl bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[#621f32] dark:text-[#bc955c]">
+            <ArrowUpDown className="size-4" />
+            <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950">
+              {movimientosHoyCount > 99 ? "99+" : movimientosHoyCount}
+            </span>
+          </div>
+          {/* En móvil es un FAB compacto (el texto largo lo aporta el title y el
+              aria-label): a ancho completo tapaba media pantalla. */}
+          <span className="hidden md:block text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
+            Movimientos realizados por dirección operativa
           </span>
-        </div>
-        {/* En móvil es un FAB compacto (el texto largo lo aporta el title y el
-            aria-label): a ancho completo tapaba media pantalla. */}
-        <span className="hidden md:block text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
-          Movimientos realizados por dirección operativa
-        </span>
-      </button>
+        </button>
+      </div>
 
       <ModalShell
         open={isMovimientosHoyModalOpen}
