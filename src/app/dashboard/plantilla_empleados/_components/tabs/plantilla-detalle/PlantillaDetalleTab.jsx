@@ -38,6 +38,7 @@ import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
+import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, applyColumnFilters, defaultGetCellValue } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters, isColumnNumericByData } from "@/utils/advancedFilters";
@@ -1042,6 +1043,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort_v2", { key: "nj", direction: "asc" });
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
+  const suscripcionesPosicion = useSuscripcionesPosicion();
   const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] }, storageKey: "plantilla_detalle_filters" });
   const {
     globalSearch, setGlobalSearch,
@@ -2951,6 +2953,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
   }, [selectedCell, tableColumns]);
 
+  // Botón "Notificarme cuando..." del menú contextual (CopyCellMenu), solo
+  // sobre la columna Posición. Ocupada/vacante con el mismo criterio que ya
+  // usa el resto del tab (mapEstadoNomina !== "Vacante"), no una heurística
+  // nueva — así el menú nunca contradice lo que la tabla ya muestra.
+  const notifyPosicion = contextMenu?.colKey === "posicion" ? contextMenu.row?.posicion : null;
+  const notifyOcupada = notifyPosicion ? mapEstadoNomina(contextMenu.row?.estado_nomina) !== "Vacante" : null;
+  const notifyTipo = notifyOcupada ? "VACANTE" : "OCUPACION";
+  const notifySub = notifyPosicion ? suscripcionesPosicion.find(notifyPosicion, notifyTipo) : null;
 
   return (
     <div className="w-full flex flex-col">
@@ -3947,6 +3957,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         canPaste={isPasteableColumn(contextMenu?.colKey)}
         onDelete={canEditCeldas ? handleClearCell : undefined}
         canDelete={isPasteableColumn(contextMenu?.colKey)}
+        onNotify={notifyPosicion ? () => suscripcionesPosicion.crear(notifyPosicion, notifyTipo) : undefined}
+        notifyLabel={notifyOcupada ? "Notificarme cuando la posición quede vacante" : "Notificarme cuando la posición se ocupe"}
+        isSubscribed={!!notifySub}
+        onCancelNotify={notifySub ? () => suscripcionesPosicion.cancelar(notifySub.id) : undefined}
       />
 
       {selectedRowData && (

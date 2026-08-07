@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser } from "lucide-react";
+import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser, Bell, BellOff } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 
 /**
@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/useToast";
  * Copia el valor de la celda al portapapeles y, opcionalmente (si se pasa
  * `onPaste`), pega el contenido del portapapeles sobre la celda. También
  * opcionalmente (si se pasa `onDelete`) permite borrar el contenido de la celda.
+ * Opcionalmente (si se pasa `onNotify`) permite suscribirse/cancelar el
+ * aviso por correo de "posición quedó vacante/se ocupó" (columna Posición).
  *
  * @param {{x: number, y: number, value: *, rect: ?DOMRect}|null} contextMenu
  * @param {() => void} onClose
@@ -18,12 +20,17 @@ import { useToast } from "@/hooks/useToast";
  * @param {boolean} [canPaste=true] - Si `false` con `onPaste` provisto, la opción se muestra deshabilitada (ej. columna de solo lectura).
  * @param {() => Promise<void>} [onDelete] - Si se provee, muestra la opción "Borrar contenido de celda".
  * @param {boolean} [canDelete=true] - Si `false` con `onDelete` provisto, la opción se muestra deshabilitada.
+ * @param {() => Promise<void>} [onNotify] - Si se provee, muestra la opción de suscripción a notificación por correo (columna Posición).
+ * @param {string} [notifyLabel] - Texto cuando NO hay suscripción activa (ej. "Notificarme cuando la posición quede vacante").
+ * @param {boolean} [isSubscribed=false] - Si ya existe una suscripción activa para esta posición+tipo: cambia el botón a "Cancelar aviso".
+ * @param {() => Promise<void>} [onCancelNotify] - Cancela la suscripción activa (requerido si `isSubscribed` puede ser `true`).
  */
-export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true }) {
+export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true, onNotify, notifyLabel, isSubscribed = false, onCancelNotify }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
   const [deleteState, setDeleteState] = useState("idle"); // idle | confirm | deleting | done | error
+  const [notifyState, setNotifyState] = useState("idle"); // idle | working | done | error
 
   // El menú es una única instancia persistente (se abre/cierra vía `contextMenu`,
   // no se desmonta); sin este reset, un "Borrar" armado (confirm) en una celda
@@ -32,6 +39,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     setCopied(false);
     setPasteState("idle");
     setDeleteState("idle");
+    setNotifyState("idle");
   }, [contextMenu]);
 
   // Fallback para HTTP plano (sin secure context, navigator.clipboard no existe):
@@ -154,7 +162,29 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     }
   };
 
-  const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0);
+  const handleNotify = async () => {
+    if (notifyState === "working") return;
+    setNotifyState("working");
+    try {
+      if (isSubscribed) {
+        await onCancelNotify();
+        toast.success("Se canceló el aviso para esta posición");
+      } else {
+        await onNotify();
+        toast.success("Te avisaremos por correo cuando ocurra");
+      }
+      setNotifyState("done");
+      setTimeout(() => {
+        setNotifyState("idle");
+        onClose();
+      }, 550);
+    } catch {
+      setNotifyState("error");
+      setTimeout(() => setNotifyState("idle"), 1500);
+    }
+  };
+
+  const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0) + (onNotify ? 40 : 0);
 
   // Portado a `document.body`: si no, un ancestro con `transform` (p.ej. un
   // motion.div de framer-motion en la página o el propio modal) crea un
@@ -229,6 +259,22 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
                 : deleteState === "error" ? "No se pudo borrar"
                 : deleteState === "confirm" ? "¿Confirmar borrado?"
                 : "Borrar contenido de celda"}
+            </button>
+          )}
+          {onNotify && (
+            <button
+              onClick={handleNotify}
+              disabled={notifyState === "working"}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {notifyState === "done" ? <Check className="size-4 text-emerald-500" />
+                : notifyState === "error" ? <AlertTriangle className="size-4 text-red-500" />
+                : isSubscribed ? <BellOff className="size-4" />
+                : <Bell className="size-4" />}
+              {notifyState === "done" ? (isSubscribed ? "¡Aviso cancelado!" : "¡Te avisaremos!")
+                : notifyState === "error" ? "No se pudo completar"
+                : isSubscribed ? "Cancelar aviso de esta posición"
+                : notifyLabel}
             </button>
           )}
         </motion.div>

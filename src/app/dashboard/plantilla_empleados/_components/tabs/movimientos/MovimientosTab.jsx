@@ -38,6 +38,7 @@ import { daysUntil, getAnuenciaColorClasses, FECHA_ANUENCIA_CATEGORIAS } from "@
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
+import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
@@ -207,6 +208,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const [isColumnPickerOpen, setIsColumnPickerOpen] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
+  const suscripcionesPosicion = useSuscripcionesPosicion();
   const arrowRepeatRef = useRef(0);
 
   const isDateColumn = useCallback((colKey) => {
@@ -1464,8 +1466,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
   }, [isMonoColumn, isDateColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur]);
 
-  const handleCellContextMenu = useCallback((e, value, rect) => {
-    setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
+  const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
+    setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
   }, []);
 
   const handleExportExcel = async () => {
@@ -1627,6 +1629,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     const hasGlobalSearch = !!globalSearch;
     return hasGlobalSearch || hasColumnFilters || hasTextFilters || hasAdvancedFilters || hasActiveSort;
   }, [columnFilters, sortConfig, textFilters, appliedAdvancedFilters, globalSearch]);
+
+  // Botón "Notificarme cuando..." del menú contextual (CopyCellMenu), solo
+  // sobre la columna Posición. `row.ocupacion` ("Ocupada"/"Vacante") ya lo
+  // calcula el backend con la misma fuente de verdad que el resto del
+  // sistema — no se reinventa ninguna heurística aquí.
+  const notifyPosicion = contextMenu?.colKey === "no_pos_actual" ? contextMenu.row?.no_pos_actual : null;
+  const notifyOcupada = notifyPosicion ? contextMenu.row?.ocupacion === "Ocupada" : null;
+  const notifyTipo = notifyOcupada ? "VACANTE" : "OCUPACION";
+  const notifySub = notifyPosicion ? suscripcionesPosicion.find(notifyPosicion, notifyTipo) : null;
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -2432,7 +2443,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         posicionPlaceholder="No. Posición exacta..."
       />
 
-      <CopyCellMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+      <CopyCellMenu
+        contextMenu={contextMenu}
+        onClose={() => setContextMenu(null)}
+        onNotify={notifyPosicion ? () => suscripcionesPosicion.crear(notifyPosicion, notifyTipo) : undefined}
+        notifyLabel={notifyOcupada ? "Notificarme cuando la posición quede vacante" : "Notificarme cuando la posición se ocupe"}
+        isSubscribed={!!notifySub}
+        onCancelNotify={notifySub ? () => suscripcionesPosicion.cancelar(notifySub.id) : undefined}
+      />
       
       {selectedRowData && (() => {
         const empDetail = detalle.find(emp => String(emp.posicion) === String(selectedRowData.no_pos_actual));

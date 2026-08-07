@@ -648,5 +648,48 @@ export const VacantesService = {
             body: JSON.stringify({ num_empleado: numEmpleadoList }),
             ...options
         });
+    },
+
+    /**
+     * Suscripciones ACTIVAS del usuario autenticado a "Notificarme cuando la
+     * posición quede vacante/se ocupe" (menú contextual columna Posición).
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` -> `[{id, posicion, tipo, creado_en}]`.
+     */
+    getMisSuscripcionesPosicion: (options = {}) => {
+        return apiFetch('/plantilla/suscripciones-posicion/', {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Crea una suscripción de notificación por correo para una posición.
+     * Idempotente del lado backend: si ya existe una activa igual, la
+     * devuelve tal cual (`ya_existia: true`) en vez de duplicarla.
+     * @param {string} posicion - Nº Pos Actual / Posición.
+     * @param {'VACANTE'|'OCUPACION'} tipo
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` -> `{id, posicion, tipo, ya_existia}`.
+     */
+    crearSuscripcionPosicion: (posicion, tipo, options = {}) => {
+        return apiFetch('/plantilla/suscripciones-posicion/', {
+            method: 'POST',
+            body: JSON.stringify({ posicion, tipo }),
+            ...options
+        });
+    },
+
+    /**
+     * Cancela (soft delete) una suscripción propia.
+     * @param {number} id
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>}
+     */
+    cancelarSuscripcionPosicion: (id, options = {}) => {
+        return apiFetch(`/plantilla/suscripciones-posicion/${id}/`, {
+            method: 'DELETE',
+            ...options
+        });
     }
 };
