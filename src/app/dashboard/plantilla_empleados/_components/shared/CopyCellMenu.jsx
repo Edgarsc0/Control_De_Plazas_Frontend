@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser, Bell, BellOff } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 /**
  * Menú flotante de click derecho sobre una celda de DataTable.
@@ -31,6 +32,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
   const [deleteState, setDeleteState] = useState("idle"); // idle | confirm | deleting | done | error
   const [notifyState, setNotifyState] = useState("idle"); // idle | working | done | error
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // El menú es una única instancia persistente (se abre/cierra vía `contextMenu`,
   // no se desmonta); sin este reset, un "Borrar" armado (confirm) en una celda
@@ -40,6 +42,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     setPasteState("idle");
     setDeleteState("idle");
     setNotifyState("idle");
+    setShowCancelConfirm(false);
   }, [contextMenu]);
 
   // Fallback para HTTP plano (sin secure context, navigator.clipboard no existe):
@@ -162,17 +165,24 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     }
   };
 
-  const handleNotify = async () => {
+  // Click en el botón "Notificarme"/"Cancelar aviso": suscribirse es
+  // inmediato (no destructivo), pero cancelar una suscripción ya armada
+  // pide confirmación primero (ver ConfirmModal más abajo) — el usuario
+  // pidió explícitamente no cancelar de un solo click.
+  const handleNotifyClick = () => {
     if (notifyState === "working") return;
+    if (isSubscribed) {
+      setShowCancelConfirm(true);
+    } else {
+      runNotify(onNotify, "Te avisaremos por correo cuando ocurra");
+    }
+  };
+
+  const runNotify = async (action, successMessage) => {
     setNotifyState("working");
     try {
-      if (isSubscribed) {
-        await onCancelNotify();
-        toast.success("Se canceló el aviso para esta posición");
-      } else {
-        await onNotify();
-        toast.success("Te avisaremos por correo cuando ocurra");
-      }
+      await action();
+      toast.success(successMessage);
       setNotifyState("done");
       setTimeout(() => {
         setNotifyState("idle");
@@ -183,6 +193,9 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
       setTimeout(() => setNotifyState("idle"), 1500);
     }
   };
+
+  const handleConfirmCancelNotify = () =>
+    runNotify(onCancelNotify, "Se canceló el aviso para esta posición");
 
   const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0) + (onNotify ? 40 : 0);
 
@@ -263,7 +276,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
           )}
           {onNotify && (
             <button
-              onClick={handleNotify}
+              onClick={handleNotifyClick}
               disabled={notifyState === "working"}
               className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
             >
@@ -279,6 +292,15 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
           )}
         </motion.div>
       </AnimatePresence>
+      <ConfirmModal
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={handleConfirmCancelNotify}
+        title="¿Cancelar este aviso?"
+        message="Ya no se te avisará por correo cuando esta posición cambie de estado. Puedes volver a suscribirte cuando quieras."
+        confirmLabel="Cancelar aviso"
+        cancelLabel="Volver"
+      />
     </>,
     document.body
   );

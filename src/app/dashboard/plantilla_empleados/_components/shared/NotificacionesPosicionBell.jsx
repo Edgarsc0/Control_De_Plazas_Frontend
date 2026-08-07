@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bell, X, Clock, MailCheck, Trash2, ChevronDown, Briefcase, UserX } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import ModalShell from "@/components/shared/ModalShell";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import { formatDateEsMx } from "@/utils/columnFilters";
 
 const TIPO_META = {
@@ -88,22 +89,15 @@ function DetalleGrid({ tipo, detalle }) {
 export default function NotificacionesPosicionBell({ suscripciones, onCancel }) {
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
-  const [workingId, setWorkingId] = useState(null);
+  // Suscripción sobre la que se pidió cancelar/descartar, en espera de
+  // confirmación en el modal (ver ConfirmModal más abajo) — nunca se llama
+  // a `onCancel` directo desde la lista.
+  const [confirmTarget, setConfirmTarget] = useState(null);
 
   const pendientes = suscripciones.filter((s) => s.activa);
   const llegadas = suscripciones
     .filter((s) => !s.activa && s.notificado_en)
     .sort((a, b) => new Date(b.notificado_en) - new Date(a.notificado_en));
-
-  const handleCancel = async (id) => {
-    if (workingId) return;
-    setWorkingId(id);
-    try {
-      await onCancel(id);
-    } finally {
-      setWorkingId(null);
-    }
-  };
 
   return (
     <>
@@ -150,10 +144,9 @@ export default function NotificacionesPosicionBell({ suscripciones, onCancel }) 
                     <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">{formatDateEsMx(s.creado_en)}</span>
                     <button
                       type="button"
-                      onClick={() => handleCancel(s.id)}
-                      disabled={workingId === s.id}
+                      onClick={() => setConfirmTarget({ id: s.id, posicion: s.posicion, modo: "cancelar" })}
                       title="Cancelar aviso"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
                     >
                       <X className="size-3.5" />
                     </button>
@@ -190,8 +183,8 @@ export default function NotificacionesPosicionBell({ suscripciones, onCancel }) 
                         <span
                           role="button"
                           tabIndex={0}
-                          onClick={(e) => { e.stopPropagation(); handleCancel(s.id); }}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); handleCancel(s.id); } }}
+                          onClick={(e) => { e.stopPropagation(); setConfirmTarget({ id: s.id, posicion: s.posicion, modo: "descartar" }); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setConfirmTarget({ id: s.id, posicion: s.posicion, modo: "descartar" }); } }}
                           title="Descartar"
                           className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
                         >
@@ -221,6 +214,20 @@ export default function NotificacionesPosicionBell({ suscripciones, onCancel }) 
           </div>
         </div>
       </ModalShell>
+
+      <ConfirmModal
+        open={!!confirmTarget}
+        onClose={() => setConfirmTarget(null)}
+        onConfirm={() => onCancel(confirmTarget.id)}
+        title={confirmTarget?.modo === "descartar" ? "¿Descartar esta notificación?" : "¿Cancelar este aviso?"}
+        message={
+          confirmTarget?.modo === "descartar"
+            ? `Se eliminará el registro de la notificación de la posición ${confirmTarget?.posicion}. No podrás volver a ver este detalle.`
+            : `Ya no se te avisará por correo cuando la posición ${confirmTarget?.posicion} cambie de estado. Puedes volver a suscribirte cuando quieras.`
+        }
+        confirmLabel={confirmTarget?.modo === "descartar" ? "Descartar" : "Cancelar aviso"}
+        cancelLabel="Volver"
+      />
     </>
   );
 }
