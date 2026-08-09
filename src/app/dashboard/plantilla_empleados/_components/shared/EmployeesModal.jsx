@@ -3,6 +3,8 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence } from "motion/react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { VacantesService } from "@/services/vacantes.service";
 import {
     Dialog,
@@ -11,7 +13,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2 } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2, History } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -28,6 +30,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import DataTable from "./DataTable";
+import HistorialMovimientosTab from "./HistorialMovimientosTab";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
 import CopyCellMenu from "./CopyCellMenu";
 import { useColumnFilters } from "../../_hooks/useColumnFilters";
@@ -42,6 +45,8 @@ import {
     normalizeForSearch,
     formatDateEsMx,
 } from "@/utils/columnFilters";
+
+gsap.registerPlugin(useGSAP);
 
 // --- CONSTANTS ---
 // Exportado para que otros consumidores del modo local de EmployeesModal
@@ -508,6 +513,18 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
     const [editValue, setEditValue] = useState("");
     const [editExtensionRows, setEditExtensionRows] = useState([]);
     const [savingKey, setSavingKey] = useState(null);
+    const groupsWrapRef = useRef(null);
+
+    // El bloque de apartados (Identificación/Puesto/Escolaridad/...) solo existe
+    // en el DOM cuando `estado.status` llega a "success" (ver returns de abajo)
+    // — y ese mismo montaje ya se repite solo con abrir esta pestaña, porque
+    // EmployeeRecordModal desmonta DatosPersonalesTab al cambiar de tab.
+    useGSAP(() => {
+        if (!groupsWrapRef.current) return;
+        const groupEls = groupsWrapRef.current.querySelectorAll(".dp-group");
+        if (!groupEls.length) return;
+        gsap.from(groupEls, { autoAlpha: 0, y: 14, duration: 0.35, stagger: 0.07, ease: "power2.out" });
+    }, { dependencies: [estado.status] });
 
     const startEdit = (field) => {
         setEditingKey(field.key);
@@ -601,11 +618,11 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
         }));
 
     return (
-        <div className="flex flex-col gap-6 sm:gap-7 mb-2">
+        <div ref={groupsWrapRef} className="flex flex-col gap-6 sm:gap-7 mb-2">
             {groups.map((group) => {
                 const GroupIcon = group.icon;
                 return (
-                    <section key={group.title} className="flex flex-col gap-2.5">
+                    <section key={group.title} className="dp-group flex flex-col gap-2.5">
                         <div className="flex items-center gap-2.5">
                             <span className="shrink-0 size-6 rounded-md bg-[#621f32] dark:bg-[#3e131f] text-[#bc955c] flex items-center justify-center">
                                 <GroupIcon className="size-3.5" />
@@ -853,6 +870,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const [hideEmptyFields, setHideEmptyFields] = useState(false);
     const [activeSection, setActiveSection] = useState(null);
     const sectionRefs = useRef({});
+    const expedienteNavRef = useRef(null);
     const { toast } = useToast();
     const { hasPermission } = useAuth();
     const canEditDatosPersonales = hasPermission(PERMISSIONS.EDIT_DATOS_PERSONALES);
@@ -876,6 +894,12 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // API respondía en ~450ms pero el tab nunca salía de "Cargando...".
     const datosPersonalesFetchedRef = useRef(false);
 
+    // Historial de movimientos (tab "Historial de movimientos", diagrama de
+    // carriles por posición) — mismo patrón de fetch bajo demanda + ref-guard
+    // que datosPersonales, ver comentario arriba.
+    const [historial, setHistorial] = useState({ status: "idle", data: null });
+    const historialFetchedRef = useRef(false);
+
     useEffect(() => {
         if (isOpen) {
             setFieldSearch("");
@@ -885,6 +909,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             setActiveTab("expediente");
             setDatosPersonales({ status: "idle", data: null });
             datosPersonalesFetchedRef.current = false;
+            setHistorial({ status: "idle", data: null });
+            historialFetchedRef.current = false;
         }
     }, [isOpen]);
 
@@ -980,6 +1006,26 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         return () => { cancelado = true; };
     }, [isOpen, activeTab, numempleadoFoto]);
 
+    // Historial de movimientos (MovimientosPersonalHistorialView, raw SQL
+    // sobre cp_tbl_mov_completo_29_05_26) — mismo patrón bajo demanda que
+    // datosPersonales, arriba.
+    useEffect(() => {
+        if (!isOpen || activeTab !== "historial" || !numempleadoFoto) return;
+        if (historialFetchedRef.current) return;
+        historialFetchedRef.current = true;
+        let cancelado = false;
+        setHistorial({ status: "loading", data: null });
+        VacantesService.getMovimientosPersonalHistorial([numempleadoFoto])
+            .then(async (res) => {
+                if (!res.ok) throw new Error("request failed");
+                const json = await res.json();
+                if (cancelado) return;
+                setHistorial(json.length > 0 ? { status: "success", data: json } : { status: "empty", data: [] });
+            })
+            .catch(() => { if (!cancelado) setHistorial({ status: "error", data: null }); });
+        return () => { cancelado = true; };
+    }, [isOpen, activeTab, numempleadoFoto]);
+
     // Apartados del expediente: mismo filtrado de siempre (label / valor /
     // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
     const sections = useMemo(() => {
@@ -1047,6 +1093,19 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         sectionRefs.current[category]?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, []);
 
+    // Entrada del tab "Expediente" — el índice lateral y los apartados solo
+    // existen en el DOM mientras `activeTab === "expediente"` (se desmontan
+    // al cambiar de tab), así que cada vuelta a este tab dispara la entrada.
+    useGSAP(() => {
+        if (activeTab !== "expediente") return;
+        const navEl = expedienteNavRef.current;
+        const sectionEls = Object.values(sectionRefs.current).filter(Boolean);
+        if (!navEl && !sectionEls.length) return;
+        const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+        if (navEl) tl.from(navEl, { autoAlpha: 0, x: -10, duration: 0.3 }, 0);
+        if (sectionEls.length) tl.from(sectionEls, { autoAlpha: 0, y: 14, duration: 0.32, stagger: 0.07 }, navEl ? "-=0.15" : 0);
+    }, { dependencies: [activeTab, sectionKeys] });
+
     if (!record) return null;
 
     // --- Carátula: identidad de la plaza y su titular ---
@@ -1069,6 +1128,9 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             open={isOpen}
             onClose={onClose}
             size="xl"
+            resizable
+            minWidth={680}
+            maxWidth={1900}
             icon={Stamp}
             eyebrow="Expediente de plaza"
             title={nombreTitular || (posicionPlaza ? `Posición ${posicionPlaza}` : "Expediente de Plaza")}
@@ -1210,6 +1272,15 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                         <IdCard className="size-3.5" />
                         Datos personales
                     </button>
+                    <button
+                        onClick={() => setActiveTab("historial")}
+                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "historial"
+                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
+                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
+                    >
+                        <History className="size-3.5" />
+                        Historial de movimientos
+                    </button>
                 </div>
 
                 {activeTab === "personales" ? (
@@ -1221,6 +1292,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                         noEmpleado={numempleadoFoto}
                         onFieldSaved={handleDatosPersonalesFieldSaved}
                     />
+                ) : activeTab === "historial" ? (
+                    <HistorialMovimientosTab estado={historial} numEmpleado={numempleadoFoto} />
                 ) : (
                 <>
                 {/* ── Barra de consulta: buscador de campos + depuración de vacíos ── */}
@@ -1274,7 +1347,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                 ) : (
                     <div className="flex gap-6">
                         {sections.length > 1 && (
-                            <nav className="hidden lg:block w-40 shrink-0">
+                            <nav ref={expedienteNavRef} className="hidden lg:block w-40 shrink-0">
                                 <div className="sticky top-0 flex flex-col gap-1 pb-4">
                                     <span className="px-2 pb-1.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">
                                         Índice

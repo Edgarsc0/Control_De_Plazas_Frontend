@@ -9,62 +9,12 @@ import { normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { getDifferences } from "../../_utils/movimientosDiff";
 
 // 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
   if (!dateString) return "-";
   return formatDateEsMx(dateString);
-};
-
-const IGNORED_DIFF_FIELDS = [
-  "sec", "fecha_captura", "fecha_ult_actz", "por", "fecha_descarga",
-  "accion", "accion_nombre", "motivo", "motivo_nombre", "fecha_efectiva",
-  "id", "num_empleado", "nombre", "ap_pat", "ap_mat", "columna_C", "columna_D",
-  "rfc", "curp", "sexo"
-];
-
-const FIELD_LABELS = {
-  sal_base: "Salario Base",
-  puesto_ptal: "Puesto",
-  ubicacion: "Ubicación",
-  un_admin: "Unidad Administrativa",
-  posicion: "Posición",
-  nivel_tabular: "Nivel Tabular",
-  estado_pago: "Estado Pago",
-  est_hr: "Estatus HR",
-  partida_presup: "Partida Presupuestal",
-  cd_puesto: "Código Puesto",
-  gp_pago: "Grupo Pago",
-  escala: "Escala",
-  grado: "Grado",
-  plan_sal: "Plan Salarial",
-  prog_benef: "Programa Benef.",
-  id_estbl: "Id Establecimiento",
-  grupo_cd_sal: "Grupo CD Sal",
-  gp_trabajo: "Grupo Trabajo",
-  antiguo_empr: "Antigüedad Emp.",
-  nv_jerarquico: "Nivel Jerárquico",
-  desc_larga_un: "Desc. Unidad Admin.",
-  desc_larga_p: "Desc. Puesto"
-};
-
-const getDifferences = (current, previous) => {
-  if (!previous) return [];
-  const differences = [];
-  for (const key in current) {
-    if (IGNORED_DIFF_FIELDS.includes(key)) continue;
-    const curVal = String(current[key] || "").trim();
-    const prevVal = String(previous[key] || "").trim();
-    if (curVal !== prevVal) {
-      differences.push({
-        key,
-        label: FIELD_LABELS[key] || key.toUpperCase(),
-        oldValue: prevVal || "(Vacío)",
-        newValue: curVal || "(Vacío)"
-      });
-    }
-  }
-  return differences;
 };
 
 const COLUMNS = [

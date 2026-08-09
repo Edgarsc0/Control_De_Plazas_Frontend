@@ -15,6 +15,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import HistoryDataTable from "@/components/ui/HistoryDataTable";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import VacanciaDetalleModal, { CATEGORIA_VACANCIA_TOOLTIP, TUVO_INSUBSISTENCIA_TOOLTIP } from "../../shared/VacanciaDetalleModal";
+import OcupacionDetalleModal from "../../shared/OcupacionDetalleModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
@@ -85,10 +86,10 @@ const ALL_MOV_KEYS = [
   "partida_ptal", "gp_pago", "prog_beneficios", "fecha_captura", "fh_ult_actz", "por",
   "hr_estd_semn", "descr", "gp_trabajo", "org_code", "grupo_cd_sal", "formal_desc", 
   "pto_compt", "posn_clv", "presupuesto", "nombre_puesto", "fecha_vacancia",
-  "categoria_vacancia", "tuvo_insubsistencia",
+  "categoria_vacancia", "tuvo_insubsistencia", "fecha_ocupacion",
 ];
 
-const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia", "fecha_anuencia"];
+const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia", "fecha_anuencia", "fecha_ocupacion"];
 
 // El dropdown de filtro por columna agrupa las fechas en un árbol año>mes>día
 // (ver dateHierarchies) — pero "fecha_anuencia" puede traer texto (categorías
@@ -143,6 +144,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
+    { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: true, isBasic: true },
     { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
@@ -771,6 +773,18 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     setIsVacanciaModalOpen(true);
   }, []);
 
+  const [isOcupacionModalOpen, setIsOcupacionModalOpen] = useState(false);
+  const [ocupacionRowId, setOcupacionRowId] = useState(null);
+  const [ocupacionDetalle, setOcupacionDetalle] = useState(null);
+  const [isOcupacionLoading, setIsOcupacionLoading] = useState(false);
+
+  const openOcupacionModal = useCallback((row) => {
+    if (!row || row.id === undefined || row.id === null) return;
+    setSelectedRowData(null);
+    setOcupacionRowId(row.id);
+    setIsOcupacionModalOpen(true);
+  }, []);
+
   // ── Edición inline de "Fecha de Anuencia" (doble clic) ─────────────────
   const startEditAnuencia = useCallback((row) => {
     if (!canEditFechaAnuencia) return;
@@ -1134,10 +1148,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     const shouldLock = 
       !!activeFilterDropdown || 
       isColumnsModalOpen || 
-      isVacanciaModalOpen || 
-      isHistoryModalOpen || 
-      isCellModalOpen || 
-      isAdvancedFiltersOpen || 
+      isVacanciaModalOpen ||
+      isOcupacionModalOpen ||
+      isHistoryModalOpen ||
+      isCellModalOpen ||
+      isAdvancedFiltersOpen ||
       !!selectedRowData;
     if (shouldLock) {
       document.body.style.overflow = 'hidden';
@@ -1148,12 +1163,13 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       document.body.style.overflow = 'unset';
     };
   }, [
-    activeFilterDropdown, 
-    isColumnsModalOpen, 
-    isVacanciaModalOpen, 
-    isHistoryModalOpen, 
-    isCellModalOpen, 
-    isAdvancedFiltersOpen, 
+    activeFilterDropdown,
+    isColumnsModalOpen,
+    isVacanciaModalOpen,
+    isOcupacionModalOpen,
+    isHistoryModalOpen,
+    isCellModalOpen,
+    isAdvancedFiltersOpen,
     selectedRowData
   ]);
 
@@ -1234,6 +1250,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return () => { active = false; };
   }, [isVacanciaModalOpen, vacanciaRowId]);
 
+  useEffect(() => {
+    let active = true;
+    if (isOcupacionModalOpen && ocupacionRowId !== null) {
+      setIsOcupacionLoading(true);
+      setOcupacionDetalle(null);
+      VacantesService.getMovPosOcupacionDetalle(ocupacionRowId)
+        .then(res => res.json())
+        .then(data => {
+          if (active) setOcupacionDetalle(data);
+        })
+        .catch(err => {
+          console.error("Error fetching ocupacion detalle:", err);
+          if (active) setOcupacionDetalle({ error: "Error al cargar el detalle de la ocupación." });
+        })
+        .finally(() => { if (active) setIsOcupacionLoading(false); });
+    } else {
+      setOcupacionDetalle(null);
+    }
+    return () => { active = false; };
+  }, [isOcupacionModalOpen, ocupacionRowId]);
+
   const rowHeight = 37, containerHeight = 800;
   const totalPages = isLatestFilter ? 1 : (Math.ceil(count / pageSize) || 1);
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 15);
@@ -1257,6 +1294,13 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
       const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>;
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{content}</td>);
+    }
+    if (col.key === "fecha_ocupacion") {
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-emerald-600 dark:hover:text-emerald-400" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const handleOcupacionClick = (e) => { onClick(e); if (hasValue) openOcupacionModal(row); };
+      const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-emerald-500" title="Clic para ver detalle de ocupación" /></div>) : <span className="text-slate-300">-</span>;
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleOcupacionClick} className={tdClassName}>{content}</td>);
     }
     if (col.key === "fecha_anuencia") {
       const isEditingThis = editingAnuencia?.noPosActual === row.no_pos_actual;
@@ -1465,7 +1509,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       );
     }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
-  }, [isMonoColumn, isDateColumn, openVacanciaModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur]);
+  }, [isMonoColumn, isDateColumn, openVacanciaModal, openOcupacionModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -2092,6 +2136,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                     },
                     valueClassName: () => "text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2",
                   },
+                  {
+                    key: "fecha_ocupacion",
+                    label: "Ocupación desde",
+                    onClick: (r) => {
+                      const hasValue = r.fecha_ocupacion !== undefined && r.fecha_ocupacion !== null && String(r.fecha_ocupacion).trim() !== "";
+                      if (hasValue) openOcupacionModal(r);
+                    },
+                    valueClassName: () => "text-emerald-600 dark:text-emerald-400 underline decoration-dotted underline-offset-2",
+                  },
                   { key: "motivo", label: "Motivo" },
                   { key: "unidad_de_negocio", label: "Unidad" },
                   { key: "f_efva", label: "F. Efectiva" },
@@ -2425,6 +2478,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         isLoading={isVacanciaLoading}
       />
 
+      {/* Modal de Detalle de Ocupación */}
+      <OcupacionDetalleModal
+        open={isOcupacionModalOpen}
+        onClose={() => setIsOcupacionModalOpen(false)}
+        detalle={ocupacionDetalle}
+        isLoading={isOcupacionLoading}
+      />
+
 
       {/* Modal de Detalle de Celda Completa */}
       <CeldaValorModal
@@ -2477,7 +2538,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             onClose={() => setSelectedRowData(null)}
             record={matchingEmployee}
             columns={columns}
-            fieldClickHandlers={{ fecha_vacancia: (r) => openVacanciaModal(r) }}
+            fieldClickHandlers={{ fecha_vacancia: (r) => openVacanciaModal(r), fecha_ocupacion: (r) => openOcupacionModal(r) }}
             canViewPhoto={canViewFotoMovPosiciones}
           />
         );

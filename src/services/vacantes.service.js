@@ -479,6 +479,20 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene el detalle del registro decisivo que originó la fecha de
+     * ocupación vigente de un renglón de MOV_POS.
+     * @param {string|number} id - Id del renglón de MOV_POS (no el id_registro_des_fecha_ocupacion).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getMovPosOcupacionDetalle: (id, options = {}) => {
+        return apiFetch(`/plantilla/mov_pos_ocupacion_detalle/?id=${id}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Comprobar Alineación Organizacional: cruza cada plaza activa de MOV_POS
      * con su fila en EMPLEADOS_COMPLETOS_SIG y compara los 14 campos que
      * deberían coincidir entre ambas tablas.

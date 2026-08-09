@@ -32,6 +32,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
   const [deleteState, setDeleteState] = useState("idle"); // idle | confirm | deleting | done | error
   const [notifyState, setNotifyState] = useState("idle"); // idle | working | done | error
+  const [notifyAction, setNotifyAction] = useState(null); // 'subscribe' | 'cancel' — qué acción terminó en "done" (no se puede leer de `isSubscribed`: ya cambió tras crear/cancelar)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   // El menú es una única instancia persistente (se abre/cierra vía `contextMenu`,
@@ -42,6 +43,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     setPasteState("idle");
     setDeleteState("idle");
     setNotifyState("idle");
+    setNotifyAction(null);
     setShowCancelConfirm(false);
   }, [contextMenu]);
 
@@ -174,12 +176,13 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
     if (isSubscribed) {
       setShowCancelConfirm(true);
     } else {
-      runNotify(onNotify, "Te avisaremos por correo cuando ocurra");
+      runNotify(onNotify, "Te avisaremos por correo cuando ocurra", "subscribe");
     }
   };
 
-  const runNotify = async (action, successMessage) => {
+  const runNotify = async (action, successMessage, actionType) => {
     setNotifyState("working");
+    setNotifyAction(actionType);
     try {
       await action();
       toast.success(successMessage);
@@ -195,7 +198,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
   };
 
   const handleConfirmCancelNotify = () =>
-    runNotify(onCancelNotify, "Se canceló el aviso para esta posición");
+    runNotify(onCancelNotify, "Se canceló el aviso para esta posición", "cancel");
 
   const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0) + (onNotify ? 40 : 0);
 
@@ -284,7 +287,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
                 : notifyState === "error" ? <AlertTriangle className="size-4 text-red-500" />
                 : isSubscribed ? <BellOff className="size-4" />
                 : <Bell className="size-4" />}
-              {notifyState === "done" ? (isSubscribed ? "¡Aviso cancelado!" : "¡Te avisaremos!")
+              {notifyState === "done" ? (notifyAction === "cancel" ? "¡Aviso cancelado!" : "¡Te avisaremos!")
                 : notifyState === "error" ? "No se pudo completar"
                 : isSubscribed ? "Cancelar aviso de esta posición"
                 : notifyLabel}
