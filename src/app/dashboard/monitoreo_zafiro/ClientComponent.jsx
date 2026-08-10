@@ -193,7 +193,7 @@ export default function ClientComponent() {
     if (showLoading) { setLoading(true); }
     else { setRefreshing(true); }
     try {
-      const response = await apiFetch(`/plantilla/bitacora/?limit=500`);
+      const response = await apiFetch(`/plantilla/bitacora/`);
       if (response.ok) {
         const data = await response.json();
         setLogs(data);
