@@ -2,12 +2,293 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Zoom } from "@/components/shared/Reveal";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, useXAxisScale, usePlotArea } from "recharts";
-import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { PlantillaService } from '@/services/plantilla.service';
 import DesgloseJerarquicoCharts from "./DesgloseJerarquicoCharts";
 import DetalleVacantesTablas from "./DetalleVacantesTablas";
+
+gsap.registerPlugin(useGSAP);
+
+// ReferenceArea con x1===x2 (mes de un solo registro) renderiza ancho 0 en
+// el eje categórico (point scale, sin bandwidth), así que las franjas se
+// dibujan a mano con el scale real del eje X (hooks de recharts v3) para
+// poder darle un ancho mínimo visible a esos meses de un solo punto.
+// Definida a nivel de módulo (no dentro de CuadrosVacanciaTab) para que su
+// identidad de componente sea estable entre renders: si se redefiniera en
+// cada render del padre, React la desmontaría/montaría de nuevo en cada
+// re-render (p.ej. al pasar el mouse sobre un punto).
+function MonthBandsLayer({ bands, chartData }) {
+  const scale = useXAxisScale();
+  const plotArea = usePlotArea();
+  if (!scale || !plotArea || bands.length === 0) return null;
+
+  const step = chartData.length > 1
+    ? Math.abs(scale(chartData[1].label) - scale(chartData[0].label))
+    : plotArea.width;
+  const minWidth = Math.max(6, step * 0.4);
+  const halfStep = step / 2;
+
+  return (
+    <g>
+      {bands.map((b, i) => {
+        const x1px = scale(b.x1);
+        const x2px = scale(b.x2);
+        const isSingle = b.x1 === b.x2;
+        // Puntos son categóricos (point scale): cada uno se ancla en su centro,
+        // así que hay que extender medio paso a cada lado para cubrir todo su ancho,
+        // no solo el tramo centro-a-centro entre el primer y el último punto del mes.
+        const width = isSingle ? minWidth : Math.abs(x2px - x1px) + step;
+        const left = isSingle ? x1px - width / 2 : Math.min(x1px, x2px) - halfStep;
+        if (!Number.isFinite(left) || !Number.isFinite(width)) return null;
+
+        // Etiqueta "Mes Año" centrada en la franja, solo si el ancho la
+        // acomoda completa (estimación de ancho por caracter a fontSize 10).
+        const [yearStr, monthStr] = b.monthKey.split('-');
+        const monthLabel = new Date(Number(yearStr), Number(monthStr) - 1, 1)
+          .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+        const labelText = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+        const estimatedTextWidth = labelText.length * 5.6 + 10;
+        const showLabel = width >= estimatedTextWidth;
+
+        return (
+          <g key={b.monthKey}>
+            <rect
+              x={left}
+              y={plotArea.y}
+              width={width}
+              height={plotArea.height}
+              fill={b.color}
+              fillOpacity={0.22}
+            />
+            {/* Frontera entre meses: línea vertical en el borde izquierdo de cada
+                franja (salvo la primera, que coincide con el borde del área). */}
+            {i > 0 && (
+              <line
+                x1={left}
+                x2={left}
+                y1={plotArea.y}
+                y2={plotArea.y + plotArea.height}
+                stroke={b.color}
+                strokeOpacity={0.55}
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+              />
+            )}
+            {showLabel && (
+              <text
+                x={left + width / 2}
+                y={plotArea.y + plotArea.height / 2 - 16}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={10}
+                fontWeight={900}
+                fill={b.color}
+                fillOpacity={0.85}
+                className="select-none pointer-events-none"
+              >
+                {labelText}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function HistoricoTooltip({ active, payload, label, hoveredPointKey, formatNumber }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
+        {label}
+      </p>
+      <div className="space-y-1.5">
+        {payload.map((p, i) => {
+          const isHovered = p.dataKey === hoveredPointKey;
+          return (
+            <div key={i} className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                <span className={`text-[11px] ${isHovered ? 'font-black text-slate-800 dark:text-white' : 'font-bold text-slate-500 dark:text-slate-400'}`}>
+                  {p.name}
+                </span>
+              </div>
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(p.value)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Tarjeta reutilizable de gráfica histórica (Ocupación o Vacancia). Definida
+// a nivel de módulo por la misma razón que MonthBandsLayer: recibe todo por
+// props para no depender de closures del padre y así mantener su identidad
+// estable entre renders (evita que un simple hover remonte el <LineChart>
+// completo y con él, la animación de dibujado de línea).
+//
+// La animación de "dibujado" (stroke-dashoffset) solo se dispara por
+// visibilidad: un IntersectionObserver sobre la tarjeta completa la relanza
+// cada vez que vuelve a entrar al viewport (se perdió de vista y se ve de
+// nuevo), no en cada render ni en cada cambio de datos.
+function HistoricoChartCard({
+  title, subtitle, icon: Icon, series, chartData, ticks, isCompactChart,
+  formatNumber, monthBands, renderDot, hoveredPointKey, onDotHover, onDotLeave,
+}) {
+  const cardRef = useRef(null);
+
+  // Dominio real de esta tarjeta (min/max de sus propias series, no del
+  // dataset completo) con margen del 10%, en vez del default de recharts
+  // que arranca en 0 y desperdicia la mayor parte de la escala cuando los
+  // valores se mueven en una banda angosta lejos de cero.
+  const yDomain = useMemo(() => {
+    if (chartData.length === 0) return [0, 'auto'];
+    let min = Infinity, max = -Infinity;
+    chartData.forEach(d => {
+      series.forEach(s => {
+        const v = d[s.key];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      });
+    });
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 'auto'];
+    const padding = Math.max(1, Math.round((max - min) * 0.1));
+    return [Math.max(0, min - padding), max + padding];
+  }, [chartData, series]);
+
+  useGSAP(() => {
+    if (chartData.length === 0) return;
+    const el = cardRef.current;
+    if (!el) return;
+
+    const playDrawAnimation = () => {
+      const paths = gsap.utils.toArray('.recharts-line-curve', el);
+      paths.forEach((path, i) => {
+        const length = path.getTotalLength();
+        gsap.fromTo(
+          path,
+          { strokeDasharray: length, strokeDashoffset: length },
+          { strokeDashoffset: 0, duration: 1.2, ease: 'power2.inOut', delay: i * 0.15, overwrite: true }
+        );
+      });
+
+      const dotLayers = gsap.utils.toArray('.recharts-line-dots', el);
+      gsap.fromTo(dotLayers, { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 1, stagger: 0.12, overwrite: true });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          playDrawAnimation();
+          observer.disconnect();
+        }
+      });
+    }, { threshold: 0.3 });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, { scope: cardRef, dependencies: [chartData] });
+
+  return (
+    <div ref={cardRef} data-historico-card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+      <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
+          <Icon className="size-6" />
+        </div>
+        <div>
+          <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
+            {title}
+          </h3>
+          <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
+            {subtitle}
+          </p>
+        </div>
+      </div>
+
+      {chartData.length === 0 ? (
+        <div className="py-16 text-center text-slate-450 dark:text-slate-500 font-bold">
+          No hay datos históricos disponibles
+        </div>
+      ) : (
+        <div data-pdf-chart className="w-full relative h-[560px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: isCompactChart ? 36 : 54, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.4} className="text-slate-350 dark:text-slate-600" />
+              <MonthBandsLayer bands={monthBands} chartData={chartData} />
+              <XAxis
+                dataKey="label"
+                type="category"
+                ticks={ticks}
+                tick={{ fontSize: isCompactChart ? 8 : 10, fontWeight: 700 }}
+                stroke="currentColor"
+                className="text-slate-400 dark:text-slate-500"
+              />
+              <YAxis
+                domain={yDomain}
+                allowDecimals={false}
+                tick={{ fontSize: isCompactChart ? 9 : 10, fontWeight: 700 }}
+                stroke="currentColor"
+                className="text-slate-400 dark:text-slate-500"
+                tickFormatter={formatNumber}
+                width={isCompactChart ? 36 : 55}
+              />
+              <Tooltip
+                content={<HistoricoTooltip hoveredPointKey={hoveredPointKey} formatNumber={formatNumber} />}
+                cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
+                formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
+              />
+              {series.map(s => (
+                <Line
+                  key={s.key}
+                  type="linear"
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color}
+                  strokeWidth={1.75}
+                  isAnimationActive={false}
+                  dot={renderDot(s.key, s.color)}
+                  activeDot={(dotProps) => {
+                    const { cx, cy, key } = dotProps;
+                    return (
+                      <g key={key}>
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={18}
+                          fill="transparent"
+                          onMouseEnter={() => onDotHover(s.key)} onPointerDown={() => onDotHover(s.key)}
+                          onMouseLeave={onDotLeave}
+                        />
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={6}
+                          fill={s.color}
+                          stroke="#fff"
+                          strokeWidth={2}
+                          pointerEvents="none"
+                        />
+                      </g>
+                    );
+                  }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], onSwitchToTablaPrincipal }) {
   const [selectedYears, setSelectedYears] = useState([]);
@@ -101,6 +382,18 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     return dateStr.split('-')[0];
   };
 
+  // Fecha corta ("10 Ene 26") para las anotaciones de máximo/mínimo del
+  // histórico — la fecha larga (formatDate) es demasiado ancha para caber
+  // junto al valor sin encimarse con puntos vecinos.
+  const formatDateShort = (dateStr) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split('-');
+    const date = new Date(year, month - 1, day);
+    const monthStr = date.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '');
+    const capitalizedMonth = monthStr.charAt(0).toUpperCase() + monthStr.slice(1);
+    return `${date.getDate().toString().padStart(2, '0')} ${capitalizedMonth} ${year.slice(2)}`;
+  };
+
   const sortedDescData = useMemo(() => {
     return [...cuadrosData].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   }, [cuadrosData]);
@@ -178,95 +471,17 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     return bands.map((b, i) => ({ ...b, color: MONTH_BAND_COLORS[i % MONTH_BAND_COLORS.length] }));
   }, [historicoChartData]);
 
-  // ReferenceArea con x1===x2 (mes de un solo registro) renderiza ancho 0 en
-  // el eje categórico (point scale, sin bandwidth), así que las franjas se
-  // dibujan a mano con el scale real del eje X (hooks de recharts v3) para
-  // poder darle un ancho mínimo visible a esos meses de un solo punto.
-  const MonthBandsLayer = () => {
-    const scale = useXAxisScale();
-    const plotArea = usePlotArea();
-    if (!scale || !plotArea || historicoMonthBands.length === 0) return null;
-
-    const step = historicoChartData.length > 1
-      ? Math.abs(scale(historicoChartData[1].label) - scale(historicoChartData[0].label))
-      : plotArea.width;
-    const minWidth = Math.max(6, step * 0.4);
-    const halfStep = step / 2;
-
-    return (
-      <g>
-        {historicoMonthBands.map((b, i) => {
-          const x1px = scale(b.x1);
-          const x2px = scale(b.x2);
-          const isSingle = b.x1 === b.x2;
-          // Puntos son categóricos (point scale): cada uno se ancla en su centro,
-          // así que hay que extender medio paso a cada lado para cubrir todo su ancho,
-          // no solo el tramo centro-a-centro entre el primer y el último punto del mes.
-          const width = isSingle ? minWidth : Math.abs(x2px - x1px) + step;
-          const left = isSingle ? x1px - width / 2 : Math.min(x1px, x2px) - halfStep;
-          if (!Number.isFinite(left) || !Number.isFinite(width)) return null;
-
-          // Etiqueta "Mes Año" centrada en la franja, solo si el ancho la
-          // acomoda completa (estimación de ancho por caracter a fontSize 10).
-          const [yearStr, monthStr] = b.monthKey.split('-');
-          const monthLabel = new Date(Number(yearStr), Number(monthStr) - 1, 1)
-            .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-          const labelText = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
-          const estimatedTextWidth = labelText.length * 5.6 + 10;
-          const showLabel = width >= estimatedTextWidth;
-
-          return (
-            <g key={b.monthKey}>
-              <rect
-                x={left}
-                y={plotArea.y}
-                width={width}
-                height={plotArea.height}
-                fill={b.color}
-                fillOpacity={0.22}
-              />
-              {/* Frontera entre meses: línea vertical en el borde izquierdo de cada
-                  franja (salvo la primera, que coincide con el borde del área). */}
-              {i > 0 && (
-                <line
-                  x1={left}
-                  x2={left}
-                  y1={plotArea.y}
-                  y2={plotArea.y + plotArea.height}
-                  stroke={b.color}
-                  strokeOpacity={0.55}
-                  strokeWidth={1.5}
-                  strokeDasharray="4 3"
-                />
-              )}
-              {showLabel && (
-                <text
-                  x={left + width / 2}
-                  y={plotArea.y + plotArea.height / 2 - 16}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={10}
-                  fontWeight={900}
-                  fill={b.color}
-                  fillOpacity={0.85}
-                  className="select-none pointer-events-none"
-                >
-                  {labelText}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </g>
-    );
-  };
-
   const HISTORICO_SERIES = [
     { key: 'ocupadas_permanente', name: 'Permanentes Ocupadas', color: '#10243e' },
     { key: 'ocupadas_eventual', name: 'Eventuales Ocupadas', color: '#bc955c' },
     { key: 'vacantes_permanente', name: 'Vacantes Permanentes', color: '#621f32' },
     { key: 'vacantes_eventual', name: 'Vacantes Eventuales', color: '#2e5890' },
   ];
+
+  // Grafica combinada partida en dos (Ocupación / Vacancia): cada tarjeta
+  // usa el subconjunto de series que le corresponde por prefijo de key.
+  const OCUPACION_SERIES = HISTORICO_SERIES.filter(s => s.key.startsWith('ocupadas'));
+  const VACANCIA_SERIES = HISTORICO_SERIES.filter(s => s.key.startsWith('vacantes'));
 
   const historicoMinMax = useMemo(() => {
     const result = {};
@@ -288,10 +503,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   // serie dentro del grupo para separarlas incluso cuando el punto extremo coincide
   // en el mismo índice de fecha.
   const HISTORICO_LABEL_LANE = {
-    ocupadas_permanente: { max: -16, min: 24 },
-    ocupadas_eventual: { max: -31, min: 39 },
-    vacantes_permanente: { max: -16, min: 24 },
-    vacantes_eventual: { max: -31, min: 39 },
+    ocupadas_permanente: { max: -24, min: 22 },
+    ocupadas_eventual: { max: -48, min: 46 },
+    vacantes_permanente: { max: -24, min: 22 },
+    vacantes_eventual: { max: -48, min: 46 },
   };
 
   const renderHistoricoDot = (key, color) => (dotProps) => {
@@ -301,7 +516,8 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     const isMin = minMax?.min && index === minMax.min.index && minMax.min.index !== minMax.max.index;
 
     if (!isMax && !isMin) {
-      return <circle key={`dot-${key}-${index}`} cx={cx} cy={cy} r={3.5} fill={color} strokeWidth={0} />;
+      // Marcador pequeño y discreto (estilo matplotlib) para los puntos normales.
+      return <circle key={`dot-${key}-${index}`} cx={cx} cy={cy} r={2.2} fill={color} strokeWidth={0} />;
     }
 
     const lane = HISTORICO_LABEL_LANE[key];
@@ -311,26 +527,22 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     const isLastPoint = index === historicoChartData.length - 1;
     const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
     const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
+    const dateText = formatDateShort(historicoChartData[index]?.fecha);
+    const labelY = cy + (isMax ? lane.max : lane.min);
 
     return (
       <g key={`dot-${key}-${index}`}>
-        {/* Halo estático (sin animación: la gráfica se exporta a PNG/PDF y una
-            animación CSS quedaría congelada a medio ciclo en la captura). */}
-        <circle cx={cx} cy={cy} r={11} fill={color} fillOpacity={0.16} />
-        <circle cx={cx} cy={cy} r={7} fill={color} stroke="#fff" strokeWidth={2.5} />
-        <text
-          x={textX}
-          y={cy + (isMax ? lane.max : lane.min)}
-          textAnchor={textAnchor}
-          fontSize={11}
-          fontWeight={900}
-          fill={color}
-          stroke="#fff"
-          strokeWidth={3.5}
-          paintOrder="stroke"
-          className="select-none"
-        >
-          {isMax ? '▲ ' : '▼ '}{formatNumber(value)}
+        {/* Punto sólido más grande con borde blanco (sin halo difuso) para que
+            destaque frente a los puntos normales, y texto plano estilo
+            matplotlib: fecha arriba, valor abajo. */}
+        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
+        <text x={textX} y={labelY} textAnchor={textAnchor} className="select-none">
+          <tspan x={textX} fontSize={12} fontWeight={600} fill={color}>
+            {dateText}
+          </tspan>
+          <tspan x={textX} dy={14} fontSize={12} fontWeight={600} fill={color}>
+            {formatNumber(value)}
+          </tspan>
         </text>
       </g>
     );
@@ -361,33 +573,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     }
     return [...idxs].sort((a, b) => a - b).map(i => historicoChartData[i].label);
   }, [historicoChartData, isCompactChart]);
-
-  const HistoricoTooltip = ({ active, payload, label }) => {
-    if (!active || !payload || !payload.length) return null;
-    return (
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
-        <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
-          {label}
-        </p>
-        <div className="space-y-1.5">
-          {payload.map((p, i) => {
-            const isHovered = p.dataKey === hoveredPointKey;
-            return (
-              <div key={i} className="flex justify-between items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
-                  <span className={`text-[11px] ${isHovered ? 'font-black text-slate-800 dark:text-white' : 'font-bold text-slate-500 dark:text-slate-400'}`}>
-                    {p.name}
-                  </span>
-                </div>
-                <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(p.value)}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
 
   // Unique lists for the filters (based on all available data)
   const uniqueYears = useMemo(() => {
@@ -716,7 +901,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       // PÁGINAS 2+: Gráficas (una por página, grandes)
       // ════════════════════════════════════════════════
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
+      const chartTitles = ['Ocupación Histórica', 'Vacancia Histórica', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
           pdf.addPage();
@@ -1040,7 +1225,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Histórico de Ocupación y Vacancia', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
+      const chartTitles = ['Ocupación Histórica', 'Vacancia Histórica', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
       const chartImages = [];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
@@ -1472,102 +1657,40 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           </Zoom>
         </div>
 
-        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
+        <div className="w-full px-0 sm:px-4 lg:px-6 flex flex-col gap-6" data-pdf-section>
           <Zoom triggerOnce>
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
-              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
-                <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
-                  <TrendingUp className="size-6" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
-                    Histórico de Ocupación y Vacancia
-                  </h3>
-                  <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
-                    Permanentes / Eventuales Ocupadas vs. Vacantes por quincena
-                  </p>
-                </div>
-              </div>
-
-              {historicoChartData.length === 0 ? (
-                <div className="py-16 text-center text-slate-450 dark:text-slate-500 font-bold">
-                  No hay datos históricos disponibles
-                </div>
-              ) : (
-                <div data-pdf-chart className="w-full relative pl-4 sm:pl-5 h-[650px]">
-                  <span className="absolute left-0 top-[26%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-500 select-none">
-                    OCUPADAS
-                  </span>
-                  <span className="absolute left-0 top-[78%] -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[9px] sm:text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-500 select-none">
-                    VACANTES
-                  </span>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={historicoChartData} margin={{ top: isCompactChart ? 28 : 40, right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.6} className="text-slate-350 dark:text-slate-600" />
-                      <MonthBandsLayer />
-                      <XAxis
-                        dataKey="label"
-                        type="category"
-                        ticks={historicoTicks}
-                        tick={{ fontSize: isCompactChart ? 8 : 10, fontWeight: 700 }}
-                        stroke="currentColor"
-                        className="text-slate-400 dark:text-slate-500"
-                      />
-                      <YAxis
-                        tick={{ fontSize: isCompactChart ? 9 : 10, fontWeight: 700 }}
-                        stroke="currentColor"
-                        className="text-slate-400 dark:text-slate-500"
-                        tickFormatter={formatNumber}
-                        width={isCompactChart ? 36 : 55}
-                      />
-                      <Tooltip
-                        content={<HistoricoTooltip />}
-                        cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }}
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
-                        formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
-                      />
-                      {HISTORICO_SERIES.map(s => (
-                        <Line
-                          key={s.key}
-                          type="linear"
-                          dataKey={s.key}
-                          name={s.name}
-                          stroke={s.color}
-                          strokeWidth={2.5}
-                          dot={renderHistoricoDot(s.key, s.color)}
-                          activeDot={(dotProps) => {
-                            const { cx, cy, key } = dotProps;
-                            return (
-                              <g key={key}>
-                                <circle
-                                  cx={cx}
-                                  cy={cy}
-                                  r={18}
-                                  fill="transparent"
-                                  onMouseEnter={() => setHoveredPointKey(s.key)} onPointerDown={() => setHoveredPointKey(s.key)}
-                                  onMouseLeave={() => setHoveredPointKey(null)}
-                                />
-                                <circle
-                                  cx={cx}
-                                  cy={cy}
-                                  r={6}
-                                  fill={s.color}
-                                  stroke="#fff"
-                                  strokeWidth={2}
-                                  pointerEvents="none"
-                                />
-                              </g>
-                            );
-                          }}
-                        />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
+            <HistoricoChartCard
+              title="Ocupación Histórica"
+              subtitle="Permanentes / Eventuales Ocupadas por quincena"
+              icon={Users}
+              series={OCUPACION_SERIES}
+              chartData={historicoChartData}
+              ticks={historicoTicks}
+              isCompactChart={isCompactChart}
+              formatNumber={formatNumber}
+              monthBands={historicoMonthBands}
+              renderDot={renderHistoricoDot}
+              hoveredPointKey={hoveredPointKey}
+              onDotHover={setHoveredPointKey}
+              onDotLeave={() => setHoveredPointKey(null)}
+            />
+          </Zoom>
+          <Zoom triggerOnce delay={100}>
+            <HistoricoChartCard
+              title="Vacancia Histórica"
+              subtitle="Permanentes / Eventuales Vacantes por quincena"
+              icon={AlertCircle}
+              series={VACANCIA_SERIES}
+              chartData={historicoChartData}
+              ticks={historicoTicks}
+              isCompactChart={isCompactChart}
+              formatNumber={formatNumber}
+              monthBands={historicoMonthBands}
+              renderDot={renderHistoricoDot}
+              hoveredPointKey={hoveredPointKey}
+              onDotHover={setHoveredPointKey}
+              onDotLeave={() => setHoveredPointKey(null)}
+            />
           </Zoom>
         </div>
 
