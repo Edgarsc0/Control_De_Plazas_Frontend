@@ -255,7 +255,7 @@ function HistoricoChartCard({
                   stroke={s.color}
                   strokeWidth={1.75}
                   isAnimationActive={false}
-                  dot={renderDot(s.key, s.color)}
+                  dot={renderDot(s.key, s.color, s.name)}
                   activeDot={(dotProps) => {
                     const { cx, cy, key } = dotProps;
                     return (
@@ -509,24 +509,51 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     vacantes_eventual: { max: -48, min: 46 },
   };
 
-  const renderHistoricoDot = (key, color) => (dotProps) => {
+  const renderHistoricoDot = (key, color, seriesName) => (dotProps) => {
     const { cx, cy, index, value } = dotProps;
     const minMax = historicoMinMax[key];
     const isMax = minMax?.max && index === minMax.max.index;
     const isMin = minMax?.min && index === minMax.min.index && minMax.min.index !== minMax.max.index;
 
-    if (!isMax && !isMin) {
-      // Marcador pequeño y discreto (estilo matplotlib) para los puntos normales.
-      return <circle key={`dot-${key}-${index}`} cx={cx} cy={cy} r={2.2} fill={color} strokeWidth={0} />;
-    }
-
-    const lane = HISTORICO_LABEL_LANE[key];
     // Cerca del borde izquierdo/derecho el texto centrado se recorta contra el
     // área del gráfico: se ancla hacia adentro en vez de centrarlo sobre el punto.
     const isFirstPoint = index === 0;
     const isLastPoint = index === historicoChartData.length - 1;
     const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
     const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
+
+    // Nombre de la serie (mismo texto que la leyenda) sobre el extremo de la
+    // línea, para identificarla directamente en la gráfica sin depender solo
+    // de la leyenda al pie. Si el extremo coincide con el punto máximo (cuya
+    // anotación de fecha/valor también va arriba), se sube más para no
+    // encimarse con ella.
+    const lane = HISTORICO_LABEL_LANE[key];
+    const nameLabelY = isMax ? cy + lane.max - 20 : cy - 12;
+    const nameLabel = (isFirstPoint || isLastPoint) && (
+      <text
+        key={`name-${key}-${index}`}
+        x={textX}
+        y={nameLabelY}
+        textAnchor={textAnchor}
+        fontSize={11}
+        fontWeight={800}
+        fill={color}
+        className="select-none pointer-events-none"
+      >
+        {seriesName}
+      </text>
+    );
+
+    if (!isMax && !isMin) {
+      // Marcador pequeño y discreto (estilo matplotlib) para los puntos normales.
+      return (
+        <g key={`dot-${key}-${index}`}>
+          <circle cx={cx} cy={cy} r={2.2} fill={color} strokeWidth={0} />
+          {nameLabel}
+        </g>
+      );
+    }
+
     const dateText = formatDateShort(historicoChartData[index]?.fecha);
     const labelY = cy + (isMax ? lane.max : lane.min);
 
@@ -544,6 +571,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             {formatNumber(value)}
           </tspan>
         </text>
+        {nameLabel}
       </g>
     );
   };
