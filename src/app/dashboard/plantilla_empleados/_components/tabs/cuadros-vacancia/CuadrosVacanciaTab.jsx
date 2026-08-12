@@ -1217,12 +1217,32 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     </>
   );
 
-  // Whitelist de columnas del detalle de creación/desactivación de plazas —
-  // ver PlazasMovimientoMesView (backend) y los 2 keys nuevos que agrega a
-  // ALL_AVAILABLE_COLUMNS en EmployeesModal.jsx.
+  // Universo completo de columnas del detalle de creación/desactivación de
+  // plazas — el registro MOV_POS entero de la posición, sin nada sacado de
+  // EMPLEADOS_COMPLETOS_SIG (a pedido del usuario, 2026-08-12: esa tabla
+  // tenía huecos, p.ej. `Nivel` en null para posiciones desactivadas). Ver
+  // PlazasMovimientoMesView._RAW_COLUMN_MAP (backend) para el mapeo columna
+  // cruda de MOV_POS -> key, y la categoría "Movimiento de Posición" en
+  // ALL_AVAILABLE_COLUMNS de EmployeesModal.jsx para las ~39 columnas.
   const PLAZAS_DETALLE_COLUMN_KEYS = [
-    'posicion', 'nivel', 'nombre_puesto_funcional', 'unidad_administrativa',
-    'aduana', 'tipo_de_aduana', 'fecha_efectiva_mov_pos', 'fecha_de_captura', 'capturado_por',
+    'posicion', 'grado_escala', 'nombre_puesto_funcional', 'unidad_administrativa',
+    'estado_posicion', 'motivo', 'cd_motivo', 'unidad_adva', 'cd_departamento', 'cd_puesto',
+    'estado_ptal', 'fecha_establecimiento', 'maximo', 'dependencia_directa', 'dependencia_indirecta',
+    'ubicacion', 'nivel_direccion', 'plan_salarial', 'grado', 'escala', 'puesto_presupuestal',
+    'partida_presupuestal', 'grupo_pago', 'programa_beneficios', 'fecha_ultima_actualizacion',
+    'capturado_por', 'horas_estandar_semana', 'descripcion', 'grupo_trabajo', 'codigo_organizacional',
+    'grupo_codigo_salarial', 'descripcion_formal', 'puesto_compartido', 'posicion_clave', 'presupuesto',
+    'fecha_efectiva_mov_pos', 'fecha_de_captura', 'fecha_vacancia_mov_pos', 'categoria_vacancia',
+    'id_registro_decisivo', 'tuvo_insubsistencia', 'id_insubsistencia_detectada', 'fecha_ocupacion',
+    'id_registro_des_fecha_ocupacion', 'cd_un',
+  ];
+
+  // Subset visible por default al abrir el modal — el resto queda
+  // disponible vía el botón "Columnas" (ColumnsSelectorModal), mismo patrón
+  // que el resto de la app.
+  const PLAZAS_DETALLE_DEFAULT_COLUMN_KEYS = [
+    'posicion', 'grado_escala', 'nombre_puesto_funcional', 'unidad_administrativa',
+    'motivo', 'fecha_efectiva_mov_pos', 'fecha_de_captura', 'capturado_por',
   ];
 
   // Click en una franja verde/guinda: pide a MOV_POS (vía backend) el detalle
@@ -2568,7 +2588,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         rows={plazasDetalleRows}
         title={plazasDetalleTitle}
         restrictColumnsTo={PLAZAS_DETALLE_COLUMN_KEYS}
-        defaultColumnKeys={PLAZAS_DETALLE_COLUMN_KEYS}
+        defaultColumnKeys={PLAZAS_DETALLE_DEFAULT_COLUMN_KEYS}
         canViewPhoto={false}
       />
     </div>

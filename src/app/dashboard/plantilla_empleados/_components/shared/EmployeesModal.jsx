@@ -97,6 +97,49 @@ export const ALL_AVAILABLE_COLUMNS = [
   { key: "fecha_efectiva_mov_pos", label: "FECHA EFECTIVA (MOV. POSICIÓN)", category: "Plaza" },
   { key: "capturado_por", label: "CAPTURADO POR", category: "Plaza" },
 
+  // Registro MOV_POS completo — a pedido del usuario (2026-08-12), el
+  // detalle de creación/desactivación de plazas de CuadrosVacanciaTab ya no
+  // saca NADA de EMPLEADOS_COMPLETOS_SIG (esa tabla tenía huecos, p.ej.
+  // `Nivel` en null); ahora expone el registro MOV_POS entero de la
+  // posición. `grado_escala` reemplaza a `nivel` (MOV_POS no tiene nivel,
+  // tiene Grado+Esc) — ver PlazasMovimientoMesView._RAW_COLUMN_MAP en el
+  // backend para el resto del mapeo columna cruda -> key.
+  { key: "grado_escala", label: "GRADO Y ESCALA", category: "Movimiento de Posición" },
+  { key: "estado_posicion", label: "ESTADO POSICIÓN", category: "Movimiento de Posición" },
+  { key: "motivo", label: "MOTIVO", category: "Movimiento de Posición" },
+  { key: "cd_motivo", label: "CÓD. MOTIVO", category: "Movimiento de Posición" },
+  { key: "unidad_adva", label: "UNIDAD ADVA. #", category: "Movimiento de Posición" },
+  { key: "cd_departamento", label: "CÓD. DEPARTAMENTO", category: "Movimiento de Posición" },
+  { key: "cd_puesto", label: "CÓD. PUESTO", category: "Movimiento de Posición" },
+  { key: "estado_ptal", label: "ESTADO PRESUPUESTAL", category: "Movimiento de Posición" },
+  { key: "fecha_establecimiento", label: "FECHA ESTABLECIMIENTO", category: "Movimiento de Posición" },
+  { key: "maximo", label: "MÁXIMO", category: "Movimiento de Posición" },
+  { key: "dependencia_indirecta", label: "DEPENDENCIA INDIRECTA", category: "Movimiento de Posición" },
+  { key: "nivel_direccion", label: "NIVEL DIRECCIÓN", category: "Movimiento de Posición" },
+  { key: "plan_salarial", label: "PLAN SALARIAL", category: "Movimiento de Posición" },
+  { key: "grado", label: "GRADO", category: "Movimiento de Posición" },
+  { key: "puesto_presupuestal", label: "PUESTO PRESUPUESTAL", category: "Movimiento de Posición" },
+  { key: "partida_presupuestal", label: "PARTIDA PRESUPUESTAL", category: "Movimiento de Posición" },
+  { key: "grupo_pago", label: "GRUPO DE PAGO", category: "Movimiento de Posición" },
+  { key: "programa_beneficios", label: "PROGRAMA DE BENEFICIOS", category: "Movimiento de Posición" },
+  { key: "fecha_ultima_actualizacion", label: "ÚLTIMA ACTUALIZACIÓN", category: "Movimiento de Posición" },
+  { key: "horas_estandar_semana", label: "HRS. ESTÁNDAR/SEMANA", category: "Movimiento de Posición" },
+  { key: "descripcion", label: "DESCRIPCIÓN", category: "Movimiento de Posición" },
+  { key: "grupo_trabajo", label: "GRUPO DE TRABAJO", category: "Movimiento de Posición" },
+  { key: "codigo_organizacional", label: "CÓDIGO ORGANIZACIONAL", category: "Movimiento de Posición" },
+  { key: "grupo_codigo_salarial", label: "GRUPO CÓD. SALARIAL", category: "Movimiento de Posición" },
+  { key: "descripcion_formal", label: "DESCRIPCIÓN FORMAL", category: "Movimiento de Posición" },
+  { key: "puesto_compartido", label: "PUESTO COMPARTIDO", category: "Movimiento de Posición" },
+  { key: "posicion_clave", label: "POSICIÓN CLAVE", category: "Movimiento de Posición" },
+  { key: "presupuesto", label: "PRESUPUESTO", category: "Movimiento de Posición" },
+  { key: "fecha_vacancia_mov_pos", label: "FECHA VACANCIA (MOV. POSICIÓN)", category: "Movimiento de Posición" },
+  { key: "categoria_vacancia", label: "CATEGORÍA VACANCIA", category: "Movimiento de Posición" },
+  { key: "id_registro_decisivo", label: "ID REGISTRO DECISIVO", category: "Movimiento de Posición" },
+  { key: "tuvo_insubsistencia", label: "TUVO INSUBSISTENCIA", category: "Movimiento de Posición" },
+  { key: "id_insubsistencia_detectada", label: "ID INSUBSISTENCIA DETECTADA", category: "Movimiento de Posición" },
+  { key: "fecha_ocupacion", label: "FECHA OCUPACIÓN", category: "Movimiento de Posición" },
+  { key: "id_registro_des_fecha_ocupacion", label: "ID REGISTRO DES. FECHA OCUPACIÓN", category: "Movimiento de Posición" },
+
   // Estatus y Validación
   { key: "estado_en_nomina", label: "ESTADO EN NÓMINA", category: "Validación" },
   { key: "ua_validacion", label: "UA VALIDACIÓN", category: "Validación" },
