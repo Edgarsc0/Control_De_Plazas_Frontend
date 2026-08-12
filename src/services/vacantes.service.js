@@ -428,6 +428,33 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene la serie histórica mensual (fin de mes, desde 2022-01) de
+     * plazas totales/activas/inactivas/ocupadas/vacantes.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getConteoPlazasHistoricoSerie: (options = {}) => {
+        return apiFetch('/plantilla/conteo_plazas_historico_serie/', {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Obtiene el detalle de posiciones que se crearon (activas) o
+     * desactivaron (inactivas) entre dos cortes mensuales consecutivos.
+     * @param {{tipo: 'creacion'|'desactivacion', fechaActual: string, fechaAnterior: string}} params
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getPlazasMovimientoMes: ({ tipo, fechaActual, fechaAnterior }, options = {}) => {
+        return apiFetch(`/plantilla/plazas_movimiento_mes/${buildQuery({ tipo, fecha_actual: fechaActual, fecha_anterior: fechaAnterior })}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el desglose jerárquico de la plantilla.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.

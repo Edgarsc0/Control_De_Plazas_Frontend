@@ -89,6 +89,13 @@ export const ALL_AVAILABLE_COLUMNS = [
   { key: "smb", label: "SMB", category: "Plaza" },
   { key: "smn", label: "SMN", category: "Plaza" },
   { key: "val_estat", label: "VAL ESTAT", category: "Plaza" },
+  // Solo poblados en el modo local del detalle de creación/desactivación de
+  // plazas (click en franja de la gráfica "Plazas Totales vs Activas vs
+  // Inactivas" en CuadrosVacanciaTab): fecha del renglón de MOV_POS que
+  // capturó el cambio de Estado Psn, y usuario/proceso que lo capturó
+  // (columna `Por` de MOV_POS) — ver PlazasMovimientoMesView en el backend.
+  { key: "fecha_efectiva_mov_pos", label: "FECHA EFECTIVA (MOV. POSICIÓN)", category: "Plaza" },
+  { key: "capturado_por", label: "CAPTURADO POR", category: "Plaza" },
 
   // Estatus y Validación
   { key: "estado_en_nomina", label: "ESTADO EN NÓMINA", category: "Validación" },
