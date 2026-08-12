@@ -704,6 +704,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const [plazasDetalleOpen, setPlazasDetalleOpen] = useState(false);
   const [plazasDetalleRows, setPlazasDetalleRows] = useState([]);
   const [plazasDetalleTitle, setPlazasDetalleTitle] = useState('');
+  const [plazasDetalleLoading, setPlazasDetalleLoading] = useState(false);
 
   // Alto real del thead (sticky top-0, 2 filas), medido en vivo porque varía
   // por breakpoint (padding/tamaño de texto sm: cambia). Sirve para que la
@@ -1256,15 +1257,28 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     if (!fechaActual || !fechaAnterior) return;
 
     const tipoLabel = ev.type === 'creacion' ? 'Plazas creadas' : 'Plazas desactivadas';
+    // Abre el modal de inmediato con skeleton (rowsLoading=true en
+    // EmployeesModal) en vez de esperar la respuesta del backend — el
+    // endpoint puede tardar varios segundos (join/orden sobre MOV_POS sin
+    // índice compuesto para el patrón de acceso de este query).
+    setPlazasDetalleRows([]);
+    setPlazasDetalleTitle(`${tipoLabel} · ${formatDate(fechaAnterior)} → ${formatDate(fechaActual)}`);
+    setPlazasDetalleLoading(true);
+    setPlazasDetalleOpen(true);
+
+    const t0 = performance.now();
     try {
       const resp = await VacantesService.getPlazasMovimientoMes({ tipo: ev.type, fechaActual, fechaAnterior });
+      const elapsedMs = Math.round(performance.now() - t0);
+      console.log(`[plazas_movimiento_mes] tipo=${ev.type} ${fechaAnterior}→${fechaActual}: ${elapsedMs}ms (status ${resp.status})`);
       if (!resp.ok) throw new Error('Error al consultar el detalle');
       const data = await resp.json();
       setPlazasDetalleRows(data);
       setPlazasDetalleTitle(`${tipoLabel} · ${formatDate(fechaAnterior)} → ${formatDate(fechaActual)} (${data.length})`);
-      setPlazasDetalleOpen(true);
     } catch (err) {
       alert('Hubo un error al consultar el detalle de plazas.');
+    } finally {
+      setPlazasDetalleLoading(false);
     }
   };
 
@@ -2586,6 +2600,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         open={plazasDetalleOpen}
         onOpenChange={setPlazasDetalleOpen}
         rows={plazasDetalleRows}
+        rowsLoading={plazasDetalleLoading}
         title={plazasDetalleTitle}
         restrictColumnsTo={PLAZAS_DETALLE_COLUMN_KEYS}
         defaultColumnKeys={PLAZAS_DETALLE_DEFAULT_COLUMN_KEYS}

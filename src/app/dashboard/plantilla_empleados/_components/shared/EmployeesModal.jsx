@@ -1550,7 +1550,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
 // universo completo de ALL_AVAILABLE_COLUMNS. Pensado para datasets que no
 // traen todos los campos de empleado (p.ej. desglose_jerarquico, que es de
 // plazas): sin esto, el selector listaría columnas que siempre salen vacías.
-export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null, rows = null, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
+export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null, rows = null, rowsLoading = false, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
     const isLocalMode = Array.isArray(rows);
     const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
     const [isExportingConFotos, setIsExportingConFotos] = useState(false);
@@ -1785,9 +1785,19 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     useEffect(() => {
         if (open) {
             if (isLocalMode) {
-                setRowData(rows);
-                setLoading(false);
-                setError(null);
+                // rowsLoading: el padre abrió el modal antes de tener `rows`
+                // (ver PlazasMovimientoMesView en CuadrosVacanciaTab.jsx) — se
+                // muestra el skeleton en vez de esperar a que resuelva el fetch
+                // para abrir el modal.
+                if (rowsLoading) {
+                    setRowData([]);
+                    setError(null);
+                    setLoading(true);
+                } else {
+                    setRowData(rows);
+                    setLoading(false);
+                    setError(null);
+                }
             } else if (!nivel || !effectiveEstatus) {
                 // El modal ya está abierto (open=true) aunque el padre todavía no
                 // haya resuelto nivel/estatus (p.ej. drill-down que arma esos
@@ -1811,7 +1821,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
             setIsVacanciaModalOpen(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, fetchData, isLocalMode, rows, nivel, effectiveEstatus]);
+    }, [open, fetchData, isLocalMode, rows, rowsLoading, nivel, effectiveEstatus]);
 
     // Columnas visibles por defecto: se recalculan solo al abrir (no en cada
     // cambio de `rows` dentro de una misma sesión abierta) para que no se
