@@ -674,6 +674,63 @@ function HistoricoChartCard({
   );
 }
 
+// Skeleton de carga: usado como fallback de <Suspense> (ver
+// CuadrosVacanciaSection en ClientComponent.jsx) mientras resuelve la promesa
+// de datos secundarios. Reproduce la silueta real del tab (4 KPIs, tabla de
+// cuadro y 3 tarjetas de gráfica histórica) en vez del spinner genérico que
+// usan otros tabs secundarios, para que el layout no salte al llegar los datos.
+export function CuadrosVacanciaSkeleton() {
+  return (
+    <div className="w-full flex flex-col space-y-6 animate-pulse">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 px-0 sm:px-4 lg:px-6">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <div className="h-2.5 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-7 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+              </div>
+              <div className="size-11 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between">
+              <div className="h-2.5 w-14 bg-slate-100 dark:bg-slate-800 rounded" />
+              <div className="h-2.5 w-14 bg-slate-100 dark:bg-slate-800 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="w-full px-0 sm:px-4 lg:px-6">
+        <div className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
+          <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
+            <div className="size-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
+            <div className="space-y-2">
+              <div className="h-5 w-48 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="h-2.5 w-64 bg-slate-100 dark:bg-slate-800 rounded" />
+            </div>
+          </div>
+          <div className="h-72 w-full bg-slate-100 dark:bg-slate-800/60 rounded-2xl" />
+        </div>
+      </div>
+
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="w-full px-0 sm:px-4 lg:px-6">
+          <div className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
+            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
+              <div className="size-11 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
+              <div className="space-y-2">
+                <div className="h-4 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-2.5 w-24 bg-slate-100 dark:bg-slate-800 rounded" />
+              </div>
+            </div>
+            <div className="h-[280px] w-full bg-slate-100 dark:bg-slate-800/60 rounded-2xl" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal }) {
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedQnas, setSelectedQnas] = useState([]);

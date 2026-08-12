@@ -33,7 +33,7 @@ import MovimientosPersonalTab from "./_components/tabs/mov-posiciones/Movimiento
 import MapaTab from "./_components/tabs/mapa/MapaTab";
 import BajasTab from "./_components/tabs/bajas/BajasTab";
 import TorreCaballito3DTab from "./_components/tabs/torre-3d/TorreCaballito3DTab";
-import CuadrosVacanciaTab from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
+import CuadrosVacanciaTab, { CuadrosVacanciaSkeleton } from "./_components/tabs/cuadros-vacancia/CuadrosVacanciaTab";
 import CatalogosEstructuraTab from "./_components/tabs/catalogos-estructura/CatalogosEstructuraTab";
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-estructura/catalogosConfig";
 import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
@@ -498,7 +498,7 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div ref={cardRefCuadros}>
-              <Suspense fallback={SECONDARY_TAB_SKELETON}>
+              <Suspense fallback={<CuadrosVacanciaSkeleton />}>
                 <CuadrosVacanciaSection
                   secondaryDataPromise={secondaryDataPromise}
                   onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
