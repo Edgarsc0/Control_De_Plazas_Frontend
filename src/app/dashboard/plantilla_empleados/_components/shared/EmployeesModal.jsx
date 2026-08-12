@@ -101,10 +101,9 @@ export const ALL_AVAILABLE_COLUMNS = [
   // detalle de creación/desactivación de plazas de CuadrosVacanciaTab ya no
   // saca NADA de EMPLEADOS_COMPLETOS_SIG (esa tabla tenía huecos, p.ej.
   // `Nivel` en null); ahora expone el registro MOV_POS entero de la
-  // posición. `grado_escala` reemplaza a `nivel` (MOV_POS no tiene nivel,
-  // tiene Grado+Esc) — ver PlazasMovimientoMesView._RAW_COLUMN_MAP en el
-  // backend para el resto del mapeo columna cruda -> key.
-  { key: "grado_escala", label: "GRADO Y ESCALA", category: "Movimiento de Posición" },
+  // posición, con Grado y Escala como columnas separadas (MOV_POS no tiene
+  // nivel, tiene Grado+Esc) — ver PlazasMovimientoMesView._RAW_COLUMN_MAP en
+  // el backend para el resto del mapeo columna cruda -> key.
   { key: "estado_posicion", label: "ESTADO POSICIÓN", category: "Movimiento de Posición" },
   { key: "motivo", label: "MOTIVO", category: "Movimiento de Posición" },
   { key: "cd_motivo", label: "CÓD. MOTIVO", category: "Movimiento de Posición" },

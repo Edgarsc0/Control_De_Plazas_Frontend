@@ -1226,7 +1226,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   // cruda de MOV_POS -> key, y la categoría "Movimiento de Posición" en
   // ALL_AVAILABLE_COLUMNS de EmployeesModal.jsx para las ~39 columnas.
   const PLAZAS_DETALLE_COLUMN_KEYS = [
-    'posicion', 'grado_escala', 'nombre_puesto_funcional', 'unidad_administrativa',
+    'posicion', 'nombre_puesto_funcional', 'unidad_administrativa',
     'estado_posicion', 'motivo', 'cd_motivo', 'unidad_adva', 'cd_departamento', 'cd_puesto',
     'estado_ptal', 'fecha_establecimiento', 'maximo', 'dependencia_directa', 'dependencia_indirecta',
     'ubicacion', 'nivel_direccion', 'plan_salarial', 'grado', 'escala', 'puesto_presupuestal',
@@ -1242,7 +1242,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   // disponible vía el botón "Columnas" (ColumnsSelectorModal), mismo patrón
   // que el resto de la app.
   const PLAZAS_DETALLE_DEFAULT_COLUMN_KEYS = [
-    'posicion', 'grado_escala', 'nombre_puesto_funcional', 'unidad_administrativa',
+    'posicion', 'grado', 'escala', 'nombre_puesto_funcional', 'unidad_administrativa',
     'motivo', 'fecha_efectiva_mov_pos', 'fecha_de_captura', 'capturado_por',
   ];
 
