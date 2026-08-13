@@ -3,8 +3,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { ArrowUpDown, Filter, X, Check, Search, Eye } from "lucide-react";
 import { getConditionLabel } from "@/utils/columnFilters";
+
+gsap.registerPlugin(useGSAP);
 
 const CONDITION_DROPDOWN_OPTIONS = [
   { key: "contains", label: "Contiene (*)" },
@@ -43,9 +47,10 @@ const TableRow = memo(function TableRow({
   onCellDoubleClick,
   onShowRecord,
   renderRowAction,
+  preHidden,
 }) {
   return (
-    <tr className="hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer" onClick={() => onRowClick(actualRowIdx)}>
+    <tr className={`data-table-row hover:bg-[#621f32]/[0.015] h-[37px] cursor-pointer ${preHidden ? "invisible" : ""}`} onClick={() => onRowClick(actualRowIdx)}>
       <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015] text-[#621f32] font-black border-l-[#621f32] border-l-2" : "bg-white dark:bg-slate-950 text-slate-400"}`}>{rowNumberOffset + actualRowIdx + 1}</td>
       <td className={`sticky left-[50px] z-25 text-center border-r h-[37px] align-middle px-1 ${isRowSelected ? "bg-[#f0e4e6] dark:bg-[#201015]" : "bg-white dark:bg-slate-950"}`}>
         {renderRowAction
@@ -216,6 +221,14 @@ function DataTable({
   const onEscapeRef = useRef(onEscape);
   onEscapeRef.current = onEscape;
   const arrowRepeatRef = useRef(0);
+  const hasRevealedRef = useRef(false);
+  // Sólo los tabs cuyos datos ya vienen resueltos al montar (isLoading false
+  // desde el primer render, ej. SSR) necesitan nacer ocultos por CSS para que
+  // la cascada tenga algo que revelar (ver comentario del useGSAP más abajo).
+  // Los tabs con fetch cliente (isLoading true al montar) nunca tuvieron ese
+  // problema — se dejan con el comportamiento previo para no arriesgar filas
+  // invisibles si `isLoading` pasa a false en un commit sin filas todavía.
+  const needsPreHideRef = useRef(!isLoading);
 
   useEffect(() => {
     if (!enableKeyboardNav) return;
@@ -283,6 +296,33 @@ function DataTable({
     [onSelectCell, selectedCell?.col]
   );
   const onRowClick = onRowClickProp ?? fallbackOnRowClick;
+
+  // Cascada estilo AG-Grid: al terminar de cargar (isLoading true -> false),
+  // las filas ya montadas entran con un stagger rápido de arriba hacia abajo.
+  // Sólo mira `isLoading` como dependencia (no `data`) para no repetir la
+  // animación en cada slice que entrega la virtualización al hacer scroll.
+  //
+  // `needsPreHideRef`/`hasRevealedRef` tapan el FOUC de la primera carga en
+  // tabs cuyos datos llegan ya resueltos por props (SSR, ej. Plantilla
+  // Detalle/Bajas): las filas existen en el HTML antes de que corra este
+  // efecto, así que sin esto se verían de golpe (el navegador ya las pintó).
+  // Esas primeras filas nacen con la clase `invisible` (ver TableRow) y este
+  // efecto las revela con `autoAlpha` (opacity+visibility) en cuanto monta.
+  // Tras la primera revelada, `hasRevealedRef` queda en true y las filas que
+  // entren después por scroll/virtualización ya no nacen ocultas.
+  useGSAP(() => {
+    if (isLoading) return;
+    const rows = tbodyRef?.current?.querySelectorAll("tr.data-table-row");
+    if (!rows || !rows.length) return;
+    const reduceMotion = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      gsap.set(rows, { autoAlpha: 1 });
+    } else {
+      gsap.from(rows, { autoAlpha: 0, y: -10, duration: 0.28, stagger: 0.015, ease: "power1.out" });
+    }
+    hasRevealedRef.current = true;
+  }, { scope: tbodyRef, dependencies: [isLoading] });
 
   return (
     <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
@@ -589,6 +629,7 @@ function DataTable({
                     onCellDoubleClick={onCellDoubleClick}
                     onShowRecord={onShowRecord}
                     renderRowAction={renderRowAction}
+                    preHidden={needsPreHideRef.current && !hasRevealedRef.current}
                   />
                 );
               })}
