@@ -124,6 +124,12 @@ export default function ColumnFilterDropdown({
   });
   const isHighCardinality = !isDate && (dropdownValues?.allVals?.length || 0) > HIGH_CARDINALITY_THRESHOLD;
   const listHidden = isHighCardinality && !filterSearchText;
+  // BUG QA 2026-08-12: en columnas de alta cardinalidad la lista se oculta
+  // hasta que se busca (ver `listHidden` arriba), así que "(Vacío)" quedaba
+  // inalcanzable sin escribir literalmente nada útil en el buscador. Se
+  // saca del array oculto para mostrarse siempre que exista, igual que en
+  // la lista normal.
+  const emptyValueItem = isHighCardinality ? rawSliced.find((v) => v.value === "") : null;
 
   // Cambió la columna, el resultado de la búsqueda, o se acaba de abrir el
   // modal: el índice resaltado y el scroll ya no corresponden a la lista
@@ -278,6 +284,21 @@ export default function ColumnFilterDropdown({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDate, dateSearchText, filteredDateHierarchy, resolvedAllDateLeafValues]);
 
+  // BUG QA 2026-08-12: fila real reportado en "Fecha de Ocupación" — el
+  // backend sí manda la hoja vacía (ej. `{value:"", count:982}` para
+  // posiciones vacantes), pero `parseDateParts("")` es `null` y el árbol
+  // año→mes→día la descarta silenciosamente: la columna terminaba
+  // mostrando "Sin resultados" pese a tener cientos de filas filtrables.
+  // Se expone como nodo aparte, fuera del árbol, igual que "(Vacío)" en
+  // columnas no-fecha. Oculto mientras se busca texto (una fecha vacía
+  // nunca matchea una búsqueda). Sin conteo cuando el tab opera en modo
+  // servidor (`dateValues` sin counts) para no inventar un número.
+  const hasEmptyDateLeaf = isDate && !dateSearchText && resolvedAllDateLeafValues.includes("");
+  const emptyDateReachable = !reachableDateSet || reachableDateSet.has("");
+  const isEmptyDateSelected = emptyDateReachable && tempSelectedValues.includes("");
+  const emptyDateCount = dateValues ? null : data.filter((row) => !getCellValue(row, columnKey).trim()).length;
+  const toggleEmptyDate = () => (isEmptyDateSelected ? unmarkValues([""]) : markValues([""]));
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -371,7 +392,20 @@ export default function ColumnFilterDropdown({
                         <button onClick={() => unmarkValues(visibleDateLeafValues)} className="flex-1 text-[10px] font-black uppercase py-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Desmarcar Todo</button>
                       </div>
                     )}
-                    {Object.keys(filteredDateHierarchy).length === 0 && (
+                    {hasEmptyDateLeaf && (
+                      <div
+                        onClick={emptyDateReachable ? toggleEmptyDate : undefined}
+                        title={emptyDateReachable ? undefined : "No disponible con los filtros actuales"}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-lg group ${emptyDateReachable ? "hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer" : "opacity-40 cursor-not-allowed"}`}
+                      >
+                        <div className={`size-4 rounded-md border flex items-center justify-center transition-all ${isEmptyDateSelected ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                          {isEmptyDateSelected && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                        </div>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-200">(Vacío)</span>
+                        {emptyDateCount !== null && <span className="text-[10px] font-black text-slate-400">({emptyDateCount})</span>}
+                      </div>
+                    )}
+                    {Object.keys(filteredDateHierarchy).length === 0 && !hasEmptyDateLeaf && (
                       <div className="text-center py-8 text-[10px] font-black uppercase text-slate-400">Sin resultados</div>
                     )}
                     {Object.keys(filteredDateHierarchy).sort((a, b) => b - a).map(year => {
@@ -505,9 +539,28 @@ export default function ColumnFilterDropdown({
                   </div>
                   <div ref={listScrollRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-2">
                     {listHidden ? (
-                      <div className="text-center py-8 px-4 text-[10px] font-black uppercase text-slate-400">
-                        Escribe para buscar entre {dropdownValues.allVals.length.toLocaleString("es-MX")} valores
-                      </div>
+                      <>
+                        {emptyValueItem && (
+                          <button
+                            type="button"
+                            disabled={!emptyValueItem.reachable}
+                            title={emptyValueItem.reachable ? undefined : "No disponible con los filtros actuales"}
+                            onClick={emptyValueItem.reachable ? () => setTempSelectedValues((prev) => (prev.includes("") ? prev.filter((v) => v !== "") : [...prev, ""])) : undefined}
+                            className={`w-full flex items-center gap-3 px-3 h-9 rounded-xl transition-colors text-left mb-1 ${!emptyValueItem.reachable ? "opacity-40 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                          >
+                            <div className={`size-4 rounded-md border flex items-center justify-center transition-all shrink-0 ${emptyValueItem.reachable && tempSelectedSet.has("") ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                              {emptyValueItem.reachable && tempSelectedSet.has("") && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                            </div>
+                            <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
+                              <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">(Vacío)</span>
+                              <span className="text-[9px] font-black text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-lg shrink-0">{emptyValueItem.count}</span>
+                            </div>
+                          </button>
+                        )}
+                        <div className="text-center py-8 px-4 text-[10px] font-black uppercase text-slate-400">
+                          Escribe para buscar entre {dropdownValues.allVals.length.toLocaleString("es-MX")} valores
+                        </div>
+                      </>
                     ) : sliced.length === 0 ? (
                       <div className="text-center py-8 text-[10px] font-black uppercase text-slate-400">Sin resultados</div>
                     ) : (
