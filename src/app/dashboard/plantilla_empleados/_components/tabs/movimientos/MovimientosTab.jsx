@@ -41,6 +41,8 @@ import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
+import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
+import { emptyAdvancedCondition, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
@@ -220,7 +222,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const {
     isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
-    advancedConditions,
+    advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
@@ -229,6 +231,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     isDateColumn,
     onApply: () => { setLoading(true); setPage(1); },
   });
+  const filtrosGuardados = useFiltrosGuardados("plantilla_movimientos");
 
   // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
   useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
@@ -2186,6 +2189,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
         fetchSuggestions={fetchAdvValueSuggestions}
+        savedFilters={filtrosGuardados.filtros}
+        onLoadSavedFilter={(condiciones) => setAdvancedConditions(condiciones.map((c, i) => ({ ...emptyAdvancedCondition(Date.now() + i), ...c })))}
+        onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
+        onDeleteSavedFilter={filtrosGuardados.eliminar}
       />
 
       {/* Dropdown de Filtro por Valores Únicos */}

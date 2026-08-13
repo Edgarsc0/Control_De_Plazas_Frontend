@@ -41,8 +41,9 @@ import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
+import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, applyColumnFilters, defaultGetCellValue } from "@/utils/columnFilters";
-import { evaluateAdvancedFilters, isColumnNumericByData } from "@/utils/advancedFilters";
+import { evaluateAdvancedFilters, isColumnNumericByData, emptyAdvancedCondition, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -1541,11 +1542,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
   const {
     isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
-    advancedConditions,
+    advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
   } = useAdvancedFilters({ mode: "client", isDateColumn, isNumericColumn });
+  const filtrosGuardados = useFiltrosGuardados("plantilla_detalle");
 
   // BUG-05 QA: la selección es posicional ({row, col}); si cambia el filtro u
   // orden, la celda puede quedar apuntando a otro registro sin avisar.
@@ -3924,6 +3926,10 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         isDateColumn={isDateColumn}
         isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvSuggestions}
+        savedFilters={filtrosGuardados.filtros}
+        onLoadSavedFilter={(condiciones) => setAdvancedConditions(condiciones.map((c, i) => ({ ...emptyAdvancedCondition(Date.now() + i), ...c })))}
+        onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
+        onDeleteSavedFilter={filtrosGuardados.eliminar}
       />
 
       <CeldaValorModal

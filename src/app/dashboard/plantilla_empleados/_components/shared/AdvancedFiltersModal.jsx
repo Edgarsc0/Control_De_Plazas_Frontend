@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2 } from "lucide-react";
+import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2, Bookmark, BookmarkPlus } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
-import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS } from "@/utils/advancedFilters";
+import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useToast } from "@/hooks/useToast";
 
 /** Select con panel flotante (portal), usado por las condiciones del modal de filtros avanzados. */
 function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar...", searchable = false }) {
@@ -272,13 +273,23 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetch
  * @param {(key:string) => boolean} props.isDateColumn
  * @param {(key:string) => boolean} [props.isNumericColumn] - Si la columna es numérica (condiciones >, <, >=, <=).
  * @param {(column:string) => (Array<{value,count}>|Promise<Array<{value,count}>>)} [props.fetchSuggestions] - Sugerencias de valor para el autocompletado; omitir desactiva el autocompletado.
+ * @param {Array<{id:number,nombre:string,condiciones:Object[]}>} [props.savedFilters=[]] - Filtros guardados por el usuario para esta vista.
+ * @param {(condiciones:Object[]) => void} [props.onLoadSavedFilter] - Carga un filtro guardado en el formulario (no lo aplica solo).
+ * @param {(nombre:string) => Promise<any>} [props.onSaveFilter] - Guarda las condiciones válidas actuales con ese nombre.
+ * @param {(id:number) => Promise<void>} [props.onDeleteSavedFilter] - Elimina un filtro guardado.
  */
 export default function AdvancedFiltersModal({
   open, onClose, mounted = true,
   columns, conditions,
   onAddCondition, onRemoveCondition, onUpdateCondition, onApply,
   isDateColumn, isNumericColumn = () => false, fetchSuggestions,
+  savedFilters = [], onLoadSavedFilter, onSaveFilter, onDeleteSavedFilter,
 }) {
+  const { toast } = useToast();
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const validConditionsCount = getValidAdvancedConditions(conditions).length;
+
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e) => {
@@ -288,9 +299,36 @@ export default function AdvancedFiltersModal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) { setIsSavingName(false); setNameInput(""); }
+  }, [open]);
+
   useBodyScrollLock(open);
 
   if (!mounted) return null;
+
+  const handleConfirmSaveName = async () => {
+    const nombre = nameInput.trim();
+    if (!nombre) return;
+    try {
+      await onSaveFilter(nombre);
+      toast.success("Filtro guardado");
+      setIsSavingName(false);
+      setNameInput("");
+    } catch (err) {
+      toast.error(err.message || "No se pudo guardar el filtro");
+    }
+  };
+
+  const handleDeleteSavedFilter = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await onDeleteSavedFilter(id);
+      toast.success("Filtro eliminado");
+    } catch (err) {
+      toast.error(err.message || "No se pudo eliminar el filtro");
+    }
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -312,6 +350,35 @@ export default function AdvancedFiltersModal({
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar flex flex-col gap-2.5">
+              {savedFilters.length > 0 && (
+                <div className="flex flex-col gap-1.5 mb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Filtros guardados</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {savedFilters.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => onLoadSavedFilter?.(f.condiciones)}
+                        title={`Cargar filtro "${f.nombre}"`}
+                        className="group flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-[#621f32]/10 dark:hover:bg-[#bc955c]/10 border border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-600 dark:text-slate-300 hover:text-[#621f32] dark:hover:text-[#bc955c] rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                      >
+                        <Bookmark className="size-3 shrink-0" />
+                        <span className="truncate max-w-[160px]">{f.nombre}</span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => handleDeleteSavedFilter(e, f.id)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleDeleteSavedFilter(e, f.id); }}
+                          title="Eliminar filtro guardado"
+                          className="p-0.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="size-3" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {conditions.length > 2 && (
                 <p className="text-[10px] text-slate-400 -mt-1 mb-0.5">
                   Las condiciones se evalúan en orden, de izquierda a derecha (sin precedencia de "Y" sobre "O").
@@ -415,13 +482,57 @@ export default function AdvancedFiltersModal({
               </button>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
-              <button
-                onClick={onApply}
-                className="w-full bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] font-semibold py-2.5 rounded-xl text-xs transition-opacity active:scale-[0.99] hover:opacity-90"
-              >
-                Aplicar Filtros
-              </button>
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+              {isSavingName && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); handleConfirmSaveName(); }
+                      if (e.key === "Escape") { e.stopPropagation(); setIsSavingName(false); setNameInput(""); }
+                    }}
+                    placeholder="Nombre del filtro..."
+                    maxLength={100}
+                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-[#621f32]/40 dark:focus:border-[#bc955c]/40 transition-colors"
+                  />
+                  <button
+                    onClick={handleConfirmSaveName}
+                    disabled={!nameInput.trim()}
+                    title="Confirmar"
+                    className="p-2 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] rounded-xl disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity cursor-pointer"
+                  >
+                    <Check className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => { setIsSavingName(false); setNameInput(""); }}
+                    title="Cancelar"
+                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                {onSaveFilter && (
+                  <button
+                    onClick={() => setIsSavingName(true)}
+                    disabled={isSavingName || validConditionsCount === 0}
+                    title={validConditionsCount === 0 ? "Completa al menos una condición para guardar" : "Guardar filtro actual"}
+                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-xl text-[11px] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <BookmarkPlus className="size-3.5" /><span className="hidden sm:inline">Guardar filtro</span>
+                  </button>
+                )}
+                <button
+                  onClick={onApply}
+                  className="flex-1 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] font-semibold py-2.5 rounded-xl text-xs transition-opacity active:scale-[0.99] hover:opacity-90"
+                >
+                  Aplicar Filtros
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>

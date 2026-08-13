@@ -36,6 +36,8 @@ import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hoo
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
+import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
+import { emptyAdvancedCondition, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -354,7 +356,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   const {
     isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
-    advancedConditions,
+    advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
     applyAdvancedFilters, resetAdvancedFilters,
@@ -364,6 +366,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     isNumericColumn,
     onApply: () => { setLoading(true); setPage(1); },
   });
+  const filtrosGuardados = useFiltrosGuardados("plantilla_mov_posiciones");
 
   // Subtab State
   const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
@@ -2692,6 +2695,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         isDateColumn={isDateColumn}
         isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvValueSuggestions}
+        savedFilters={filtrosGuardados.filtros}
+        onLoadSavedFilter={(condiciones) => setAdvancedConditions(condiciones.map((c, i) => ({ ...emptyAdvancedCondition(Date.now() + i), ...c })))}
+        onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
+        onDeleteSavedFilter={filtrosGuardados.eliminar}
       />
 
       {/* Dropdown de Filtro por Valores Únicos */}
