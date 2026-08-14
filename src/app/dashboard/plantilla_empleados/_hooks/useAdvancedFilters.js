@@ -44,6 +44,11 @@ export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = ()
         next.value = '';
         next.compareColumn = null;
       }
+      if (patch.condition !== undefined && (patch.condition === 'empty' || patch.condition === 'not_empty')) {
+        next.compareType = 'valor';
+        next.value = '';
+        next.compareColumn = null;
+      }
       return next;
     }));
   }, [isDateColumn, isNumericColumn]);

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2, Bookmark, BookmarkPlus } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
-import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS, getValidAdvancedConditions } from "@/utils/advancedFilters";
+import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS, ADV_EMPTY_CONDITIONS, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useToast } from "@/hooks/useToast";
 
@@ -388,7 +388,11 @@ export default function AdvancedFiltersModal({
                 const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
                 const isDateCol = cond.column && isDateColumn(cond.column);
                 const isNumCol = cond.column && !isDateCol && isNumericColumn(cond.column);
-                const conditionOptions = isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? ADV_NUMBER_CONDITIONS : CONDITION_OPTIONS;
+                const conditionOptions = [
+                  ...(isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? ADV_NUMBER_CONDITIONS : CONDITION_OPTIONS),
+                  ...ADV_EMPTY_CONDITIONS,
+                ];
+                const isEmptyCond = cond.condition === "empty" || cond.condition === "not_empty";
 
                 return (
                   <div key={cond.id} className="flex flex-col gap-2.5">
@@ -415,7 +419,7 @@ export default function AdvancedFiltersModal({
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className={`grid grid-cols-1 ${isEmptyCond ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-2`}>
                         <div>
                           <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna</span>
                           <AdvFilterSelect
@@ -435,17 +439,19 @@ export default function AdvancedFiltersModal({
                             onChange={(val) => onUpdateCondition(cond.id, { condition: val })}
                           />
                         </div>
-                        <div>
-                          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Comparar con</span>
-                          <AdvFilterSelect
-                            value={cond.compareType}
-                            options={ADV_COMPARE_TYPE_OPTIONS}
-                            onChange={(val) => onUpdateCondition(cond.id, { compareType: val })}
-                          />
-                        </div>
+                        {!isEmptyCond && (
+                          <div>
+                            <span className="text-[10px] font-medium text-slate-400 mb-1 block">Comparar con</span>
+                            <AdvFilterSelect
+                              value={cond.compareType}
+                              options={ADV_COMPARE_TYPE_OPTIONS}
+                              onChange={(val) => onUpdateCondition(cond.id, { compareType: val })}
+                            />
+                          </div>
+                        )}
                       </div>
 
-                      {cond.compareType === "campo" ? (
+                      {!isEmptyCond && (cond.compareType === "campo" ? (
                         <div className="mt-2">
                           <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna a comparar</span>
                           <AdvFilterSelect
@@ -468,7 +474,7 @@ export default function AdvancedFiltersModal({
                             fetchSuggestions={fetchSuggestions}
                           />
                         </div>
-                      )}
+                      ))}
                     </div>
                   </div>
                 );

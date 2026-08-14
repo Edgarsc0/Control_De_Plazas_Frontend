@@ -3,20 +3,34 @@
 import { Zoom } from '@/components/shared/Reveal';
 import CambiarPasswordDrawer from '@/components/shared/CambiarPasswordDrawer';
 import { useState } from 'react';
-import { motion } from 'motion/react';
-import {
-  BarChart3,
-  Eye,
-  EyeOff,
-  Activity,
-  TrendingUp,
-  PieChart,
-  LineChart,
-  Database,
-  Globe,
-} from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { AuthService } from '@/services/auth.service';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import DriftWall from '@/components/ui/DriftWall';
+
+const DRIFT_WALL_ITEMS = [
+  'view_oficios_turnados',
+  'view_ocupacion_estadisticas',
+  'view_plantilla_estatus_nomina',
+  'view_valuacion_presupuestaria',
+  'view_plantilla_mov_posiciones',
+  'view_ocupacion_tabla',
+  'edit_ocupacion_plazas',
+  'view_plantilla_bajas',
+  'view_plantilla_geografia',
+  'view_plantilla_catalogos',
+  'view_ocupacion_sankey',
+  'view_plantilla_detalle',
+  'view_monitoreo_zafiro',
+  'view_plantilla_movimientos',
+  'view_organigrama',
+  'manage_usuarios',
+  'manage_roles',
+  'edit_valuacion_parametros',
+].map((name) => ({
+  image: `/permission-previews/${name}.png`,
+  title: name.replace(/_/g, ' '),
+}));
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -69,138 +83,24 @@ export default function Login() {
     <div className="relative min-h-[calc(100vh-200px)] overflow-hidden flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <LoadingOverlay isLoading={isLoading} text={loadingText} />
 
-      {/* Elementos Decorativos de Fondo (Estadísticas Volando y Coloridas) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Floating Card: Eficiencia (Guinda) */}
-        <motion.div
-          animate={{ y: [0, -30, 0], x: [0, 10, 0], rotate: [5, 10, 5] }}
-          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute top-[10%] left-[5%] hidden xl:block"
-        >
-          <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border-l-4 border-[#621f32] shadow-2xl flex flex-col gap-y-2 w-48">
-            <div className="flex justify-between items-center">
-              <div className="p-2 bg-[#621f32]/10 rounded-lg">
-                <BarChart3 className="size-6 text-[#621f32]" />
-              </div>
-              <span className="text-[10px] font-bold text-green-500">+24%</span>
-            </div>
-            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-              <motion.div
-                animate={{ width: ['20%', '80%', '20%'] }}
-                transition={{ duration: 4, repeat: Infinity }}
-                className="h-full bg-[#621f32]"
-              ></motion.div>
-            </div>
-            <span className="text-[10px] font-bold text-gray-400 uppercase">
-              Eficiencia
-            </span>
-          </div>
-        </motion.div>
-
-        {/* Floating Card: Usuarios (Azul) */}
-        <motion.div
-          animate={{ y: [0, 40, 0], x: [0, -15, 0], rotate: [-5, -10, -5] }}
-          transition={{
-            duration: 9,
-            repeat: Infinity,
-            ease: 'easeInOut',
-            delay: 1,
-          }}
-          className="absolute top-[15%] right-[8%] hidden xl:block"
-        >
-          <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border-l-4 border-blue-500 shadow-2xl flex flex-col gap-y-2 w-48">
-            <div className="flex justify-between items-center">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Globe className="size-6 text-blue-500" />
-              </div>
-              {/* react-doctor-disable-next-line react-doctor/design-no-space-on-flex-children */}
-              <div className="flex -space-x-2">
-                <div className="size-5 rounded-full bg-gray-200 border border-white"></div>
-                <div className="size-5 rounded-full bg-gray-300 border border-white"></div>
-              </div>
-            </div>
-            <span className="text-lg font-black text-gray-800">4.2k</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase">
-              Conexiones Globales
-            </span>
-          </div>
-        </motion.div>
-
-        {/* Floating Card: Rendimiento (Dorado) */}
-        <motion.div
-          animate={{ y: [0, -25, 0], x: [0, -20, 0], rotate: [0, -5, 0] }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: 'easeInOut',
-            delay: 0.5,
-          }}
-          className="absolute bottom-[15%] left-[12%] hidden xl:block"
-        >
-          <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border-l-4 border-[#bc955c] shadow-2xl flex flex-col gap-y-2 w-48">
-            <div className="flex justify-between items-center">
-              <div className="p-2 bg-[#bc955c]/10 rounded-lg">
-                <TrendingUp className="size-6 text-[#bc955c]" />
-              </div>
-              <Activity className="size-4 text-orange-400 animate-pulse" />
-            </div>
-            <div className="flex items-end gap-x-1 h-8">
-              {[0.4, 0.7, 0.5, 0.9, 0.6].map((h) => (
-                <div
-                  key={h}
-                  className="flex-1 bg-[#bc955c]/60 rounded-t-sm"
-                  style={{ height: `\${h*100}%` }}
-                ></div>
-              ))}
-            </div>
-            <span className="text-[10px] font-bold text-gray-400 uppercase">
-              Tendencia Anual
-            </span>
-          </div>
-        </motion.div>
-
-        {/* Floating Card: Datos (Esmeralda) */}
-        <motion.div
-          animate={{ y: [0, 35, 0], x: [0, 25, 0], rotate: [10, 0, 10] }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-            delay: 2,
-          }}
-          className="absolute bottom-[20%] right-[5%] hidden xl:block"
-        >
-          <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border-l-4 border-emerald-500 shadow-2xl flex flex-col gap-y-2 w-48">
-            <div className="flex justify-between items-center">
-              <div className="p-2 bg-emerald-50 rounded-lg">
-                <Database className="size-6 text-emerald-500" />
-              </div>
-              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[8px] font-bold rounded-full">
-                OPTIMIZADO
-              </span>
-            </div>
-            <span className="text-lg font-black text-gray-800">99.9%</span>
-            <span className="text-[10px] font-bold text-gray-400 uppercase">
-              Integridad de Datos
-            </span>
-          </div>
-        </motion.div>
-
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-          className="absolute top-[30%] right-[25%] opacity-20 hidden lg:block"
-        >
-          <PieChart className="size-16 text-[#bc955c]" />
-        </motion.div>
-
-        <motion.div
-          animate={{ x: [0, 20, 0], opacity: [0.1, 0.3, 0.1] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute bottom-[40%] right-[20%] hidden lg:block"
-        >
-          <LineChart className="size-10 text-blue-500" />
-        </motion.div>
+      {/* Muro a la deriva de fondo (previews de permisos del sistema), a pantalla completa */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <DriftWall
+          items={DRIFT_WALL_ITEMS}
+          columns={6}
+          parallax={0.5}
+          dim={1}
+          tileHeight={176}
+          depth={20}
+          lift={36}
+          tilt={0}
+          turn={0}
+          roll={0}
+          fade={0.45}
+          gap={14}
+          radius={16}
+          overlayColor="rgba(0,0,0,0.2)"
+        />
       </div>
 
       <Zoom triggerOnce>

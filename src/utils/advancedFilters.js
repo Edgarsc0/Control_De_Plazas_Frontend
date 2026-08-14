@@ -49,6 +49,17 @@ export const ADV_LOGIC_OPTIONS = [
 ];
 
 /**
+ * Condiciones de "vacío", agregadas a las de texto/fecha/número (aplican a
+ * cualquier tipo de columna). "Vacío" = celda nula o cuyo texto, sin espacios
+ * al inicio/final, queda en cadena vacía (incluye `" "`). No usan `value` ni
+ * `compareType`/`compareColumn` — el modal los oculta al elegir una de estas.
+ */
+export const ADV_EMPTY_CONDITIONS = [
+  { key: 'empty', label: 'Está vacío' },
+  { key: 'not_empty', label: 'No está vacío' },
+];
+
+/**
  * Detección de "columna numérica" por datos (no por nombre): toma hasta
  * `sampleSize` valores no vacíos de la columna en `data`; si TODOS parsean
  * como número, se considera numérica. Sin lista hardcodeada de columnas —
@@ -87,6 +98,7 @@ export const getValidAdvancedConditions = (conditions) =>
   conditions
     .filter((c) => {
       if (!c.column) return false;
+      if (c.condition === 'empty' || c.condition === 'not_empty') return true;
       if (c.compareType === 'campo') return !!c.compareColumn;
       return c.value != null && String(c.value).trim() !== '';
     })
@@ -154,6 +166,17 @@ export const matchesAdvancedCondition = (row, cond, opts = {}) => {
   if (!cond.column) return true;
 
   const rowValue = getCellValue(row, cond.column);
+
+  // "Vacío"/"No vacío" ignoran compareType/value/compareColumn por completo
+  // (el modal ya los oculta en la UI): nulo o texto vacío tras trim (incluye
+  // `" "`), usando el MISMO getCellValue de las demás condiciones — si la
+  // columna ya mapea el crudo a una etiqueta (p. ej. `estado_nomina` " " ->
+  // "Vacante"), "vacío" respeta esa etiqueta igual que el resto de esta
+  // función, sin ver el dato crudo por debajo.
+  if (cond.condition === 'empty' || cond.condition === 'not_empty') {
+    const isEmpty = rowValue === null || rowValue === undefined || String(rowValue).trim() === '';
+    return cond.condition === 'empty' ? isEmpty : !isEmpty;
+  }
 
   // compareType==='campo': el "needle" es row[compareColumn], que puede venir
   // vacío legítimamente (fecha de baja/salida sin capturar, nivel opcional,
