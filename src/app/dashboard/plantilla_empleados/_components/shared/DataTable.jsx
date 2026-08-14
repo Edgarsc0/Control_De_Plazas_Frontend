@@ -330,7 +330,13 @@ function DataTable({
     if (reduceMotion) {
       gsap.set(rows, { autoAlpha: 1 });
     } else {
-      gsap.from(rows, { autoAlpha: 0, y: -10, duration: 0.28, stagger: 0.015, ease: "power1.out" });
+      // `clearProps: "transform"` es necesario porque GSAP deja un `transform`
+      // inline (matriz identidad) en cada `<tr>` al terminar el tween: eso solo
+      // no debería notarse, pero en una tabla `border-collapse` Chrome deja de
+      // dibujar los bordes colapsados de cualquier fila con `transform` inline,
+      // aunque sea la identidad — los bordes de la tabla desaparecen tras la
+      // primera animación de revelado si no se limpia.
+      gsap.from(rows, { autoAlpha: 0, y: -10, duration: 0.28, stagger: 0.015, ease: "power1.out", clearProps: "transform" });
     }
     hasRevealedRef.current = true;
   }, { scope: tbodyRef, dependencies: [isLoading, hasRows] });
