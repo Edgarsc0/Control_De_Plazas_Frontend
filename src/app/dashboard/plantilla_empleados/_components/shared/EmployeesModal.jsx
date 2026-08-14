@@ -1079,7 +1079,12 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
     const sections = useMemo(() => {
         if (!record) return [];
-        const fieldsSource = columns || ALL_AVAILABLE_COLUMNS;
+        // Sin `columns` explícito, el expediente cae a ALL_AVAILABLE_COLUMNS —
+        // se excluye la categoría "Movimiento de Posición" (registro MOV_POS
+        // crudo, ver comentario junto a esa categoría) porque no aporta al
+        // expediente de plaza; sigue disponible vía `restrictColumnsTo` para
+        // quien la necesite explícitamente (ej. CuadrosVacanciaTab).
+        const fieldsSource = columns || ALL_AVAILABLE_COLUMNS.filter(f => f.category !== "Movimiento de Posición");
         const query = normalizeForSearch(fieldSearch.trim());
         const groups = new Map();
 
