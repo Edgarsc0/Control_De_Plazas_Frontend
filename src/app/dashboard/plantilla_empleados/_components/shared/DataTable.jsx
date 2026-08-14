@@ -299,8 +299,9 @@ function DataTable({
 
   // Cascada estilo AG-Grid: al terminar de cargar (isLoading true -> false),
   // las filas ya montadas entran con un stagger rápido de arriba hacia abajo.
-  // Sólo mira `isLoading` como dependencia (no `data`) para no repetir la
-  // animación en cada slice que entrega la virtualización al hacer scroll.
+  // Mira `isLoading` y `hasRows` (booleano derivado, no `data` en crudo) como
+  // dependencias — no `data` directamente para no repetir la animación en
+  // cada slice que entrega la virtualización al hacer scroll.
   //
   // `needsPreHideRef`/`hasRevealedRef` tapan el FOUC de la primera carga en
   // tabs cuyos datos llegan ya resueltos por props (SSR, ej. Plantilla
@@ -310,6 +311,16 @@ function DataTable({
   // efecto las revela con `autoAlpha` (opacity+visibility) en cuanto monta.
   // Tras la primera revelada, `hasRevealedRef` queda en true y las filas que
   // entren después por scroll/virtualización ya no nacen ocultas.
+  // `hasRows` (además de `isLoading`) en las dependencias: consumidores como
+  // DetalleVacantesTablas.jsx abren el modal con `rowData` todavía vacío y
+  // nunca pasan `rowsLoading` (isLoading se queda en `false` todo el tiempo,
+  // jamás transiciona) — si el primer montaje de este efecto encontraba el
+  // tbody sin `<tr>` (rowData llega un tick después vía otro setState),
+  // `hasRevealedRef` nunca se marcaba true y, como `isLoading` no volvía a
+  // cambiar, las filas quedaban con la clase `invisible` para siempre (bug
+  // real: tabla en blanco pese al contador de registros correcto). Con
+  // `hasRows` el efecto reintenta en cuanto pasa de 0 a >0 filas.
+  const hasRows = data.length > 0;
   useGSAP(() => {
     if (isLoading) return;
     const rows = tbodyRef?.current?.querySelectorAll("tr.data-table-row");
@@ -322,7 +333,7 @@ function DataTable({
       gsap.from(rows, { autoAlpha: 0, y: -10, duration: 0.28, stagger: 0.015, ease: "power1.out" });
     }
     hasRevealedRef.current = true;
-  }, { scope: tbodyRef, dependencies: [isLoading] });
+  }, { scope: tbodyRef, dependencies: [isLoading, hasRows] });
 
   return (
     <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
