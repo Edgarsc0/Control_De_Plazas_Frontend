@@ -33,4 +33,20 @@ export const WhitelistService = {
             method: 'PATCH',
             body: JSON.stringify({ rol: rolId }),
         }),
+
+    /**
+     * Establece o restablece la contraseña de un usuario.
+     *
+     * No hay recuperación por correo (el envío a las cuentas institucionales
+     * está bloqueado), así que este es el único camino para devolverle el
+     * acceso a alguien que la olvidó. El backend invalida las sesiones
+     * abiertas del usuario y le exige cambiarla la próxima vez que entre.
+     * @param {number} id - id de la entrada de whitelist
+     * @param {string} password - contraseña temporal a asignar
+     */
+    setPassword: (id, password) =>
+        apiFetch(`/auth/whitelist/${id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ password }),
+        }),
 };

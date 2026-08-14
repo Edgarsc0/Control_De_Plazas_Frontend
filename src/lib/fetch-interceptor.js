@@ -48,7 +48,13 @@ export const apiFetch = async (endpoint, options = {}) => {
         headers,
     });
 
-    if (response.status === 401) {
+    // Un 401 solo significa "sesión expirada" cuando la petición llevaba
+    // token: si no lo llevaba (p. ej. el propio POST a /auth/login/ con
+    // credenciales incorrectas), es una respuesta normal del endpoint que el
+    // caller debe leer y mostrar. Redirigir aquí también en ese caso
+    // interrumpe el fetch a medio `response.json()` y el login termina
+    // reportando "no se pudo conectar con el servidor" en vez del error real.
+    if (response.status === 401 && headers['Authorization']) {
         if (typeof window !== 'undefined') {
             Cookies.remove('auth_token');
             window.location.href = '/login';

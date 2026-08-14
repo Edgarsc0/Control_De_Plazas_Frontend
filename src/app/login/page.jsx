@@ -1,13 +1,13 @@
 'use client';
 
 import { Zoom } from '@/components/shared/Reveal';
-import CodigoVerificacionDrawer from '@/components/shared/CodigoVerificacionDrawer';
+import CambiarPasswordDrawer from '@/components/shared/CambiarPasswordDrawer';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
 import {
   BarChart3,
-  Mail,
+  Eye,
+  EyeOff,
   Activity,
   TrendingUp,
   PieChart,
@@ -20,11 +20,16 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 export default function Login() {
   const [email, setEmail] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [isVerificationSent, setIsVerificationSent] = useState(false);
+  const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
+  const [cambioPasswordOpen, setCambioPasswordOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('Cargando...');
   const [error, setError] = useState('');
+
+  const entrarAlDashboard = () => {
+    window.location.href = '/dashboard';
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,28 +38,31 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await AuthService.checkEmail(email);
+      const response = await AuthService.login(email, password);
       const data = await response.json();
 
-      if (response.ok) {
-        setIsVerificationSent(true);
-        setDrawerOpen(true);
-      } else {
-        setError(data.error || 'Ocurrió un error al validar el correo.');
+      if (!response.ok) {
+        setError(data.error || 'Ocurrió un error al iniciar sesión.');
+        setIsLoading(false);
+        return;
       }
-    } catch (err) {
+
+      AuthService.saveToken(data.token);
+
+      // Contraseña puesta por un administrador: alguien más la conoce, así que
+      // el titular la cambia antes de entrar (el drawer no se puede cerrar).
+      if (data.debe_cambiar_password) {
+        setIsLoading(false);
+        setCambioPasswordOpen(true);
+        return;
+      }
+
+      // Sin apagar el overlay: la navegación releva el estado de carga.
+      entrarAlDashboard();
+    } catch {
       setError('No se pudo conectar con el servidor.');
-    } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleCancel = () => {
-    setIsVerificationSent(false);
-    setDrawerOpen(false);
-    setError('');
-    // Opcional: limpiar el email si quieres resetear totalmente
-    // setEmail("");
   };
 
   return (
@@ -227,10 +235,46 @@ export default function Login() {
                       autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      disabled={isVerificationSent || isLoading}
+                      disabled={isLoading}
                       placeholder="usuario@anam.gob.mx"
                       className="block w-full rounded-md bg-white px-3 py-2 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-[#621f32] sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-gray-900"
+                  >
+                    Contraseña
+                  </label>
+                  <div className="relative mt-2">
+                    <input
+                      id="password"
+                      name="password"
+                      type={verPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isLoading}
+                      className="block w-full rounded-md bg-white px-3 py-2 pr-10 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-[#621f32] sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVerPassword((v) => !v)}
+                      aria-label={
+                        verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                      }
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-[#621f32]"
+                    >
+                      {verPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -243,31 +287,20 @@ export default function Login() {
                 <div>
                   <button
                     type="submit"
-                    disabled={isVerificationSent || isLoading}
+                    disabled={isLoading}
                     className="flex w-full justify-center rounded-md bg-[#621f32] px-3 py-2 text-sm font-semibold text-white shadow-md hover:bg-[#4a1726] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#621f32] transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
                   >
-                    {isLoading
-                      ? 'Validando...'
-                      : isVerificationSent
-                        ? '✓ Código Enviado'
-                        : 'Iniciar sesión'}
+                    {isLoading ? 'Validando...' : 'Iniciar sesión'}
                   </button>
                 </div>
               </form>
 
-              {isVerificationSent && (
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setDrawerOpen(true)}
-                    className="w-full border-[#621f32] text-[#621f32] hover:bg-[#621f32]/10"
-                  >
-                    Ingresar código de verificación
-                  </Button>
-                </div>
-              )}
+              <p className="mt-6 text-center text-xs text-gray-500">
+                ¿Olvidaste tu contraseña? Solicita a un administrador del sistema
+                que te la restablezca.
+              </p>
 
-              <p className="mt-10 text-center text-sm text-gray-600">
+              <p className="mt-6 text-center text-sm text-gray-600">
                 Acceso exclusivo para personal de la{' '}
                 <span className="font-semibold text-[#621f32]">
                   Agencia Nacional de Aduanas de México
@@ -278,13 +311,13 @@ export default function Login() {
         </div>
       </Zoom>
 
-      <CodigoVerificacionDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        email={email}
+      <CambiarPasswordDrawer
+        open={cambioPasswordOpen}
+        passwordActual={password}
+        forzado
+        onSuccess={entrarAlDashboard}
         setGlobalLoading={setIsLoading}
         setGlobalLoadingText={setLoadingText}
-        onCancel={handleCancel}
       />
     </div>
   );

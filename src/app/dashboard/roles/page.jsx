@@ -147,7 +147,12 @@ function RolesAdminContent() {
     const [previewCodename, setPreviewCodename] = useState(null);
     const [permSearch, setPermSearch] = useState('');
     const [isNewUserOpen, setIsNewUserOpen] = useState(false);
-    const [newUser, setNewUser] = useState({ email: '', rol: '', ua: '', activo: true });
+    const [newUser, setNewUser] = useState({ email: '', rol: '', ua: '', activo: true, password: '' });
+    // Restablecimiento de contraseña: sin correo institucional disponible no hay
+    // liga de reseteo, así que un admin la reasigna desde aquí.
+    const [passwordEntry, setPasswordEntry] = useState(null);
+    const [passwordValue, setPasswordValue] = useState('');
+    const [isSavingPassword, setIsSavingPassword] = useState(false);
     const [isCreatingUser, setIsCreatingUser] = useState(false);
 
     const [activeTab, setActiveTab] = useState('roles');
@@ -333,8 +338,49 @@ function RolesAdminContent() {
     };
 
     const openNewUser = () => {
-        setNewUser({ email: '', rol: roles[0]?.id ? String(roles[0].id) : '', ua: '', activo: true });
+        setNewUser({
+            email: '',
+            rol: roles[0]?.id ? String(roles[0].id) : '',
+            ua: '',
+            activo: true,
+            password: '',
+        });
         setIsNewUserOpen(true);
+    };
+
+    const openPasswordDialog = (entry) => {
+        setPasswordValue('');
+        setPasswordEntry(entry);
+    };
+
+    const handleSetPassword = async () => {
+        if (!passwordValue.trim()) {
+            toast.error('Escribe una contraseña.');
+            return;
+        }
+        setIsSavingPassword(true);
+        try {
+            const response = await WhitelistService.setPassword(passwordEntry.id, passwordValue);
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(
+                    data.password?.[0] || data.detail || 'No se pudo asignar la contraseña.'
+                );
+            }
+            const actualizado = await response.json();
+            setWhitelist((current) =>
+                current.map((u) => (u.id === actualizado.id ? actualizado : u))
+            );
+            toast.success(
+                `Contraseña asignada a ${passwordEntry.email}. Deberá cambiarla al entrar.`
+            );
+            setPasswordEntry(null);
+            setPasswordValue('');
+        } catch (error) {
+            toast.error(error.message || 'No se pudo asignar la contraseña.');
+        } finally {
+            setIsSavingPassword(false);
+        }
     };
 
     const closeNewUser = () => setIsNewUserOpen(false);
@@ -356,10 +402,15 @@ function RolesAdminContent() {
                 ua: newUser.ua ? Number(newUser.ua) : null,
                 activo: newUser.activo,
             };
+            // Opcional al dar de alta: si se omite, el usuario queda registrado
+            // pero sin poder entrar hasta que se le asigne una desde la tabla.
+            if (newUser.password) payload.password = newUser.password;
             const response = await WhitelistService.create(payload);
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
-                throw new Error(data.detail || data.email?.[0] || data.rol?.[0] || 'No se pudo crear el usuario.');
+                throw new Error(
+                    data.detail || data.email?.[0] || data.rol?.[0] || data.password?.[0] || 'No se pudo crear el usuario.'
+                );
             }
             const created = await response.json();
             setWhitelist((current) => [...current, created]);
@@ -604,6 +655,7 @@ function RolesAdminContent() {
                             <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
                                 <tr>
                                     <th className="text-left px-4 py-2.5">Correo</th>
+                                    <th className="text-left px-4 py-2.5">Acceso</th>
                                     <th className="text-left px-4 py-2.5">UA</th>
                                     <th className="text-left px-4 py-2.5">Estado</th>
                                     <th className="text-left px-4 py-2.5">Página actual</th>
@@ -621,6 +673,21 @@ function RolesAdminContent() {
                                         >
                                             <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200">
                                                 {entry.email}
+                                            </td>
+                                            <td className="px-4 py-2.5">
+                                                {!entry.tiene_password ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-bold whitespace-nowrap">
+                                                        Sin contraseña
+                                                    </span>
+                                                ) : entry.debe_cambiar_password ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 text-xs font-bold whitespace-nowrap">
+                                                        Debe cambiarla
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300 text-xs font-bold whitespace-nowrap">
+                                                        Definida
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
                                                 {entry.ua_nombre || '—'}
@@ -668,21 +735,35 @@ function RolesAdminContent() {
                                                 </Select>
                                             </td>
                                             <td className="px-4 py-2.5">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon-sm"
-                                                    onClick={() => setActivityEntry(entry)}
-                                                    title="Ver actividad"
-                                                >
-                                                    <Activity className="size-4 text-[#621f32]" />
-                                                </Button>
+                                                <div className="flex items-center gap-0.5">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        onClick={() => setActivityEntry(entry)}
+                                                        title="Ver actividad"
+                                                    >
+                                                        <Activity className="size-4 text-[#621f32]" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        onClick={() => openPasswordDialog(entry)}
+                                                        title={
+                                                            entry.tiene_password
+                                                                ? 'Restablecer contraseña'
+                                                                : 'Asignar contraseña'
+                                                        }
+                                                    >
+                                                        <KeyRound className="size-4 text-[#621f32]" />
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
                                 })}
                                 {paginatedWhitelist.length === 0 && (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                                             {whitelist.length === 0
                                                 ? 'Sin usuarios en la whitelist.'
                                                 : 'Sin usuarios que coincidan con la búsqueda.'}
@@ -913,6 +994,24 @@ function RolesAdminContent() {
                             </Select>
                         </div>
 
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Contraseña temporal (opcional)
+                            </label>
+                            <input
+                                type="password"
+                                value={newUser.password}
+                                onChange={(e) => setNewUser((c) => ({ ...c, password: e.target.value }))}
+                                autoComplete="new-password"
+                                placeholder="Se le pedirá cambiarla al entrar"
+                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#621f32] focus:ring-1 focus:ring-[#621f32]"
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                                Mínimo 8 caracteres, no solo números. Si la dejas vacía, el usuario
+                                queda registrado pero sin acceso hasta que le asignes una.
+                            </p>
+                        </div>
+
                         <label className="flex items-center gap-2 text-sm text-slate-700">
                             <input
                                 type="checkbox"
@@ -934,6 +1033,62 @@ function RolesAdminContent() {
                             className="bg-[#621f32] hover:bg-[#4d1827] text-white"
                         >
                             {isCreatingUser ? 'Creando...' : 'Crear usuario'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={Boolean(passwordEntry)}
+                onOpenChange={(open) => !open && setPasswordEntry(null)}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {passwordEntry?.tiene_password
+                                ? 'Restablecer contraseña'
+                                : 'Asignar contraseña'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Define la contraseña de{' '}
+                            <span className="font-semibold">{passwordEntry?.email}</span> y
+                            comunícasela por un canal interno. El sistema le exigirá cambiarla la
+                            próxima vez que entre, y sus sesiones abiertas se cerrarán.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Contraseña temporal
+                        </label>
+                        <input
+                            type="text"
+                            value={passwordValue}
+                            onChange={(e) => setPasswordValue(e.target.value)}
+                            autoComplete="off"
+                            placeholder="Mínimo 8 caracteres, no solo números"
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#621f32] focus:ring-1 focus:ring-[#621f32]"
+                        />
+                        <p className="mt-1 text-xs text-slate-500">
+                            Se muestra en claro a propósito: tienes que poder leerla para
+                            transmitírsela al usuario.
+                        </p>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setPasswordEntry(null)}
+                            disabled={isSavingPassword}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleSetPassword}
+                            disabled={isSavingPassword}
+                            className="bg-[#621f32] hover:bg-[#4d1827] text-white"
+                        >
+                            {isSavingPassword ? 'Guardando...' : 'Guardar contraseña'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

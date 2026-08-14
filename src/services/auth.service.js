@@ -6,27 +6,34 @@ import Cookies from 'js-cookie';
  */
 export const AuthService = {
     /**
-     * Valida si el correo está en la whitelist y dispara el envío del código OTP.
+     * Inicia sesión con correo y contraseña.
      * @param {string} email - Correo electrónico del usuario.
-     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para el resultado.
+     * @param {string} password - Contraseña del usuario.
+     * @returns {Promise<Response>} Respuesta cruda; `.json()` da `{ token, debe_cambiar_password, user }`.
      */
-    checkEmail: (email) => {
-        return apiFetch('/auth/check-email/', {
+    login: (email, password) => {
+        return apiFetch('/auth/login/', {
             method: 'POST',
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, password }),
         });
     },
 
     /**
-     * Verifica el código OTP y obtiene el token de sesión.
-     * @param {string} email - Correo electrónico del usuario.
-     * @param {string} code - Código OTP recibido por el usuario.
-     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` para obtener el token.
+     * Cambia la contraseña del usuario autenticado.
+     *
+     * El backend rota el token al cambiarla (invalida el anterior), así que la
+     * respuesta trae uno nuevo que hay que persistir con `saveToken`.
+     * @param {string} passwordActual - Contraseña vigente.
+     * @param {string} passwordNueva - Contraseña nueva.
+     * @returns {Promise<Response>} Respuesta cruda; `.json()` da `{ token }`.
      */
-    verifyCode: (email, code) => {
-        return apiFetch('/auth/verify-code/', {
+    changePassword: (passwordActual, passwordNueva) => {
+        return apiFetch('/auth/change-password/', {
             method: 'POST',
-            body: JSON.stringify({ email, code }),
+            body: JSON.stringify({
+                password_actual: passwordActual,
+                password_nueva: passwordNueva,
+            }),
         });
     },
 
