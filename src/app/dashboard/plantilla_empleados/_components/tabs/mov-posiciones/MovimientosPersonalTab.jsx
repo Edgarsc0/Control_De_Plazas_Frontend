@@ -2796,7 +2796,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           const mappedEmployee = {
             ...selectedRowData,
             id_empleado: selectedRowData.num_empleado,
-            nombres: selectedRowData.nombre_completo,
+            // `nombre_completo` no existe en la fila (backend trae nombre/ap_pat/ap_mat
+            // por separado, ver buildFullName); sin esto el título del expediente y la
+            // celda "Nombre Completo" caían al solo nombre de pila.
+            nombre: buildFullName(selectedRowData),
+            nombres: buildFullName(selectedRowData),
             nivel: selectedRowData.nv_jerarquico || selectedRowData.grado,
           };
           return (
