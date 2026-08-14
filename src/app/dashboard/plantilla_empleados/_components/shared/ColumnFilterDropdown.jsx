@@ -93,6 +93,7 @@ export default function ColumnFilterDropdown({
     isFilterSearchConditionOpen, setIsFilterSearchConditionOpen,
     tempSelectedValues, setTempSelectedValues,
     expandedDateNodes,
+    debouncedFilterSearchText,
   } = filters;
 
   const listScrollRef = useRef(null);
@@ -217,9 +218,30 @@ export default function ColumnFilterDropdown({
     return [...new Set(data.filter((row) => { const p = parseDateParts(row[columnKey]); return p && partsPredicate(p); }).map((row) => getCellValue(row, columnKey).trim()))];
   };
 
+  // ¿Existen filas con la fecha vacía? `dateLeaves` (y por tanto
+  // `allDateLeafValues` en los tabs que lo calculan igual) descarta todo lo que
+  // `parseDateParts` no sabe leer, así que la hoja "" NUNCA sobrevive ahí: se
+  // detecta aparte, sobre los valores crudos.
+  const hasEmptyDateValue = isDate && (
+    dateValues
+      ? dateValues.some((v) => String(v ?? "").trim() === "")
+      : data.some((row) => !getCellValue(row, columnKey).trim())
+  );
+
   // Fallback calculado localmente: no depende de que el tab padre pase
   // `allDateLeafValues` (varios tabs no lo hacían y el botón global quedaba oculto).
-  const resolvedAllDateLeafValues = isDate ? (allDateLeafValues || dateLeaves(() => true)) : [];
+  //
+  // BUG QA 2026-08-14: la hoja vacía se reinyecta aquí. Sin esto,
+  // "(Vacío)" no aparecía nunca en columnas de fecha de los tabs que no pasan
+  // `allDateLeafValues` (todos menos Movimientos) — medido en Plantilla
+  // Detalle: 4,191 filas sin "Fecha prevista de salida" y 10,469 sin "Fecha
+  // que se genera la vacante" quedaban fuera del árbol, imposibles de filtrar
+  // y, peor, eliminadas en silencio al pulsar "Aplicar" (el default no las
+  // incluía y "Marcar Todo" tampoco las alcanzaba).
+  const resolvedDateLeaves = isDate ? (allDateLeafValues || dateLeaves(() => true)) : [];
+  const resolvedAllDateLeafValues = hasEmptyDateValue && !resolvedDateLeaves.includes("")
+    ? [...resolvedDateLeaves, ""]
+    : resolvedDateLeaves;
 
   // Alcanzabilidad de nodos de fecha (año/mes/día): `null` = sin restricción
   // (todo alcanzable). Un nodo se deshabilita únicamente cuando NINGUNA de sus
@@ -283,6 +305,41 @@ export default function ColumnFilterDropdown({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDate, dateSearchText, filteredDateHierarchy, resolvedAllDateLeafValues]);
+
+  // BUG QA 2026-08-14: al abrir el dropdown sin filtro previo, los tabs
+  // preseleccionan TODO el universo de la columna (estilo Excel). Al buscar, el
+  // usuario sólo ve los valores que coinciden — ya marcados — así que hacer
+  // clic sobre uno lo DESMARCA, y "Aplicar Filtro" termina filtrando por
+  // exactamente lo contrario a lo buscado (medido en Plantilla Detalle:
+  // Motivo + "Ingreso" devolvía 9,720 filas en vez de 749; Posición +
+  // "10300009" devolvía 10,468 en vez de 1). En columnas de alta cardinalidad
+  // (Posición, Nombres, Código…) la lista se oculta y buscar es el ÚNICO
+  // camino, así que el filtro era directamente inutilizable; en el árbol de
+  // fechas pasaba lo mismo con "Marcar Todo" tras buscar un día.
+  //
+  // Al arrancar una búsqueda desde el estado pristino (todo lo alcanzable
+  // seleccionado ⇒ equivalente a "sin filtro"), la selección se acota a lo que
+  // la búsqueda deja visible, igual que Excel. Si el usuario ya tenía una
+  // selección propia no se toca nada, para no romper el flujo "busco A, marco,
+  // busco B, marco también".
+  const searchScopeRef = useRef("");
+  const activeSearchText = (debouncedFilterSearchText ?? filterSearchText ?? "").trim();
+  useEffect(() => {
+    if (!open) { searchScopeRef.current = ""; return; }
+    const prev = searchScopeRef.current;
+    searchScopeRef.current = activeSearchText;
+    if (loadingValues || !activeSearchText || prev) return;
+    // El debounce puede ir un paso por detrás del input (al cambiar de columna
+    // el texto se limpia pero el valor debounced todavía trae el término
+    // anterior): sólo se acota cuando ambos coinciden, o se acotaría la columna
+    // recién abierta con la búsqueda de la anterior.
+    if ((filterSearchText || "").trim() !== activeSearchText) return;
+    if (!dropdownValues?.isAllSelected) return;
+    const visibles = filterReachable(isDate ? visibleDateLeafValues : (dropdownValues.visibleVals || []));
+    if (visibles.length === 0) return;
+    setTempSelectedValues(visibles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSearchText, open, loadingValues, isDate, columnKey]);
 
   // BUG QA 2026-08-12: fila real reportado en "Fecha de Ocupación" — el
   // backend sí manda la hoja vacía (ej. `{value:"", count:982}` para

@@ -351,7 +351,16 @@ const VACANCY_DEFINING_KEYS = new Set(["estado_nomina", "val_estat"]);
 // porque esa lista también alimenta `hasSolicitudData` (deriva el
 // sub-estatus "Solicitada"); agregarla ahí marcaría como "Solicitada"
 // prácticamente cualquier vacante (todas traen fecha de vacancia calculada).
-const isVacancyScopedColumn = (key) => VACANCY_DEFINING_KEYS.has(key) || SOLICITUD_COLS.includes(key) || key === "fecha_genera_vacante";
+// "fecha_anuencia_detalle" (columna AK) está en el mismo caso que
+// "fecha_genera_vacante": la anuencia sólo se captura sobre plazas VACANTES
+// (verificado en datos reales: las 982 filas con algún valor son vacantes, 0
+// ocupadas). Sin esto su dropdown se arma sobre `detalleParaFiltros` (sin
+// vacantes) y la única opción que ofrece es "Sin fecha" — los 7 buckets reales
+// del semáforo que la propia celda pinta (🟢 Verde, 🟡 Ámbar, 🔴 Rojo, más las
+// categorías Nueva Creación / En Proceso / Sin Anuencia / N/A) quedaban
+// invisibles e imposibles de filtrar.
+const isVacancyScopedColumn = (key) => VACANCY_DEFINING_KEYS.has(key) || SOLICITUD_COLS.includes(key)
+  || key === "fecha_genera_vacante" || key === FECHA_ANUENCIA_COL;
 
 // Etiquetas de Estado Nómina que representan una posición vacante (sin
 // importar el sub-estatus derivado — Solicitada/No Disponible siguen siendo
@@ -1698,19 +1707,17 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       // Inline (no vía el memo `reachableValues`, que es lazy y aún no se ha
       // recomputado para la columna recién activada).
       const defaultSelection = columnFilters[colKey] || Object.keys(computeReachableCounts(colKey));
-      // Columnas de fecha: el árbol año/mes/día no puede representar ni
-      // togglear el bucket "(Vacío)" (fechas vacías/no parseables) — ni
-      // "Marcar/Desmarcar Todo" ni los nodos individuales lo tocan nunca
-      // (dateLeaves() descarta valores no parseables). Si el default "todo
-      // seleccionado" lo incluye, queda atascado ahí para siempre: cualquier
-      // filtro que el usuario arme desde el árbol termina colando también
-      // TODAS las filas sin fecha, sin que el usuario lo vea ni pueda
-      // quitarlo. Grave en columnas donde la mayoría de filas no tiene fecha
-      // (ej. fecha_genera_vacante: sólo las vacantes la traen) — un filtro
-      // "sólo un día" terminaba incluyendo de regalo todas las posiciones
-      // ocupadas. Se excluye "" del default sólo para columnas de fecha; las
-      // demás siguen mostrando "(Vacío)" como fila togglable normal.
-      setTempSelectedValues(DATE_HIERARCHY_KEYS.includes(colKey) ? defaultSelection.filter((v) => v !== "") : defaultSelection);
+      // El default es todo el universo alcanzable — incluido el bucket
+      // "(Vacío)" también en columnas de fecha. Antes se excluía ahí porque el
+      // árbol año/mes/día no sabía representarlo (ni "Marcar/Desmarcar Todo"
+      // ni los nodos lo alcanzaban), pero eso hacía que abrir el filtro y
+      // pulsar "Aplicar" sin tocar nada borrara en silencio todas las filas
+      // sin fecha (medido: "Fecha prevista de salida" pasaba de 10,469 a
+      // 6,278 filas; "Fecha que se genera la vacante", de 11,451 a 982).
+      // `ColumnFilterDropdown` ya expone "(Vacío)" como nodo togglable en
+      // columnas de fecha, así que el default vuelve a ser neutro y quitar los
+      // vacíos es una acción explícita del usuario.
+      setTempSelectedValues(defaultSelection);
     }
   };
 
