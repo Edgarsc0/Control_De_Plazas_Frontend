@@ -1657,6 +1657,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     // contenedor adopta esa altura, topada por max-h-[70vh] (el máximo actual).
     // Con pocos registros el modal se ve más chico; con muchos, hace scroll interno.
     const tableContainerRef = useRef(null);
+    // DataTable nunca recibía este ref: sin él, su cascada GSAP de revelado de
+    // filas (ver DataTable.jsx) hace `tbodyRef?.current?.querySelectorAll(...)`
+    // sobre `undefined` y sale temprano sin revelar nada — las filas quedaban
+    // con la clase `invisible` (CSS) para siempre, pese a tener datos completos.
+    const tbodyRef = useRef(null);
     const [tableHeight, setTableHeight] = useState(null);
 
     // Virtualización por ventana de scroll (mismo patrón que MovimientosTab):
@@ -2209,6 +2214,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                         >
                             <DataTable
                                 containerRef={tableContainerRef}
+                                tbodyRef={tbodyRef}
                                 fillHeight
                                 fillWidth
                                 edgeToEdge
