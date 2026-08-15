@@ -75,6 +75,26 @@ function BajasTabSection({ secondaryDataPromise, isPending, startTransition, car
   );
 }
 
+// "Movimientos" (Mov. Posiciones) solo necesita `movPosData` — se movió de
+// `criticalDataPromise` a `secondaryDataPromise` (ver page.jsx) porque
+// bloqueaba el primer render de TODOS los usuarios (~970KB) aunque
+// aterrizaran en el tab "Detalle", que no lo usa. Mismo patrón que
+// `BajasTabSection` arriba.
+function MovimientosTabSection({ secondaryDataPromise, detalle, isPending, startTransition, cardRef, onCardTitleChange }) {
+  const [, , , , , , , movPosResult] = use(secondaryDataPromise);
+  const movPosData = movPosResult.status === 'fulfilled' ? (movPosResult.value || []) : [];
+  return (
+    <MovimientosTab
+      movPosData={movPosData}
+      detalle={detalle}
+      isPending={isPending}
+      startTransition={startTransition}
+      cardRef={cardRef}
+      onCardTitleChange={onCardTitleChange}
+    />
+  );
+}
+
 function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal }) {
   const [, , , cuadrosResult, desgloseResult, ocupadosResult, conteoPlazasSerieResult] = use(secondaryDataPromise);
   const cuadrosData = cuadrosResult.status === 'fulfilled' ? (cuadrosResult.value || []) : [];
@@ -97,7 +117,6 @@ export default function PlantillaEmpleadosDetalle({
   detalle = [],
   estatusPorNivelUa = { por_nivel: {}, por_ua: {} },
   distribucionGeografica = [],
-  movPosData = [],
   secondaryDataPromise
 }) {
   const { isLoading: authLoading, hasPermission, email } = useAuth();
@@ -434,7 +453,7 @@ export default function PlantillaEmpleadosDetalle({
                         </>
                       )}
                     </h2>
-                    <p className="mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
+                    <p className="hidden md:block mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
                       {activeTab === "catalogos_estructura"
                         ? "Administración y consulta de catálogos base que definen la estructura organizacional, puestos, acciones y tabuladores presupuestales de la ANAM."
                         : activeTab === "movimientos_personal"
@@ -486,14 +505,16 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {visitedTabs.has("movimientos") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "tabla" ? "block" : "hidden"}>
-              <MovimientosTab
-                movPosData={movPosData}
-                detalle={detalleData}
-                isPending={isPending}
-                startTransition={startTransition}
-                cardRef={cardRefMovimientos}
-                onCardTitleChange={setMovCardTitle}
-              />
+              <Suspense fallback={SECONDARY_TAB_SKELETON}>
+                <MovimientosTabSection
+                  secondaryDataPromise={secondaryDataPromise}
+                  detalle={detalleData}
+                  isPending={isPending}
+                  startTransition={startTransition}
+                  cardRef={cardRefMovimientos}
+                  onCardTitleChange={setMovCardTitle}
+                />
+              </Suspense>
             </div>
           )}
           {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (

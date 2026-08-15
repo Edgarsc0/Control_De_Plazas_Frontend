@@ -23,6 +23,14 @@ body {
   --bottomnav-h: 4rem; /* BottomNav móvil: h-16 */
 }
 
+/* Banner gob.mx oculto en móvil (Banner.jsx: hidden md:flex) — el contenido
+   solo necesita despejar el Navbar, que ahí ocupa top-0. */
+@media (max-width: 767px) {
+  :root {
+    --stack-h: var(--navbar-h);
+  }
+}
+
 /* Shimmer reusable para skeletons — barrido de luz (más bonito que animate-pulse,
    sobre todo en móvil). Usar `skeleton-box` en cada bloque gris del skeleton. */
 @keyframes skeleton-sweep {

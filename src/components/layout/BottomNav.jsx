@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTabs } from '@/context/PageTabsContext';
 import { getVisibleModules } from '@/config/modules';
@@ -43,10 +43,23 @@ export default function BottomNav() {
     return () => clearTimeout(t);
   }, [pageTabsOpen]);
 
+  // Abre el drawer de secciones y cierra "Más" si estaba abierto. vaul
+  // guarda la posición de scroll a restaurar en una variable a nivel de
+  // módulo COMPARTIDA por todas las instancias de Drawer.Root de la página
+  // (ver usePositionFixed en vaul, gateado a Safari/iOS): si este drawer y el
+  // de "Más" llegan a tener transiciones de apertura/cierre solapadas, ese
+  // estado se corrompe y el resultado es el overlay con blur abriendo pero
+  // el contenido del sheet sin desplegarse hasta un segundo toque. Forzar
+  // que nunca haya más de un Drawer abierto a la vez evita la carrera.
+  const openPageTabsDrawer = useCallback(() => {
+    setMoreOpen(false);
+    setPageTabsOpen(true);
+  }, []);
+
   // La página puede pedir abrir el drawer de secciones (breadcrumb del header).
   useEffect(() => {
-    if (openSignal > 0) setPageTabsOpen(true);
-  }, [openSignal]);
+    if (openSignal > 0) openPageTabsDrawer();
+  }, [openSignal, openPageTabsDrawer]);
 
   // Sólo navegación de dashboard: si no hay sesión, no se muestra.
   if (!isAuthenticated) return null;
@@ -97,7 +110,7 @@ export default function BottomNav() {
               <button
                 key={item.href}
                 type="button"
-                onClick={() => setPageTabsOpen(true)}
+                onClick={openPageTabsDrawer}
                 className={itemClass}
                 aria-haspopup="dialog"
                 aria-label={`Secciones de ${item.label}`}
@@ -113,7 +126,14 @@ export default function BottomNav() {
           );
         })}
 
-        <Drawer open={moreOpen} onOpenChange={setMoreOpen} direction="bottom">
+        <Drawer
+          open={moreOpen}
+          onOpenChange={(open) => {
+            setMoreOpen(open);
+            if (open) setPageTabsOpen(false);
+          }}
+          direction="bottom"
+        >
           <DrawerTrigger className={itemClass} aria-label="Más módulos">
             {moreActive && (
               <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gradient-to-r from-[#621f32] to-[#bc955c]" />
@@ -177,10 +197,7 @@ export default function BottomNav() {
                       <button
                         key={item.href}
                         type="button"
-                        onClick={() => {
-                          setMoreOpen(false);
-                          setPageTabsOpen(true);
-                        }}
+                        onClick={openPageTabsDrawer}
                         className={cardClass}
                       >
                         {inner}

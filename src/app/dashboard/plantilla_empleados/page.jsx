@@ -35,15 +35,13 @@ async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromis
         resumenResult,
         detalleResult,
         estatusResult,
-        geograficaResult,
-        movPosResult
+        geograficaResult
     ] = await criticalDataPromise;
 
     const resumen = resumenResult.status === 'fulfilled' ? resumenResult.value : null;
     const detalle = detalleResult.status === 'fulfilled' ? (detalleResult.value || []) : [];
     const estatusPorNivelUa = estatusResult.status === 'fulfilled' ? (estatusResult.value || { por_nivel: {}, por_ua: {} }) : { por_nivel: {}, por_ua: {} };
     const distribucionGeografica = geograficaResult.status === 'fulfilled' ? (geograficaResult.value || []) : [];
-    const movPosData = movPosResult.status === 'fulfilled' ? (movPosResult.value || []) : [];
 
     return (
         <PlantillaEmpleadosDetalle
@@ -51,24 +49,29 @@ async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromis
             detalle={detalle}
             estatusPorNivelUa={estatusPorNivelUa}
             distribucionGeografica={distribucionGeografica}
-            movPosData={movPosData}
             secondaryDataPromise={secondaryDataPromise}
         />
     );
 }
 
 export default async function PlantillaEmpleadosPage() {
+    // "mov pos detalle" (~970KB) vivía aquí pero solo lo usa el tab
+    // "Movimientos" — no el tab "Detalle" con el que arranca la página.
+    // Bloqueaba el primer render de TODOS los usuarios (incluidos quienes
+    // nunca visitan "Movimientos") esperando ~1MB que no iban a usar. Se
+    // mueve a `secondaryDataPromise`, mismo patrón ya usado para Bajas/Cuadros
+    // de Vacancia (ver comentario de abajo).
     const criticalDataPromise = Promise.allSettled([
         parseJsonResponse(VacantesService.getEmpleadosCompletosEstatusResumen(), "resumen"),
         parseJsonResponse(VacantesService.getEmpleadosCompletosActivosDetalle(), "detalle"),
         parseJsonResponse(VacantesService.getEmpleadosEstatusPorNivelUa(), "estatus por nivel y UA"),
-        parseJsonResponse(VacantesService.getEmpleadosDistribucionGeografica(), "distribución geográfica"),
-        parseJsonResponse(VacantesService.getMovPosDetalle(), "mov pos detalle")
+        parseJsonResponse(VacantesService.getEmpleadosDistribucionGeografica(), "distribución geográfica")
     ]);
 
-    // Datos secundarios: solo los usan los tabs "Bajas" y "Cuadros de Vacancia".
-    // No se esperan aquí — se pasan como promesa al cliente, que los resuelve
-    // (vía `use()`) recién cuando esos tabs se abren, sin bloquear el resto.
+    // Datos secundarios: solo los usan los tabs "Bajas", "Cuadros de Vacancia"
+    // y "Movimientos". No se esperan aquí — se pasan como promesa al cliente,
+    // que los resuelve (vía `use()`) recién cuando esos tabs se abren, sin
+    // bloquear el resto.
     const secondaryDataPromise = Promise.allSettled([
         parseJsonResponse(VacantesService.getBajasSig(), "bajas"),
         parseJsonResponse(VacantesService.getBajasMotivos(), "bajas motivos"),
@@ -76,7 +79,8 @@ export default async function PlantillaEmpleadosPage() {
         parseJsonResponse(VacantesService.getCuadroVacancia(), "cuadro vacancia"),
         parseJsonResponse(VacantesService.getDesgloseJerarquico(), "desglose jerarquico"),
         parseJsonResponse(VacantesService.getDesgloseJerarquicoOcupados(), "desglose jerarquico ocupados"),
-        parseJsonResponse(VacantesService.getConteoPlazasHistoricoSerie(), "conteo plazas historico serie")
+        parseJsonResponse(VacantesService.getConteoPlazasHistoricoSerie(), "conteo plazas historico serie"),
+        parseJsonResponse(VacantesService.getMovPosDetalle(), "mov pos detalle")
     ]);
 
     return (

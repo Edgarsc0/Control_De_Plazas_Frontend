@@ -26,6 +26,31 @@ export const metadata = {
   },
   description:
     "Sistema de Control de Plazas de la Agencia Nacional de Aduanas de México (ANAM).",
+  // Con esto iOS usa apple-icon.png (el isotipo ANAM) como ícono al anclar a
+  // inicio en vez de generar una letra a partir del título, y abre en modo
+  // standalone (sin la barra de Safari) para que se sienta como app nativa.
+  appleWebApp: {
+    capable: true,
+    title: "Control de Plazas",
+    statusBarStyle: "default",
+  },
+  // Next 16 solo emite el "mobile-web-app-capable" genérico (appleWebApp de
+  // arriba); iOS más viejo solo reconoce el prefijado "apple-", así que se
+  // agrega a mano para no perder el modo standalone en esos dispositivos.
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
+};
+
+// userScalable/maximumScale en 1: el sistema se navega con gestos (arrastrar
+// tablas, deslizar tabs) sobre todo en celular, y sin esto un pellizco
+// accidental deja al usuario haciendo zoom en vez de desplazarse.
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#621f32",
 };
 
 export default function RootLayout({ children }) {

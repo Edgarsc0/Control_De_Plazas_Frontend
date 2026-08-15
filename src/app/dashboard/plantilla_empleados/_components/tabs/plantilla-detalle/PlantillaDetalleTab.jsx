@@ -561,6 +561,73 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const exportConFotosAbortRef = useRef(null);
   useEffect(() => setMounted(true), []);
 
+  // El modal "Movimientos realizados hoy" trae filas de `cp_tbl_mov_completo`
+  // (posicion, num_empleado CON guion bajo, nombre/accion/motivo — un log de
+  // movimientos), un esquema totalmente distinto al de `detalle` (posicion,
+  // numempleado SIN guion bajo, y el resto de los ~65 campos del expediente:
+  // Básicos/Estructura/Plaza/Validación/Otros). Pasarle esa fila sparse
+  // directo a EmployeeRecordModal la deja casi vacía y sin foto (que busca
+  // `record.numempleado`, no `num_empleado`). Se resuelve la posición contra
+  // este mismo `detalle` para que el expediente que abre desde "hoy" sea
+  // idéntico al que abre desde la tabla de Plantilla Detalle.
+  const detalleByPosicion = useMemo(
+    () => new Map(detalle.map((row) => [String(row.posicion), row])),
+    [detalle]
+  );
+
+  // Una "Baja" deja la posición sin titular: no está en `detalle`. El
+  // dataset de bajas es pesado (~700KB) y vive detrás de un Suspense propio
+  // (ver ClientComponent.jsx: `secondaryDataPromise` sólo se resuelve cuando
+  // se visita el tab "Bajas") — precargarlo aquí para este único caso ya
+  // rompió el render de esta pestaña una vez (bloqueaba/crasheaba el tab
+  // "Detalle", que es el que carga por defecto para TODOS). En vez de eso,
+  // se pide bajo demanda sólo cuando de verdad hace falta (clic en el ojo de
+  // una fila sin match en `detalle`) y se cachea en memoria para no repetir
+  // el fetch dentro de la misma sesión del modal. Mismo mapeo de campos que
+  // ya aplica BajasTab antes de pasarlo a EmployeeRecordModal
+  // (`no_empleado`/`nombre_completo` en vez de `numempleado`/`nombres`) para
+  // que el expediente se vea igual sin importar desde dónde se abrió.
+  const bajasFetchRef = useRef(null);
+  const fetchBajasOnce = useCallback(() => {
+    if (!bajasFetchRef.current) {
+      bajasFetchRef.current = VacantesService.getBajasSig()
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => (Array.isArray(data) ? data : []))
+        .catch(() => []);
+    }
+    return bajasFetchRef.current;
+  }, []);
+
+  const buildBajaRecord = (enBajas) => ({
+    ...enBajas,
+    id_empleado: enBajas.no_empleado,
+    nombres: enBajas.nombre_completo,
+    nivel: enBajas.nivel || enBajas.nivel_tabular,
+  });
+
+  const resolveMovHoyRecord = useCallback(async (row) => {
+    // Una posición dada de baja NO desaparece de `detalle` — sigue ahí como
+    // "Vacante" (sin titular) hasta que se ocupe de nuevo. Buscar primero en
+    // `detalle` entonces encontraba SIEMPRE la plaza vacía y nunca llegaba a
+    // mirar bajas, aun para un movimiento que ES una baja. La acción del
+    // propio movimiento (`accion_nombre`), no la ausencia en `detalle`, es lo
+    // que decide cuál expediente corresponde mostrar.
+    if (row.accion_nombre === "Baja") {
+      const bajas = await fetchBajasOnce();
+      const enBajas = bajas.find((b) => String(b.posicion) === String(row.posicion));
+      if (enBajas) return buildBajaRecord(enBajas);
+    }
+
+    const enDetalle = detalleByPosicion.get(String(row.posicion));
+    if (enDetalle) return enDetalle;
+
+    const bajas = await fetchBajasOnce();
+    const enBajas = bajas.find((b) => String(b.posicion) === String(row.posicion));
+    if (enBajas) return buildBajaRecord(enBajas);
+
+    return { ...row, nombre: buildMovHoyFullName(row) };
+  }, [detalleByPosicion, fetchBajasOnce]);
+
   // Indicador flotante de movimientos capturados hoy en cp_tbl_mov_completo_29_05_26
   // (fecha_captura = hoy). `page_size: 1` porque solo se necesita el total paginado.
   // Se refetchea al montar y cada vez que Celery termina el swap blue-green
@@ -754,8 +821,16 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   const [movHoyColumnWidths, setMovHoyColumnWidths] = useState({
     posicion: 100, num_empleado: 110, nombre: 220, accion_nombre: 170, motivo_nombre: 170, fecha_efectiva: 130, fecha_captura: 130, por: 120,
   });
-  const [movHoySelectedRecord, setMovHoySelectedRecord] = useState(null);
   const movHoyTableContainerRef = useRef(null);
+  // Sin este ref, DataTable no puede encontrar sus <tr> para revelarlos tras
+  // la carga (ver `needsPreHideRef`/`hasRevealedRef` en DataTable.jsx): la
+  // fila nace con la clase `invisible` y, sin `tbodyRef`, el efecto que la
+  // revela consulta `undefined?.current` y sale sin hacer nada — la tabla
+  // queda en blanco pese a tener datos reales, dependiendo únicamente de qué
+  // valía `isLoading` en el instante exacto del primer montaje. No se puede
+  // reutilizar el `tbodyRef` de la tabla principal (línea 1535): son dos
+  // <tbody> distintos y compartirlo se lo pisarían entre sí.
+  const movHoyTbodyRef = useRef(null);
 
   // Clic en "No. Empleado" del detalle → modal "Detalle de Empleado" (mismo
   // comportamiento que la columna homónima en MovimientosPersonalTab).
@@ -791,6 +866,27 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   })), [MOV_HOY_COLUMNS_BASE, movHoyColumnWidths]);
 
   const getMovHoyCellValue = useCallback((row, key) => key === "nombre" ? buildMovHoyFullName(row) : defaultGetCellValue(row, key), []);
+
+  // Tarjetas para móvil (mismas filas que la tabla densa, ilegible ahí por el
+  // scroll horizontal con columnas angostas) — mismo patrón que `mobileCardConfig`
+  // de la tabla principal, ver `MobileCardList`.
+  const movHoyCardConfig = useMemo(() => ({
+    getRowId: (row, i) => `${row.num_empleado ?? ""}-${row.posicion ?? ""}-${row.sec ?? i}`,
+    getTitle: (row) => buildMovHoyFullName(row) || "Sin nombre",
+    getSubtitle: (row) => (row.posicion ? `POS ${row.posicion}` : ""),
+    renderBadge: (row) => (
+      <span className="shrink-0 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide bg-[#621f32]/8 text-[#621f32] dark:bg-[#bc955c]/15 dark:text-[#bc955c]">
+        {row.accion_nombre}
+      </span>
+    ),
+    fields: [
+      { key: "num_empleado", label: "No. Empleado", mono: true },
+      { key: "motivo_nombre", label: "Motivo" },
+      { key: "fecha_efectiva", label: "Fecha Efectiva" },
+      { key: "fecha_captura", label: "Fecha Captura" },
+      { key: "por", label: "Por", mono: true },
+    ],
+  }), []);
 
   const movHoyProcessedRows = useMemo(() => {
     const result = applyColumnFilters(movimientosHoyDetalle, {
@@ -2963,6 +3059,24 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     }
   }, [selectedCell, tableColumns]);
 
+  // Móvil: la campana + botón de movimientos de hoy son flotantes arriba a
+  // la derecha; se ocultan al llegar a la barra de búsqueda (justo el primer
+  // hijo de `cardRef`) para no taparla, y reaparecen si se vuelve a subir.
+  // El -55% de rootMargin inferior angosta el área "visible" observada a la
+  // franja de arriba de la pantalla, así el toggle ocurre cuando esa sección
+  // realmente alcanza la parte alta del viewport, no apenas asoma abajo.
+  const [showFloatingMobileActions, setShowFloatingMobileActions] = useState(true);
+  useEffect(() => {
+    const el = cardRef?.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowFloatingMobileActions(!entry.isIntersecting),
+      { rootMargin: "-64px 0px -55% 0px", threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cardRef]);
+
   // Botón "Notificarme cuando..." del menú contextual (CopyCellMenu), solo
   // sobre la columna Posición. Ocupada/vacante con el mismo criterio que ya
   // usa el resto del tab (mapEstadoNomina !== "Vacante"), no una heurística
@@ -2977,8 +3091,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
       {/* Fila flotante superior derecha (debajo del Navbar): campana de
           notificaciones de posición + indicador de movimientos capturados
           hoy (fecha_captura = hoy en cp_tbl_mov_completo_29_05_26). La
-          campana va a la izquierda del indicador de movimientos. */}
-      <div className="fixed bottom-[calc(var(--bottomnav-h)+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-3">
+          campana va a la izquierda del indicador de movimientos. En móvil se
+          oculta al llegar a la barra de búsqueda (ver IntersectionObserver
+          de arriba) para no taparla una vez que ya no hace falta tenerla a
+          la vista. */}
+      <div
+        className={`fixed top-[calc(var(--stack-h)+0.75rem)] right-4 md:top-48 md:right-8 z-30 flex items-center gap-3 transition-opacity duration-200 ${showFloatingMobileActions ? "opacity-100" : "opacity-0 pointer-events-none"} md:opacity-100 md:pointer-events-auto`}
+      >
         <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
         <button
           type="button"
@@ -3003,12 +3122,13 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
 
       <ModalShell
         open={isMovimientosHoyModalOpen}
-        // Con el detalle de empleado encima, Escape solo debe cerrar ese modal:
-        // ambos escuchan la tecla a nivel documento.
-        onClose={() => { if (!movHoyTimelineOpen) setIsMovimientosHoyModalOpen(false); }}
+        // Con el detalle de empleado (o su línea de tiempo) encima, Escape solo
+        // debe cerrar ese modal: ambos escuchan la tecla a nivel documento.
+        onClose={() => { if (!movHoyTimelineOpen && !selectedRowData) setIsMovimientosHoyModalOpen(false); }}
         size="xl"
         resizable
         minWidth={900}
+        fixedHeight
         maxWidth={1500}
         icon={ArrowUpDown}
         eyebrow="Cp Tbl Mov Completo"
@@ -3155,9 +3275,12 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1 truncate">
                   Movimientos: {selectedAccionHoy} / {selectedMotivoHoy}
                 </span>
-                <div className="flex flex-col rounded-2xl overflow-hidden border border-slate-200/60 dark:border-slate-800/60" style={{ height: movHoyTableHeight }}>
+                {/* Tabla densa: sólo desktop — en móvil es ilegible (columnas
+                    angostas con scroll horizontal), se reemplaza por tarjetas. */}
+                <div className="hidden md:flex md:flex-col rounded-2xl overflow-hidden border border-slate-200/60 dark:border-slate-800/60" style={{ height: movHoyTableHeight }}>
                   <DataTable
                     containerRef={movHoyTableContainerRef}
+                    tbodyRef={movHoyTbodyRef}
                     fillHeight
                     fillWidth
                     edgeToEdge
@@ -3173,7 +3296,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                     selectedCell={movHoySelectedCell}
                     onSelectCell={setMovHoySelectedCell}
                     onCellContextMenu={(e, value, rect) => setMovHoyContextMenu({ x: e.clientX, y: e.clientY, value, rect })}
-                    onShowRecord={(row) => setMovHoySelectedRecord({ ...row, nombre: buildMovHoyFullName(row) })}
+                    onShowRecord={(row) => resolveMovHoyRecord(row).then(setSelectedRowData)}
                     sortConfig={movHoySortConfig}
                     onSort={handleMovHoySort}
                     onOpenFilter={openMovHoyFilterDropdown}
@@ -3193,6 +3316,17 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
                     renderCell={renderMovHoyCell}
                   />
                 </div>
+
+                {/* Móvil: mismas filas como tarjetas en vez de la tabla densa. */}
+                <div className="md:hidden rounded-2xl overflow-hidden border border-slate-200/60 dark:border-slate-800/60 max-h-[420px] overflow-y-auto custom-scrollbar">
+                  <MobileCardList
+                    data={movHoyProcessedRows}
+                    config={movHoyCardConfig}
+                    onCardClick={(row) => resolveMovHoyRecord(row).then(setSelectedRowData)}
+                    isLoading={movimientosHoyDetalleLoading}
+                    pageSize={20}
+                  />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -3208,7 +3342,66 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         zIndexClass="z-[1100]"
       />
 
-      <div className="w-full px-4 lg:px-6">
+      {/* Móvil: carrusel horizontal de tarjetas (arrastre táctil nativo vía
+          overflow-x-auto + snap) en vez del donut y las tarjetas grandes de
+          escritorio, que en una pantalla angosta forzaban scroll vertical
+          largo antes de llegar a la tabla. */}
+      <div className="w-full md:hidden mb-6">
+        <Zoom triggerOnce>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
+            <button
+              type="button"
+              onClick={() => startTransition(() => setColumnFilters({}))}
+              className={`shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 shadow-md flex flex-col text-white relative overflow-hidden bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] transition-all ${activeStatusFilter.length === 0 ? "ring-2 ring-white/40" : ""}`}
+            >
+              <div className="absolute -top-6 -right-6 size-16 bg-[#bc955c]/20 rounded-full blur-lg pointer-events-none" />
+              <div className="p-1.5 bg-white/10 rounded-lg w-fit mb-2">
+                <Briefcase className="size-3.5 text-white" />
+              </div>
+              <span className="text-[8px] font-black uppercase tracking-wider text-white/70 text-left leading-tight mb-1">Posiciones Totales</span>
+              <span className="text-lg font-black text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</span>
+            </button>
+            {donutData.flatMap((slice) => {
+              const IconComponent = STATUS_ICONS[slice.label] || Users;
+              const isActiveFilter = activeStatusFilter.includes(slice.label);
+              const card = (
+                <button
+                  key={slice.label}
+                  type="button"
+                  onClick={() => handleStatusFilter(slice.label)}
+                  className={`shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 shadow-sm flex flex-col text-left transition-all ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] bg-white dark:bg-slate-900 shadow-md" : "border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60"}`}
+                >
+                  <div className="p-1.5 rounded-lg w-fit mb-2" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}>
+                    <IconComponent className="size-3.5" />
+                  </div>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 leading-tight mb-1 truncate">{slice.label}</span>
+                  <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(slice.count)}</span>
+                  <span className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</span>
+                </button>
+              );
+              if (slice.label !== "Vacante") return [card];
+              const isSolicitadaFilter = activeStatusFilter.includes("Solicitada");
+              const solicitadaCard = (
+                <button
+                  key="solicitada-shortcut"
+                  type="button"
+                  onClick={() => handleStatusFilter("Solicitada")}
+                  className={`shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 shadow-sm flex flex-col text-left transition-all ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] bg-white dark:bg-slate-900 shadow-md" : "border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60"}`}
+                >
+                  <div className="p-1.5 rounded-lg w-fit mb-2" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}>
+                    <UserPlus className="size-3.5" />
+                  </div>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 leading-tight mb-1 truncate">Solicitada</span>
+                  <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(solicitadaCount)}</span>
+                </button>
+              );
+              return [card, solicitadaCard];
+            })}
+          </div>
+        </Zoom>
+      </div>
+
+      <div className="hidden md:block w-full px-4 lg:px-6">
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">
             <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">

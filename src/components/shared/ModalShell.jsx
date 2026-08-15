@@ -41,6 +41,14 @@ export default function ModalShell({
   resizable = false,
   minWidth = 520,
   maxWidth = 1600,
+  // Por defecto el panel sólo tiene un TECHO de altura (max-h): sin una
+  // altura propia, su tamaño real lo determina el contenido, así que un
+  // acordeón que agrega/quita secciones (o una tabla que aparece al elegir
+  // un filtro) hace que el modal entero crezca y se encoja en cada
+  // interacción. `fixedHeight` lo fija siempre a ese mismo techo — el
+  // contenido que no quepa hace scroll DENTRO del cuerpo (que ya es
+  // `overflow-y-auto`), en vez de estirar el panel.
+  fixedHeight = false,
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -131,7 +139,7 @@ export default function ModalShell({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
-        className={`relative w-full ${!resizable ? SIZE_CLASSES[size] : ""} max-h-[92vh] sm:max-h-[85vh] flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`}
+        className={`relative w-full ${!resizable ? SIZE_CLASSES[size] : ""} ${fixedHeight ? "h-[92vh] sm:h-[85vh]" : "max-h-[92vh] sm:max-h-[85vh]"} flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`}
         style={resizable ? { width: customWidth ?? maxWidth ?? SIZE_PX[size] ?? 672, maxWidth: "95vw" } : undefined}
       >
         {resizable && (

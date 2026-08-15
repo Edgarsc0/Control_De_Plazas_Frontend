@@ -69,7 +69,9 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="fixed top-20 left-0 w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm h-16 flex items-center z-40">
+    // top-0 en móvil: el Banner gob.mx está oculto ahí, así que este header
+    // (el único visible) ocupa el espacio superior en vez de dejarlo en blanco.
+    <nav className="fixed top-0 md:top-20 left-0 w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm h-16 flex items-center z-40">
       <div className="w-full max-w-7xl mx-auto px-4 md:px-8 flex justify-between items-center">
         {/* Logo and System Name */}
         <div className="flex items-center gap-x-4">

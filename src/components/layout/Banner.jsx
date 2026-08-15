@@ -2,8 +2,9 @@ import Link from 'next/link';
 
 export default function Banner() {
     return (
-        // Se agregaron las clases: fixed, top-0, left-0 y z-50
-        <nav className="fixed top-0 left-0 w-full bg-[#621f32] h-20 flex items-center z-50 shadow-md">
+        // Oculto en móvil a propósito: en esa vista solo se muestra el header
+        // blanco con el logo de ADUANAS (Navbar), sin la barra gob.mx.
+        <nav className="fixed top-0 left-0 w-full bg-[#621f32] h-20 hidden md:flex items-center z-50 shadow-md">
             <div className="w-full max-w-7xl mx-auto px-4 md:px-8 flex justify-between items-center">
 
                 {/* Sección del Logo */}
