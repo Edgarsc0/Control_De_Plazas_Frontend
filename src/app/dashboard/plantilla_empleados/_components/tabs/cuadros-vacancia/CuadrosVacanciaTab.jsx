@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Zoom } from "@/components/shared/Reveal";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, useXAxisScale, useYAxisScale, usePlotArea } from "recharts";
-import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, Briefcase, AlertCircle, Percent, Activity, ChevronsUpDown, ChevronsDownUp, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, AlertCircle, ChevronsUpDown, ChevronsDownUp, TrendingUp } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import { gsap } from 'gsap';
@@ -682,20 +682,17 @@ function HistoricoChartCard({
 export function CuadrosVacanciaSkeleton() {
   return (
     <div className="w-full flex flex-col space-y-6 animate-pulse">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 px-0 sm:px-4 lg:px-6">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20">
-            <div className="flex justify-between items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-0 sm:px-4 lg:px-6">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
+            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
+              <div className="size-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
               <div className="space-y-2">
-                <div className="h-2.5 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
-                <div className="h-7 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-5 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-2.5 w-56 bg-slate-100 dark:bg-slate-800 rounded" />
               </div>
-              <div className="size-11 bg-slate-200 dark:bg-slate-700 rounded-xl" />
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between">
-              <div className="h-2.5 w-14 bg-slate-100 dark:bg-slate-800 rounded" />
-              <div className="h-2.5 w-14 bg-slate-100 dark:bg-slate-800 rounded" />
-            </div>
+            <div className="h-[280px] w-full bg-slate-100 dark:bg-slate-800/60 rounded-2xl" />
           </div>
         ))}
       </div>
@@ -858,32 +855,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const sortedDescData = useMemo(() => {
     return [...cuadrosData].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   }, [cuadrosData]);
-
-  const actualRow = useMemo(() => {
-    return sortedDescData[0] || null;
-  }, [sortedDescData]);
-
-  const kpis = useMemo(() => {
-    if (!actualRow) return null;
-    const total = actualRow.total || 0;
-    const ocupadas = actualRow.ocupadas_total || 0;
-    const vacantes = actualRow.vacantes_total || 0;
-
-    return {
-      total,
-      totalPerm: actualRow.total_permanente || 0,
-      totalEvt: actualRow.total_eventual || 0,
-      ocupadas,
-      ocupadasPerm: actualRow.ocupadas_permanente || 0,
-      ocupadasEvt: actualRow.ocupadas_eventual || 0,
-      ocupadasPct: total > 0 ? ((ocupadas / total) * 100).toFixed(1) : "0.0",
-      vacantes,
-      vacantesPerm: actualRow.vacantes_permanente || 0,
-      vacantesEvt: actualRow.vacantes_eventual || 0,
-      vacantesPct: total > 0 ? ((vacantes / total) * 100).toFixed(1) : "0.0",
-      fechaActual: formatDate(actualRow.fecha)
-    };
-  }, [actualRow]);
 
   // Datos filtrados por año/quincena seleccionados (Año + Qna.). Se calcula
   // aquí arriba porque tanto la tabla como la gráfica histórica dependen de
@@ -2042,108 +2013,49 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   return (
     <div className="w-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-      {/* Cards de KPIs de la quincena actual */}
-      {kpis && (
-        <Zoom triggerOnce>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 px-0 sm:px-4 lg:px-6">
-
-            {/* KPI 1: Plazas Totales */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-[#10243e] dark:border-t-[#10243e] border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Totales</p>
-                  <h4 className="text-3xl font-black text-[#10243e] dark:text-[#bc955c] mt-1 tracking-tight">
-                    {formatNumber(kpis.total)}
-                  </h4>
-                </div>
-                <div className="p-3 bg-[#10243e]/10 dark:bg-[#bc955c]/10 text-[#10243e] dark:text-[#bc955c] rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <Briefcase className="size-5" />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="font-semibold">Perm: {formatNumber(kpis.totalPerm)}</span>
-                <span className="font-semibold">Evt: {formatNumber(kpis.totalEvt)}</span>
-              </div>
-            </div>
-
-            {/* KPI 2: Plazas Ocupadas */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-emerald-500 border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Ocupadas</p>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <h4 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">
-                      {formatNumber(kpis.ocupadas)}
-                    </h4>
-                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
-                      {kpis.ocupadasPct}%
-                    </span>
-                  </div>
-                </div>
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <Users className="size-5" />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="font-semibold">Perm: {formatNumber(kpis.ocupadasPerm)}</span>
-                <span className="font-semibold">Evt: {formatNumber(kpis.ocupadasEvt)}</span>
-              </div>
-            </div>
-
-            {/* KPI 3: Plazas Vacantes */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-[#621f32] border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Plazas Vacantes</p>
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <h4 className="text-3xl font-black text-[#621f32] dark:text-[#c2446a] tracking-tight">
-                      {formatNumber(kpis.vacantes)}
-                    </h4>
-                    <span className="text-xs font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md">
-                      {kpis.vacantesPct}%
-                    </span>
-                  </div>
-                </div>
-                <div className="p-3 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-[#c2446a] rounded-xl group-hover:scale-110 transition-transform duration-300 relative">
-                  <AlertCircle className="size-5" />
-                  <span className="absolute top-0 right-0 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="font-semibold">Perm: {formatNumber(kpis.vacantesPerm)}</span>
-                <span className="font-semibold">Evt: {formatNumber(kpis.vacantesEvt)}</span>
-              </div>
-            </div>
-
-            {/* KPI 4: Relación Ocupación */}
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-t-4 border-t-[#bc955c] border-slate-200/50 dark:border-slate-800/50 sm:rounded-2xl p-4 sm:p-5 shadow-lg shadow-slate-100/30 dark:shadow-black/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Quincena de Reporte</p>
-                  <h4 className="text-xl font-black text-slate-700 dark:text-slate-200 mt-1 tracking-tight line-clamp-1">
-                    {kpis.fechaActual}
-                  </h4>
-                </div>
-                <div className="p-3 bg-[#bc955c]/10 dark:bg-[#bc955c]/15 text-[#8a6739] dark:text-[#bc955c] rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <Activity className="size-5" />
-                </div>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60">
-                <div className="w-full bg-rose-100 dark:bg-rose-950/40 h-2 rounded-full overflow-hidden flex">
-                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${kpis.ocupadasPct}%` }} />
-                </div>
-                <div className="flex justify-between items-center mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-                  <span>{kpis.ocupadasPct}% Ocupadas</span>
-                  <span>{kpis.vacantesPct}% Vacantes</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </Zoom>
-      )}
-
       <div ref={pdfRef} className="space-y-6">
+        {/* Ocupación / Vacancia Histórica — antes ocupado por los KPIs de la
+            quincena actual; esa información ya vive en la última fila del
+            cuadro de abajo, así que aquí arriba se prioriza la tendencia. */}
+        {historicoChartData.length > 0 && (
+          <div className="w-full px-0 sm:px-4 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-6" data-pdf-section>
+            <Zoom triggerOnce>
+              <HistoricoChartCard
+                title="Ocupación Histórica"
+                subtitle="Permanentes / Eventuales Ocupadas por quincena"
+                icon={Users}
+                series={OCUPACION_SERIES}
+                chartData={historicoChartData}
+                ticks={historicoTicks}
+                isCompactChart={isCompactChart}
+                formatNumber={formatNumber}
+                monthBands={historicoMonthBands}
+                renderDot={renderHistoricoDot}
+                hoveredPointKey={hoveredPointKey}
+                onDotHover={setHoveredPointKey}
+                onDotLeave={() => setHoveredPointKey(null)}
+              />
+            </Zoom>
+            <Zoom triggerOnce delay={100}>
+              <HistoricoChartCard
+                title="Vacancia Histórica"
+                subtitle="Permanentes / Eventuales Vacantes por quincena"
+                icon={AlertCircle}
+                series={VACANCIA_SERIES}
+                chartData={historicoChartData}
+                ticks={historicoTicks}
+                isCompactChart={isCompactChart}
+                formatNumber={formatNumber}
+                monthBands={historicoMonthBands}
+                renderDot={renderHistoricoDot}
+                hoveredPointKey={hoveredPointKey}
+                onDotHover={setHoveredPointKey}
+                onDotLeave={() => setHoveredPointKey(null)}
+              />
+            </Zoom>
+          </div>
+        )}
+
         <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
           <Zoom triggerOnce>
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
@@ -2238,22 +2150,22 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   <table className="w-full text-xs sm:text-sm text-left border-collapse">
                     <thead ref={theadRef} className="text-white sticky top-0 z-20">
                       <tr>
-                        <th colSpan={isCompactChart ? 1 : 2} className="bg-[#501929] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan={isCompactChart ? 1 : 2} className="bg-gradient-to-br from-[#10243e] to-[#1a3b63] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-white/10">
                           Periodo
                         </th>
-                        <th colSpan="3" className="bg-[#501929] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-gradient-to-br from-emerald-700 to-emerald-800 px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-l border-white/10">
                           Ocupadas
                         </th>
-                        <th colSpan="3" className="bg-[#501929] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-gradient-to-br from-[#621f32] to-[#7a2740] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-l border-white/10">
                           Vacantes
                         </th>
-                        <th colSpan="3" className="bg-[#40121e] border border-[#621f32]/35 p-2 sm:p-3 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th colSpan="3" className="bg-gradient-to-br from-[#8a6739] to-[#bc955c] text-[#10243e] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-l border-[#10243e]/15">
                           Total
                         </th>
                       </tr>
-                      <tr className="bg-[#2b0d15] border-t border-[#621f32]/35">
+                      <tr className="bg-[#10243e]">
                         {!isCompactChart && (
-                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#2b0d15] border border-[#621f32]/35 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#10243e] border-b border-r border-white/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                             <div className="flex items-center justify-center gap-2">
                               Año
                               <div className="relative" ref={yearFilterRef}>
@@ -2274,7 +2186,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             </div>
                           </th>
                         )}
-                        <th className="sticky left-0 sm:left-20 z-30 bg-[#2b0d15] border border-[#621f32]/35 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th className="sticky left-0 sm:left-20 z-30 bg-[#10243e] border-b border-r-2 border-white/15 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
                           <div className="flex items-center justify-center gap-2">
                             Qna.
                             <div className="relative" ref={qnaFilterRef}>
@@ -2295,33 +2207,33 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           </div>
                         </th>
                         {/* Ocupadas */}
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
                           Permanente
                         </th>
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
                           Eventual
                         </th>
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-[#40121e]/20">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-[10px] uppercase bg-white/10">
                           Total
                         </th>
                         {/* Vacantes */}
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border-b border-l border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
                           Permanente
                         </th>
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
                           Eventual
                         </th>
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-[#40121e]/20">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-[10px] uppercase bg-white/10">
                           Total
                         </th>
                         {/* Total */}
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border-b border-l border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
                           Permanente
                         </th>
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-medium text-[10px] uppercase">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
                           Eventual
                         </th>
-                        <th className="border border-[#621f32]/35 px-1.5 py-2 sm:px-3 text-center font-bold text-[10px] uppercase bg-[#40121e]/20">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-[10px] uppercase bg-white/10">
                           Total
                         </th>
                       </tr>
@@ -2329,7 +2241,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     <tbody className="bg-white dark:bg-slate-900 animate-fade-in">
                       {filteredData.length === 0 ? (
                         <tr>
-                          <td colSpan={isCompactChart ? 10 : 11} className="px-6 py-12 text-center text-slate-450 dark:text-slate-500 font-bold border border-slate-200 dark:border-slate-800">
+                          <td colSpan={isCompactChart ? 10 : 11} className="px-6 py-12 text-center text-slate-450 dark:text-slate-500 font-bold">
                             No hay datos que coincidan con los filtros
                           </td>
                         </tr>
@@ -2338,19 +2250,22 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           const rowSpan = yearSpans[index];
                           const isNewYear = rowSpan !== undefined;
                           const isMostRecent = row.id === sortedDescData[0]?.id;
+                          const isEvenRow = index % 2 === 1;
 
                           return (
                             <tr
                               key={row.id || index}
                               className={`transition-colors ${isMostRecent
                                 ? "bg-[#bc955c]/10 dark:bg-[#bc955c]/15 hover:bg-[#bc955c]/15 dark:hover:bg-[#bc955c]/20 relative z-10"
-                                : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                : isEvenRow
+                                  ? "bg-slate-50/60 dark:bg-slate-800/25 hover:bg-slate-100/70 dark:hover:bg-slate-800/50"
+                                  : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
                                 }`}
                             >
                               {!isCompactChart && isNewYear && (
                                 <td
                                   rowSpan={isTableExpanded ? rowSpan : 1}
-                                  className={`sticky left-0 z-10 w-16 sm:w-20 p-0 align-top border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#f5efe7] dark:bg-[#3a3737]" : "bg-white dark:bg-slate-900"
+                                  className={`sticky left-0 z-10 w-16 sm:w-20 p-0 align-top border-b border-r border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 font-extrabold ${isMostRecent ? "bg-[#f5efe7] dark:bg-[#3a3737]" : "bg-white dark:bg-slate-900"
                                     }`}
                                 >
                                   {/* rowSpan cubre todo el bloque del año (hasta 40+ filas
@@ -2367,7 +2282,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                                   </div>
                                 </td>
                               )}
-                              <td className={`sticky left-0 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#f5efe7] dark:bg-[#3a3737] text-[#621f32] dark:text-[#bc955c]' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
+                              <td className={`sticky left-0 sm:left-20 z-10 px-2 py-2.5 sm:px-4 sm:py-3 text-center border-b border-r-2 border-slate-200 dark:border-slate-800 whitespace-nowrap font-extrabold ${isMostRecent ? 'bg-[#f5efe7] dark:bg-[#3a3737] text-[#621f32] dark:text-[#bc955c]' : isEvenRow ? 'bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100' : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100'}`}>
                                 <div className="flex items-center justify-center gap-2">
                                   {formatDate(row.fecha)}
                                   {isMostRecent && (
@@ -2379,37 +2294,37 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                               </td>
 
                               {/* Ocupadas */}
-                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium tabular-nums">
                                 {formatNumber(row.ocupadas_permanente)}
                               </td>
-                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium tabular-nums">
                                 {formatNumber(row.ocupadas_eventual)}
                               </td>
-                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-slate-50 dark:bg-slate-800/80"
+                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold tabular-nums ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-emerald-50/40 dark:bg-emerald-500/[0.06]"
                                 }`}>
                                 {formatNumber(row.ocupadas_total)}
                               </td>
 
                               {/* Vacantes */}
-                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-l border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium tabular-nums">
                                 {formatNumber(row.vacantes_permanente)}
                               </td>
-                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium tabular-nums">
                                 {formatNumber(row.vacantes_eventual)}
                               </td>
-                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-slate-50 dark:bg-slate-800/80"
+                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-800 dark:text-white font-extrabold tabular-nums ${isMostRecent ? "bg-[#bc955c]/20 dark:bg-[#bc955c]/30" : "bg-[#621f32]/[0.04] dark:bg-[#621f32]/10"
                                 }`}>
                                 {formatNumber(row.vacantes_total)}
                               </td>
 
                               {/* Total */}
-                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-l border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium tabular-nums">
                                 {formatNumber(row.total_permanente)}
                               </td>
-                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium">
+                              <td className="px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-600 dark:text-slate-350 font-medium tabular-nums">
                                 {formatNumber(row.total_eventual)}
                               </td>
-                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-slate-200/50 dark:border-slate-800/60 text-slate-900 dark:text-white font-black ${isMostRecent ? "bg-[#bc955c]/30 dark:bg-[#bc955c]/45 text-md" : "bg-slate-100 dark:bg-slate-850"
+                              <td className={`px-2 py-2.5 sm:px-3 sm:py-3 text-center border-b border-slate-100 dark:border-slate-800/60 text-slate-900 dark:text-white font-black tabular-nums ${isMostRecent ? "bg-[#bc955c]/30 dark:bg-[#bc955c]/45 text-md" : "bg-[#bc955c]/[0.08] dark:bg-[#bc955c]/[0.08]"
                                 }`}>
                                 {formatNumber(row.total)}
                               </td>
@@ -2443,42 +2358,8 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           </Zoom>
         </div>
 
-        <div className="w-full px-0 sm:px-4 lg:px-6 flex flex-col gap-6" data-pdf-section>
+        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
           <Zoom triggerOnce>
-            <HistoricoChartCard
-              title="Ocupación Histórica"
-              subtitle="Permanentes / Eventuales Ocupadas por quincena"
-              icon={Users}
-              series={OCUPACION_SERIES}
-              chartData={historicoChartData}
-              ticks={historicoTicks}
-              isCompactChart={isCompactChart}
-              formatNumber={formatNumber}
-              monthBands={historicoMonthBands}
-              renderDot={renderHistoricoDot}
-              hoveredPointKey={hoveredPointKey}
-              onDotHover={setHoveredPointKey}
-              onDotLeave={() => setHoveredPointKey(null)}
-            />
-          </Zoom>
-          <Zoom triggerOnce delay={100}>
-            <HistoricoChartCard
-              title="Vacancia Histórica"
-              subtitle="Permanentes / Eventuales Vacantes por quincena"
-              icon={AlertCircle}
-              series={VACANCIA_SERIES}
-              chartData={historicoChartData}
-              ticks={historicoTicks}
-              isCompactChart={isCompactChart}
-              formatNumber={formatNumber}
-              monthBands={historicoMonthBands}
-              renderDot={renderHistoricoDot}
-              hoveredPointKey={hoveredPointKey}
-              onDotHover={setHoveredPointKey}
-              onDotLeave={() => setHoveredPointKey(null)}
-            />
-          </Zoom>
-          <Zoom triggerOnce delay={200}>
             <HistoricoChartCard
               title="Plazas Totales vs Activas vs Inactivas"
               subtitle="Histórico completo de la ANAM · corte a fin de cada mes desde enero 2022"
