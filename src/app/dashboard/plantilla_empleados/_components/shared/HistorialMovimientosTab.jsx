@@ -117,40 +117,51 @@ const downloadBlobAsFile = (blob, filename) => {
 // exports. La foto se pide al MISMO endpoint (EmpleadoFotoView) que ya usa
 // el tab "Fotografía" del expediente, así que ya viene permission-gated por
 // `canViewPhoto` sin necesidad de checar nada nuevo aquí.
+//
+// Columna "Foto" a la izquierda de "Posición" (primera columna del export)
+// en CADA fila — mismo criterio visual que los demás exports "con fotos"
+// del proyecto (excel_fotos.py, backend). Es el MISMO empleado en las N
+// filas del historial, así que es la MISMA imagen repetida: se registra una
+// sola vez con `workbook.addImage` y se ancla N veces con `worksheet.addImage`
+// (exceljs solo guarda los bytes una vez, cada anclaje es una referencia
+// barata — no infla el archivo por fila).
 const downloadExcelConFoto = async (rows, filename, numEmpleado, signal) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Historial");
     const columnKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
-    worksheet.columns = columnKeys.map((key) => ({ key, width: 22 }));
-    let nextRow = addExcelLetterhead(workbook, worksheet, columnKeys.length) + 1;
 
-    let fotoEncontrada = false;
+    let fotoBuffer = null;
+    let fotoExtension = null;
     try {
         const fotoRes = await VacantesService.getEmpleadoFoto(numEmpleado, { signal });
         if (fotoRes.ok) {
             const blob = await fotoRes.blob();
-            const buffer = await blob.arrayBuffer();
-            const extension = blob.type.includes("png") ? "png" : "jpeg";
-            const imageId = workbook.addImage({ buffer, extension });
-            worksheet.getRow(nextRow).height = 92;
-            worksheet.addImage(imageId, {
-                tl: { col: 0.15, row: nextRow - 1 + 0.08 },
-                ext: { width: 90, height: 108 },
-            });
-            nextRow += 1;
-            fotoEncontrada = true;
+            fotoBuffer = await blob.arrayBuffer();
+            fotoExtension = blob.type.includes("png") ? "png" : "jpeg";
         }
     } catch (err) {
         if (err.name === "AbortError") throw err;
         // Sin foto: se continúa con el resto del Excel de todas formas.
     }
+    const fotoEncontrada = !!fotoBuffer;
+    const colOffset = fotoEncontrada ? 1 : 0;
+
+    worksheet.columns = [
+        ...(fotoEncontrada ? [{ key: "__foto", width: 14 }] : []),
+        ...columnKeys.map((key) => ({ key, width: 22 })),
+    ];
+    let nextRow = addExcelLetterhead(workbook, worksheet, columnKeys.length + colOffset) + 1;
+
+    const imageId = fotoEncontrada ? workbook.addImage({ buffer: fotoBuffer, extension: fotoExtension }) : null;
 
     const headerRow = worksheet.getRow(nextRow);
-    columnKeys.forEach((key, i) => { headerRow.getCell(i + 1).value = key; });
+    if (fotoEncontrada) headerRow.getCell(1).value = "Foto";
+    columnKeys.forEach((key, i) => { headerRow.getCell(i + 1 + colOffset).value = key; });
     headerRow.font = { name: "Calibri", bold: true, size: 10, color: { argb: "FFFFFFFF" } };
     headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
     headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     headerRow.height = 26;
+    const headerRowNum = nextRow;
     nextRow += 1;
 
     rows.forEach((row, i) => {
@@ -158,9 +169,16 @@ const downloadExcelConFoto = async (rows, filename, numEmpleado, signal) => {
         r.font = { name: "Calibri", size: 9 };
         r.alignment = { vertical: "middle" };
         if (i % 2 === 1) r.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+        if (fotoEncontrada) {
+            r.height = 40;
+            worksheet.addImage(imageId, {
+                tl: { col: 0.12, row: (r.number - 1) + 0.06 },
+                ext: { width: 46, height: 50 },
+            });
+        }
     });
 
-    worksheet.views = [{ state: "frozen", ySplit: nextRow - 1 }];
+    worksheet.views = [{ state: "frozen", ySplit: headerRowNum }];
 
     const buffer = await workbook.xlsx.writeBuffer();
     downloadBlobAsFile(
