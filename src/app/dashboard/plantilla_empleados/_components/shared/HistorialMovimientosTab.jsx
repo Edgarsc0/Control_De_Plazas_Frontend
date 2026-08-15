@@ -9,6 +9,11 @@ import { formatDateEsMx } from "@/utils/columnFilters";
 import { getMovimientoDiff } from "../../_utils/movimientosDiff";
 import { PlantillaService } from "@/services/plantilla.service";
 import { useToast } from "@/hooks/useToast";
+import {
+    LETTERHEAD_LOGO_BASE64,
+    LETTERHEAD_LOGO_WIDTH,
+    LETTERHEAD_LOGO_HEIGHT,
+} from "@/assets/letterhead-logo";
 
 gsap.registerPlugin(useGSAP);
 
@@ -107,7 +112,6 @@ const buildExportRows = (movimientos) => {
 const PDF_PX_TO_PT = 0.75;         // 96 CSS px/in → 72pt/in, igual que organigrama
 const PDF_MAX_DIM_PT = 14000;      // techo físico de página (~194in) de la mayoría de lectores PDF
 const PDF_MARGIN = 28;
-const PDF_TITLE_H = 22;
 const PDF_TITLE_GAP = 16;
 const PDF_LANE_HEADER_H = 58;
 const PDF_LANE_HEADER_GAP = 20;
@@ -115,6 +119,40 @@ const PDF_LANE_GAP_X = 14;
 const PDF_ROW_GAP_Y = 16;
 const PDF_CARD_W = 260;
 const PDF_MAX_DIFF_LINES = 6;
+
+// ─── Membretado institucional (mismo patrón que excelLetterhead.js: logo →
+// título apilado → leyenda de generación) + línea de encabezado propia del
+// reporte (empleado). Todo en "px" CSS, igual que el resto del layout.
+const PDF_HEADER_TITLE_LINES = [
+    "AGENCIA NACIONAL DE ADUANAS DE MÉXICO",
+    "UNIDAD DE ADMINISTRACIÓN Y FINANZAS",
+    "DIRECCIÓN DE RECURSOS HUMANOS",
+];
+const PDF_LOGO_W = 170;
+const PDF_LOGO_H = Math.round((PDF_LOGO_W * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
+const PDF_HEADER_TOP_PAD = 10;
+const PDF_HEADER_LOGO_GAP = 8;
+const PDF_HEADER_TITLE_LINE_H = 11;
+const PDF_HEADER_TITLE_GAP = 8;
+const PDF_HEADER_LEGEND_H = 11;
+const PDF_HEADER_LEGEND_GAP = 8;
+const PDF_HEADER_RULE_GAP = 8;
+const PDF_HEADER_SUBTITLE_H = 18;
+// Alto total del membretado — suma de cada bloque de arriba, en el mismo
+// orden en que se dibujan (ver buildHistorialPdf); mover cualquiera de esas
+// piezas sin actualizar esta suma desalinea el resto del diagrama.
+const PDF_TITLE_H = PDF_HEADER_TOP_PAD + PDF_LOGO_H + PDF_HEADER_LOGO_GAP
+    + PDF_HEADER_TITLE_LINES.length * PDF_HEADER_TITLE_LINE_H + PDF_HEADER_TITLE_GAP
+    + PDF_HEADER_LEGEND_H + PDF_HEADER_LEGEND_GAP
+    + PDF_HEADER_RULE_GAP
+    + PDF_HEADER_SUBTITLE_H;
+
+const fmtFechaHoraGeneracionPdf = () => {
+    const now = new Date();
+    const fecha = now.toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
+    const hora = now.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `${hora} horas del ${fecha}`;
+};
 
 const PDF_MAROON = [98, 31, 50];
 const PDF_GOLD = [188, 149, 92];
@@ -205,8 +243,15 @@ const computeHistorialLayout = (movimientos, lanes) => {
     return { laneX, laneIndexByPosicion, rowsTop, rowHeights, rowY, contentWidth, contentHeight };
 };
 
+// Padding horizontal interno de la tarjeta — antes el texto arrancaba
+// pegado al borde izquierdo (X(x) directo); todo el contenido se ancla ahora
+// a `xIn` (x + padX) y se mide contra `innerW` (w - padX*2).
+const PDF_CARD_PAD_X = 10;
+
 const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePosicion, X, Y, T) => {
-    const cx = x + w / 2;
+    const padX = PDF_CARD_PAD_X;
+    const xIn = x + padX;
+    const innerW = w - padX * 2;
     let cursorY = yTop + 14;
 
     // Tarjeta: fondo blanco + borde visible (antes solo se seteaban los
@@ -228,31 +273,31 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(7));
         const labelW = pdf.getTextWidth(label); // ya en pt (fuente/tamaño seteados arriba)
-        pdf.roundedRect(X(x), Y(cursorY), labelW + T(14), T(14), T(7), T(7), "FD");
+        pdf.roundedRect(X(xIn), Y(cursorY), labelW + T(14), T(14), T(7), T(7), "FD");
         pdf.setTextColor(...PDF_AMBER_TEXT);
-        pdf.text(label, X(x) + T(7), Y(cursorY + 7), { baseline: "middle" });
+        pdf.text(label, X(xIn) + T(7), Y(cursorY + 7), { baseline: "middle" });
         cursorY += 16;
     }
 
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(T(9.5));
     pdf.setTextColor(...PDF_MAROON);
-    pdf.text(fitPdfText(pdf, (mov.accion_nombre || "—").toUpperCase(), T(w - 8)), X(x), Y(cursorY + 9), { baseline: "middle" });
+    pdf.text(fitPdfText(pdf, (mov.accion_nombre || "—").toUpperCase(), T(innerW)), X(xIn), Y(cursorY + 9), { baseline: "middle" });
     cursorY += 16;
 
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(T(7.5));
-    const motivo = fitPdfText(pdf, mov.motivo_nombre || "—", T(w - 8));
+    const motivo = fitPdfText(pdf, mov.motivo_nombre || "—", T(innerW - 8));
     const motivoW = pdf.getTextWidth(motivo); // pt
     pdf.setFillColor(...PDF_SLATE_100);
-    pdf.roundedRect(X(x), Y(cursorY), Math.min(T(w), motivoW + T(8)), T(14), T(3), T(3), "F");
+    pdf.roundedRect(X(xIn), Y(cursorY), Math.min(T(innerW), motivoW + T(8)), T(14), T(3), T(3), "F");
     pdf.setTextColor(...PDF_SLATE_500);
-    pdf.text(motivo, X(x + 4), Y(cursorY + 7), { baseline: "middle" });
+    pdf.text(motivo, X(xIn + 4), Y(cursorY + 7), { baseline: "middle" });
     cursorY += 10 + 18;
 
-    const gridColW = w / 2;
+    const gridColW = innerW / 2;
     const gridCell = (label, value, col, row) => {
-        const gx = x + col * gridColW;
+        const gx = xIn + col * gridColW;
         const gy = cursorY + row * 24;
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(6.5));
@@ -273,7 +318,7 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
     pdf.setDrawColor(...PDF_SLATE_200);
     pdf.setLineWidth(Math.max(T(0.75), 0.3));
     pdf.setLineDashPattern([T(3), T(2)], 0);
-    pdf.line(X(x), Y(cursorY), X(x + w), Y(cursorY));
+    pdf.line(X(xIn), Y(cursorY), X(xIn + innerW), Y(cursorY));
     pdf.setLineDashPattern([], 0);
     cursorY += 10;
 
@@ -281,7 +326,7 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         pdf.setFont("helvetica", "italic");
         pdf.setFontSize(T(7.5));
         pdf.setTextColor(...PDF_SLATE_500);
-        pdf.text(fitPdfText(pdf, "Movimiento inicial de este historial.", T(w - 8)), X(x), Y(cursorY + 8), { baseline: "middle" });
+        pdf.text(fitPdfText(pdf, "Movimiento inicial de este historial.", T(innerW)), X(xIn), Y(cursorY + 8), { baseline: "middle" });
         return;
     }
 
@@ -289,14 +334,14 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
     pdf.setFontSize(T(7));
     pdf.setTextColor(...PDF_MAROON);
     const diffTitle = diff.differences.length > 0 ? `CAMBIOS DETECTADOS (${diff.differences.length})` : "CAMBIOS DETECTADOS";
-    pdf.text(diffTitle, X(x), Y(cursorY + 7), { baseline: "middle" });
+    pdf.text(diffTitle, X(xIn), Y(cursorY + 7), { baseline: "middle" });
     cursorY += 20;
 
     if (diff.differences.length === 0) {
         pdf.setFont("helvetica", "italic");
         pdf.setFontSize(T(7.5));
         pdf.setTextColor(...PDF_SLATE_400);
-        pdf.text("Sin cambios respecto al anterior.", X(x), Y(cursorY + 7), { baseline: "middle" });
+        pdf.text("Sin cambios respecto al anterior.", X(xIn), Y(cursorY + 7), { baseline: "middle" });
         return;
     }
 
@@ -305,12 +350,12 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         pdf.setFillColor(...PDF_SLATE_50);
         pdf.setDrawColor(...PDF_SLATE_200);
         pdf.setLineWidth(Math.max(T(0.5), 0.3));
-        pdf.roundedRect(X(x), Y(cursorY), T(w), T(17), T(3), T(3), "FD");
+        pdf.roundedRect(X(xIn), Y(cursorY), T(innerW), T(17), T(3), T(3), "FD");
 
         // Una sola línea fluida "Label: viejo → nuevo" — el largo real de
         // cada tramo depende de lo que vino antes, así que se posiciona con
         // el ancho medido del tramo anterior en vez de columnas fijas.
-        let tx = X(x + 4);
+        let tx = X(xIn + 4);
         const ty = Y(cursorY + 8.5);
 
         pdf.setFont("helvetica", "bold");
@@ -341,7 +386,7 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         pdf.setFont("helvetica", "italic");
         pdf.setFontSize(T(7));
         pdf.setTextColor(...PDF_SLATE_400);
-        pdf.text(`+ ${diff.differences.length - PDF_MAX_DIFF_LINES} más…`, X(x), Y(cursorY + 7), { baseline: "middle" });
+        pdf.text(`+ ${diff.differences.length - PDF_MAX_DIFF_LINES} más…`, X(xIn), Y(cursorY + 7), { baseline: "middle" });
     }
 };
 
@@ -349,9 +394,20 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
 // elegidas para que TODO el diagrama quepa en una sola página; al ser
 // vectorial, reducir la escala física no pierde nitidez (el lector siempre
 // puede hacer zoom sobre los mismos trazos).
+// Ancho mínimo del contenido — sin esto, un empleado de un solo carril
+// (diagrama de 260px) deja el membretado (título institucional + leyenda de
+// generación, más largos que eso) desbordándose fuera de la página.
+const PDF_MIN_CONTENT_WIDTH = 380;
+
 const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     const layout = computeHistorialLayout(movimientos, lanes);
-    const totalWpx = layout.contentWidth + PDF_MARGIN * 2;
+    // Diagrama angosto -> se centra dentro de PDF_MIN_CONTENT_WIDTH en vez de
+    // dejar la página al ancho justo de las columnas.
+    const contentWidth = Math.max(layout.contentWidth, PDF_MIN_CONTENT_WIDTH);
+    const diagramOffsetX = (contentWidth - layout.contentWidth) / 2;
+    if (diagramOffsetX > 0) layout.laneX = layout.laneX.map((x) => x + diagramOffsetX);
+
+    const totalWpx = contentWidth + PDF_MARGIN * 2;
     const totalHpx = layout.contentHeight + PDF_MARGIN * 2;
 
     let pageWpt = totalWpx * PDF_PX_TO_PT;
@@ -373,11 +429,56 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     pdf.setFillColor(255, 255, 255);
     pdf.rect(0, 0, pageWpt, pageHpt, "F");
 
-    // Título
+    // ─── Membretado (logo → título institucional → leyenda de generación) +
+    // línea de encabezado propia del reporte — mismo patrón apilado que
+    // excelLetterhead.js, ver PDF_TITLE_H arriba para el porqué de cada alto.
+    const pageCenterX = X(contentWidth / 2);
+    let hy = PDF_HEADER_TOP_PAD;
+
+    pdf.addImage(`data:image/png;base64,${LETTERHEAD_LOGO_BASE64}`, "PNG", X(0), Y(hy), T(PDF_LOGO_W), T(PDF_LOGO_H));
+    hy += PDF_LOGO_H + PDF_HEADER_LOGO_GAP;
+
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(T(13));
+    pdf.setFontSize(T(8.5));
     pdf.setTextColor(...PDF_MAROON);
-    pdf.text(`Historial de Movimientos — Empleado ${numEmpleado}`, X(0), Y(PDF_TITLE_H / 2), { baseline: "middle" });
+    PDF_HEADER_TITLE_LINES.forEach((line, i) => {
+        pdf.text(line, pageCenterX, Y(hy + i * PDF_HEADER_TITLE_LINE_H + PDF_HEADER_TITLE_LINE_H / 2), { align: "center", baseline: "middle" });
+    });
+    hy += PDF_HEADER_TITLE_LINES.length * PDF_HEADER_TITLE_LINE_H + PDF_HEADER_TITLE_GAP;
+
+    pdf.setFont("helvetica", "italic");
+    pdf.setFontSize(T(7));
+    pdf.setTextColor(...PDF_SLATE_500);
+    pdf.text(
+        `Reporte generado por el sistema de Control de Plazas a las ${fmtFechaHoraGeneracionPdf()}.`,
+        pageCenterX, Y(hy + PDF_HEADER_LEGEND_H / 2), { align: "center", baseline: "middle" },
+    );
+    hy += PDF_HEADER_LEGEND_H + PDF_HEADER_LEGEND_GAP;
+
+    pdf.setDrawColor(...PDF_SLATE_200);
+    pdf.setLineWidth(Math.max(T(0.75), 0.3));
+    pdf.line(X(0), Y(hy), X(contentWidth), Y(hy));
+    hy += PDF_HEADER_RULE_GAP;
+
+    const nombreCompleto = [movimientos[0]?.nombre, movimientos[0]?.ap_pat, movimientos[0]?.ap_mat]
+        .map((s) => (s || "").trim()).filter(Boolean).join(" ") || "—";
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(T(11));
+    pdf.setTextColor(...PDF_MAROON);
+    pdf.text(
+        fitPdfText(pdf, `Historial de Movimientos — ${nombreCompleto} (No. Empleado ${numEmpleado})`, T(contentWidth)),
+        X(0), Y(hy + PDF_HEADER_SUBTITLE_H / 2), { baseline: "middle" },
+    );
+
+    // Sombreado alternado de columnas de carril (igual que `laneBands` en
+    // pantalla) — carriles impares (índice 1, 3, 5...) llevan fondo tenue,
+    // de arriba de la cabecera de carril hasta abajo de la última tarjeta.
+    lanes.forEach((lane) => {
+        if (lane.index % 2 !== 1) return;
+        const x = layout.laneX[lane.index];
+        pdf.setFillColor(...PDF_SLATE_100);
+        pdf.rect(X(x), Y(PDF_TITLE_H), T(PDF_CARD_W), T(layout.contentHeight - PDF_TITLE_H), "F");
+    });
 
     // Cabeceras de carril
     lanes.forEach((lane) => {
@@ -426,7 +527,7 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     pdf.setLineDashPattern([T(4), T(3)], 0);
     for (let i = 0; i < lanes.length - 1; i++) {
         const dividerX = layout.laneX[i] + PDF_CARD_W + PDF_LANE_GAP_X / 2;
-        pdf.line(X(dividerX), Y(0), X(dividerX), Y(layout.contentHeight));
+        pdf.line(X(dividerX), Y(PDF_TITLE_H), X(dividerX), Y(layout.contentHeight));
     }
     pdf.setLineDashPattern([], 0);
 
