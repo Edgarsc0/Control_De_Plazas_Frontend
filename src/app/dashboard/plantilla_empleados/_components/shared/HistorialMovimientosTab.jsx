@@ -4,7 +4,7 @@ import { useState, useRef, useMemo, useCallback, useLayoutEffect, useEffect } fr
 import { Loader2, AlertTriangle, FileQuestion, ChevronDown, ArrowRightLeft, GitCommitHorizontal, Download, ImageDown } from "lucide-react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { toSvg } from "html-to-image";
+import jsPDF from "jspdf";
 import { formatDateEsMx } from "@/utils/columnFilters";
 import { getMovimientoDiff } from "../../_utils/movimientosDiff";
 import { PlantillaService } from "@/services/plantilla.service";
@@ -88,6 +88,363 @@ const buildExportRows = (movimientos) => {
         });
         return row;
     });
+};
+
+// ─── Descarga del diagrama a PDF vectorial ─────────────────────────────────
+// Primer intento (descartado): capturar el DOM con html-to-image (toSvg) y
+// envolver el HTML en un <foreignObject>. El .svg resultante se ve bien
+// abierto directo en el navegador, pero deja de ser "una imagen" para
+// cualquier otro consumidor (vista previa del explorador, insertarlo en
+// Word/PowerPoint, un visor de imágenes) porque esos NO renderizan
+// <foreignObject> — sale en blanco. Mismo problema que ya se había resuelto
+// en organigrama/page.jsx (ver comentario ahí, "Exportación de organigrama a
+// PDF vectorial"): la solución real es dibujar con las primitivas
+// vectoriales de jsPDF (rect/texto/línea) a partir de coordenadas
+// analíticas — nunca pasar por el DOM ni por una imagen intermedia. Esta
+// función replica ese mismo enfoque para el diagrama de carriles, con el
+// detalle de "Cambios detectados" de cada movimiento siempre desplegado
+// (a diferencia de la pantalla, aquí no hay interacción posible).
+const PDF_PX_TO_PT = 0.75;         // 96 CSS px/in → 72pt/in, igual que organigrama
+const PDF_MAX_DIM_PT = 14000;      // techo físico de página (~194in) de la mayoría de lectores PDF
+const PDF_MARGIN = 28;
+const PDF_TITLE_H = 22;
+const PDF_TITLE_GAP = 16;
+const PDF_LANE_HEADER_H = 58;
+const PDF_LANE_HEADER_GAP = 20;
+const PDF_LANE_GAP_X = 14;
+const PDF_ROW_GAP_Y = 16;
+const PDF_CARD_W = 260;
+const PDF_MAX_DIFF_LINES = 6;
+
+const PDF_MAROON = [98, 31, 50];
+const PDF_GOLD = [188, 149, 92];
+const PDF_AMBER = [245, 158, 11];
+const PDF_AMBER_BG = [255, 251, 235];
+const PDF_AMBER_TEXT = [180, 83, 9];
+const PDF_AMBER_BORDER = [253, 230, 138];
+const PDF_SLATE_700 = [51, 65, 85];
+const PDF_SLATE_500 = [100, 116, 139];
+const PDF_SLATE_400 = [148, 163, 184];
+const PDF_SLATE_200 = [226, 232, 240];
+const PDF_SLATE_100 = [241, 245, 249];
+const PDF_SLATE_50 = [248, 250, 252];
+const PDF_MAROON_TINT = [246, 237, 239];
+
+// Trunca a una línea con "…" hasta que quepa en `maxWidth` — requiere fuente
+// y tamaño ya seteados en `pdf` (jsPDF.getTextWidth depende de eso).
+const fitPdfText = (pdf, text, maxWidth) => {
+    const str = String(text ?? "");
+    if (!str) return "";
+    if (pdf.getTextWidth(str) <= maxWidth) return str;
+    let t = str;
+    while (t.length > 1 && pdf.getTextWidth(`${t}…`) > maxWidth) t = t.slice(0, -1);
+    return `${t}…`;
+};
+
+// Corte simple por cantidad de caracteres (no por ancho real) — usado para
+// los valores de "Cambios detectados", donde el largo real depende del
+// resto de la línea (etiqueta + flecha) y no vale la pena medir pt a pt.
+const capStr = (value, max = 42) => {
+    const str = String(value ?? "");
+    return str.length > max ? `${str.slice(0, max - 1)}…` : str;
+};
+
+// Altura (en "px" CSS, antes de convertir a pt) que ocupa la tarjeta de un
+// movimiento: cabecera fija (título/motivo/grid 2x2) + detalle de cambios,
+// cuyo largo sí varía según cuántos campos cambiaron respecto al anterior.
+const computeHistorialCardHeight = (isFirst, diff, cambioDePosicion) => {
+    let h = 14; // padding superior
+    if (cambioDePosicion) h += 16; // badge "Cambio de posición"
+    h += 16; // título (accion_nombre)
+    h += 18; // chip motivo_nombre
+    h += 10; // gap antes del grid
+    h += 24 * 2; // grid 2x2: F.Efectiva/F.Captura, Sec/Por
+    h += 16; // padding inferior de la cabecera + separador
+
+    h += 10; // margen superior del bloque de detalle
+    if (isFirst) {
+        h += 16 + 12; // línea "Movimiento inicial..." + padding inferior
+    } else {
+        h += 14 + 6; // encabezado "Cambios detectados (N)"
+        if (diff.differences.length === 0) {
+            h += 14 + 12;
+        } else {
+            const shown = Math.min(diff.differences.length, PDF_MAX_DIFF_LINES);
+            h += shown * 20;
+            if (diff.differences.length > PDF_MAX_DIFF_LINES) h += 16;
+            h += 12;
+        }
+    }
+    return h;
+};
+
+// Layout analítico completo: X de cada carril, Y acumulada de cada fila
+// (una fila = un movimiento, mismo orden cronológico que en pantalla) y
+// dimensiones totales del lienzo — todo en "px" CSS, sin tocar el DOM.
+const computeHistorialLayout = (movimientos, lanes) => {
+    const laneX = lanes.map((_, i) => i * (PDF_CARD_W + PDF_LANE_GAP_X));
+    const contentWidth = lanes.length * PDF_CARD_W + (lanes.length - 1) * PDF_LANE_GAP_X;
+    const laneIndexByPosicion = new Map(lanes.map((l) => [l.posicion, l.index]));
+
+    const rowsTop = PDF_TITLE_H + PDF_TITLE_GAP + PDF_LANE_HEADER_H + PDF_LANE_HEADER_GAP;
+    const rowHeights = [];
+    const rowY = [];
+    let cursor = rowsTop;
+    movimientos.forEach((mov, i) => {
+        const isFirst = i === 0;
+        const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1]);
+        const cambioDePosicion = !isFirst && mov.posicion !== movimientos[i - 1].posicion;
+        const h = computeHistorialCardHeight(isFirst, diff, cambioDePosicion);
+        rowHeights.push(h);
+        rowY.push(cursor);
+        cursor += h + PDF_ROW_GAP_Y;
+    });
+    const contentHeight = movimientos.length > 0 ? cursor - PDF_ROW_GAP_Y : rowsTop;
+
+    return { laneX, laneIndexByPosicion, rowsTop, rowHeights, rowY, contentWidth, contentHeight };
+};
+
+const drawHistorialCardPdf = (pdf, mov, x, yTop, w, isFirst, diff, cambioDePosicion, X, Y, T) => {
+    const cx = x + w / 2;
+    let cursorY = yTop + 14;
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(...PDF_SLATE_200);
+    pdf.setLineWidth(Math.max(T(1), 0.4));
+
+    if (cambioDePosicion) {
+        pdf.setFillColor(...PDF_AMBER_BG);
+        pdf.setDrawColor(...PDF_AMBER_BORDER);
+        const label = "CAMBIO DE POSICIÓN";
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(T(7));
+        const labelW = pdf.getTextWidth(label); // ya en pt (fuente/tamaño seteados arriba)
+        pdf.roundedRect(X(x), Y(cursorY), labelW + T(14), T(14), T(7), T(7), "FD");
+        pdf.setTextColor(...PDF_AMBER_TEXT);
+        pdf.text(label, X(x) + T(7), Y(cursorY + 7), { baseline: "middle" });
+        cursorY += 16;
+    }
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(T(9.5));
+    pdf.setTextColor(...PDF_MAROON);
+    pdf.text(fitPdfText(pdf, (mov.accion_nombre || "—").toUpperCase(), T(w - 8)), X(x), Y(cursorY + 9), { baseline: "middle" });
+    cursorY += 16;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(T(7.5));
+    const motivo = fitPdfText(pdf, mov.motivo_nombre || "—", T(w - 8));
+    const motivoW = pdf.getTextWidth(motivo); // pt
+    pdf.setFillColor(...PDF_SLATE_100);
+    pdf.roundedRect(X(x), Y(cursorY), Math.min(T(w), motivoW + T(8)), T(14), T(3), T(3), "F");
+    pdf.setTextColor(...PDF_SLATE_500);
+    pdf.text(motivo, X(x + 4), Y(cursorY + 7), { baseline: "middle" });
+    cursorY += 10 + 18;
+
+    const gridColW = w / 2;
+    const gridCell = (label, value, col, row) => {
+        const gx = x + col * gridColW;
+        const gy = cursorY + row * 24;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(T(6.5));
+        pdf.setTextColor(...PDF_SLATE_400);
+        pdf.text(label, X(gx), Y(gy), { baseline: "middle" });
+        pdf.setFont("courier", "bold");
+        pdf.setFontSize(T(8));
+        pdf.setTextColor(...PDF_SLATE_700);
+        pdf.text(fitPdfText(pdf, value, T(gridColW - 4)), X(gx), Y(gy + 11), { baseline: "middle" });
+    };
+    gridCell("F. EFECTIVA", formatDate(mov.fecha_efectiva), 0, 0);
+    gridCell("F. CAPTURA", formatDate(mov.fecha_captura), 1, 0);
+    gridCell("SEC", mov.sec ?? "-", 0, 1);
+    gridCell("POR", mov.por || "-", 1, 1);
+    cursorY += 24 * 2 + 8;
+
+    // Divisor + bloque de detalle ("Cambios detectados"), siempre desplegado.
+    pdf.setDrawColor(...PDF_SLATE_200);
+    pdf.setLineWidth(Math.max(T(0.75), 0.3));
+    pdf.setLineDashPattern([T(3), T(2)], 0);
+    pdf.line(X(x), Y(cursorY), X(x + w), Y(cursorY));
+    pdf.setLineDashPattern([], 0);
+    cursorY += 10;
+
+    if (isFirst) {
+        pdf.setFont("helvetica", "italic");
+        pdf.setFontSize(T(7.5));
+        pdf.setTextColor(...PDF_SLATE_500);
+        pdf.text(fitPdfText(pdf, "Movimiento inicial de este historial.", T(w - 8)), X(x), Y(cursorY + 8), { baseline: "middle" });
+        return;
+    }
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(T(7));
+    pdf.setTextColor(...PDF_MAROON);
+    const diffTitle = diff.differences.length > 0 ? `CAMBIOS DETECTADOS (${diff.differences.length})` : "CAMBIOS DETECTADOS";
+    pdf.text(diffTitle, X(x), Y(cursorY + 7), { baseline: "middle" });
+    cursorY += 20;
+
+    if (diff.differences.length === 0) {
+        pdf.setFont("helvetica", "italic");
+        pdf.setFontSize(T(7.5));
+        pdf.setTextColor(...PDF_SLATE_400);
+        pdf.text("Sin cambios respecto al anterior.", X(x), Y(cursorY + 7), { baseline: "middle" });
+        return;
+    }
+
+    const shown = diff.differences.slice(0, PDF_MAX_DIFF_LINES);
+    shown.forEach((d) => {
+        pdf.setFillColor(...PDF_SLATE_50);
+        pdf.setDrawColor(...PDF_SLATE_200);
+        pdf.setLineWidth(Math.max(T(0.5), 0.3));
+        pdf.roundedRect(X(x), Y(cursorY), T(w), T(17), T(3), T(3), "FD");
+
+        // Una sola línea fluida "Label: viejo → nuevo" — el largo real de
+        // cada tramo depende de lo que vino antes, así que se posiciona con
+        // el ancho medido del tramo anterior en vez de columnas fijas.
+        let tx = X(x + 4);
+        const ty = Y(cursorY + 8.5);
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(T(7));
+        pdf.setTextColor(...PDF_SLATE_700);
+        const labelText = `${d.label}: `;
+        pdf.text(labelText, tx, ty, { baseline: "middle" });
+        tx += pdf.getTextWidth(labelText);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(T(6.5));
+        pdf.setTextColor(...PDF_SLATE_400);
+        const oldText = `${capStr(d.oldValue)} `;
+        pdf.text(oldText, tx, ty, { baseline: "middle" });
+        tx += pdf.getTextWidth(oldText);
+
+        pdf.text("→ ", tx, ty, { baseline: "middle" });
+        tx += pdf.getTextWidth("→ ");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(T(7));
+        pdf.setTextColor(...PDF_MAROON);
+        pdf.text(capStr(d.newValue), tx, ty, { baseline: "middle" });
+
+        cursorY += 20;
+    });
+    if (diff.differences.length > PDF_MAX_DIFF_LINES) {
+        pdf.setFont("helvetica", "italic");
+        pdf.setFontSize(T(7));
+        pdf.setTextColor(...PDF_SLATE_400);
+        pdf.text(`+ ${diff.differences.length - PDF_MAX_DIFF_LINES} más…`, X(x), Y(cursorY + 7), { baseline: "middle" });
+    }
+};
+
+// Construye el jsPDF listo para `.save(nombre)` — orientación y escala
+// elegidas para que TODO el diagrama quepa en una sola página; al ser
+// vectorial, reducir la escala física no pierde nitidez (el lector siempre
+// puede hacer zoom sobre los mismos trazos).
+const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
+    const layout = computeHistorialLayout(movimientos, lanes);
+    const totalWpx = layout.contentWidth + PDF_MARGIN * 2;
+    const totalHpx = layout.contentHeight + PDF_MARGIN * 2;
+
+    let pageWpt = totalWpx * PDF_PX_TO_PT;
+    let pageHpt = totalHpx * PDF_PX_TO_PT;
+    const scale = Math.min(1, PDF_MAX_DIM_PT / pageWpt, PDF_MAX_DIM_PT / pageHpt);
+    pageWpt *= scale;
+    pageHpt *= scale;
+
+    const pdf = new jsPDF({
+        orientation: pageWpt >= pageHpt ? "l" : "p",
+        unit: "pt",
+        format: [pageWpt, pageHpt],
+    });
+
+    const T = (px) => px * PDF_PX_TO_PT * scale;
+    const X = (px) => T(px + PDF_MARGIN);
+    const Y = (px) => T(px + PDF_MARGIN);
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWpt, pageHpt, "F");
+
+    // Título
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(T(13));
+    pdf.setTextColor(...PDF_MAROON);
+    pdf.text(`Historial de Movimientos — Empleado ${numEmpleado}`, X(0), Y(PDF_TITLE_H / 2), { baseline: "middle" });
+
+    // Cabeceras de carril
+    lanes.forEach((lane) => {
+        const x = layout.laneX[lane.index];
+        const yTop = PDF_TITLE_H + PDF_TITLE_GAP;
+        const w = PDF_CARD_W;
+        pdf.setFillColor(...(lane.esActual ? PDF_MAROON_TINT : PDF_SLATE_50));
+        pdf.setDrawColor(...(lane.esActual ? PDF_MAROON : PDF_SLATE_200));
+        pdf.setLineWidth(Math.max(T(1), 0.4));
+        pdf.roundedRect(X(x), Y(yTop), T(w), T(PDF_LANE_HEADER_H), T(10), T(10), "FD");
+
+        pdf.setFont("courier", "bold");
+        pdf.setFontSize(T(10));
+        pdf.setTextColor(...PDF_MAROON);
+        pdf.text(fitPdfText(pdf, lane.posicion || "—", T(w - 60)), X(x + 10), Y(yTop + 16), { baseline: "middle" });
+
+        if (lane.esActual) {
+            const label = "ACTUAL";
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(T(6.5));
+            const labelW = pdf.getTextWidth(label); // pt
+            const badgeW = labelW + T(10);
+            const badgeX = X(x + w - 10) - badgeW;
+            pdf.setFillColor(...PDF_MAROON);
+            pdf.roundedRect(badgeX, Y(yTop + 10), badgeW, T(13), T(6.5), T(6.5), "F");
+            pdf.setTextColor(255, 255, 255);
+            pdf.text(label, badgeX + badgeW / 2, Y(yTop + 16.5), { align: "center", baseline: "middle" });
+        }
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(T(7.5));
+        pdf.setTextColor(...PDF_SLATE_500);
+        pdf.text(fitPdfText(pdf, lane.puestoPtal || "Sin puesto", T(w - 20)), X(x + 10), Y(yTop + 32), { baseline: "middle" });
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(T(6.5));
+        pdf.setTextColor(...PDF_SLATE_400);
+        const rango = `${formatDate(lane.primeraFecha)} — ${lane.esActual ? "actual" : formatDate(lane.ultimaFecha)}`;
+        pdf.text(fitPdfText(pdf, rango, T(w - 20)), X(x + 10), Y(yTop + 46), { baseline: "middle" });
+    });
+
+    // Conectores entre movimientos consecutivos (misma forma en L que en pantalla)
+    for (let i = 0; i < movimientos.length - 1; i++) {
+        const laneA = layout.laneIndexByPosicion.get(movimientos[i].posicion) ?? 0;
+        const laneB = layout.laneIndexByPosicion.get(movimientos[i + 1].posicion) ?? 0;
+        const xA = layout.laneX[laneA] + PDF_CARD_W / 2;
+        const yA = layout.rowY[i] + layout.rowHeights[i];
+        const xB = layout.laneX[laneB] + PDF_CARD_W / 2;
+        const yB = layout.rowY[i + 1];
+        const cambio = movimientos[i].posicion !== movimientos[i + 1].posicion;
+
+        pdf.setDrawColor(...(cambio ? PDF_AMBER : PDF_GOLD));
+        pdf.setLineWidth(Math.max(T(cambio ? 1.75 : 1.4), 0.5));
+        if (cambio) pdf.setLineDashPattern([T(4), T(3)], 0); else pdf.setLineDashPattern([], 0);
+
+        if (Math.abs(xA - xB) < 1) {
+            pdf.line(X(xA), Y(yA), X(xB), Y(yB));
+        } else {
+            const midY = (yA + yB) / 2;
+            pdf.line(X(xA), Y(yA), X(xA), Y(midY));
+            pdf.line(X(xA), Y(midY), X(xB), Y(midY));
+            pdf.line(X(xB), Y(midY), X(xB), Y(yB));
+        }
+        pdf.setLineDashPattern([], 0);
+    }
+
+    // Tarjetas de movimiento
+    movimientos.forEach((mov, i) => {
+        const laneIdx = layout.laneIndexByPosicion.get(mov.posicion) ?? 0;
+        const isFirst = i === 0;
+        const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1]);
+        const cambioDePosicion = !isFirst && mov.posicion !== movimientos[i - 1].posicion;
+        drawHistorialCardPdf(pdf, mov, layout.laneX[laneIdx], layout.rowY[i], PDF_CARD_W, isFirst, diff, cambioDePosicion, X, Y, T);
+    });
+
+    return pdf;
 };
 
 // Carriles = posiciones distintas que tuvo el empleado, en orden de PRIMERA
@@ -378,46 +735,22 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
     }, [recomputeLayout]);
 
     // Descarga el diagrama completo (carriles + conectores + detalle de CADA
-    // movimiento desplegado) como SVG vectorial — texto y trazos quedan
-    // embebidos como HTML/CSS reales dentro de un <foreignObject>, no como
-    // píxeles, así que escala sin perder nitidez a cualquier resolución.
-    // Expande temporalmente todas las tarjetas (sin tocar lo que el usuario
-    // ya tenía abierto), espera a que la animación de entrada de cada panel
-    // termine y el layout (paths/dividers, ver recomputeLayout) se asiente
-    // con las nuevas alturas, y restaura el estado previo al terminar.
-    const handleDownloadImage = useCallback(async () => {
+    // movimiento, siempre desplegado) como PDF vectorial — ver
+    // buildHistorialPdf arriba para el porqué del enfoque (nada de captura de
+    // DOM). No depende del estado de expansión en pantalla ni del layout por
+    // getBoundingClientRect: se recalcula todo desde `movimientos`/`lanes`.
+    const handleDownloadImage = useCallback(() => {
         if (movimientos.length === 0 || exportingImage) return;
         setExportingImage(true);
-        const prevExpanded = expandedIds;
         try {
-            setExpandedIds(new Set(movimientos.map((m) => m.id)));
-            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            await new Promise((resolve) => setTimeout(resolve, 650));
-            recomputeLayout();
-            await new Promise((resolve) => requestAnimationFrame(resolve));
-
-            const node = canvasRef.current;
-            if (!node) throw new Error("sin nodo para capturar");
-            const dataUrl = await toSvg(node, {
-                backgroundColor: "#ffffff",
-                width: node.scrollWidth,
-                height: node.scrollHeight,
-            });
-
-            const filename = `Historial_Movimientos_${numEmpleado}.svg`;
-            const a = document.createElement("a");
-            a.href = dataUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            const pdf = buildHistorialPdf(movimientos, lanes, numEmpleado);
+            pdf.save(`Historial_Movimientos_${numEmpleado}.pdf`);
         } catch (err) {
             toast.error("No se pudo generar la imagen.");
         } finally {
-            setExpandedIds(prevExpanded);
             setExportingImage(false);
         }
-    }, [movimientos, expandedIds, exportingImage, numEmpleado, toast, recomputeLayout]);
+    }, [movimientos, lanes, exportingImage, numEmpleado, toast]);
 
     // "Construcción" animada del diagrama — una sola vez por dataset cargado
     // (identificado por `estado.data`, referencia estable mientras solo se
