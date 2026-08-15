@@ -168,6 +168,12 @@ const PDF_SLATE_200 = [226, 232, 240];
 const PDF_SLATE_100 = [241, 245, 249];
 const PDF_SLATE_50 = [248, 250, 252];
 const PDF_MAROON_TINT = [246, 237, 239];
+// Badge "NIVEL N" de la cabecera de carril — mismo tono dorado institucional
+// que en pantalla (bg-[#bc955c]/15, border-[#bc955c]/30, text-[#7a5a30]),
+// pre-mezclado sobre blanco porque jsPDF no soporta opacidad en fills.
+const PDF_GOLD_BG = [245, 239, 231];
+const PDF_GOLD_BORDER = [235, 223, 206];
+const PDF_GOLD_TEXT = [122, 90, 48];
 
 // Trunca a una línea con "…" hasta que quepa en `maxWidth` — requiere fuente
 // y tamaño ya seteados en `pdf` (jsPDF.getTextWidth depende de eso).
@@ -512,10 +518,32 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
             pdf.text(label, badgeX + badgeW / 2, Y(yTop + 16.5), { align: "center", baseline: "middle" });
         }
 
+        // Badge "NIVEL N" — dato que el usuario pidió destacar en la cabecera
+        // de carril (antes solo vivía en pantalla, ausente del PDF). Empuja
+        // el texto de puesto a su derecha, igual que el layout inline en
+        // pantalla (span badge + <p> puesto).
+        let puestoTextX = X(x + 10);
+        const puestoRightEdge = X(x + w - 10);
+        if (lane.nivel) {
+            const nivelLabel = `NIVEL ${lane.nivel}`;
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(T(6.5));
+            const nivelW = pdf.getTextWidth(nivelLabel); // pt
+            const badgeW = nivelW + T(8);
+            const badgeX = X(x + 10);
+            pdf.setFillColor(...PDF_GOLD_BG);
+            pdf.setDrawColor(...PDF_GOLD_BORDER);
+            pdf.setLineWidth(Math.max(T(0.75), 0.3));
+            pdf.roundedRect(badgeX, Y(yTop + 25), badgeW, T(13), T(6.5), T(6.5), "FD");
+            pdf.setTextColor(...PDF_GOLD_TEXT);
+            pdf.text(nivelLabel, badgeX + badgeW / 2, Y(yTop + 31.5), { align: "center", baseline: "middle" });
+            puestoTextX = badgeX + badgeW + T(6);
+        }
+
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(7.5));
         pdf.setTextColor(...PDF_SLATE_500);
-        pdf.text(fitPdfText(pdf, lane.puestoPtal || "Sin puesto", T(w - 20)), X(x + 10), Y(yTop + 32), { baseline: "middle" });
+        pdf.text(fitPdfText(pdf, lane.puestoPtal || "Sin puesto", Math.max(puestoRightEdge - puestoTextX, T(20))), puestoTextX, Y(yTop + 32), { baseline: "middle" });
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(6.5));
