@@ -372,8 +372,12 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         pdf.text(oldText, tx, ty, { baseline: "middle" });
         tx += pdf.getTextWidth(oldText);
 
-        pdf.text("→ ", tx, ty, { baseline: "middle" });
-        tx += pdf.getTextWidth("→ ");
+        // Los fuentes estándar de jsPDF (helvetica/times/courier) usan
+        // WinAnsiEncoding y no traen glifo para "→" (U+2192) — sale como
+        // "!" o un cuadro roto. "->" en ASCII es compatible con cualquier
+        // lector.
+        pdf.text("-> ", tx, ty, { baseline: "middle" });
+        tx += pdf.getTextWidth("-> ");
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(7));
