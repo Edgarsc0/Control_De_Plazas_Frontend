@@ -11,6 +11,7 @@ import { ToastProvider } from "@/hooks/useToast"
 import { AuthProvider } from "@/hooks/useAuth"
 import Toaster from "@/components/ui/Toaster"
 import PresenceHeartbeat from "@/components/system/PresenceHeartbeat"
+import WebVitalsReporter from "@/components/system/WebVitalsReporter"
 
 
 const notoSans = Noto_Sans({
@@ -68,6 +69,7 @@ export default function RootLayout({ children }) {
           <ToastProvider>
             <PageTabsProvider>
               <PresenceHeartbeat />
+              <WebVitalsReporter />
               <Fade>
                 {/* pt-[var(--navbar-h)] fijo: el override móvil de --stack-h
                     en globals.css (@media max-width:767px) se pierde en la
