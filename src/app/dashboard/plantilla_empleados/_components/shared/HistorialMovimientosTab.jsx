@@ -118,7 +118,6 @@ const PDF_LANE_HEADER_GAP = 20;
 const PDF_LANE_GAP_X = 14;
 const PDF_ROW_GAP_Y = 16;
 const PDF_CARD_W = 260;
-const PDF_MAX_DIFF_LINES = 6;
 
 // ─── Membretado institucional (mismo patrón que excelLetterhead.js: logo →
 // título apilado → leyenda de generación) + línea de encabezado propia del
@@ -189,7 +188,7 @@ const fitPdfText = (pdf, text, maxWidth) => {
 // Corte simple por cantidad de caracteres (no por ancho real) — usado para
 // los valores de "Cambios detectados", donde el largo real depende del
 // resto de la línea (etiqueta + flecha) y no vale la pena medir pt a pt.
-const capStr = (value, max = 42) => {
+const capStr = (value, max = 60) => {
     const str = String(value ?? "");
     return str.length > max ? `${str.slice(0, max - 1)}…` : str;
 };
@@ -214,9 +213,8 @@ const computeHistorialCardHeight = (isFirst, diff, cambioDePosicion) => {
         if (diff.differences.length === 0) {
             h += 14 + 12;
         } else {
-            const shown = Math.min(diff.differences.length, PDF_MAX_DIFF_LINES);
-            h += shown * 20;
-            if (diff.differences.length > PDF_MAX_DIFF_LINES) h += 16;
+            // Sin tope: el usuario pidió el desglose completo, nunca "+N más".
+            h += diff.differences.length * 20;
             h += 12;
         }
     }
@@ -351,8 +349,9 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         return;
     }
 
-    const shown = diff.differences.slice(0, PDF_MAX_DIFF_LINES);
-    shown.forEach((d) => {
+    // Sin tope de filas: se dibuja el desglose completo, nunca "+N más" (el
+    // alto de la tarjeta ya lo reserva por completo, ver computeHistorialCardHeight).
+    diff.differences.forEach((d) => {
         pdf.setFillColor(...PDF_SLATE_50);
         pdf.setDrawColor(...PDF_SLATE_200);
         pdf.setLineWidth(Math.max(T(0.5), 0.3));
@@ -392,12 +391,6 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
 
         cursorY += 20;
     });
-    if (diff.differences.length > PDF_MAX_DIFF_LINES) {
-        pdf.setFont("helvetica", "italic");
-        pdf.setFontSize(T(7));
-        pdf.setTextColor(...PDF_SLATE_400);
-        pdf.text(`+ ${diff.differences.length - PDF_MAX_DIFF_LINES} más…`, X(xIn), Y(cursorY + 7), { baseline: "middle" });
-    }
 };
 
 // Construye el jsPDF listo para `.save(nombre)` — orientación y escala
