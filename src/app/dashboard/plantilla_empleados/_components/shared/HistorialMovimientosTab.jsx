@@ -154,6 +154,16 @@ const downloadExcelConFoto = async (rows, filename, numEmpleado, signal) => {
 
     const imageId = fotoEncontrada ? workbook.addImage({ buffer: fotoBuffer, extension: fotoExtension }) : null;
 
+    // Mismo tono institucional que los exports "con fotos" del backend
+    // (excel_fotos.py: border_color "#BC955C") — bordes EXPLÍCITOS, no las
+    // líneas de cuadrícula por defecto de Excel (esas pueden desaparecer
+    // según config de vista del usuario).
+    const cellBorder = { style: "thin", color: { argb: "FFBC955C" } };
+    const totalCols = columnKeys.length + colOffset;
+    const applyBorder = (row) => {
+        for (let c = 1; c <= totalCols; c++) row.getCell(c).border = { top: cellBorder, left: cellBorder, bottom: cellBorder, right: cellBorder };
+    };
+
     const headerRow = worksheet.getRow(nextRow);
     if (fotoEncontrada) headerRow.getCell(1).value = "Foto";
     columnKeys.forEach((key, i) => { headerRow.getCell(i + 1 + colOffset).value = key; });
@@ -161,9 +171,15 @@ const downloadExcelConFoto = async (rows, filename, numEmpleado, signal) => {
     headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
     headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     headerRow.height = 26;
+    applyBorder(headerRow);
     const headerRowNum = nextRow;
     nextRow += 1;
 
+    // Alto de fila / tamaño de imagen calibrados con margen (fila 40pt ≈
+    // 53px) para que la foto NUNCA toque el borde inferior — una imagen
+    // flotante se dibuja por ENCIMA de los bordes de celda, así que si la
+    // llena por completo se lo tapa (bug reportado: "no se ven los bordes
+    // inferiores").
     rows.forEach((row, i) => {
         const r = worksheet.addRow(row);
         r.font = { name: "Calibri", size: 9 };
@@ -172,10 +188,11 @@ const downloadExcelConFoto = async (rows, filename, numEmpleado, signal) => {
         if (fotoEncontrada) {
             r.height = 40;
             worksheet.addImage(imageId, {
-                tl: { col: 0.12, row: (r.number - 1) + 0.06 },
-                ext: { width: 46, height: 50 },
+                tl: { col: 0.15, row: (r.number - 1) + 0.18 },
+                ext: { width: 32, height: 36 },
             });
         }
+        applyBorder(r);
     });
 
     worksheet.views = [{ state: "frozen", ySplit: headerRowNum }];
