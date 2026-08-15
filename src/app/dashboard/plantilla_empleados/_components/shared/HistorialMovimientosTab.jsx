@@ -5,10 +5,14 @@ import { Loader2, AlertTriangle, FileQuestion, ChevronDown, ArrowRightLeft, GitC
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import jsPDF from "jspdf";
+import ExcelJS from "exceljs";
 import { formatDateEsMx } from "@/utils/columnFilters";
 import { getMovimientoDiff } from "../../_utils/movimientosDiff";
 import { PlantillaService } from "@/services/plantilla.service";
+import { VacantesService } from "@/services/vacantes.service";
+import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { useToast } from "@/hooks/useToast";
+import ExportConFotosModal from "./ExportConFotosModal";
 import {
     LETTERHEAD_LOGO_BASE64,
     LETTERHEAD_LOGO_WIDTH,
@@ -93,6 +97,77 @@ const buildExportRows = (movimientos) => {
         });
         return row;
     });
+};
+
+const downloadBlobAsFile = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+};
+
+// Excel con foto: arma el workbook 100% client-side con exceljs (mismo
+// patrón que src/utils/excelExport.js) en vez del generador genérico del
+// backend (ExportExcelView, que solo sabe de tablas planas) — así se puede
+// incrustar la fotografía sin tocar ese endpoint compartido por otros
+// exports. La foto se pide al MISMO endpoint (EmpleadoFotoView) que ya usa
+// el tab "Fotografía" del expediente, así que ya viene permission-gated por
+// `canViewPhoto` sin necesidad de checar nada nuevo aquí.
+const downloadExcelConFoto = async (rows, filename, numEmpleado, signal) => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Historial");
+    const columnKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
+    worksheet.columns = columnKeys.map((key) => ({ key, width: 22 }));
+    let nextRow = addExcelLetterhead(workbook, worksheet, columnKeys.length) + 1;
+
+    let fotoEncontrada = false;
+    try {
+        const fotoRes = await VacantesService.getEmpleadoFoto(numEmpleado, { signal });
+        if (fotoRes.ok) {
+            const blob = await fotoRes.blob();
+            const buffer = await blob.arrayBuffer();
+            const extension = blob.type.includes("png") ? "png" : "jpeg";
+            const imageId = workbook.addImage({ buffer, extension });
+            worksheet.getRow(nextRow).height = 92;
+            worksheet.addImage(imageId, {
+                tl: { col: 0.15, row: nextRow - 1 + 0.08 },
+                ext: { width: 90, height: 108 },
+            });
+            nextRow += 1;
+            fotoEncontrada = true;
+        }
+    } catch (err) {
+        if (err.name === "AbortError") throw err;
+        // Sin foto: se continúa con el resto del Excel de todas formas.
+    }
+
+    const headerRow = worksheet.getRow(nextRow);
+    columnKeys.forEach((key, i) => { headerRow.getCell(i + 1).value = key; });
+    headerRow.font = { name: "Calibri", bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+    headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
+    headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    headerRow.height = 26;
+    nextRow += 1;
+
+    rows.forEach((row, i) => {
+        const r = worksheet.addRow(row);
+        r.font = { name: "Calibri", size: 9 };
+        r.alignment = { vertical: "middle" };
+        if (i % 2 === 1) r.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+    });
+
+    worksheet.views = [{ state: "frozen", ySplit: nextRow - 1 }];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    downloadBlobAsFile(
+        new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+        filename,
+    );
+    return fotoEncontrada;
 };
 
 // ─── Descarga del diagrama a PDF vectorial ─────────────────────────────────
@@ -762,9 +837,11 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
     );
 };
 
-export default function HistorialMovimientosTab({ estado, numEmpleado }) {
+export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPhoto = true }) {
     const { toast } = useToast();
     const [downloading, setDownloading] = useState(false);
+    const [showExportExcelModal, setShowExportExcelModal] = useState(false);
+    const exportExcelAbortRef = useRef(null);
     const [exportingImage, setExportingImage] = useState(false);
     const [expandedIds, setExpandedIds] = useState(() => new Set());
     const canvasRef = useRef(null);
@@ -784,31 +861,45 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
 
     // Descarga el mismo dataset ya cargado en este tab (SELECT * FROM
     // cp_tbl_mov_completo_29_05_26 WHERE num_empleado = numEmpleado, ver
-    // MovimientosPersonalHistorialView) hacia un .xlsx real vía el generador
-    // genérico del backend (ExportExcelView) — sin volver a pedir los datos.
-    const handleDownloadExcel = useCallback(async () => {
+    // MovimientosPersonalHistorialView) hacia un .xlsx real. Sin foto: pasa
+    // por el generador genérico del backend (ExportExcelView), sin volver a
+    // pedir los datos. Con foto: se arma client-side (ver downloadExcelConFoto)
+    // porque ese endpoint compartido no soporta imágenes.
+    const runExportExcel = useCallback(async (incluirFoto) => {
         if (movimientos.length === 0 || downloading) return;
         setDownloading(true);
+        const controller = new AbortController();
+        exportExcelAbortRef.current = controller;
         try {
             const filename = `Historial_Movimientos_${numEmpleado}.xlsx`;
             const rows = buildExportRows(movimientos);
-            const response = await PlantillaService.exportExcel(rows, filename, { stickyColumn: false });
-            if (!response.ok) throw new Error("request failed");
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            if (incluirFoto) {
+                const fotoEncontrada = await downloadExcelConFoto(rows, filename, numEmpleado, controller.signal);
+                if (!fotoEncontrada) toast.info("El empleado no tiene fotografía registrada — se generó el Excel sin ella.");
+            } else {
+                const response = await PlantillaService.exportExcel(rows, filename, { stickyColumn: false });
+                if (!response.ok) throw new Error("request failed");
+                downloadBlobAsFile(await response.blob(), filename);
+            }
+            setShowExportExcelModal(false);
         } catch (err) {
-            toast.error("No se pudo generar el archivo Excel.");
+            if (err.name !== "AbortError") toast.error("No se pudo generar el archivo Excel.");
         } finally {
             setDownloading(false);
+            exportExcelAbortRef.current = null;
         }
     }, [movimientos, numEmpleado, downloading, toast]);
+
+    // Botón "Descargar excel": si el usuario puede ver fotografías en este
+    // expediente, se le pregunta antes (mismo patrón que MovimientosPersonalTab
+    // y BajasTab, ver ExportConFotosModal); si no tiene ese permiso, descarga
+    // directo sin preguntar — nunca ofrecer una opción que de todos modos
+    // fallaría al pedir la foto.
+    const handleDownloadExcel = useCallback(() => {
+        if (movimientos.length === 0 || downloading) return;
+        if (canViewPhoto) setShowExportExcelModal(true);
+        else void runExportExcel(false);
+    }, [movimientos, downloading, canViewPhoto, runExportExcel]);
 
     const toggleExpanded = useCallback((id) => {
         setExpandedIds((prev) => {
@@ -1132,6 +1223,17 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
                     </div>
                 </div>
             </div>
+
+            <ExportConFotosModal
+                open={showExportExcelModal}
+                onClose={() => setShowExportExcelModal(false)}
+                onConfirm={(incluirFotos) => runExportExcel(incluirFotos)}
+                isExporting={downloading}
+                onCancelExport={() => exportExcelAbortRef.current?.abort()}
+                rowCount={movimientos.length}
+                canIncluirFotos
+                showDatosPersonalesOption={false}
+            />
         </div>
     );
 }

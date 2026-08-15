@@ -1347,7 +1347,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                         onFieldSaved={handleDatosPersonalesFieldSaved}
                     />
                 ) : activeTab === "historial" ? (
-                    <HistorialMovimientosTab estado={historial} numEmpleado={numempleadoFoto} />
+                    <HistorialMovimientosTab estado={historial} numEmpleado={numempleadoFoto} canViewPhoto={canViewPhoto} />
                 ) : (
                 <>
                 {/* ── Barra de consulta: buscador de campos + depuración de vacíos ── */}
