@@ -407,7 +407,9 @@ export default function PlantillaEmpleadosDetalle({
         subtabConfigs={subtabConfigs}
       />
 
-      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isTightLayout ? "pt-14 pb-0" : "pt-14 pb-12"}`}>
+      {/* pt-14 sólo despeja el PageTabBar fijo (md+); en móvil esa barra está
+          oculta (hidden md:flex), así que ahí no hace falta ese hueco. */}
+      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`}>
         <div className={`w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 transition-all duration-300 ${isTightLayout ? "gap-2" : "gap-6"}`}>
 
           {activeTab !== "mapa" && (

@@ -1986,7 +1986,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                 escritorio de siempre (fila fija, sin scroll). */}
             <div className="flex flex-row gap-5 items-stretch w-full overflow-x-auto lg:overflow-visible snap-x snap-mandatory lg:snap-none pb-2 lg:pb-0 [&::-webkit-scrollbar]:hidden">
                     {statsLoading ? (
-              <div className="shrink-0 w-[280px] lg:w-56 snap-start">
+              <div className="shrink-0 w-[280px] lg:w-80 snap-start">
                 <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-[#621f32]/90 text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20 animate-pulse">
                   <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
                   <div className="flex items-center gap-2 mb-3 relative z-10">
@@ -2006,7 +2006,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                 </div>
               </div>
             ) : (
-              <div className="shrink-0 w-[280px] lg:w-56 snap-start">
+              <div className="shrink-0 w-[280px] lg:w-80 snap-start">
                 <div className="relative overflow-hidden rounded-[1.5rem] p-5 flex flex-col justify-between h-full bg-gradient-to-br from-[#621f32] to-[#8a2a46] text-white shadow-xl shadow-[#621f32]/25 ring-2 ring-white/20">
                   <div className="absolute -right-4 -top-4 size-24 rounded-full blur-3xl opacity-20 bg-white" />
                   <div className="flex items-center gap-2 mb-3 relative z-10">
@@ -2048,7 +2048,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               </div>
             )}
 
-            <div className="shrink-0 w-[85vw] max-w-[380px] lg:w-auto lg:flex-1 snap-start flex flex-col gap-2 min-h-[224px]">              {statsViewMode === "pie" ? (
+            <div className="shrink-0 w-[85vw] max-w-[380px] lg:w-auto lg:max-w-none lg:flex-1 snap-start flex flex-col gap-2 min-h-[224px]">              {statsViewMode === "pie" ? (
                 statsLoading ? (
               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center animate-pulse">
                 {/* SVG skeleton */}
@@ -2326,7 +2326,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
                     animate={{ opacity: 1, scale: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.95, x: 20 }}
                     transition={{ duration: 0.35, ease: "easeOut" }}
-                    className="shrink-0 w-[85vw] max-w-[380px] lg:w-auto lg:flex-1 snap-start flex flex-col gap-2"
+                    className="shrink-0 w-[85vw] max-w-[380px] lg:w-auto lg:max-w-none lg:flex-1 snap-start flex flex-col gap-2"
                   >
                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 px-1 truncate">
                       Distribución por Motivos

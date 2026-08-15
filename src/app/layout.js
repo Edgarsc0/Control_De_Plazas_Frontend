@@ -69,7 +69,14 @@ export default function RootLayout({ children }) {
             <PageTabsProvider>
               <PresenceHeartbeat />
               <Fade>
-                <main className="flex-grow relative z-10 flex flex-col pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
+                {/* pt-[var(--navbar-h)] fijo: el override móvil de --stack-h
+                    en globals.css (@media max-width:767px) se pierde en la
+                    build de Tailwind v4 y nunca llega a aplicarse, así que
+                    --stack-h se queda en 9rem (banner+navbar) también en
+                    móvil aunque el Banner esté oculto ahí — dejaba 80px de
+                    hueco fantasma bajo el Navbar. Aquí se resuelve el
+                    breakpoint con clases de Tailwind, que sí funcionan. */}
+                <main className="flex-grow relative z-10 flex flex-col pt-[var(--navbar-h)] md:pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
                   <ZafiroUpdatesProvider>
                     <Navbar />
                     <TooltipProvider>
