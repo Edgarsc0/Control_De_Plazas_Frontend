@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback, useLayoutEffect, useEffect } from "react";
-import { Loader2, AlertTriangle, FileQuestion, ChevronDown, ArrowRightLeft, GitCommitHorizontal } from "lucide-react";
+import { Loader2, AlertTriangle, FileQuestion, ChevronDown, ArrowRightLeft, GitCommitHorizontal, Download } from "lucide-react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { formatDateEsMx } from "@/utils/columnFilters";
 import { getMovimientoDiff } from "../../_utils/movimientosDiff";
+import { PlantillaService } from "@/services/plantilla.service";
+import { useToast } from "@/hooks/useToast";
 
 gsap.registerPlugin(useGSAP);
 
@@ -185,6 +187,8 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
 };
 
 export default function HistorialMovimientosTab({ estado, numEmpleado }) {
+    const { toast } = useToast();
+    const [downloading, setDownloading] = useState(false);
     const [expandedIds, setExpandedIds] = useState(() => new Set());
     const canvasRef = useRef(null);
     const bgLayerRef = useRef(null);
@@ -200,6 +204,33 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
     const movimientos = estado.data || [];
     const lanes = useLanes(movimientos);
     const laneIndexByPosicion = useMemo(() => new Map(lanes.map((l) => [l.posicion, l.index])), [lanes]);
+
+    // Descarga el mismo dataset ya cargado en este tab (SELECT * FROM
+    // cp_tbl_mov_completo_29_05_26 WHERE num_empleado = numEmpleado, ver
+    // MovimientosPersonalHistorialView) hacia un .xlsx real vía el generador
+    // genérico del backend (ExportExcelView) — sin volver a pedir los datos.
+    const handleDownloadExcel = useCallback(async () => {
+        if (movimientos.length === 0 || downloading) return;
+        setDownloading(true);
+        try {
+            const filename = `Historial_Movimientos_${numEmpleado}.xlsx`;
+            const response = await PlantillaService.exportExcel(movimientos, filename);
+            if (!response.ok) throw new Error("request failed");
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            toast.error("No se pudo generar el archivo Excel.");
+        } finally {
+            setDownloading(false);
+        }
+    }, [movimientos, numEmpleado, downloading, toast]);
 
     const toggleExpanded = useCallback((id) => {
         setExpandedIds((prev) => {
@@ -351,10 +382,21 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                <GitCommitHorizontal className="size-3.5 text-[#bc955c]" />
-                {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"} · {lanes.length} {lanes.length === 1 ? "posición" : "posiciones"}
-                <span className="hidden sm:inline text-slate-300 dark:text-slate-700">— desplaza horizontalmente para ver todos los carriles</span>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    <GitCommitHorizontal className="size-3.5 text-[#bc955c]" />
+                    {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"} · {lanes.length} {lanes.length === 1 ? "posición" : "posiciones"}
+                    <span className="hidden sm:inline text-slate-300 dark:text-slate-700">— desplaza horizontalmente para ver todos los carriles</span>
+                </div>
+                <button
+                    type="button"
+                    onClick={handleDownloadExcel}
+                    disabled={downloading}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-[#4a1726] dark:hover:opacity-90 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                    Descargar excel
+                </button>
             </div>
 
             {/* max-h + overflow-auto (x e y) propios: así el scrollbar horizontal
