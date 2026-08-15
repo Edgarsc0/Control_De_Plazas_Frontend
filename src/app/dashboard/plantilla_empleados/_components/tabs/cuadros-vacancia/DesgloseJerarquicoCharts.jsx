@@ -64,6 +64,21 @@ const GRADIENT_PAIRS = [
 // sin rebote. Se ve más fluida/premium que el 'ease-out' por defecto de Recharts.
 const MODERN_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
 
+// NJ=3 agrupa 2 puestos distintos (mismo nivel jerárquico, distinta función):
+// "Director" y "Titular de Aduana" — se distinguen por el prefijo del "Nombre
+// Puesto Funcional", igual criterio que el backend usa para nombreNJ (ver
+// NIVEL_3_PREFIJO_TITULAR_ADUANA en plantilla/models.py).
+const NIVEL_3_PREFIJO_TITULAR_ADUANA = 'Administrador de Aduana';
+const isTitularAduana = (item) => (item?.['Nombre Puesto Funcional'] || '')
+  .trim()
+  .toUpperCase()
+  .startsWith(NIVEL_3_PREFIJO_TITULAR_ADUANA.toUpperCase());
+
+// Colores del split NJ=3: dorado (tema "Aduanas", igual que FAMILY_COLORS
+// "A's") para Titulares de Aduana, granate institucional para Directores.
+const TITULAR_ADUANA_GRADIENT = ['#bc955c', '#d4ad74'];
+const DIRECTOR_GRADIENT = ['#621f32', '#8c2d4a'];
+
 /* ── Abreviaciones para el eje X de "Vacantes por Nivel Jerárquico" ── */
 const NJ_ABBR = {
   '0': 'Tit. ANAM',
@@ -204,14 +219,120 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+// Path de rect con radio independiente por esquina (SVG <rect> solo admite un
+// rx/ry uniforme) — necesario para redondear solo el borde externo de cada
+// segmento del split NJ=3 (arriba del segmento superior, abajo del inferior)
+// sin dejar una "muesca" redondeada en la unión entre ambos.
+const cornerRectPath = (x, y, width, height, { tl = 0, tr = 0, br = 0, bl = 0 }) => {
+  const cap = Math.max(0, Math.min(tl, tr, br, bl, width / 2, height / 2));
+  const t = Math.min(tl, cap), r = Math.min(tr, cap), b = Math.min(br, cap), l = Math.min(bl, cap);
+  return `M${x + t},${y}
+    H${x + width - r}
+    Q${x + width},${y} ${x + width},${y + r}
+    V${y + height - b}
+    Q${x + width},${y + height} ${x + width - b},${y + height}
+    H${x + l}
+    Q${x},${y + height} ${x},${y + height - l}
+    V${y + t}
+    Q${x},${y} ${x + t},${y}
+    Z`;
+};
+
+// Tooltip de las gráficas "Vacantes/Ocupación por Nivel Jerárquico": para la
+// barra NJ=3 (split Titulares de Aduana / Directores) muestra el desglose en
+// vez del total plano; para el resto cae al CustomTooltip genérico.
+const NJTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  const row = payload[0]?.payload;
+  if (!row || !row.isSplit) return <CustomTooltip active={active} payload={payload} label={label} />;
+
+  const total = (row.titular || 0) + (row.director || 0);
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
+      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
+        {label}
+      </p>
+      <div className="space-y-1.5">
+        <div className="flex justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+              style={{
+                background: `linear-gradient(135deg, ${TITULAR_ADUANA_GRADIENT[1]}, ${TITULAR_ADUANA_GRADIENT[0]})`,
+                boxShadow: `0 2px 4px ${TITULAR_ADUANA_GRADIENT[0]}30`,
+              }}
+            />
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Titulares de aduanas:</span>
+          </div>
+          <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(row.titular)}</span>
+        </div>
+        <div className="flex justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+              style={{
+                background: `linear-gradient(135deg, ${DIRECTOR_GRADIENT[1]}, ${DIRECTOR_GRADIENT[0]})`,
+                boxShadow: `0 2px 4px ${DIRECTOR_GRADIENT[0]}30`,
+              }}
+            />
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">Directores:</span>
+          </div>
+          <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(row.director)}</span>
+        </div>
+      </div>
+      <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 font-black">
+        <span className="text-[11px] text-slate-400 dark:text-slate-500">Total</span>
+        <span className="text-xs text-[#621f32] dark:text-[#bc955c]">{formatNumber(total)}</span>
+      </div>
+    </div>
+  );
+};
+
 /* ── Custom bar shape con gradiente ── */
 const GradientBar = (props) => {
-  const { x, y, width, height, index } = props;
-  const pair = GRADIENT_PAIRS[index % GRADIENT_PAIRS.length];
-  const id = `barGrad-${index}`;
+  const { x, y, width, height, index, payload } = props;
   const radius = 8;
 
   if (!Number.isFinite(x) || !Number.isFinite(height) || height <= 0) return null;
+
+  // NJ=3: barra partida en 2 colores — Titulares de Aduana (arriba, dorado) /
+  // Directores (abajo, granate) — en vez del degradado plano de una sola pieza.
+  if (payload && payload.isSplit) {
+    const titular = payload.titular || 0;
+    const director = payload.director || 0;
+    const total = titular + director;
+    if (total <= 0) return null;
+    const titularH = height * (titular / total);
+    const directorH = height - titularH;
+    const titularId = `barGradTitular-${index}`;
+    const directorId = `barGradDirector-${index}`;
+    return (
+      <g>
+        <defs>
+          <linearGradient id={titularId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={TITULAR_ADUANA_GRADIENT[1]} stopOpacity={1} />
+            <stop offset="100%" stopColor={TITULAR_ADUANA_GRADIENT[0]} stopOpacity={1} />
+          </linearGradient>
+          <linearGradient id={directorId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={DIRECTOR_GRADIENT[1]} stopOpacity={1} />
+            <stop offset="100%" stopColor={DIRECTOR_GRADIENT[0]} stopOpacity={1} />
+          </linearGradient>
+        </defs>
+        {titularH > 0 && (
+          <path d={cornerRectPath(x, y, width, titularH, { tl: radius, tr: radius })} fill={`url(#${titularId})`} />
+        )}
+        {directorH > 0 && (
+          <path
+            d={cornerRectPath(x, y + titularH, width, directorH, { br: radius, bl: radius })}
+            fill={`url(#${directorId})`}
+          />
+        )}
+      </g>
+    );
+  }
+
+  const pair = GRADIENT_PAIRS[index % GRADIENT_PAIRS.length];
+  const id = `barGrad-${index}`;
 
   return (
     <g>
@@ -280,12 +401,25 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     data.forEach(item => {
       const raw = (item.NJ ?? '').toString().trim();
       const nj = raw === '' ? 'Sin NJ' : raw;
-      njCounts[nj] = (njCounts[nj] || 0) + 1;
+      if (!njCounts[nj]) njCounts[nj] = { total: 0, titular: 0, director: 0 };
+      njCounts[nj].total += 1;
+      if (nj === '3') {
+        if (isTitularAduana(item)) njCounts[nj].titular += 1;
+        else njCounts[nj].director += 1;
+      }
     });
     const isNarrow = chart1Width > 0 && (chart1Width / 9) < 70;
     const abbr = { ...NJ_ABBR, '4': isNarrow ? 'Sub' : 'Subdirector' };
     return Object.keys(njCounts)
-      .map(nj => ({ name: abbr[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Vacantes: njCounts[nj] }))
+      .map(nj => ({
+        name: abbr[nj] || `NJ ${nj}`,
+        nj,
+        sortKey: parseInt(nj) || 0,
+        Vacantes: njCounts[nj].total,
+        isSplit: nj === '3',
+        titular: njCounts[nj].titular,
+        director: njCounts[nj].director,
+      }))
       .sort((a, b) => a.sortKey - b.sortKey);
   }, [data, chart1Width]);
 
@@ -311,12 +445,25 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
     ocupadosData.forEach(item => {
       const raw = (item.NJ ?? '').toString().trim();
       const nj = raw === '' ? 'Sin NJ' : raw;
-      njCounts[nj] = (njCounts[nj] || 0) + 1;
+      if (!njCounts[nj]) njCounts[nj] = { total: 0, titular: 0, director: 0 };
+      njCounts[nj].total += 1;
+      if (nj === '3') {
+        if (isTitularAduana(item)) njCounts[nj].titular += 1;
+        else njCounts[nj].director += 1;
+      }
     });
     const isNarrow = chart1bWidth > 0 && (chart1bWidth / 9) < 70;
     const abbr = { ...NJ_ABBR, '4': isNarrow ? 'Sub' : 'Subdirector' };
     return Object.keys(njCounts)
-      .map(nj => ({ name: abbr[nj] || `NJ ${nj}`, nj, sortKey: parseInt(nj) || 0, Ocupadas: njCounts[nj] }))
+      .map(nj => ({
+        name: abbr[nj] || `NJ ${nj}`,
+        nj,
+        sortKey: parseInt(nj) || 0,
+        Ocupadas: njCounts[nj].total,
+        isSplit: nj === '3',
+        titular: njCounts[nj].titular,
+        director: njCounts[nj].director,
+      }))
       .sort((a, b) => a.sortKey - b.sortKey);
   }, [ocupadosData, chart1bWidth]);
 
@@ -900,7 +1047,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tickFormatter={formatAxisTick}
                     width={45}
                   />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  <Tooltip content={<NJTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   <Bar
                     dataKey="Vacantes"
                     shape={<GradientBar />}
@@ -1001,7 +1148,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     tickFormatter={formatAxisTick}
                     width={45}
                   />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
+                  <Tooltip content={<NJTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   <Bar
                     dataKey="Ocupadas"
                     shape={<GradientBar />}
