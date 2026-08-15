@@ -36,10 +36,14 @@ export const PlantillaService = {
      * Exporta datos JSON a un archivo Excel (.xlsx) real generado por el backend.
      * @param {Object[]} data - Filas a exportar.
      * @param {string} [filename="Plantilla.xlsx"] - Nombre del archivo de salida.
+     * @param {Object} [opts]
+     * @param {boolean} [opts.stickyColumn=true] - Si es false, no congela la columna A (solo el encabezado).
      * @returns {Promise<Response>} Respuesta cruda; usar `.blob()` para el archivo.
      */
-    exportExcel: (data, filename = "Plantilla.xlsx") => {
-        return apiFetch(`/plantilla/export/excel/?filename=${encodeURIComponent(filename)}`, {
+    exportExcel: (data, filename = "Plantilla.xlsx", { stickyColumn = true } = {}) => {
+        const params = new URLSearchParams({ filename });
+        if (!stickyColumn) params.set("sticky_column", "0");
+        return apiFetch(`/plantilla/export/excel/?${params.toString()}`, {
             method: 'POST',
             body: JSON.stringify(data)
         });

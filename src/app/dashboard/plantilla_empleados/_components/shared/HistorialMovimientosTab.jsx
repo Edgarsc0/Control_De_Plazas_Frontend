@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback, useLayoutEffect, useEffect } from "react";
-import { Loader2, AlertTriangle, FileQuestion, ChevronDown, ArrowRightLeft, GitCommitHorizontal, Download } from "lucide-react";
+import { Loader2, AlertTriangle, FileQuestion, ChevronDown, ArrowRightLeft, GitCommitHorizontal, Download, ImageDown } from "lucide-react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
+import { toSvg } from "html-to-image";
 import { formatDateEsMx } from "@/utils/columnFilters";
 import { getMovimientoDiff } from "../../_utils/movimientosDiff";
 import { PlantillaService } from "@/services/plantilla.service";
@@ -16,6 +17,78 @@ const AMBER = "#f59e0b";
 const LANE_MIN_WIDTH = 260;
 
 const formatDate = (value) => (value ? formatDateEsMx(value) : "-");
+
+// Encabezados "profesionales" para la descarga a Excel — mismo orden y
+// campos que el SELECT de MovimientosPersonalHistorialView (backend), sin
+// `id` (llave técnica interna, sin valor para el usuario) y con nombres
+// legibles en vez de los códigos crudos de cp_tbl_mov_completo_29_05_26.
+const EXPORT_COLUMNS = [
+    ["posicion", "Posición"],
+    ["num_empleado", "No. Empleado"],
+    ["nombre", "Nombre"],
+    ["ap_pat", "Apellido Paterno"],
+    ["ap_mat", "Apellido Materno"],
+    ["accion", "Código de Acción"],
+    ["accion_nombre", "Acción"],
+    ["motivo", "Código de Motivo"],
+    ["motivo_nombre", "Motivo"],
+    ["fecha_efectiva", "Fecha Efectiva", true],
+    ["sec", "Secuencia"],
+    ["fecha_captura", "Fecha de Captura", true],
+    ["est_hr", "Estado RH"],
+    ["estado_pago", "Estado de Pago"],
+    ["partida_presup", "Partida Presupuestal"],
+    ["un", "Unidad de Negocio"],
+    ["un_admin", "Unidad Administrativa"],
+    ["id_depto", "ID Departamento"],
+    ["depen_direc", "Dependencia Directa"],
+    ["plan_sal", "Plan Salarial"],
+    ["grado", "Grado"],
+    ["escala", "Escala"],
+    ["puesto_ptal", "Puesto Presupuestal"],
+    ["nivel_tabular", "Nivel Tabular"],
+    ["gp_pago", "Grupo de Pago"],
+    ["prog_benef", "Programa de Beneficios"],
+    ["sal_base", "Salario Base"],
+    ["cd_puesto", "Código de Puesto"],
+    ["ubicacion", "Ubicación"],
+    ["id_estbl", "ID Establecimiento"],
+    ["salida_prevista", "Salida Prevista", true],
+    ["fecha_ult_actz", "Última Actualización", true],
+    ["por", "Capturado Por"],
+    ["ult_inicio", "Último Inicio", true],
+    ["fecha_inicial", "Fecha Inicial", true],
+    ["gp_trabajo", "Grupo de Trabajo"],
+    ["grupo_cd_sal", "Grupo Código Salarial"],
+    ["antiguo_empr", "Antigüedad Empresa"],
+    ["rfc", "RFC"],
+    ["curp", "CURP"],
+    ["id_persona", "ID Persona"],
+    ["desc_larga_p", "Descripción Puesto"],
+    ["nv_jerarquico", "Nivel Jerárquico"],
+    ["desc_larga_un", "Descripción Unidad"],
+    ["sexo", "Sexo"],
+    ["fecha_entrada", "Fecha de Entrada", true],
+    ["fecha_posicion", "Fecha de Posición", true],
+];
+
+// Fecha efectiva descendente (más reciente primero); empate -> secuencia
+// ascendente, a pedido del usuario (2026-08-14).
+const buildExportRows = (movimientos) => {
+    const ordenados = [...movimientos].sort((a, b) => {
+        const fechaCmp = String(b.fecha_efectiva ?? "").localeCompare(String(a.fecha_efectiva ?? ""));
+        if (fechaCmp !== 0) return fechaCmp;
+        return (Number(a.sec) || 0) - (Number(b.sec) || 0);
+    });
+    return ordenados.map((mov) => {
+        const row = {};
+        EXPORT_COLUMNS.forEach(([key, label, isDate]) => {
+            const raw = mov[key];
+            row[label] = isDate ? formatDate(raw) : (raw ?? "");
+        });
+        return row;
+    });
+};
 
 // Carriles = posiciones distintas que tuvo el empleado, en orden de PRIMERA
 // aparición cronológica (movimientos ya vienen ASC por fecha_efectiva/sec
@@ -189,6 +262,7 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
 export default function HistorialMovimientosTab({ estado, numEmpleado }) {
     const { toast } = useToast();
     const [downloading, setDownloading] = useState(false);
+    const [exportingImage, setExportingImage] = useState(false);
     const [expandedIds, setExpandedIds] = useState(() => new Set());
     const canvasRef = useRef(null);
     const bgLayerRef = useRef(null);
@@ -214,7 +288,8 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
         setDownloading(true);
         try {
             const filename = `Historial_Movimientos_${numEmpleado}.xlsx`;
-            const response = await PlantillaService.exportExcel(movimientos, filename);
+            const rows = buildExportRows(movimientos);
+            const response = await PlantillaService.exportExcel(rows, filename, { stickyColumn: false });
             if (!response.ok) throw new Error("request failed");
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -302,6 +377,48 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
         return () => ro.disconnect();
     }, [recomputeLayout]);
 
+    // Descarga el diagrama completo (carriles + conectores + detalle de CADA
+    // movimiento desplegado) como SVG vectorial — texto y trazos quedan
+    // embebidos como HTML/CSS reales dentro de un <foreignObject>, no como
+    // píxeles, así que escala sin perder nitidez a cualquier resolución.
+    // Expande temporalmente todas las tarjetas (sin tocar lo que el usuario
+    // ya tenía abierto), espera a que la animación de entrada de cada panel
+    // termine y el layout (paths/dividers, ver recomputeLayout) se asiente
+    // con las nuevas alturas, y restaura el estado previo al terminar.
+    const handleDownloadImage = useCallback(async () => {
+        if (movimientos.length === 0 || exportingImage) return;
+        setExportingImage(true);
+        const prevExpanded = expandedIds;
+        try {
+            setExpandedIds(new Set(movimientos.map((m) => m.id)));
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await new Promise((resolve) => setTimeout(resolve, 650));
+            recomputeLayout();
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+
+            const node = canvasRef.current;
+            if (!node) throw new Error("sin nodo para capturar");
+            const dataUrl = await toSvg(node, {
+                backgroundColor: "#ffffff",
+                width: node.scrollWidth,
+                height: node.scrollHeight,
+            });
+
+            const filename = `Historial_Movimientos_${numEmpleado}.svg`;
+            const a = document.createElement("a");
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (err) {
+            toast.error("No se pudo generar la imagen.");
+        } finally {
+            setExpandedIds(prevExpanded);
+            setExportingImage(false);
+        }
+    }, [movimientos, expandedIds, exportingImage, numEmpleado, toast, recomputeLayout]);
+
     // "Construcción" animada del diagrama — una sola vez por dataset cargado
     // (identificado por `estado.data`, referencia estable mientras solo se
     // expanden/colapsan tarjetas): fondo + carriles entran, las tarjetas
@@ -388,15 +505,26 @@ export default function HistorialMovimientosTab({ estado, numEmpleado }) {
                     {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"} · {lanes.length} {lanes.length === 1 ? "posición" : "posiciones"}
                     <span className="hidden sm:inline text-slate-300 dark:text-slate-700">— desplaza horizontalmente para ver todos los carriles</span>
                 </div>
-                <button
-                    type="button"
-                    onClick={handleDownloadExcel}
-                    disabled={downloading}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-[#4a1726] dark:hover:opacity-90 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-                    Descargar excel
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleDownloadImage}
+                        disabled={exportingImage}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 text-[#621f32] dark:text-[#bc955c] border border-[#621f32]/20 dark:border-slate-700 text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-[#621f32]/6 dark:hover:bg-slate-800 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {exportingImage ? <Loader2 className="size-3.5 animate-spin" /> : <ImageDown className="size-3.5" />}
+                        Descargar Imagen
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleDownloadExcel}
+                        disabled={downloading}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-sm hover:bg-[#4a1726] dark:hover:opacity-90 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                        Descargar excel
+                    </button>
+                </div>
             </div>
 
             {/* max-h + overflow-auto (x e y) propios: así el scrollbar horizontal
