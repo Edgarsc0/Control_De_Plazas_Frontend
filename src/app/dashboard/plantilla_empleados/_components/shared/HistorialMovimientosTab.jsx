@@ -128,16 +128,16 @@ const PDF_HEADER_TITLE_LINES = [
     "UNIDAD DE ADMINISTRACIÓN Y FINANZAS",
     "DIRECCIÓN DE RECURSOS HUMANOS",
 ];
-const PDF_LOGO_W = 170;
+const PDF_LOGO_W = 260;
 const PDF_LOGO_H = Math.round((PDF_LOGO_W * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
-const PDF_HEADER_TOP_PAD = 10;
-const PDF_HEADER_LOGO_GAP = 8;
-const PDF_HEADER_TITLE_LINE_H = 11;
-const PDF_HEADER_TITLE_GAP = 8;
-const PDF_HEADER_LEGEND_H = 11;
-const PDF_HEADER_LEGEND_GAP = 8;
-const PDF_HEADER_RULE_GAP = 8;
-const PDF_HEADER_SUBTITLE_H = 18;
+const PDF_HEADER_TOP_PAD = 12;
+const PDF_HEADER_LOGO_GAP = 12;
+const PDF_HEADER_TITLE_LINE_H = 16;
+const PDF_HEADER_TITLE_GAP = 12;
+const PDF_HEADER_LEGEND_H = 14;
+const PDF_HEADER_LEGEND_GAP = 10;
+const PDF_HEADER_RULE_GAP = 12;
+const PDF_HEADER_SUBTITLE_H = 26;
 // Alto total del membretado — suma de cada bloque de arriba, en el mismo
 // orden en que se dibujan (ver buildHistorialPdf); mover cualquiera de esas
 // piezas sin actualizar esta suma desalinea el resto del diagrama.
@@ -397,7 +397,7 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
 // Ancho mínimo del contenido — sin esto, un empleado de un solo carril
 // (diagrama de 260px) deja el membretado (título institucional + leyenda de
 // generación, más largos que eso) desbordándose fuera de la página.
-const PDF_MIN_CONTENT_WIDTH = 380;
+const PDF_MIN_CONTENT_WIDTH = 480;
 
 const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     const layout = computeHistorialLayout(movimientos, lanes);
@@ -439,7 +439,7 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     hy += PDF_LOGO_H + PDF_HEADER_LOGO_GAP;
 
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(T(8.5));
+    pdf.setFontSize(T(12));
     pdf.setTextColor(...PDF_MAROON);
     PDF_HEADER_TITLE_LINES.forEach((line, i) => {
         pdf.text(line, pageCenterX, Y(hy + i * PDF_HEADER_TITLE_LINE_H + PDF_HEADER_TITLE_LINE_H / 2), { align: "center", baseline: "middle" });
@@ -447,7 +447,7 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     hy += PDF_HEADER_TITLE_LINES.length * PDF_HEADER_TITLE_LINE_H + PDF_HEADER_TITLE_GAP;
 
     pdf.setFont("helvetica", "italic");
-    pdf.setFontSize(T(7));
+    pdf.setFontSize(T(9));
     pdf.setTextColor(...PDF_SLATE_500);
     pdf.text(
         `Reporte generado por el sistema de Control de Plazas a las ${fmtFechaHoraGeneracionPdf()}.`,
@@ -463,7 +463,7 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     const nombreCompleto = [movimientos[0]?.nombre, movimientos[0]?.ap_pat, movimientos[0]?.ap_mat]
         .map((s) => (s || "").trim()).filter(Boolean).join(" ") || "—";
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(T(11));
+    pdf.setFontSize(T(15));
     pdf.setTextColor(...PDF_MAROON);
     pdf.text(
         fitPdfText(pdf, `Historial de Movimientos — ${nombreCompleto} (No. Empleado ${numEmpleado})`, T(contentWidth)),
