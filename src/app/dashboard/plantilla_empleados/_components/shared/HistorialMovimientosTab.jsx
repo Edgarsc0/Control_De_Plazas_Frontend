@@ -125,6 +125,7 @@ const PDF_AMBER_BORDER = [253, 230, 138];
 const PDF_SLATE_700 = [51, 65, 85];
 const PDF_SLATE_500 = [100, 116, 139];
 const PDF_SLATE_400 = [148, 163, 184];
+const PDF_SLATE_300 = [203, 213, 225];
 const PDF_SLATE_200 = [226, 232, 240];
 const PDF_SLATE_100 = [241, 245, 249];
 const PDF_SLATE_50 = [248, 250, 252];
@@ -204,11 +205,19 @@ const computeHistorialLayout = (movimientos, lanes) => {
     return { laneX, laneIndexByPosicion, rowsTop, rowHeights, rowY, contentWidth, contentHeight };
 };
 
-const drawHistorialCardPdf = (pdf, mov, x, yTop, w, isFirst, diff, cambioDePosicion, X, Y, T) => {
+const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePosicion, X, Y, T) => {
     const cx = x + w / 2;
     let cursorY = yTop + 14;
 
+    // Tarjeta: fondo blanco + borde visible (antes solo se seteaban los
+    // colores sin llegar a dibujar el rectángulo — la tarjeta quedaba sin
+    // contorno). Borde más marcado si es el movimiento con cambio de
+    // posición, igual criterio de color que en pantalla.
     pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(...(cambioDePosicion ? PDF_AMBER : PDF_SLATE_300));
+    pdf.setLineWidth(Math.max(T(cambioDePosicion ? 1.5 : 1), 0.5));
+    pdf.roundedRect(X(x), Y(yTop), T(w), T(h), T(10), T(10), "FD");
+
     pdf.setDrawColor(...PDF_SLATE_200);
     pdf.setLineWidth(Math.max(T(1), 0.4));
 
@@ -410,6 +419,17 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
         pdf.text(fitPdfText(pdf, rango, T(w - 20)), X(x + 10), Y(yTop + 46), { baseline: "middle" });
     });
 
+    // Divisores punteados entre carriles — a la mitad del gap entre columnas,
+    // igual que en pantalla (ver `dividers` en recomputeLayout).
+    pdf.setDrawColor(...PDF_SLATE_300);
+    pdf.setLineWidth(Math.max(T(1), 0.4));
+    pdf.setLineDashPattern([T(4), T(3)], 0);
+    for (let i = 0; i < lanes.length - 1; i++) {
+        const dividerX = layout.laneX[i] + PDF_CARD_W + PDF_LANE_GAP_X / 2;
+        pdf.line(X(dividerX), Y(0), X(dividerX), Y(layout.contentHeight));
+    }
+    pdf.setLineDashPattern([], 0);
+
     // Conectores entre movimientos consecutivos (misma forma en L que en pantalla)
     for (let i = 0; i < movimientos.length - 1; i++) {
         const laneA = layout.laneIndexByPosicion.get(movimientos[i].posicion) ?? 0;
@@ -441,7 +461,7 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
         const isFirst = i === 0;
         const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1]);
         const cambioDePosicion = !isFirst && mov.posicion !== movimientos[i - 1].posicion;
-        drawHistorialCardPdf(pdf, mov, layout.laneX[laneIdx], layout.rowY[i], PDF_CARD_W, isFirst, diff, cambioDePosicion, X, Y, T);
+        drawHistorialCardPdf(pdf, mov, layout.laneX[laneIdx], layout.rowY[i], PDF_CARD_W, layout.rowHeights[i], isFirst, diff, cambioDePosicion, X, Y, T);
     });
 
     return pdf;
