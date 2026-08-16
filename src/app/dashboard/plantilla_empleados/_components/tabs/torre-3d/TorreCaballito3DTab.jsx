@@ -431,6 +431,67 @@ const CameraRig = ({ targetCamera }) => {
   ) : null;
 };
 
+// Skeleton propio: replica el layout real (barra superior + sidebar de
+// ranking + torre) en vez de un spinner genérico, para que el salto al
+// contenido cargado no salte de posición. La silueta de la torre es una
+// pila de bloques que se angostan hacia arriba, imitando los pisos reales.
+const TorreCaballito3DSkeleton = () => {
+  const pisos = Array.from({ length: 9 });
+  const rankingRows = Array.from({ length: 7 });
+
+  return (
+    <div className="w-full h-full bg-transparent overflow-hidden flex flex-col md:pt-9">
+      {/* Top Bar */}
+      <div className="shrink-0 flex flex-col gap-3 md:flex-row md:items-center md:gap-4 p-3 md:p-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70">
+        <div className="shrink-0 space-y-2">
+          <div className="skeleton-box h-6 w-44 rounded-lg" />
+          <div className="skeleton-box h-3.5 w-32 rounded hidden md:block" />
+        </div>
+
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="skeleton-box h-11 w-56 rounded-[1.25rem]" />
+          <div className="skeleton-box h-11 w-11 rounded-[1.25rem] shrink-0" />
+        </div>
+
+        <div className="skeleton-box h-[52px] w-full md:w-96 md:ml-auto rounded-2xl" />
+      </div>
+
+      {/* Contenido: sidebar + torre */}
+      <div className="flex-1 relative flex overflow-hidden min-h-0">
+        {/* Sidebar de ranking */}
+        <div className="hidden md:flex md:w-72 lg:w-80 md:shrink-0 md:border-r md:border-slate-200/70 dark:md:border-slate-800/70 md:bg-white/40 dark:md:bg-slate-900/40 md:p-4 flex-col gap-4">
+          <div className="skeleton-box h-9 w-full rounded-2xl" />
+          <div className="rounded-[1.75rem] border border-slate-200 dark:border-slate-800/80 p-4 flex flex-col gap-1">
+            <div className="skeleton-box h-2.5 w-28 rounded mb-3" />
+            {rankingRows.map((_, i) => (
+              <div key={i} className="flex justify-between items-center gap-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="skeleton-box size-3 rounded-full shrink-0" />
+                  <div className="skeleton-box h-3 rounded" style={{ width: `${70 + (i % 3) * 12}px` }} />
+                </div>
+                <div className="skeleton-box h-5 w-12 rounded-xl shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Silueta de la torre: bloques que se angostan hacia arriba */}
+        <div className="flex-1 flex items-end justify-center p-8 md:p-12">
+          <div className="flex flex-col-reverse items-center gap-1.5">
+            {pisos.map((_, i) => (
+              <div
+                key={i}
+                className="skeleton-box rounded-md"
+                style={{ width: `${Math.max(260 - i * 16, 90)}px`, height: "26px" }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function TorreCaballito3DTab() {
   const { hasPermission } = useAuth();
   const canViewFotoGeografia = hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO);
@@ -600,12 +661,7 @@ export default function TorreCaballito3DTab() {
   };
 
   if (loading) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-transparent text-[#621f32] dark:text-[#bc955c] md:pt-9">
-        <div className="w-12 h-12 border-4 border-[#621f32] dark:border-[#bc955c] border-t-transparent rounded-full animate-spin mb-4" />
-        <h2 className="text-xl font-black text-[#621f32] dark:text-[#bc955c] animate-pulse">Construyendo Torre Caballito en 3D...</h2>
-      </div>
-    );
+    return <TorreCaballito3DSkeleton />;
   }
 
   return (
