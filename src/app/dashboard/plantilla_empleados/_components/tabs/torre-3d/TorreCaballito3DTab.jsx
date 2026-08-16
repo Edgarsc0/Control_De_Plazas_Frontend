@@ -105,22 +105,22 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
       <mesh ref={meshRef}>
         <boxGeometry args={[width, height * 0.95, depth]} />
         {isEmpty ? (
-          <meshPhysicalMaterial 
-            color={isSelected ? "#0ea5e9" : "#0f172a"}
-            transparent 
+          <meshPhysicalMaterial
+            color={isSelected ? "#bc955c" : "#0f172a"}
+            transparent
             opacity={isSelected ? 0.6 : 0.3}
             roughness={0}
             metalness={1}
             transmission={0.9}
             ior={1.5}
             envMapIntensity={2}
-            emissive={isSelected ? "#0284c7" : "#000000"}
+            emissive={isSelected ? "#8d6a3a" : "#000000"}
             emissiveIntensity={isSelected ? 1 : 0}
           />
         ) : (
-          <meshStandardMaterial 
-            color={isSelected ? "#ffffff" : baseColor} 
-            emissive={isSelected ? (mode === "heat" ? "#38bdf8" : "#ffffff") : baseColor}
+          <meshStandardMaterial
+            color={isSelected ? "#ffffff" : baseColor}
+            emissive={isSelected ? (mode === "heat" ? "#bc955c" : "#ffffff") : baseColor}
             emissiveIntensity={isSelected ? 2.5 : (isHovered ? 0.8 : 0.4)}
             roughness={0.2}
             metalness={0.1}
@@ -131,7 +131,7 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
       {/* Solid floor slab */}
       <mesh position={[0, -height / 2 + 0.05, 0]}>
         <boxGeometry args={[width + 0.2, 0.1, depth + 0.2]} />
-        <meshStandardMaterial color={isSelected ? "#0ea5e9" : "#1e293b"} roughness={0.8} metalness={0.2} emissive={isSelected ? "#0ea5e9" : "#000000"} emissiveIntensity={isSelected ? 1 : 0} />
+        <meshStandardMaterial color={isSelected ? "#bc955c" : "#1e293b"} roughness={0.8} metalness={0.2} emissive={isSelected ? "#bc955c" : "#000000"} emissiveIntensity={isSelected ? 1 : 0} />
       </mesh>
       
       {/* Highlight glowing border when hovered or selected */}
@@ -149,8 +149,8 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
           <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]}>
             <circleGeometry args={[Math.min(width, depth) * 0.38, 64]} />
             <meshStandardMaterial
-              color="#0ea5e9"
-              emissive="#0ea5e9"
+              color="#bc955c"
+              emissive="#bc955c"
               emissiveIntensity={2.5}
               transparent
               opacity={0.65}
@@ -162,8 +162,8 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
           <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[Math.min(width, depth) * 0.42, Math.min(width, depth) * 0.48, 64]} />
             <meshStandardMaterial
-              color="#38bdf8"
-              emissive="#38bdf8"
+              color="#d9b482"
+              emissive="#d9b482"
               emissiveIntensity={2}
               transparent
               opacity={0.6}
@@ -176,8 +176,8 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
           <mesh ref={beamRef} position={[0, 18, 0]}>
             <cylinderGeometry args={[0.12, 1.2, 36, 16, 1, true]} />
             <meshStandardMaterial
-              color="#0ea5e9"
-              emissive="#0ea5e9"
+              color="#621f32"
+              emissive="#621f32"
               emissiveIntensity={1.5}
               transparent
               opacity={0.15}
@@ -189,12 +189,12 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
           {/* Floating HTML label */}
           <Html position={[0, 36, 0]} center distanceFactor={28} zIndexRange={[100, 0]}>
             <div style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(224,242,254,0.97) 100%)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(247,237,222,0.97) 100%)',
               backdropFilter: 'blur(16px)',
               padding: '10px 18px',
               borderRadius: '18px',
-              border: '2px solid #0ea5e9',
-              boxShadow: '0 8px 32px rgba(14,165,233,0.45), 0 0 0 5px rgba(14,165,233,0.12)',
+              border: '2px solid #bc955c',
+              boxShadow: '0 8px 32px rgba(98,31,50,0.35), 0 0 0 5px rgba(188,149,92,0.16)',
               whiteSpace: 'nowrap',
               pointerEvents: 'none',
               display: 'flex',
@@ -204,7 +204,7 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
               minWidth: '140px',
             }}>
               <div style={{
-                color: '#0369a1',
+                color: '#621f32',
                 fontSize: '10px',
                 fontWeight: 900,
                 letterSpacing: '0.1em',
@@ -601,54 +601,26 @@ export default function TorreCaballito3DTab() {
 
   if (loading) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-transparent text-[#621f32]">
-        <div className="w-12 h-12 border-4 border-[#621f32] border-t-transparent rounded-full animate-spin mb-4" />
-        <h2 className="text-xl font-bold text-[#621f32] animate-pulse">Construyendo Torre Caballito en 3D...</h2>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-transparent text-[#621f32] dark:text-[#bc955c] md:pt-9">
+        <div className="w-12 h-12 border-4 border-[#621f32] dark:border-[#bc955c] border-t-transparent rounded-full animate-spin mb-4" />
+        <h2 className="text-xl font-black text-[#621f32] dark:text-[#bc955c] animate-pulse">Construyendo Torre Caballito en 3D...</h2>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full bg-transparent overflow-hidden relative">
-      <Canvas camera={{ position: [20, 5, 20], fov: 45 }}>
-        {/* Environment and Lighting */}
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 50, 20]} intensity={1.5} castShadow />
-        <pointLight position={[-20, 30, -20]} intensity={1} color="#38bdf8" />
-        <Environment preset="city" />
-        
-        {/* The 3D Tower */}
-        <TorreCaballito 
-          data={data} 
-          hoverInfo={hoverInfo}
-          setHoverInfo={setHoverInfo} 
-          selectedInfo={selectedInfo} 
-          setSelectedInfo={setSelectedInfo} 
-          mode={viewMode}
-          hoveredUaRemote={hoveredUaRemote}
-          selectedUaRemote={selectedUaRemote}
-        />
-        
-        {/* Soft shadow on the ground */}
-        <ContactShadows resolution={2048} scale={100} blur={2.5} opacity={0.6} far={20} color="#000000" position={[0, -0.49, 0]} />
-        
-        {/* Camera Intro Animation and Controls */}
-        <CameraRig targetCamera={targetCamera} />
-      </Canvas>
-      
-      {/* UI Overlay: Title & Mode Toggle */}
-      <div className="absolute top-20 left-4 right-4 md:top-24 md:left-6 md:right-auto pointer-events-auto flex flex-col gap-3 md:gap-4">
-        <div className="pointer-events-none">
-          <h2 className="text-xl md:text-3xl font-black text-[#621f32] drop-shadow-md leading-tight">Torre del Caballito</h2>
-          <p className="hidden md:block text-slate-800 font-medium text-lg">Paseo de la Reforma 10</p>
+    <div className="w-full h-full bg-transparent overflow-hidden flex flex-col md:pt-9">
+      {/* Top Bar: título, toggle de modo, reset y buscador — docked, ya no flota sobre la torre */}
+      <div className="shrink-0 relative z-20 flex flex-col gap-3 md:flex-row md:items-center md:gap-4 p-3 md:p-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70">
+        <div className="shrink-0">
+          <h2 className="text-xl md:text-2xl font-black text-[#621f32] dark:text-[#f3dcd4] leading-tight">Torre del Caballito</h2>
+          <p className="hidden md:block text-slate-700 dark:text-slate-300 font-semibold text-sm">Paseo de la Reforma 10</p>
         </div>
-        
-        {/* Toggle Switch */}
-        {/* Toggle Switch & Reset View Button Container */}
-        <div className="flex items-center gap-2 md:gap-3 w-full md:w-max overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          {/* Toggle Switch */}
-          <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 flex shadow-lg shrink-0">
-            <button 
+
+        {/* Toggle Switch & Reset View Button */}
+        <div className="flex items-center gap-2 md:gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-1.5 rounded-[1.25rem] border border-slate-200 dark:border-slate-800/80 flex shadow-sm shrink-0">
+            <button
               onClick={() => {
                 setViewMode("heat");
                 setSelectedInfo(null);
@@ -656,11 +628,11 @@ export default function TorreCaballito3DTab() {
                 setSelectedUaRemote(null);
                 setHoveredUaRemote(null);
               }}
-              className={`px-4 py-2 min-h-11 md:min-h-0 rounded-xl text-sm font-bold transition-all ${viewMode === "heat" ? "bg-[#bc955c] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+              className={`px-4 py-2 min-h-11 md:min-h-0 rounded-xl text-sm font-bold transition-all cursor-pointer ${viewMode === "heat" ? "bg-gradient-to-r from-[#bc955c] to-[#a97f46] text-white shadow-md" : "text-slate-700 dark:text-slate-300 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
             >
               Mapa de Calor
             </button>
-            <button 
+            <button
               onClick={() => {
                 setViewMode("ua");
                 setSelectedInfo(null);
@@ -668,273 +640,29 @@ export default function TorreCaballito3DTab() {
                 setSelectedUaRemote(null);
                 setHoveredUaRemote(null);
               }}
-              className={`px-4 py-2 min-h-11 md:min-h-0 rounded-xl text-sm font-bold transition-all ${viewMode === "ua" ? "bg-[#621f32] text-white shadow-md" : "text-slate-800 hover:text-[#621f32]"}`}
+              className={`px-4 py-2 min-h-11 md:min-h-0 rounded-xl text-sm font-bold transition-all cursor-pointer ${viewMode === "ua" ? "bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white shadow-md" : "text-slate-700 dark:text-slate-300 hover:text-[#621f32] dark:hover:text-[#bc955c]"}`}
             >
               Color por Unidad
             </button>
           </div>
 
-          {/* Reset View Button */}
           <button
             onClick={resetView}
-            className="bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200 text-slate-800 hover:text-[#621f32] shadow-lg flex items-center justify-center hover:bg-slate-50 transition-all cursor-pointer h-full shrink-0"
+            className="bg-white dark:bg-slate-800 p-3.5 rounded-[1.25rem] border border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] shadow-sm flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 transition-all cursor-pointer active:scale-95 shrink-0"
             title="Restablecer Vista"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Legend for Heatmap mode */}
-        {viewMode === "heat" && (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 md:gap-3 bg-white/80 backdrop-blur-md p-2 md:p-3 rounded-2xl border border-slate-200 w-full md:w-max pointer-events-none">
-              <div className="w-3 h-3 md:w-4 md:h-4 rounded-full bg-[#fcd34d] shrink-0" />
-              <span className="text-[10px] md:text-xs text-slate-900 font-bold uppercase tracking-wider">Menos</span>
-              <div className="flex-1 md:flex-none md:w-32 h-1.5 rounded-full bg-gradient-to-r from-[#fcd34d] to-[#e11d48]" />
-              <span className="text-[10px] md:text-xs text-slate-900 font-bold uppercase tracking-wider whitespace-nowrap">Más Empleados</span>
-              <div className="w-3 h-3 md:w-4 md:h-4 rounded-full bg-[#e11d48] shrink-0" />
-            </div>
-
-            {/* Ranked Floors List */}
-            {sortedFloors.length > 0 && (
-              <div className={`bg-white/90 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-slate-200 w-full md:w-80 pointer-events-auto flex flex-col shadow-lg ${mobilePanelOpen ? "max-h-[40dvh]" : "max-h-none"} md:max-h-[50vh]`}>
-                {/* En móvil el encabezado es el botón de colapso: con la lista
-                    siempre abierta, los paneles tapaban el modelo 3D entero. */}
-                <button
-                  type="button"
-                  onClick={() => setMobilePanelOpen((o) => !o)}
-                  className="md:pointer-events-none flex items-center justify-between gap-2 w-full text-left shrink-0 md:mb-3 min-h-11 md:min-h-0"
-                >
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Ranking de Pisos</h4>
-                  <ChevronDown className={`md:hidden size-4 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
-                </button>
-                <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 mt-2 md:mt-0`}>
-                  {sortedFloors.map((floor, idx) => {
-                    const color = getColor(floor.count, Math.max(...data.map(d => d.count))).getHexString();
-                    return (
-                      <div 
-                        key={idx} 
-                        className="flex justify-between items-center gap-3 bg-slate-100 p-2 rounded-lg border border-slate-200 hover:bg-slate-200 transition-colors cursor-pointer"
-                        onMouseEnter={() => setHoverInfo({ 
-                          pisoLabel: floor.piso, 
-                          count: floor.count, 
-                          uas: floor.uas,
-                          dominantUa: floor.uas?.length > 0 ? floor.uas.reduce((p, c) => p.count > c.count ? p : c).nombre : null
-                        })}
-                        onMouseLeave={() => setHoverInfo(null)}
-                        onClick={() => setSelectedInfo({ 
-                          pisoLabel: floor.piso, 
-                          count: floor.count, 
-                          uas: floor.uas,
-                          dominantUa: floor.uas?.length > 0 ? floor.uas.reduce((p, c) => p.count > c.count ? p : c).nombre : null
-                        })}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: `#${color}` }} />
-                          <span className="text-sm text-slate-900 font-medium">{floor.piso}</span>
-                        </div>
-                        <span className="font-bold text-[#621f32] bg-[#bc955c]/10 px-2 py-0.5 rounded text-xs shrink-0">{floor.count} emp.</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Legend for UA mode */}
-        {viewMode === "ua" && uniqueUas.length > 0 && (
-          <div className={`bg-white/90 backdrop-blur-md p-3 md:p-4 rounded-2xl border border-slate-200 w-full md:w-80 pointer-events-auto ${mobilePanelOpen ? "max-h-[40dvh]" : "max-h-none"} md:max-h-[60vh] overflow-y-auto custom-scrollbar shadow-lg`}>
-            <button
-              type="button"
-              onClick={() => setMobilePanelOpen((o) => !o)}
-              className="md:pointer-events-none flex items-center justify-between gap-2 w-full text-left md:mb-3 min-h-11 md:min-h-0"
-            >
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Leyenda de Unidades</h4>
-              <ChevronDown className={`md:hidden size-4 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
-            </button>
-            <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex flex-col gap-2.5 mt-2 md:mt-0`}>
-              {uniqueUas.map((ua, idx) => {
-                const color = getUaColor(ua).getHexString();
-                const isLegendSelected = selectedUaRemote === ua;
-                return (
-                  <div 
-                    key={idx} 
-                    className={`flex items-start gap-3 cursor-pointer p-2 rounded-lg transition-colors border ${isLegendSelected ? 'bg-[#bc955c]/10 border-[#bc955c]/30' : 'border-transparent hover:bg-slate-100 hover:border-slate-200'}`}
-                    onMouseEnter={() => setHoveredUaRemote(ua)}
-                    onMouseLeave={() => setHoveredUaRemote(null)}
-                    onClick={() => setSelectedUaRemote(selectedUaRemote === ua ? null : ua)}
-                  >
-                    <div className="w-3 h-3 rounded-full shrink-0 mt-0.5 shadow-sm" style={{ backgroundColor: `#${color}` }} />
-                    <span className={`text-xs leading-snug ${isLegendSelected ? 'text-[#621f32] font-bold' : 'text-slate-900'}`}>{ua}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-      {/* Hover Info Panel (Top Right Sidebar) */}
-      <div className={`absolute bottom-4 inset-x-4 md:bottom-6 md:right-6 md:left-auto md:inset-x-auto md:w-80 z-30 transition-all duration-300 ${displayInfo || uaDetails ? "opacity-100 translate-x-0" : "opacity-0 md:translate-x-8 pointer-events-none"}`}>
-        {(displayInfo || uaDetails) && (
-          <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[85vh] pointer-events-auto">
-            
-            {displayInfo ? (
-              <>
-                {/* Header for Floor Detail */}
-                <div className={`p-4 border-b shrink-0 ${selectedInfo ? 'bg-[#bc955c]/10 border-[#bc955c]/30' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex flex-col pr-4">
-                      {viewMode === "ua" && displayInfo.dominantUa ? (
-                        <>
-                          <span className="text-xs text-slate-800 font-bold uppercase tracking-wider mb-1">
-                            {displayInfo.pisoLabel.startsWith("P") ? `Torre Caballito Reforma 10 ${displayInfo.pisoLabel}` : displayInfo.pisoLabel}
-                          </span>
-                          <h3 className={`font-bold text-base leading-snug ${selectedInfo ? 'text-[#bc955c]' : 'text-slate-700'}`}>
-                            {displayInfo.dominantUa}
-                          </h3>
-                        </>
-                      ) : (
-                        <h3 className={`font-black text-xl leading-none ${selectedInfo ? 'text-[#621f32]' : 'text-[#621f32]'}`}>
-                          {displayInfo.pisoLabel.startsWith("P") ? `Torre Caballito Reforma 10 ${displayInfo.pisoLabel}` : displayInfo.pisoLabel}
-                        </h3>
-                      )}
-                    </div>
-                    {selectedInfo && (
-                      <button 
-                        onClick={() => setSelectedInfo(null)}
-                        className="p-1 hover:bg-slate-100 rounded-full transition-colors text-slate-800 hover:text-[#621f32]"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-center bg-slate-100 p-3 rounded-xl border border-slate-200">
-                    <span className="text-slate-800 text-xs font-bold uppercase tracking-wider">Total Activos en Piso</span>
-                    <span className="font-black text-3xl text-[#621f32]">{displayInfo.count}</span>
-                  </div>
-                  {displayInfo.count > 0 && (
-                    <button
-                      onClick={() => {
-                        setLoadingEmpleados(true);
-                        setEmpleadosModalTitle(`Empleados en ${displayInfo.pisoLabel}`);
-                        VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, "")
-                          .then(res => res.json())
-                          .then(data => setEmpleadosData(data))
-                          .catch(err => console.error(err))
-                          .finally(() => setLoadingEmpleados(false));
-                      }}
-                      className="mt-3 w-full py-2.5 bg-[#621f32] hover:bg-[#802a43] text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                      Ver todos los empleados del piso
-                    </button>
-                  )}
-                </div>
-                
-                {/* Scrollable UAs list for Floor */}
-                <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-2 custom-scrollbar">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Unidades Administrativas</h4>
-                  {displayInfo.uas && displayInfo.uas.length > 0 ? (
-                    displayInfo.uas.map((ua, idx) => (
-                      <div key={idx} className="flex justify-between items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50/60 transition-colors">
-                        <span className="text-slate-900 text-sm font-medium leading-snug flex-1">{ua.nombre}</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-bold text-[#621f32] bg-[#bc955c]/10 px-2 py-0.5 rounded text-sm">{ua.count}</span>
-                          <button
-                            onClick={() => {
-                              setLoadingEmpleados(true);
-                              setEmpleadosModalTitle(`Empleados de ${ua.nombre} en ${displayInfo.pisoLabel}`);
-                              VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, ua.nombre)
-                                .then(res => res.json())
-                                .then(data => setEmpleadosData(data))
-                                .catch(err => console.error(err))
-                                .finally(() => setLoadingEmpleados(false));
-                            }}
-                            className="p-1.5 bg-slate-200 hover:bg-[#621f32] hover:text-white rounded text-slate-800 transition-colors"
-                            title="Ver empleados"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-slate-800 text-sm italic">Piso vacío o no asignado</div>
-                  )}
-                </div>
-              </>
-            ) : uaDetails ? (
-              <>
-                {/* Header for UA Detail */}
-                <div className={`p-4 border-b shrink-0 ${selectedUaRemote ? 'bg-[#bc955c]/10 border-[#bc955c]/30' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex flex-col pr-4">
-                      <span className="text-xs text-slate-800 font-bold uppercase tracking-wider mb-1">Unidad Administrativa</span>
-                      <h3 className={`font-bold text-base leading-snug ${selectedUaRemote ? 'text-[#bc955c]' : 'text-slate-700'}`}>
-                        {uaDetails.nombre}
-                      </h3>
-                    </div>
-                    {selectedUaRemote && (
-                      <button 
-                        onClick={() => setSelectedUaRemote(null)}
-                        className="p-1 hover:bg-slate-100 rounded-full transition-colors text-slate-800 hover:text-[#621f32]"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-center bg-slate-100 p-3 rounded-xl border border-slate-200">
-                    <span className="text-slate-800 text-xs font-bold uppercase tracking-wider">Total Empleados Global</span>
-                    <span className="font-black text-3xl text-[#621f32]">{uaDetails.total}</span>
-                  </div>
-                </div>
-                
-                {/* Scrollable Pisos list for UA */}
-                <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-2 custom-scrollbar">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Distribución por Pisos</h4>
-                  {uaDetails.pisos.map((piso, idx) => (
-                    <div key={idx} className="flex justify-between items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50/60 transition-colors">
-                      <span className="text-slate-900 text-sm font-medium leading-snug flex-1">{piso.piso}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-bold text-[#bc955c] bg-[#bc955c]/10 px-2 py-0.5 rounded text-sm">{piso.count}</span>
-                        <button
-                          onClick={() => {
-                            setLoadingEmpleados(true);
-                            setEmpleadosModalTitle(`Empleados de ${uaDetails.nombre} en ${piso.piso}`);
-                            VacantesService.getTorreCaballitoEmpleados(piso.piso, uaDetails.nombre)
-                              .then(res => res.json())
-                              .then(data => setEmpleadosData(data))
-                              .catch(err => console.error(err))
-                              .finally(() => setLoadingEmpleados(false));
-                          }}
-                          className="p-1.5 bg-slate-200 hover:bg-[#621f32] hover:text-white rounded text-slate-800 transition-colors"
-                          title="Ver empleados"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-          </div>
-        )}
-      </div>
-      
-
-      {/* Search Bar */}
-      <div className="absolute top-4 inset-x-4 z-40 md:top-24 md:right-6 md:left-auto md:inset-x-auto md:w-80">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="size-4 text-slate-400" style={{ width: '1rem', height: '1rem' }} />
+        {/* Search Bar */}
+        <div className="relative w-full md:w-96 md:ml-auto shrink-0">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <Search className="size-5 text-[#621f32] dark:text-[#bc955c]" style={{ width: '1.25rem', height: '1.25rem' }} />
           </div>
           <input
             type="text"
-            className="w-full pl-10 pr-10 py-3 bg-white/90 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-lg focus:outline-none focus:ring-2 focus:ring-[#bc955c]/50 text-sm font-medium text-slate-800 placeholder-slate-400 transition-all"
+            className="w-full pl-11 pr-10 py-3.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 rounded-2xl shadow-md focus:outline-none focus:ring-4 focus:ring-[#621f32]/15 dark:focus:ring-[#bc955c]/15 focus:border-[#621f32] dark:focus:border-[#bc955c] text-base font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 transition-all"
             placeholder="Buscar empleado por nombre..."
             value={searchQuery}
             onChange={(e) => {
@@ -951,44 +679,320 @@ export default function TorreCaballito3DTab() {
           />
           {isSearching && (
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <div 
-                className="w-4 h-4 border-2 rounded-full animate-spin" 
+              <div
+                className="w-4 h-4 border-2 rounded-full animate-spin"
                 style={{ borderColor: '#621f32', borderTopColor: 'transparent' }}
               />
             </div>
           )}
-        </div>
-        
-        {/* Autocomplete Dropdown */}
-        {showDropdown && searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl max-h-80 overflow-y-auto custom-scrollbar overflow-hidden flex flex-col py-2 animate-in fade-in slide-in-from-top-4 duration-200">
-            {searchResults.map((emp, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSelectEmployee(emp)}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex flex-col gap-1 border-b border-slate-100 last:border-0"
-              >
-                <div className="font-bold text-sm text-slate-800 truncate">{emp.Nombres}</div>
-                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                  <span className="truncate flex-1" title={emp["Unidad Administrativa"]}>{emp["Unidad Administrativa"]}</span>
-                </div>
-                {emp.piso_num ? (
-                  <div className="flex items-center gap-1.5 mt-1 text-[#621f32] bg-[#621f32]/5 w-fit px-2 py-0.5 rounded-md">
-                    <MapPin className="size-3" />
-                    <span className="font-black text-xs">Piso {emp.piso_num}</span>
+
+          {/* Autocomplete Dropdown */}
+          {showDropdown && searchResults.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-2xl max-h-80 overflow-y-auto custom-scrollbar overflow-hidden flex flex-col py-2 z-30 animate-in fade-in slide-in-from-top-4 duration-200">
+              {searchResults.map((emp, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSelectEmployee(emp)}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex flex-col gap-1 border-b border-slate-100 dark:border-slate-800/60 last:border-0 cursor-pointer"
+                >
+                  <div className="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">{emp.Nombres}</div>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
+                    <span className="truncate flex-1" title={emp["Unidad Administrativa"]}>{emp["Unidad Administrativa"]}</span>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 mt-1 text-slate-400 bg-slate-100 w-fit px-2 py-0.5 rounded-md">
-                    <span className="font-bold text-[10px]">Piso no asignado</span>
+                  {emp.piso_num ? (
+                    <div className="flex items-center gap-1.5 mt-1 text-[#621f32] dark:text-[#f3dcd4] bg-[#621f32]/5 dark:bg-[#621f32]/15 border border-[#621f32]/10 dark:border-[#bc955c]/25 w-fit px-2 py-0.5 rounded-md">
+                      <MapPin className="size-3" />
+                      <span className="font-black text-xs">Piso {emp.piso_num}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-1 text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 w-fit px-2 py-0.5 rounded-md">
+                      <span className="font-bold text-[10px]">Piso no asignado</span>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Contenido: sidebar izquierdo (leyenda) + canvas + sidebar derecho (detalle) */}
+      <div className="flex-1 relative flex overflow-hidden min-h-0">
+        {/* Sidebar izquierdo: leyenda de calor+ranking, o leyenda de UA */}
+        {((viewMode === "heat" && sortedFloors.length > 0) || (viewMode === "ua" && uniqueUas.length > 0)) && (
+          <div className="absolute z-10 top-2 left-2 right-2 md:static md:top-auto md:left-auto md:right-auto md:w-72 lg:w-80 md:shrink-0 md:border-r md:border-slate-200/70 dark:md:border-slate-800/70 md:bg-white/40 dark:md:bg-slate-900/40 md:backdrop-blur-md md:p-4 md:overflow-y-auto flex flex-col gap-3 md:gap-4">
+            {/* Legend for Heatmap mode */}
+            {viewMode === "heat" && (
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 md:gap-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 md:p-3 rounded-2xl border border-slate-200 dark:border-slate-800/80 w-full pointer-events-none">
+                  <div className="w-3 h-3 md:w-4 md:h-4 rounded-full bg-[#fcd34d] shrink-0" />
+                  <span className="text-[10px] md:text-xs text-slate-700 dark:text-slate-300 font-black uppercase tracking-wider">Menos</span>
+                  <div className="flex-1 md:w-32 h-1.5 rounded-full bg-gradient-to-r from-[#fcd34d] to-[#e11d48]" />
+                  <span className="text-[10px] md:text-xs text-slate-700 dark:text-slate-300 font-black uppercase tracking-wider whitespace-nowrap">Más Empleados</span>
+                  <div className="w-3 h-3 md:w-4 md:h-4 rounded-full bg-[#e11d48] shrink-0" />
+                </div>
+
+                {/* Ranked Floors List */}
+                {sortedFloors.length > 0 && (
+                  <div className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-[1.75rem] border border-slate-200 dark:border-slate-800/80 w-full pointer-events-auto flex flex-col shadow-lg md:shadow-none ${mobilePanelOpen ? "max-h-[40dvh]" : "max-h-none"} md:max-h-none`}>
+                    {/* En móvil el encabezado es el botón de colapso: con la lista
+                        siempre abierta, los paneles tapaban el modelo 3D entero. */}
+                    <button
+                      type="button"
+                      onClick={() => setMobilePanelOpen((o) => !o)}
+                      className="md:pointer-events-none flex items-center justify-between gap-2 w-full text-left shrink-0 md:mb-3 min-h-11 md:min-h-0"
+                    >
+                      <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Ranking de Pisos</h4>
+                      <ChevronDown className={`md:hidden size-4 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2 mt-2 md:mt-0`}>
+                      {sortedFloors.map((floor, idx) => {
+                        const color = getColor(floor.count, Math.max(...data.map(d => d.count))).getHexString();
+                        return (
+                          <div
+                            key={idx}
+                            className="flex justify-between items-center gap-3 bg-slate-100 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                            onMouseEnter={() => setHoverInfo({
+                              pisoLabel: floor.piso,
+                              count: floor.count,
+                              uas: floor.uas,
+                              dominantUa: floor.uas?.length > 0 ? floor.uas.reduce((p, c) => p.count > c.count ? p : c).nombre : null
+                            })}
+                            onMouseLeave={() => setHoverInfo(null)}
+                            onClick={() => setSelectedInfo({
+                              pisoLabel: floor.piso,
+                              count: floor.count,
+                              uas: floor.uas,
+                              dominantUa: floor.uas?.length > 0 ? floor.uas.reduce((p, c) => p.count > c.count ? p : c).nombre : null
+                            })}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: `#${color}` }} />
+                              <span className="text-sm text-slate-800 dark:text-slate-200 font-medium">{floor.piso}</span>
+                            </div>
+                            <span className="font-extrabold text-[#621f32] dark:text-[#f3dcd4] bg-[#621f32]/5 dark:bg-[#621f32]/15 border border-[#621f32]/10 dark:border-[#bc955c]/25 px-2.5 py-1 rounded-xl text-xs shrink-0">{floor.count} emp.</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
-              </button>
-            ))}
+              </div>
+            )}
+
+            {/* Legend for UA mode */}
+            {viewMode === "ua" && uniqueUas.length > 0 && (
+              <div className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-[1.75rem] border border-slate-200 dark:border-slate-800/80 w-full pointer-events-auto ${mobilePanelOpen ? "max-h-[40dvh]" : "max-h-none"} md:max-h-none overflow-y-auto custom-scrollbar shadow-lg md:shadow-none`}>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanelOpen((o) => !o)}
+                  className="md:pointer-events-none flex items-center justify-between gap-2 w-full text-left md:mb-3 min-h-11 md:min-h-0"
+                >
+                  <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Leyenda de Unidades</h4>
+                  <ChevronDown className={`md:hidden size-4 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
+                </button>
+                <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex flex-col gap-2.5 mt-2 md:mt-0`}>
+                  {uniqueUas.map((ua, idx) => {
+                    const color = getUaColor(ua).getHexString();
+                    const isLegendSelected = selectedUaRemote === ua;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-start gap-3 cursor-pointer p-2 rounded-lg transition-colors border ${isLegendSelected ? 'bg-[#621f32]/5 dark:bg-[#621f32]/15 border-[#621f32]/10 dark:border-[#bc955c]/25' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-200 dark:hover:border-slate-700'}`}
+                        onMouseEnter={() => setHoveredUaRemote(ua)}
+                        onMouseLeave={() => setHoveredUaRemote(null)}
+                        onClick={() => setSelectedUaRemote(selectedUaRemote === ua ? null : ua)}
+                      >
+                        <div className="w-3 h-3 rounded-full shrink-0 mt-0.5 shadow-sm" style={{ backgroundColor: `#${color}` }} />
+                        <span className={`text-xs leading-snug ${isLegendSelected ? 'text-[#621f32] dark:text-[#f3dcd4] font-extrabold' : 'text-slate-800 dark:text-slate-200'}`}>{ua}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Canvas: columna central, se ajusta al espacio real restante entre los sidebars */}
+        <div className="relative flex-1 min-w-0 h-full">
+          <Canvas camera={{ position: [20, 5, 20], fov: 45 }}>
+            {/* Environment and Lighting */}
+            <ambientLight intensity={0.4} />
+            <directionalLight position={[10, 50, 20]} intensity={1.5} castShadow />
+            <pointLight position={[-20, 30, -20]} intensity={1} color="#38bdf8" />
+            <Environment preset="city" />
+
+            {/* The 3D Tower */}
+            <TorreCaballito
+              data={data}
+              hoverInfo={hoverInfo}
+              setHoverInfo={setHoverInfo}
+              selectedInfo={selectedInfo}
+              setSelectedInfo={setSelectedInfo}
+              mode={viewMode}
+              hoveredUaRemote={hoveredUaRemote}
+              selectedUaRemote={selectedUaRemote}
+            />
+
+            {/* Soft shadow on the ground */}
+            <ContactShadows resolution={2048} scale={100} blur={2.5} opacity={0.6} far={20} color="#000000" position={[0, -0.49, 0]} />
+
+            {/* Camera Intro Animation and Controls */}
+            <CameraRig targetCamera={targetCamera} />
+          </Canvas>
+        </div>
+
+        {/* Sidebar derecho: panel de detalle (piso/UA) — solo ocupa espacio cuando hay selección/hover */}
+        {(displayInfo || uaDetails) && (
+          <div className="absolute z-30 bottom-2 inset-x-2 md:bottom-auto md:top-2 md:inset-x-auto md:right-2 md:w-72 lg:w-80 md:max-h-[calc(100%-1rem)] animate-in fade-in slide-in-from-bottom-4 md:slide-in-from-right-4 duration-200">
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800/80 rounded-[1.75rem] overflow-hidden flex flex-col max-h-[85vh] md:max-h-full pointer-events-auto">
+
+            {displayInfo ? (
+              <>
+                {/* Header for Floor Detail */}
+                <div className={`p-4 border-b shrink-0 ${selectedInfo ? 'bg-[#621f32]/5 dark:bg-[#621f32]/15 border-[#621f32]/10 dark:border-[#bc955c]/25' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800/80'}`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex flex-col pr-4">
+                      {viewMode === "ua" && displayInfo.dominantUa ? (
+                        <>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider mb-1">
+                            {displayInfo.pisoLabel.startsWith("P") ? `Torre Caballito Reforma 10 ${displayInfo.pisoLabel}` : displayInfo.pisoLabel}
+                          </span>
+                          <h3 className={`font-bold text-base leading-snug ${selectedInfo ? 'text-[#bc955c]' : 'text-slate-700 dark:text-slate-300'}`}>
+                            {displayInfo.dominantUa}
+                          </h3>
+                        </>
+                      ) : (
+                        <h3 className="font-black text-xl leading-none text-[#621f32] dark:text-[#f3dcd4]">
+                          {displayInfo.pisoLabel.startsWith("P") ? `Torre Caballito Reforma 10 ${displayInfo.pisoLabel}` : displayInfo.pisoLabel}
+                        </h3>
+                      )}
+                    </div>
+                    {selectedInfo && (
+                      <button
+                        onClick={() => setSelectedInfo(null)}
+                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500 dark:text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                    <span className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-wider">Total Activos en Piso</span>
+                    <span className="font-black text-3xl text-[#621f32] dark:text-[#f3dcd4]">{displayInfo.count}</span>
+                  </div>
+                  {displayInfo.count > 0 && (
+                    <button
+                      onClick={() => {
+                        setLoadingEmpleados(true);
+                        setEmpleadosModalTitle(`Empleados en ${displayInfo.pisoLabel}`);
+                        VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, "")
+                          .then(res => res.json())
+                          .then(data => setEmpleadosData(data))
+                          .catch(err => console.error(err))
+                          .finally(() => setLoadingEmpleados(false));
+                      }}
+                      className="mt-3 w-full py-2.5 bg-gradient-to-r from-[#621f32] to-[#8d2c48] hover:shadow-lg hover:scale-[1.02] active:scale-95 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                      Ver todos los empleados del piso
+                    </button>
+                  )}
+                </div>
+
+                {/* Scrollable UAs list for Floor */}
+                <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-2 custom-scrollbar">
+                  <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Unidades Administrativas</h4>
+                  {displayInfo.uas && displayInfo.uas.length > 0 ? (
+                    displayInfo.uas.map((ua, idx) => (
+                      <div key={idx} className="flex justify-between items-center gap-3 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <span className="text-slate-800 dark:text-slate-200 text-sm font-medium leading-snug flex-1">{ua.nombre}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-extrabold text-[#621f32] dark:text-[#f3dcd4] bg-[#621f32]/5 dark:bg-[#621f32]/15 border border-[#621f32]/10 dark:border-[#bc955c]/25 px-2.5 py-1 rounded-xl text-sm">{ua.count}</span>
+                          <button
+                            onClick={() => {
+                              setLoadingEmpleados(true);
+                              setEmpleadosModalTitle(`Empleados de ${ua.nombre} en ${displayInfo.pisoLabel}`);
+                              VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, ua.nombre)
+                                .then(res => res.json())
+                                .then(data => setEmpleadosData(data))
+                                .catch(err => console.error(err))
+                                .finally(() => setLoadingEmpleados(false));
+                            }}
+                            className="p-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-[#621f32] hover:text-white dark:hover:bg-[#621f32] rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                            title="Ver empleados"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-slate-500 dark:text-slate-400 text-sm italic">Piso vacío o no asignado</div>
+                  )}
+                </div>
+              </>
+            ) : uaDetails ? (
+              <>
+                {/* Header for UA Detail */}
+                <div className={`p-4 border-b shrink-0 ${selectedUaRemote ? 'bg-[#621f32]/5 dark:bg-[#621f32]/15 border-[#621f32]/10 dark:border-[#bc955c]/25' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800/80'}`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex flex-col pr-4">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider mb-1">Unidad Administrativa</span>
+                      <h3 className={`font-bold text-base leading-snug ${selectedUaRemote ? 'text-[#bc955c]' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {uaDetails.nombre}
+                      </h3>
+                    </div>
+                    {selectedUaRemote && (
+                      <button
+                        onClick={() => setSelectedUaRemote(null)}
+                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500 dark:text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] cursor-pointer"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                    <span className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-wider">Total Empleados Global</span>
+                    <span className="font-black text-3xl text-[#621f32] dark:text-[#f3dcd4]">{uaDetails.total}</span>
+                  </div>
+                </div>
+
+                {/* Scrollable Pisos list for UA */}
+                <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-2 custom-scrollbar">
+                  <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Distribución por Pisos</h4>
+                  {uaDetails.pisos.map((piso, idx) => (
+                    <div key={idx} className="flex justify-between items-center gap-3 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                      <span className="text-slate-800 dark:text-slate-200 text-sm font-medium leading-snug flex-1">{piso.piso}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-extrabold text-[#bc955c] bg-[#621f32]/5 dark:bg-[#621f32]/15 border border-[#621f32]/10 dark:border-[#bc955c]/25 px-2.5 py-1 rounded-xl text-sm">{piso.count}</span>
+                        <button
+                          onClick={() => {
+                            setLoadingEmpleados(true);
+                            setEmpleadosModalTitle(`Empleados de ${uaDetails.nombre} en ${piso.piso}`);
+                            VacantesService.getTorreCaballitoEmpleados(piso.piso, uaDetails.nombre)
+                              .then(res => res.json())
+                              .then(data => setEmpleadosData(data))
+                              .catch(err => console.error(err))
+                              .finally(() => setLoadingEmpleados(false));
+                          }}
+                          className="p-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-[#621f32] hover:text-white dark:hover:bg-[#621f32] rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                          title="Ver empleados"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+          </div>
           </div>
         )}
       </div>
-
-
 
       {/* Empleados Detail Modal */}
       {(empleadosData || loadingEmpleados) && (

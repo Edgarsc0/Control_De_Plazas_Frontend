@@ -640,6 +640,19 @@ export const VacantesService = {
     },
 
     /**
+     * Busca empleados por nombre/número devolviendo su ubicación geográfica (lat/long).
+     * @param {string} query - Texto de búsqueda.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    searchEmpleadosGeografia: (query, options = {}) => {
+        return apiFetch(`/plantilla/empleados_geografia_search/?q=${encodeURIComponent(query)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene las estadísticas de movimientos de personal según filtros.
      * @param {Object<string, (string|number)>} [params={}] - Filtros a aplicar (se omiten vacíos).
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
