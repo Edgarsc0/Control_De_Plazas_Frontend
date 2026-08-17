@@ -65,7 +65,10 @@ const ALL_MOV_KEYS = [
   "fecha_entrada_posicion", "fecha_posicion"
 ];
 
-const DATE_KEYS_MOV = ["fecha_efectiva", "fecha_aplicacion", "ultima_actualizacion", "fecha_ingreso"];
+const DATE_KEYS_MOV = [
+  "fecha_efectiva", "fecha_aplicacion", "ultima_actualizacion", "fecha_ingreso",
+  "fecha_prevista", "ultima_fecha_ingreso", "fecha_asignacion", "fecha_entrada_posicion", "fecha_posicion",
+];
 
 export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHistorico = [], isPending, startTransition, cardRef }) {
   const { hasPermission } = useAuth();
@@ -191,7 +194,41 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     { key: "nivel", label: "Nivel", width: 100, visible: true },
     { key: "rfc", label: "RFC", width: 150, visible: false },
     { key: "curp", label: "CURP", width: 180, visible: false },
-    { key: "genero", label: "Género", width: 100, visible: false }
+    { key: "genero", label: "Género", width: 100, visible: false },
+    // Resto de columnas de BAJAS_SIG: no vienen visibles por defecto (mismo
+    // criterio que RFC/CURP/Género arriba) para no saturar la tabla, pero
+    // quedan servidas — aparecen en el modal de Columnas, filtro, orden,
+    // exportación a Excel y en el diff de "Historial de Cambios".
+    { key: "primer_apellido", label: "Primer Apellido", width: 180, visible: false },
+    { key: "segundo_apellido", label: "Segundo Apellido", width: 180, visible: false },
+    { key: "accion", label: "Cód. Acción", width: 110, visible: false },
+    { key: "motivo", label: "Cód. Motivo", width: 110, visible: false },
+    { key: "sequencia_efectiva", label: "Secuencia Efectiva", width: 150, visible: false },
+    { key: "fecha_aplicacion", label: "Fecha Aplicación", width: 120, visible: false },
+    { key: "unidad_general", label: "Unidad General", width: 220, visible: false },
+    { key: "dependencia_directa", label: "Dependencia Directa", width: 220, visible: false },
+    { key: "plan_salarial", label: "Plan Salarial", width: 150, visible: false },
+    { key: "grado", label: "Grado", width: 100, visible: false },
+    { key: "escala", label: "Escala", width: 100, visible: false },
+    { key: "puesto_presupuestal", label: "Puesto Presupuestal", width: 200, visible: false },
+    { key: "nivel_tabular", label: "Nivel Tabular", width: 130, visible: false },
+    { key: "grupo_de_pago", label: "Grupo de Pago", width: 150, visible: false },
+    { key: "beneficios", label: "Beneficios", width: 150, visible: false },
+    { key: "smb", label: "SMB", width: 120, visible: false },
+    { key: "inmueble", label: "Inmueble", width: 180, visible: false },
+    { key: "fecha_prevista", label: "Fecha Prevista", width: 120, visible: false },
+    { key: "ultima_actualizacion", label: "Última Actualización", width: 150, visible: false },
+    { key: "ultimo_operador", label: "Último Operador", width: 180, visible: false },
+    { key: "ultima_fecha_ingreso", label: "Última Fecha Ingreso", width: 150, visible: false },
+    { key: "fecha_ingreso", label: "Fecha Ingreso", width: 120, visible: false },
+    { key: "grupo_trabajo", label: "Grupo Trabajo", width: 150, visible: false },
+    { key: "codigo_grupo", label: "Código Grupo", width: 130, visible: false },
+    { key: "fecha_asignacion", label: "Fecha Asignación", width: 120, visible: false },
+    { key: "id_persona", label: "ID Persona", width: 130, visible: false },
+    { key: "nivel1", label: "Nivel 1", width: 100, visible: false },
+    { key: "unidad_administrativa", label: "Unidad Administrativa", width: 220, visible: false },
+    { key: "fecha_entrada_posicion", label: "Fecha Entrada Posición", width: 150, visible: false },
+    { key: "fecha_posicion", label: "Fecha Posición", width: 130, visible: false }
   ], "bajas_columns");
 
   const [searchQuery, setSearchQuery] = useState("");
