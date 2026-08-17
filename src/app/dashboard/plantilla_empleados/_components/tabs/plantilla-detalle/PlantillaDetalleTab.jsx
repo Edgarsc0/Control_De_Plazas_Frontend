@@ -3062,16 +3062,21 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // Móvil: la campana + botón de movimientos de hoy son flotantes arriba a
   // la derecha; se ocultan al llegar a la barra de búsqueda (justo el primer
   // hijo de `cardRef`) para no taparla, y reaparecen si se vuelve a subir.
-  // El -55% de rootMargin inferior angosta el área "visible" observada a la
-  // franja de arriba de la pantalla, así el toggle ocurre cuando esa sección
-  // realmente alcanza la parte alta del viewport, no apenas asoma abajo.
+  // El -80% de rootMargin inferior angosta el área "visible" observada a una
+  // franja delgada pegada arriba de la pantalla, así el toggle ocurre cuando
+  // esa sección realmente alcanza la parte alta del viewport tras hacer
+  // scroll, no apenas carga la página. Con -55% la franja llegaba hasta
+  // ~45% del viewport, y en este tab el borde superior de `cardRef` (la
+  // barra de búsqueda) ya cae ahí desde la carga inicial —sin scroll—
+  // porque el carrusel de tarjetas de estatus de arriba es corto: el botón
+  // quedaba oculto (opacity-0) desde el primer render.
   const [showFloatingMobileActions, setShowFloatingMobileActions] = useState(true);
   useEffect(() => {
     const el = cardRef?.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => setShowFloatingMobileActions(!entry.isIntersecting),
-      { rootMargin: "-64px 0px -55% 0px", threshold: 0 }
+      { rootMargin: "-64px 0px -80% 0px", threshold: 0 }
     );
     observer.observe(el);
     return () => observer.disconnect();
