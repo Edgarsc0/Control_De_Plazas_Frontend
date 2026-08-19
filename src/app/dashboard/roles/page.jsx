@@ -46,6 +46,14 @@ const ROLE_PAGE_SIZE = 8;
 const USER_PAGE_SIZE = 10;
 const PRESENCE_POLL_MS = 15000;
 
+// Mismo catálogo que TABLERO_CHOICES en el backend (authentication/models.py)
+// — sin endpoint propio porque es un puñado fijo de opciones, no un catálogo
+// administrable como los roles.
+const TABLERO_OPTIONS = [
+    { value: 'none', label: 'Ninguno' },
+    { value: 'rh', label: 'Tablero RH' },
+];
+
 function timeAgoLabel(ts) {
     if (!ts) return '';
     const diffSec = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 1000));
@@ -332,6 +340,23 @@ function RolesAdminContent() {
                 current.map((entry) => (entry.id === updated.id ? updated : entry))
             );
             toast.success(`Rol actualizado para ${whitelistEntry.email}.`);
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    // `value` llega "none" (placeholder de <Select>, que no admite value="") o
+    // "rh" — se traduce a null/"rh" para el backend (Whitelist.tablero).
+    const handleReassignTablero = async (whitelistEntry, value) => {
+        try {
+            const tablero = value === 'none' ? null : value;
+            const response = await WhitelistService.assignTablero(whitelistEntry.id, tablero);
+            if (!response.ok) throw new Error('No se pudo asignar el tablero.');
+            const updated = await response.json();
+            setWhitelist((current) =>
+                current.map((entry) => (entry.id === updated.id ? updated : entry))
+            );
+            toast.success(`Tablero actualizado para ${whitelistEntry.email}.`);
         } catch (error) {
             toast.error(error.message);
         }
@@ -660,6 +685,7 @@ function RolesAdminContent() {
                                     <th className="text-left px-4 py-2.5">Estado</th>
                                     <th className="text-left px-4 py-2.5">Página actual</th>
                                     <th className="text-left px-4 py-2.5">Rol</th>
+                                    <th className="text-left px-4 py-2.5">Tablero</th>
                                     <th className="text-left px-4 py-2.5">Actividad</th>
                                 </tr>
                             </thead>
@@ -735,6 +761,23 @@ function RolesAdminContent() {
                                                 </Select>
                                             </td>
                                             <td className="px-4 py-2.5">
+                                                <Select
+                                                    defaultValue={entry.tablero || 'none'}
+                                                    onValueChange={(value) => handleReassignTablero(entry, value)}
+                                                >
+                                                    <SelectTrigger className={`w-[140px] ${SELECT_TRIGGER_CLASS}`}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {TABLERO_OPTIONS.map((opt) => (
+                                                            <SelectItem key={opt.value} value={opt.value}>
+                                                                {opt.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </td>
+                                            <td className="px-4 py-2.5">
                                                 <div className="flex items-center gap-0.5">
                                                     <Button
                                                         variant="ghost"
@@ -763,7 +806,7 @@ function RolesAdminContent() {
                                 })}
                                 {paginatedWhitelist.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                                             {whitelist.length === 0
                                                 ? 'Sin usuarios en la whitelist.'
                                                 : 'Sin usuarios que coincidan con la búsqueda.'}

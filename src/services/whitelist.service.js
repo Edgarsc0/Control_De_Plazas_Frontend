@@ -35,6 +35,19 @@ export const WhitelistService = {
         }),
 
     /**
+     * Asigna (o quita, con `tablero: null`) el tablero ejecutivo de un usuario
+     * — reemplaza por completo lo que ve al iniciar sesión (ver
+     * Whitelist.tablero en el backend y /dashboard/tablero/TableroRH.jsx).
+     * @param {number} id - id de la entrada de whitelist
+     * @param {?string} tablero - "rh" | null (null = sin tablero, dashboard normal)
+     */
+    assignTablero: (id, tablero) =>
+        apiFetch(`/auth/whitelist/${id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ tablero }),
+        }),
+
+    /**
      * Establece o restablece la contraseña de un usuario.
      *
      * No hay recuperación por correo (el envío a las cuentas institucionales

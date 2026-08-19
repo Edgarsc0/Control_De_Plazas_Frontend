@@ -6,6 +6,7 @@ import { OcupacionService } from '@/services/ocupacion.service';
 import { cookies } from 'next/headers';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import { getServerSession } from '@/lib/getServerSession';
+import TableroRH from './tablero/TableroRH';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,14 @@ async function DashboardData({ dataPromise }) {
 export default async function DashboardServerCompoment() {
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
-  const { permissions, isSuperuser } = await getServerSession();
+  const { permissions, isSuperuser, tablero } = await getServerSession();
+
+  // Tablero ejecutivo asignado por usuario (Roles y Permisos > Usuarios >
+  // columna "Tablero"): reemplaza por completo el dashboard normal, sin
+  // redirección — es lo primero (y único) que ve esa persona al entrar.
+  if (tablero === 'rh') {
+    return <TableroRH />;
+  }
 
   // Initiate the fetch concurrently
   const dataPromise = Promise.allSettled([

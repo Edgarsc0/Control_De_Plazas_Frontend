@@ -93,11 +93,12 @@ export const VacantesService = {
 
     /**
      * Obtiene el detalle de empleados en posiciones activas.
+     * @param {{oficio?: string, nivel?: string, search?: string}} [params={}] - Sin params: dataset completo (cacheado 20 min). `search`: filtra en el backend (nombre/RFC/CURP/UA/etc., ver TableroRH.jsx) y no se cachea.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
-    getEmpleadosCompletosActivosDetalle: (options = {}) => {
-        return apiFetch('/plantilla/empleados_completos_activos_detalle/', {
+    getEmpleadosCompletosActivosDetalle: (params = {}, options = {}) => {
+        return apiFetch(`/plantilla/empleados_completos_activos_detalle/${buildQuery(params)}`, {
             method: 'GET',
             ...options
         });
