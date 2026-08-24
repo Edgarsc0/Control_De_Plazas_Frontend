@@ -42,7 +42,7 @@ import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
 import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
-import { emptyAdvancedCondition, getValidAdvancedConditions } from "@/utils/advancedFilters";
+import { getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
@@ -225,6 +225,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    addAdvancedGroup, removeAdvancedGroup, loadSavedFilter,
     applyAdvancedFilters, resetAdvancedFilters,
   } = useAdvancedFilters({
     mode: "server",
@@ -2186,11 +2187,13 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         onAddCondition={addAdvancedCondition}
         onRemoveCondition={removeAdvancedCondition}
         onUpdateCondition={updateAdvancedCondition}
+        onAddGroup={addAdvancedGroup}
+        onRemoveGroup={removeAdvancedGroup}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
         fetchSuggestions={fetchAdvValueSuggestions}
         savedFilters={filtrosGuardados.filtros}
-        onLoadSavedFilter={(condiciones) => setAdvancedConditions(condiciones.map((c, i) => ({ ...emptyAdvancedCondition(Date.now() + i), ...c })))}
+        onLoadSavedFilter={loadSavedFilter}
         onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
         onDeleteSavedFilter={filtrosGuardados.eliminar}
       />

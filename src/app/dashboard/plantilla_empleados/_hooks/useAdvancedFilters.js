@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { emptyAdvancedCondition, getValidAdvancedConditions } from '@/utils/advancedFilters';
+import { emptyAdvancedCondition, emptyAdvancedGroup, getValidAdvancedConditions } from '@/utils/advancedFilters';
 import { useToast } from '@/hooks/useToast';
 
 /**
@@ -27,17 +27,38 @@ export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = ()
   const [advancedConditions, setAdvancedConditions] = useState(() => [emptyAdvancedCondition(0)]);
   const [appliedAdvancedFilters, setAppliedAdvancedFilters] = useState([]);
 
-  const addAdvancedCondition = useCallback(() => {
-    setAdvancedConditions((prev) => [...prev, emptyAdvancedCondition(advConditionIdRef.current++)]);
+  /** Sin `groupId`, agrega al top-level; con `groupId`, agrega dentro de ese grupo. */
+  const addAdvancedCondition = useCallback((groupId = null) => {
+    setAdvancedConditions((prev) => {
+      const newCondition = emptyAdvancedCondition(advConditionIdRef.current++);
+      if (groupId == null) return [...prev, newCondition];
+      return prev.map((n) => (n.type === 'group' && n.id === groupId ? { ...n, children: [...n.children, newCondition] } : n));
+    });
   }, []);
 
+  /** Agrega un grupo (paréntesis explícito) al top-level, con una condición vacía dentro. */
+  const addAdvancedGroup = useCallback(() => {
+    setAdvancedConditions((prev) => {
+      const group = emptyAdvancedGroup(advConditionIdRef.current++);
+      group.children = [emptyAdvancedCondition(advConditionIdRef.current++)];
+      return [...prev, group];
+    });
+  }, []);
+
+  /** Busca `id` en el top-level y dentro de los `children` de cada grupo. */
   const removeAdvancedCondition = useCallback((id) => {
-    setAdvancedConditions((prev) => prev.filter((c) => c.id !== id));
+    setAdvancedConditions((prev) => prev
+      .filter((n) => n.id !== id)
+      .map((n) => (n.type === 'group' ? { ...n, children: n.children.filter((c) => c.id !== id) } : n)));
   }, []);
 
+  const removeAdvancedGroup = useCallback((groupId) => {
+    setAdvancedConditions((prev) => prev.filter((n) => n.id !== groupId));
+  }, []);
+
+  /** Busca `id` en el top-level y dentro de los `children` de cada grupo (condiciones Y grupos, para su `logic`). */
   const updateAdvancedCondition = useCallback((id, patch) => {
-    setAdvancedConditions((prev) => prev.map((c) => {
-      if (c.id !== id) return c;
+    const applyPatch = (c) => {
       const next = { ...c, ...patch };
       if (patch.column !== undefined && patch.column !== c.column) {
         next.condition = isDateColumn(patch.column) ? 'before' : isNumericColumn(patch.column) ? 'equals' : 'contains';
@@ -50,8 +71,29 @@ export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = ()
         next.compareColumn = null;
       }
       return next;
+    };
+    setAdvancedConditions((prev) => prev.map((n) => {
+      if (n.id === id) return applyPatch(n);
+      if (n.type === 'group') return { ...n, children: n.children.map((c) => (c.id === id ? applyPatch(c) : c)) };
+      return n;
     }));
   }, [isDateColumn, isNumericColumn]);
+
+  /**
+   * Carga condiciones/grupos de un filtro guardado en el formulario,
+   * hidratando ids frescos vía `advConditionIdRef` (recursivo, incluye los
+   * `children` de cada grupo). Usa `emptyAdvancedCondition`/`emptyAdvancedGroup`
+   * como base según `type` — filtros guardados viejos (sin `type`) hidratan
+   * como condición por default.
+   */
+  const loadSavedFilter = useCallback((conditions) => {
+    const hydrate = (nodes) => nodes.map((n) => {
+      const id = advConditionIdRef.current++;
+      if (n.type === 'group') return { ...emptyAdvancedGroup(id), ...n, id, children: hydrate(n.children || []) };
+      return { ...emptyAdvancedCondition(id), ...n, id };
+    });
+    setAdvancedConditions(hydrate(conditions));
+  }, []);
 
   const applyAdvancedFilters = useCallback(() => {
     const valid = getValidAdvancedConditions(advancedConditions);
@@ -73,6 +115,7 @@ export function useAdvancedFilters({ mode = 'client', onApply, isDateColumn = ()
     advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters, setAppliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    addAdvancedGroup, removeAdvancedGroup, loadSavedFilter,
     applyAdvancedFilters, resetAdvancedFilters,
   };
 }

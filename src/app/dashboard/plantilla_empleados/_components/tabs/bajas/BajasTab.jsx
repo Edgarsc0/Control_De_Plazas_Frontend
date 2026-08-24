@@ -31,7 +31,7 @@ import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
-import { evaluateAdvancedFilters, isColumnNumericByData, emptyAdvancedCondition, getValidAdvancedConditions } from "@/utils/advancedFilters";
+import { evaluateAdvancedFilters, isColumnNumericByData, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -349,6 +349,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    addAdvancedGroup, removeAdvancedGroup, loadSavedFilter,
     applyAdvancedFilters, resetAdvancedFilters,
   } = useAdvancedFilters({ mode: "client", isDateColumn, isNumericColumn });
   const filtrosGuardados = useFiltrosGuardados("plantilla_bajas");
@@ -1442,12 +1443,14 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         onAddCondition={addAdvancedCondition}
         onRemoveCondition={removeAdvancedCondition}
         onUpdateCondition={updateAdvancedCondition}
+        onAddGroup={addAdvancedGroup}
+        onRemoveGroup={removeAdvancedGroup}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
         isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvSuggestions}
         savedFilters={filtrosGuardados.filtros}
-        onLoadSavedFilter={(condiciones) => setAdvancedConditions(condiciones.map((c, i) => ({ ...emptyAdvancedCondition(Date.now() + i), ...c })))}
+        onLoadSavedFilter={loadSavedFilter}
         onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
         onDeleteSavedFilter={filtrosGuardados.eliminar}
       />

@@ -256,6 +256,105 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetch
 }
 
 /**
+ * Fila de una condición (columna/condición/comparar-con/valor), usada tanto
+ * en el top-level del modal como dentro de un grupo. `onRemove` es opcional
+ * (el top-level no deja borrar la última condición si es lo único que hay).
+ */
+function ConditionRow({ cond, idx, columns, isDateColumn, isNumericColumn, fetchSuggestions, onUpdate, onRemove }) {
+  const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
+  const isDateCol = cond.column && isDateColumn(cond.column);
+  const isNumCol = cond.column && !isDateCol && isNumericColumn(cond.column);
+  const conditionOptions = [
+    ...(isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? ADV_NUMBER_CONDITIONS : CONDITION_OPTIONS),
+    ...ADV_EMPTY_CONDITIONS,
+  ];
+  const isEmptyCond = cond.condition === "empty" || cond.condition === "not_empty";
+
+  return (
+    <div className="relative bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Condición {idx + 1}</span>
+        {onRemove && (
+          <button onClick={onRemove} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer" title="Eliminar condición">
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      <div className={`grid grid-cols-1 ${isEmptyCond ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-2`}>
+        <div>
+          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna</span>
+          <AdvFilterSelect
+            value={cond.column}
+            options={colOptions}
+            searchable
+            placeholder="Selecciona columna..."
+            onChange={(val) => onUpdate({ column: val })}
+          />
+        </div>
+        <div>
+          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Condición</span>
+          <AdvFilterSelect
+            value={cond.condition}
+            options={conditionOptions}
+            placeholder="Selecciona condición..."
+            onChange={(val) => onUpdate({ condition: val })}
+          />
+        </div>
+        {!isEmptyCond && (
+          <div>
+            <span className="text-[10px] font-medium text-slate-400 mb-1 block">Comparar con</span>
+            <AdvFilterSelect
+              value={cond.compareType}
+              options={ADV_COMPARE_TYPE_OPTIONS}
+              onChange={(val) => onUpdate({ compareType: val })}
+            />
+          </div>
+        )}
+      </div>
+
+      {!isEmptyCond && (cond.compareType === "campo" ? (
+        <div className="mt-2">
+          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna a comparar</span>
+          <AdvFilterSelect
+            value={cond.compareColumn}
+            options={colOptions}
+            searchable
+            placeholder="Selecciona columna..."
+            onChange={(val) => onUpdate({ compareColumn: val })}
+          />
+        </div>
+      ) : (
+        <div className="mt-2">
+          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Valor</span>
+          <AdvValueAutocomplete
+            column={cond.column}
+            value={cond.value}
+            onChange={(val) => onUpdate({ value: val })}
+            isDate={isDateCol}
+            isNumber={isNumCol}
+            fetchSuggestions={fetchSuggestions}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Conector visual con el nodo anterior de la lista (selector AND/OR entre líneas). */
+function LogicConnector({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-2 -my-0.5">
+      <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+      <div className="w-24">
+        <AdvFilterSelect value={value} options={ADV_LOGIC_OPTIONS} onChange={onChange} />
+      </div>
+      <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+    </div>
+  );
+}
+
+/**
  * Modal de "Filtros avanzados" compartido por los tabs de plantilla. Solo UI +
  * orquestación del formulario; el estado (`conditions`) y la aplicación viven
  * en `useAdvancedFilters`, la evaluación pura en `@/utils/advancedFilters`.
@@ -266,9 +365,11 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetch
  * @param {boolean} props.mounted - Gate de `createPortal` (evita mismatch de hidratación SSR).
  * @param {Array<{key:string,label:string}>} props.columns - Columnas disponibles (visibles o no).
  * @param {Object[]} props.conditions - `advancedConditions` del hook.
- * @param {() => void} props.onAddCondition
+ * @param {(groupId?:any) => void} props.onAddCondition - Sin `groupId`, agrega al top-level; con `groupId`, agrega dentro de ese grupo.
  * @param {(id:any) => void} props.onRemoveCondition
  * @param {(id:any, patch:Object) => void} props.onUpdateCondition
+ * @param {() => void} props.onAddGroup - Agrega un grupo (paréntesis explícito) al top-level.
+ * @param {(groupId:any) => void} props.onRemoveGroup
  * @param {() => void} props.onApply
  * @param {(key:string) => boolean} props.isDateColumn
  * @param {(key:string) => boolean} [props.isNumericColumn] - Si la columna es numérica (condiciones >, <, >=, <=).
@@ -281,7 +382,7 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetch
 export default function AdvancedFiltersModal({
   open, onClose, mounted = true,
   columns, conditions,
-  onAddCondition, onRemoveCondition, onUpdateCondition, onApply,
+  onAddCondition, onRemoveCondition, onUpdateCondition, onAddGroup, onRemoveGroup, onApply,
   isDateColumn, isNumericColumn = () => false, fetchSuggestions,
   savedFilters = [], onLoadSavedFilter, onSaveFilter, onDeleteSavedFilter,
 }) {
@@ -379,113 +480,62 @@ export default function AdvancedFiltersModal({
                   </div>
                 </div>
               )}
-              {conditions.length > 2 && (
-                <p className="text-[10px] text-slate-400 -mt-1 mb-0.5">
-                  Las condiciones se evalúan en orden, de izquierda a derecha (sin precedencia de "Y" sobre "O").
-                </p>
-              )}
-              {conditions.map((cond, idx) => {
-                const colOptions = columns.map(c => ({ key: c.key, label: c.label }));
-                const isDateCol = cond.column && isDateColumn(cond.column);
-                const isNumCol = cond.column && !isDateCol && isNumericColumn(cond.column);
-                const conditionOptions = [
-                  ...(isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? ADV_NUMBER_CONDITIONS : CONDITION_OPTIONS),
-                  ...ADV_EMPTY_CONDITIONS,
-                ];
-                const isEmptyCond = cond.condition === "empty" || cond.condition === "not_empty";
+              {conditions.map((node, idx) => (
+                <div key={node.id} className="flex flex-col gap-2.5">
+                  {idx > 0 && <LogicConnector value={node.logic} onChange={(val) => onUpdateCondition(node.id, { logic: val })} />}
 
-                return (
-                  <div key={cond.id} className="flex flex-col gap-2.5">
-                    {idx > 0 && (
-                      <div className="flex items-center gap-2 -my-0.5">
-                        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
-                        <div className="w-24">
-                          <AdvFilterSelect
-                            value={cond.logic}
-                            options={ADV_LOGIC_OPTIONS}
-                            onChange={(val) => onUpdateCondition(cond.id, { logic: val })}
-                          />
-                        </div>
-                        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+                  {node.type === "group" ? (
+                    <div className="relative border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">Grupo (paréntesis)</span>
+                        <button onClick={() => onRemoveGroup(node.id)} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer" title="Eliminar grupo">
+                          <Trash2 className="size-3.5" />
+                        </button>
                       </div>
-                    )}
-                    <div className="relative bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
-                      <div className="flex items-center justify-between mb-2.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Condición {idx + 1}</span>
-                        {conditions.length > 1 && (
-                          <button onClick={() => onRemoveCondition(cond.id)} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer" title="Eliminar condición">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className={`grid grid-cols-1 ${isEmptyCond ? "sm:grid-cols-2" : "sm:grid-cols-3"} gap-2`}>
-                        <div>
-                          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna</span>
-                          <AdvFilterSelect
-                            value={cond.column}
-                            options={colOptions}
-                            searchable
-                            placeholder="Selecciona columna..."
-                            onChange={(val) => onUpdateCondition(cond.id, { column: val })}
-                          />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Condición</span>
-                          <AdvFilterSelect
-                            value={cond.condition}
-                            options={conditionOptions}
-                            placeholder="Selecciona condición..."
-                            onChange={(val) => onUpdateCondition(cond.id, { condition: val })}
-                          />
-                        </div>
-                        {!isEmptyCond && (
-                          <div>
-                            <span className="text-[10px] font-medium text-slate-400 mb-1 block">Comparar con</span>
-                            <AdvFilterSelect
-                              value={cond.compareType}
-                              options={ADV_COMPARE_TYPE_OPTIONS}
-                              onChange={(val) => onUpdateCondition(cond.id, { compareType: val })}
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {!isEmptyCond && (cond.compareType === "campo" ? (
-                        <div className="mt-2">
-                          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Columna a comparar</span>
-                          <AdvFilterSelect
-                            value={cond.compareColumn}
-                            options={colOptions}
-                            searchable
-                            placeholder="Selecciona columna..."
-                            onChange={(val) => onUpdateCondition(cond.id, { compareColumn: val })}
-                          />
-                        </div>
-                      ) : (
-                        <div className="mt-2">
-                          <span className="text-[10px] font-medium text-slate-400 mb-1 block">Valor</span>
-                          <AdvValueAutocomplete
-                            column={cond.column}
-                            value={cond.value}
-                            onChange={(val) => onUpdateCondition(cond.id, { value: val })}
-                            isDate={isDateCol}
-                            isNumber={isNumCol}
-                            fetchSuggestions={fetchSuggestions}
+                      {node.children.map((cond, cIdx) => (
+                        <div key={cond.id} className="flex flex-col gap-2.5">
+                          {cIdx > 0 && <LogicConnector value={cond.logic} onChange={(val) => onUpdateCondition(cond.id, { logic: val })} />}
+                          <ConditionRow
+                            cond={cond} idx={cIdx} columns={columns}
+                            isDateColumn={isDateColumn} isNumericColumn={isNumericColumn} fetchSuggestions={fetchSuggestions}
+                            onUpdate={(patch) => onUpdateCondition(cond.id, patch)}
+                            onRemove={node.children.length > 1 ? () => onRemoveCondition(cond.id) : undefined}
                           />
                         </div>
                       ))}
+                      <button
+                        onClick={() => onAddCondition(node.id)}
+                        className="self-start flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-lg text-[10px] transition-colors cursor-pointer"
+                      >
+                        <Plus className="size-3" /><span>Agregar condición al grupo</span>
+                      </button>
                     </div>
-                  </div>
-                );
-              })}
+                  ) : (
+                    <ConditionRow
+                      cond={node} idx={idx} columns={columns}
+                      isDateColumn={isDateColumn} isNumericColumn={isNumericColumn} fetchSuggestions={fetchSuggestions}
+                      onUpdate={(patch) => onUpdateCondition(node.id, patch)}
+                      onRemove={conditions.length > 1 ? () => onRemoveCondition(node.id) : undefined}
+                    />
+                  )}
+                </div>
+              ))}
 
-              <button
-                onClick={onAddCondition}
-                className="self-start flex items-center gap-1.5 px-3.5 py-2 border border-dashed border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
-              >
-                <Plus className="size-3.5" /><span>Agregar condición</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onAddCondition()}
+                  className="self-start flex items-center gap-1.5 px-3.5 py-2 border border-dashed border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
+                >
+                  <Plus className="size-3.5" /><span>Agregar condición</span>
+                </button>
+                <button
+                  onClick={onAddGroup}
+                  className="self-start flex items-center gap-1.5 px-3.5 py-2 border border-dashed border-slate-200 dark:border-slate-700 hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] font-semibold rounded-lg text-[11px] transition-colors cursor-pointer"
+                  title='Agrupa condiciones entre paréntesis para controlar el orden de evaluación (p. ej. "(A O B) Y C")'
+                >
+                  <Plus className="size-3.5" /><span>Agregar grupo</span>
+                </button>
+              </div>
             </div>
 
             <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
