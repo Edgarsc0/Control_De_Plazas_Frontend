@@ -14,7 +14,7 @@
  * tal cual al backend); Plantilla Detalle y Bajas no tienen backend de filtros,
  * así que evalúan client-side con `evaluateAdvancedFilters`.
  */
-import { matchesTextCondition, parseFlexibleDate, defaultGetCellValue } from './columnFilters';
+import { matchesTextCondition, parseFlexibleDate, defaultGetCellValue, TEXT_CONDITION_KEYS, CONDITION_OPTIONS } from './columnFilters';
 
 /** Condiciones para columnas de fecha (distintas a las de texto). */
 export const ADV_DATE_CONDITIONS = [
@@ -41,6 +41,16 @@ export const ADV_NUMBER_CONDITIONS = [
   { key: 'equals', label: 'Es igual a (=)' },
   { key: 'not_equals', label: 'Diferente de (!=)' },
 ];
+
+/**
+ * Condiciones de texto ofrecidas ADEMÁS de {@link ADV_NUMBER_CONDITIONS} en
+ * columnas numéricas (p. ej. "posición no comienza con 1039"). Excluye
+ * 'equals'/'not_equals' — ya están cubiertas por las numéricas, con la misma
+ * etiqueta.
+ */
+export const ADV_NUMBER_TEXT_CONDITIONS = CONDITION_OPTIONS.filter(
+  (o) => o.key !== 'equals' && o.key !== 'not_equals'
+);
 
 /** Operador lógico entre una condición y la anterior. */
 export const ADV_LOGIC_OPTIONS = [
@@ -225,16 +235,22 @@ export const matchesAdvancedCondition = (row, cond, opts = {}) => {
   // matchesTextCondition/matchesDateCondition (pensado para compareType
   // 'valor'): si la columna destino está vacía en esta fila, la condición
   // debe evaluar como false, no como coincidencia automática.
+  // Una condición de texto (p. ej. "comienza con") es válida también sobre
+  // columnas numéricas/fecha — el modal las ofrece ahí para casos como
+  // "posición no comienza con 1039". Se evalúa como texto sin importar el
+  // tipo de columna detectado.
+  const isTextCondition = TEXT_CONDITION_KEYS.includes(cond.condition);
+
   if (cond.compareType === 'campo') {
     const compareValue = getCellValue(row, cond.compareColumn);
     if (compareValue === null || compareValue === undefined || String(compareValue).trim() === '') return false;
-    if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
-    if (isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, compareValue);
+    if (!isTextCondition && isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
+    if (!isTextCondition && isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, compareValue);
     return matchesTextCondition(rowValue, cond.condition, compareValue, { normalize: true });
   }
 
-  if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, cond.value);
-  if (isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, cond.value);
+  if (!isTextCondition && isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, cond.value);
+  if (!isTextCondition && isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, cond.value);
   return matchesTextCondition(rowValue, cond.condition, cond.value, { normalize: true });
 };
 

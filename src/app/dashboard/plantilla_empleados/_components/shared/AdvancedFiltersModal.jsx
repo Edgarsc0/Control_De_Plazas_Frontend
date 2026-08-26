@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2, Bookmark, BookmarkPlus } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
-import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS, ADV_EMPTY_CONDITIONS, getValidAdvancedConditions } from "@/utils/advancedFilters";
+import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_NUMBER_TEXT_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS, ADV_EMPTY_CONDITIONS, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useToast } from "@/hooks/useToast";
 
@@ -265,10 +265,14 @@ function ConditionRow({ cond, idx, columns, isDateColumn, isNumericColumn, fetch
   const isDateCol = cond.column && isDateColumn(cond.column);
   const isNumCol = cond.column && !isDateCol && isNumericColumn(cond.column);
   const conditionOptions = [
-    ...(isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? ADV_NUMBER_CONDITIONS : CONDITION_OPTIONS),
+    ...(isDateCol ? ADV_DATE_CONDITIONS : isNumCol ? [...ADV_NUMBER_CONDITIONS, ...ADV_NUMBER_TEXT_CONDITIONS] : CONDITION_OPTIONS),
     ...ADV_EMPTY_CONDITIONS,
   ];
   const isEmptyCond = cond.condition === "empty" || cond.condition === "not_empty";
+  // Condición de texto (comienza con, contiene, ...) sobre columna numérica:
+  // se captura como texto, no como <input type="number"> — "no comienza con
+  // 1039" necesita comparar el string, no un valor numérico.
+  const isTextConditionOnNumCol = isNumCol && ADV_NUMBER_TEXT_CONDITIONS.some((o) => o.key === cond.condition);
 
   return (
     <div className="relative bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
@@ -332,7 +336,7 @@ function ConditionRow({ cond, idx, columns, isDateColumn, isNumericColumn, fetch
             value={cond.value}
             onChange={(val) => onUpdate({ value: val })}
             isDate={isDateCol}
-            isNumber={isNumCol}
+            isNumber={isNumCol && !isTextConditionOnNumCol}
             fetchSuggestions={fetchSuggestions}
           />
         </div>
