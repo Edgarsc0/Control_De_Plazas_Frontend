@@ -17,7 +17,8 @@ import {
   UserMinus,
   Database,
   Layers,
-  GitCompareArrows
+  GitCompareArrows,
+  FileSpreadsheet
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
@@ -29,6 +30,7 @@ import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
 import AlineacionOrganizacionalTab from "./_components/tabs/movimientos/AlineacionOrganizacionalTab";
 import AduanasOcupacionVacanciaTab from "./_components/tabs/movimientos/AduanasOcupacionVacanciaTab";
+import AnuenciaTab from "./_components/tabs/anuencia/AnuenciaTab";
 import MovimientosPersonalTab from "./_components/tabs/mov-posiciones/MovimientosPersonalTab";
 import MapaTab from "./_components/tabs/mapa/MapaTab";
 import BajasTab from "./_components/tabs/bajas/BajasTab";
@@ -215,6 +217,12 @@ export default function PlantillaEmpleadosDetalle({
   useEffect(() => {
     if (activeMovimientosSubTab === "aduanas") setAduanasVisited(true);
   }, [activeMovimientosSubTab]);
+  // La captura del Anexo 2 se mantiene montada una vez visitada: cambiar de
+  // sub-tab no debe perder lo que el usuario lleva escrito.
+  const [anuenciaVisited, setAnuenciaVisited] = useState(false);
+  useEffect(() => {
+    if (activeMovimientosSubTab === "anuencia") setAnuenciaVisited(true);
+  }, [activeMovimientosSubTab]);
   const [activeCatalogoSubTab, setActiveCatalogoSubTab] = useState(CATALOGOS_ORDER[0]);
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
@@ -229,16 +237,19 @@ export default function PlantillaEmpleadosDetalle({
   const cardRefCuadros = useRef(null);
   const cardRefAlineacion = useRef(null);
   const cardRefAduanas = useRef(null);
+  const cardRefAnuencia = useRef(null);
   const cardRefMovPersonal = useRef(null);
   const cardRefBajas = useRef(null);
   const activeCardRef =
     activeTab === "detalle" ? cardRefDetalle :
-    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : activeMovimientosSubTab === "aduanas" ? cardRefAduanas : cardRefMovimientos) :
+    activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : activeMovimientosSubTab === "aduanas" ? cardRefAduanas : activeMovimientosSubTab === "anuencia" ? cardRefAnuencia : cardRefMovimientos) :
     activeTab === "movimientos_personal" ? cardRefMovPersonal :
     activeTab === "bajas" ? cardRefBajas :
     null;
   useRefreshOnZafiroUpdate();
-  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab !== "cuadros") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
+  // "cuadros" y "anuencia" son tarjetas de contenido (no tablas densas a todo
+  // lo ancho), así que conservan el layout holgado.
+  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab !== "cuadros" && activeMovimientosSubTab !== "anuencia") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
 
   // Tabs con datos propios (filtros, orden, fetch en cliente) que ya se visitaron:
   // se mantienen montados y se ocultan con CSS al cambiar de tab, en vez de
@@ -292,6 +303,7 @@ export default function PlantillaEmpleadosDetalle({
         { id: "cuadros", label: "Cuadros Vacancia" },
         { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
         { id: "aduanas", label: "Aduanas Ocupación vs Vacantes", icon: Globe },
+        { id: "anuencia", label: "Anuencia", icon: FileSpreadsheet },
       ],
       active: activeMovimientosSubTab,
       setActive: setActiveMovimientosSubTab,
@@ -541,6 +553,11 @@ export default function PlantillaEmpleadosDetalle({
           {aduanasVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "aduanas" ? "block" : "hidden"}>
               <AduanasOcupacionVacanciaTab cardRef={cardRefAduanas} />
+            </div>
+          )}
+          {anuenciaVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+            <div className={activeTab === "movimientos" && activeMovimientosSubTab === "anuencia" ? "block" : "hidden"}>
+              <AnuenciaTab cardRef={cardRefAnuencia} />
             </div>
           )}
           {visitedTabs.has("movimientos_personal") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS) && (

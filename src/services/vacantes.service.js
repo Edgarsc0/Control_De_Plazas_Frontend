@@ -421,6 +421,131 @@ export const VacantesService = {
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
+    /**
+     * Autollenado de una fila del Anexo 2 a partir del Código Federal de
+     * Puesto (sub-tab "Anuencia" de Mov. Posiciones, ver AnuenciaTab.jsx).
+     * @param {string} codigo - ej. "06-H00-001794" o "EV-2026-06-H00-034236".
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} 200 con los datos, 404 si el código no existe.
+     */
+    getAnuenciaLookup: (codigo, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/lookup/${buildQuery({ codigo })}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Sugerencias de autocompletado del Código Federal de Puesto mientras se
+     * escribe (sub-tab "Anuencia", ver AnuenciaTab.jsx).
+     * @param {string} q - término parcial, mínimo 2 caracteres.
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} 200 con un arreglo (puede venir vacío).
+     */
+    getAnuenciaSugerencias: (q, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/sugerencias/${buildQuery({ q })}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Historial de anexos de Anuencia (sub-tab "Anuencia" de Mov. Posiciones,
+     * ver AnuenciaTab.jsx/AnuenciaHistorialModal.jsx). CRUD parcial (sin
+     * "destroy"/"put") sobre `AnuenciaAnexoViewSet`.
+     */
+    getAnuenciaAnexos: (options = {}) => {
+        return apiFetch('/plantilla/anuencia/anexos/', { method: 'GET', ...options });
+    },
+    getAnuenciaAnexo: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/`, { method: 'GET', ...options });
+    },
+    /** Crea un anexo nuevo — estampa "creó"/"modificó"; "generó" es aparte (ver generarAnuenciaAnexo). */
+    crearAnuenciaAnexo: (payload, options = {}) => {
+        return apiFetch('/plantilla/anuencia/anexos/', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            ...options
+        });
+    },
+    /** Actualiza el contenido de un anexo ya guardado — estampa "modificó". */
+    actualizarAnuenciaAnexo: (id, payload, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+            ...options
+        });
+    },
+    /** Re-descarga de un anexo ya guardado — estampa "generó" + contador, sin tocar el contenido. */
+    generarAnuenciaAnexo: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/generar/`, { method: 'POST', ...options });
+    },
+
+    /**
+     * Agrupa y valúa las plazas del Anexo 2 para generar el Anexo 3 (FUMP).
+     * Un grupo = una hoja del Anexo 3 (una hoja del Anexo 2 + una fecha de
+     * alta). `overrides` ajusta `fecha_fin`/`nombre_hoja` por grupo, y
+     * `reasignaciones` ({codigo: clave_de_grupo}) mueve plazas entre hojas
+     * del MISMO período — ambos desde Anexo3Editor.jsx, que recalcula
+     * pidiendo de nuevo al backend en vez de hacer aritmética en cliente.
+     */
+    prepararAnexo3: (hojas, overrides = {}, reasignaciones = {}, options = {}) => {
+        return apiFetch('/plantilla/anuencia/anexo3/', {
+            method: 'POST',
+            body: JSON.stringify({ hojas, overrides, reasignaciones }),
+            ...options
+        });
+    },
+
+    /**
+     * Versiones guardadas del Anexo 3 de un Anexo 2 (ver Anexo3Editor.jsx /
+     * Anexo3VersionesModal.jsx) — mismo CRUD parcial que `AnuenciaAnexo`
+     * (sin "destroy"/"put"), pero SIEMPRE filtrado por el Anexo 2 dueño.
+     */
+    getAnexo3Versiones: (anexoId, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexo3-versiones/${buildQuery({ anexo: anexoId })}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+    getAnexo3Version: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexo3-versiones/${id}/`, { method: 'GET', ...options });
+    },
+    crearAnexo3Version: (payload, options = {}) => {
+        return apiFetch('/plantilla/anuencia/anexo3-versiones/', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            ...options
+        });
+    },
+    actualizarAnexo3Version: (id, payload, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexo3-versiones/${id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+            ...options
+        });
+    },
+
+    /**
+     * Catálogo de justificaciones reutilizables del Anexo 2 (sub-tab
+     * "Anuencia", ver JustificacionCatalogoModal.jsx) — nombre + texto que el
+     * usuario guarda para insertar con un clic en la justificación de la hoja
+     * que esté editando.
+     */
+    getAnuenciaJustificaciones: (options = {}) => {
+        return apiFetch('/plantilla/anuencia/justificaciones/', { method: 'GET', ...options });
+    },
+    crearAnuenciaJustificacion: (payload, options = {}) => {
+        return apiFetch('/plantilla/anuencia/justificaciones/', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            ...options
+        });
+    },
+    eliminarAnuenciaJustificacion: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/justificaciones/${id}/`, { method: 'DELETE', ...options });
+    },
+
     getCuadroVacancia: (options = {}) => {
         return apiFetch('/plantilla/cuadro_vacancia/', {
             method: 'GET',
