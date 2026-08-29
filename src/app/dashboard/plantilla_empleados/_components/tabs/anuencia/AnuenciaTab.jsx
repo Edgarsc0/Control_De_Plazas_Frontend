@@ -10,7 +10,7 @@ import CodigoFederalCell from "./CodigoFederalCell";
 import NumeroStepper from "./NumeroStepper";
 import AnuenciaHistorialModal from "./AnuenciaHistorialModal";
 import JustificacionCatalogoModal from "./JustificacionCatalogoModal";
-import Anexo3Editor from "./Anexo3Editor";
+import { CANAL_ANEXO3, guardarDatosAnexo3, borrarDatosAnexo3 } from "./anexo3TabChannel";
 import {
   ANEXO2_COLUMNAS,
   ANEXO2_TEXTOS,
@@ -196,7 +196,13 @@ export default function AnuenciaTab({ cardRef }) {
   const [guardando, setGuardando] = useState(false);
   const [isHistorialOpen, setIsHistorialOpen] = useState(false);
   const [isCatalogoOpen, setIsCatalogoOpen] = useState(false);
-  const [isAnexo3Open, setIsAnexo3Open] = useState(false);
+  // El editor de Anexo 3 ahora vive en su propia pestaña del navegador (ver
+  // anexo3TabChannel.js) — mientras esa pestaña sigue abierta, esta se
+  // bloquea para no editar sobre una captura que ya se le pasó (ver el aviso
+  // en la tabla de plazas más abajo). Se desbloquea con el mensaje de
+  // "cerrado" que manda esa pestaña por BroadcastChannel al cerrarse.
+  const [anexo3Bloqueado, setAnexo3Bloqueado] = useState(false);
+  const canalAnexo3Ref = useRef(null);
   const [hojaAEliminar, setHojaAEliminar] = useState(null);
   const [confirmarNuevoAnexo, setConfirmarNuevoAnexo] = useState(false);
   // id del anexo en el historial del servidor que se está editando — null
@@ -707,6 +713,31 @@ export default function AnuenciaTab({ cardRef }) {
     (h.filas || []).some((f) => String(f.codigo || "").trim() !== "")
   );
 
+  // Abre el editor de Anexo 3 en una pestaña nueva, pasándole la captura
+  // actual de `hojas` por localStorage (una pestaña nueva no comparte
+  // memoria de JS con ésta — ver anexo3TabChannel.js) y bloquea esta pestaña
+  // hasta que la otra avise que se cerró.
+  const handleGenerarAnexo3 = useCallback(() => {
+    const id = crypto.randomUUID();
+    guardarDatosAnexo3(id, { hojas, nombreArchivo, anexoIdActual });
+
+    canalAnexo3Ref.current?.close();
+    const canal = new BroadcastChannel(CANAL_ANEXO3);
+    canal.onmessage = (evento) => {
+      if (evento.data?.id === id && evento.data?.tipo === "cerrado") {
+        setAnexo3Bloqueado(false);
+        borrarDatosAnexo3(id);
+        canal.close();
+        if (canalAnexo3Ref.current === canal) canalAnexo3Ref.current = null;
+      }
+    };
+    canalAnexo3Ref.current = canal;
+    setAnexo3Bloqueado(true);
+    window.open(`/dashboard/plantilla_empleados/anexo3?id=${id}`, "_blank", "noopener");
+  }, [hojas, nombreArchivo, anexoIdActual]);
+
+  useEffect(() => () => canalAnexo3Ref.current?.close(), []);
+
   // El cuadro reproduce las proporciones de columna del Excel original, pero
   // en PORCENTAJE en vez de px fijos — así la tabla siempre ocupa el ancho
   // disponible sin scroll horizontal, sea cual sea el tamaño de pantalla.
@@ -894,11 +925,15 @@ export default function AnuenciaTab({ cardRef }) {
               <span>{guardando ? "Guardando..." : "Guardar"}</span>
             </button>
             <button
-              onClick={() => setIsAnexo3Open(true)}
-              disabled={!hayPlazasCapturadas}
-              title={hayPlazasCapturadas
-                ? "Agrupa las plazas por Unidad Administrativa y período, y genera el FUMP"
-                : "Captura al menos una plaza con su Código Federal de Puesto"}
+              onClick={handleGenerarAnexo3}
+              disabled={!hayPlazasCapturadas || anexo3Bloqueado}
+              title={
+                anexo3Bloqueado
+                  ? "Ya tienes el editor de Anexo 3 abierto en otra pestaña"
+                  : hayPlazasCapturadas
+                  ? "Agrupa las plazas por Unidad Administrativa y período, y genera el FUMP"
+                  : "Captura al menos una plaza con su Código Federal de Puesto"
+              }
               className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <FileOutput className="size-3.5" />
@@ -1021,7 +1056,24 @@ export default function AnuenciaTab({ cardRef }) {
               </div>
             </div>
 
-            {/* Cuadro de plazas */}
+            {/* Cuadro de plazas — bloqueado mientras el Anexo 3 está abierto
+                en su propia pestaña, para no editar sobre una captura que ya
+                se le pasó (ver handleGenerarAnexo3). */}
+            <div className="relative">
+              {anexo3Bloqueado && (
+                <div
+                  onClick={() =>
+                    toast.error("No puedes editar Anexo 2 mientras tienes el editor de anexo3 abierto, ciérralo para continuar.")
+                  }
+                  onMouseDown={(e) => e.preventDefault()}
+                  title="No puedes editar Anexo 2 mientras tienes el editor de anexo3 abierto"
+                  className="absolute inset-0 z-10 cursor-not-allowed bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1px] rounded-xl flex items-start justify-center pt-6"
+                >
+                  <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider text-white bg-slate-800/90 dark:bg-slate-700/90 shadow-lg">
+                    Anexo 3 abierto en otra pestaña
+                  </span>
+                </div>
+              )}
             <table className="border-collapse w-full table-fixed">
               <colgroup>
                 {ANEXO2_COLUMNAS.map((col) => (
@@ -1121,6 +1173,7 @@ export default function AnuenciaTab({ cardRef }) {
               <Plus className="size-3.5" />
               <span>Agregar plaza</span>
             </button>
+            </div>
 
             <p className="text-[10px] italic text-slate-500 dark:text-slate-500 mt-3">
               {ANEXO2_TEXTOS.notaResponsabilidad}
@@ -1193,14 +1246,6 @@ export default function AnuenciaTab({ cardRef }) {
         open={isHistorialOpen}
         onClose={() => setIsHistorialOpen(false)}
         onCargar={handleCargarDesdeHistorial}
-      />
-
-      <Anexo3Editor
-        open={isAnexo3Open}
-        onClose={() => setIsAnexo3Open(false)}
-        hojas={hojas}
-        nombreArchivo={nombreArchivo}
-        anexoIdActual={anexoIdActual}
       />
 
       <JustificacionCatalogoModal

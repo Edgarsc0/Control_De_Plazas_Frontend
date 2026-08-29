@@ -1,8 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "motion/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -143,13 +141,13 @@ function ZonaNuevaHoja({ visible }) {
  * alta — mezclar períodos rompería la valuación) y guardar el resultado
  * como una versión reabrible más tarde.
  *
- * Es pantalla completa (no un diálogo chico) porque con hasta ~30 hojas más
- * el drag-and-drop y el historial de versiones ya no cabe cómodo en un
- * modal centrado — pero sigue siendo un componente hijo montado desde
- * AnuenciaTab.jsx (no una ruta propia): el Anexo 3 se arma con las `hojas`
- * en memoria del Anexo 2, que pueden no estar guardadas todavía.
+ * Vive en su propia pestaña del navegador (ver Anexo3TabContent.jsx) — con
+ * hasta ~30 hojas más el drag-and-drop, el resumen lateral y el historial de
+ * versiones ya no cabe cómodo compartiendo pestaña con el Anexo 2, y así el
+ * Anexo 2 puede quedar bloqueado mientras este editor sigue abierto (evita
+ * que la captura en memoria que se le pasó se desactualice a medias).
  */
-export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anexoIdActual }) {
+export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCerrar }) {
   const { toast } = useToast();
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
@@ -159,6 +157,10 @@ export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anex
   const [reasignaciones, setReasignaciones] = useState({});
   const [generando, setGenerando] = useState(false);
   const [avisosAbiertos, setAvisosAbiertos] = useState(false);
+
+  // Colapso por hoja — arrancan TODAS colapsadas en cuanto llega un grupo
+  // nuevo (ver más abajo); el usuario expande la que quiera ver completa.
+  const [colapsadas, setColapsadas] = useState({});
 
   // Copia editable de `grupos` sólo para pintar el drag-and-drop en vivo —
   // se resincroniza con la verdad del servidor cada vez que `grupos` cambia
@@ -171,6 +173,9 @@ export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anex
   const [versionNombre, setVersionNombre] = useState("");
   const [guardandoVersion, setGuardandoVersion] = useState(false);
   const [isVersionesOpen, setIsVersionesOpen] = useState(false);
+
+  // Para el "ir a esta hoja" del resumen lateral.
+  const hojaRefs = useRef({});
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -193,21 +198,55 @@ export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anex
   }, [hojas]);
 
   useEffect(() => {
-    if (!open) return;
-    setOverrides({});
-    setReasignaciones({});
-    setAvisosAbiertos(false);
-    setVersionIdActual(null);
-    setVersionNombre("");
     cargar({}, {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, cargar]);
+  }, []);
 
   useEffect(() => {
     setGruposVista(
       grupos.map((g) => ({ clave: g.clave, fecha_inicio: g.fecha_inicio, detalle_plazas: g.detalle_plazas || [] }))
     );
+    // Toda hoja nueva (incluida una creada al arrastrar fuera) arranca
+    // colapsada; una hoja que ya no aparece (se quedó sin plazas) se olvida.
+    setColapsadas((prev) => {
+      let cambio = false;
+      const siguiente = { ...prev };
+      for (const g of grupos) {
+        if (!(g.clave in siguiente)) {
+          siguiente[g.clave] = true;
+          cambio = true;
+        }
+      }
+      for (const clave of Object.keys(siguiente)) {
+        if (!grupos.some((g) => g.clave === clave)) {
+          delete siguiente[clave];
+          cambio = true;
+        }
+      }
+      return cambio ? siguiente : prev;
+    });
   }, [grupos]);
+
+  const toggleColapso = (clave) => setColapsadas((prev) => ({ ...prev, [clave]: !prev[clave] }));
+  const irAHoja = (clave) => hojaRefs.current[clave]?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // --- Resumen del Anexo 2 (columna lateral) --------------------------------
+  const resumenAnexo2 = useMemo(() => {
+    let total = 0;
+    let permanentes = 0;
+    let eventuales = 0;
+    for (const hoja of hojas || []) {
+      for (const fila of hoja.filas || []) {
+        if (!String(fila.codigo || "").trim()) continue;
+        const cantidad = Math.max(1, parseInt(fila.numero_plazas, 10) || 1);
+        total += cantidad;
+        const tipo = String(fila.tipo_contratacion || "").trim().toLowerCase();
+        if (tipo.startsWith("perman")) permanentes += cantidad;
+        else if (tipo.startsWith("event")) eventuales += cantidad;
+      }
+    }
+    return { total, permanentes, eventuales };
+  }, [hojas]);
 
   /** Cambia un campo de un grupo y recalcula: el monto depende del período. */
   const aplicarOverride = (clave, campo, valor) => {
@@ -355,139 +394,197 @@ export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anex
 
   const hayPeriodoInvalido = grupos.some((g) => g.periodo_invalido);
 
-  if (typeof document === "undefined") return null;
+  return (
+    <div className="h-screen w-full bg-white dark:bg-slate-950 flex flex-col overflow-hidden">
+      <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/10 flex items-center justify-between gap-4 shrink-0 flex-wrap">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="p-2.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] text-white rounded-2xl shadow-md shrink-0">
+            <FileSpreadsheet className="size-5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">Generar Anexo 3 (FUMP)</h3>
+            <p className="text-[11px] font-semibold text-slate-400 mt-0.5 truncate">
+              Una hoja por Unidad Administrativa y período · arrastra una plaza a otra hoja del MISMO período para moverla
+              {versionIdActual && <span className="text-[#621f32] dark:text-[#bc955c]"> · editando versión &quot;{versionNombre}&quot;</span>}
+            </p>
+          </div>
+        </div>
 
-  return createPortal(
-    <>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-white dark:bg-slate-950 flex flex-col"
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            value={versionNombre}
+            onChange={(e) => setVersionNombre(e.target.value)}
+            placeholder="Nombre de la versión..."
+            className="px-2.5 py-2 text-[11px] font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors w-40"
+          />
+          <button
+            onClick={() => handleGuardarVersion(false)}
+            disabled={guardandoVersion || cargando}
+            title={versionIdActual ? "Actualizar esta versión" : "Guardar como versión nueva"}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
           >
-            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/10 flex items-center justify-between gap-4 shrink-0 flex-wrap">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="p-2.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] text-white rounded-2xl shadow-md shrink-0">
-                  <FileSpreadsheet className="size-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">Generar Anexo 3 (FUMP)</h3>
-                  <p className="text-[11px] font-semibold text-slate-400 mt-0.5 truncate">
-                    Una hoja por Unidad Administrativa y período · arrastra una plaza a otra hoja del MISMO período para moverla
-                    {versionIdActual && <span className="text-[#621f32] dark:text-[#bc955c]"> · editando versión &quot;{versionNombre}&quot;</span>}
-                  </p>
-                </div>
-              </div>
+            {guardandoVersion ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+            <span>{versionIdActual ? "Guardar" : "Guardar versión"}</span>
+          </button>
+          {versionIdActual && (
+            <button
+              onClick={() => handleGuardarVersion(true)}
+              disabled={guardandoVersion || cargando}
+              title="Guardar como una versión nueva, sin tocar la actual"
+              className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+            >
+              Guardar como nueva
+            </button>
+          )}
+          <button
+            onClick={() => setIsVersionesOpen(true)}
+            title="Ver versiones guardadas de este Anexo 3"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 cursor-pointer"
+          >
+            <History className="size-3.5" />
+            <span>Versiones</span>
+          </button>
+          <button
+            onClick={onCerrar}
+            title="Cerrar esta pestaña y volver a poder editar el Anexo 2"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-800/80 transition-all active:scale-95 shrink-0 cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  type="text"
-                  value={versionNombre}
-                  onChange={(e) => setVersionNombre(e.target.value)}
-                  placeholder="Nombre de la versión..."
-                  className="px-2.5 py-2 text-[11px] font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors w-40"
-                />
-                <button
-                  onClick={() => handleGuardarVersion(false)}
-                  disabled={guardandoVersion || cargando}
-                  title={versionIdActual ? "Actualizar esta versión" : "Guardar como versión nueva"}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                >
-                  {guardandoVersion ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                  <span>{versionIdActual ? "Guardar" : "Guardar versión"}</span>
-                </button>
-                {versionIdActual && (
-                  <button
-                    onClick={() => handleGuardarVersion(true)}
-                    disabled={guardandoVersion || cargando}
-                    title="Guardar como una versión nueva, sin tocar la actual"
-                    className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                  >
-                    Guardar como nueva
-                  </button>
-                )}
-                <button
-                  onClick={() => setIsVersionesOpen(true)}
-                  title="Ver versiones guardadas de este Anexo 3"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 cursor-pointer"
-                >
-                  <History className="size-3.5" />
-                  <span>Versiones</span>
-                </button>
-                <button
-                  onClick={onClose}
-                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-xl border border-slate-200/60 dark:border-slate-800/80 transition-all active:scale-95 shrink-0 cursor-pointer"
-                >
-                  <X className="size-4" />
-                </button>
+      <div className="flex-1 flex min-h-0">
+        <aside className="w-72 shrink-0 border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 overflow-y-auto custom-scrollbar p-4 space-y-5">
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Resumen del Anexo 2</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400">Total de plazas</span>
+                <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.total}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400">Permanentes</span>
+                <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.permanentes}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400">Eventuales</span>
+                <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.eventuales}</span>
               </div>
             </div>
+          </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3 max-w-6xl w-full mx-auto">
-              {cargando ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                  <Loader2 className="size-8 animate-spin text-[#621f32] dark:text-[#bc955c]" />
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Agrupando y valuando plazas...</p>
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+              Hojas a generar{grupos.length > 0 && ` (${grupos.length})`}
+            </p>
+            <div className="space-y-1">
+              {grupos.map((g) => (
+                <button
+                  key={g.clave}
+                  type="button"
+                  onClick={() => irAHoja(g.clave)}
+                  title={g.nombre_hoja}
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left hover:bg-white dark:hover:bg-slate-800/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors cursor-pointer"
+                >
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{g.nombre_hoja}</span>
+                  <span className="text-[10px] font-black text-slate-400 shrink-0">{g.total_plazas}</span>
+                </button>
+              ))}
+              {grupos.length === 0 && (
+                <p className="text-[11px] text-slate-400 italic">
+                  {cargando ? "Calculando..." : "Sin hojas todavía."}
+                </p>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+          {cargando ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="size-8 animate-spin text-[#621f32] dark:text-[#bc955c]" />
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Agrupando y valuando plazas...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
+              <AlertTriangle className="size-8 text-amber-500" />
+              <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{error}</p>
+            </div>
+          ) : (
+            <>
+              {avisos.length > 0 && (
+                <div className="rounded-2xl border border-amber-300/60 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/20 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setAvisosAbiertos((v) => !v)}
+                    className="w-full flex items-center gap-2 p-4 cursor-pointer"
+                  >
+                    <AlertTriangle className="size-4 text-amber-600 dark:text-amber-500 shrink-0" />
+                    <p className="text-[11px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-wider flex-1 text-left">
+                      {avisos.length} {avisos.length === 1 ? "plaza no se incluyó" : "plazas no se incluyeron"}
+                    </p>
+                    <ChevronDown
+                      className={`size-4 text-amber-600 dark:text-amber-500 shrink-0 transition-transform ${avisosAbiertos ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {avisosAbiertos && (
+                    <ul className="space-y-1 max-h-56 overflow-y-auto custom-scrollbar px-4 pb-4">
+                      {avisos.map((a, i) => (
+                        <li key={i} className="text-[11px] text-amber-900/90 dark:text-amber-300/90">
+                          <span className="font-black">{a.codigo || "—"}</span>
+                          {a.codigo_presupuestal ? <span className="opacity-70"> ({a.codigo_presupuestal})</span> : null}
+                          {" — "}{a.motivo}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              ) : error ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
-                  <AlertTriangle className="size-8 text-amber-500" />
-                  <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{error}</p>
+              )}
+
+              {grupos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                  <Layers className="size-8 text-slate-300 dark:text-slate-700" />
+                  <p className="text-sm font-bold text-slate-500">No hay ninguna plaza que se pueda valuar.</p>
+                  <p className="text-xs text-slate-400">Revisa los avisos de arriba.</p>
                 </div>
               ) : (
-                <>
-                  {avisos.length > 0 && (
-                    <div className="rounded-2xl border border-amber-300/60 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/20 overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setAvisosAbiertos((v) => !v)}
-                        className="w-full flex items-center gap-2 p-4 cursor-pointer"
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragEnd={handleDragEnd}
+                  onDragCancel={handleDragCancel}
+                >
+                  {grupos.map((g) => {
+                    const vista = gruposVista.find((v) => v.clave === g.clave);
+                    const detallePlazas = vista?.detalle_plazas || g.detalle_plazas || [];
+                    const colapsada = colapsadas[g.clave] ?? true;
+                    return (
+                      <div
+                        key={g.clave}
+                        ref={(el) => { hojaRefs.current[g.clave] = el; }}
+                        className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-950 overflow-hidden scroll-mt-4"
                       >
-                        <AlertTriangle className="size-4 text-amber-600 dark:text-amber-500 shrink-0" />
-                        <p className="text-[11px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-wider flex-1 text-left">
-                          {avisos.length} {avisos.length === 1 ? "plaza no se incluyó" : "plazas no se incluyeron"}
-                        </p>
-                        <ChevronDown
-                          className={`size-4 text-amber-600 dark:text-amber-500 shrink-0 transition-transform ${avisosAbiertos ? "rotate-180" : ""}`}
-                        />
-                      </button>
-                      {avisosAbiertos && (
-                        <ul className="space-y-1 max-h-56 overflow-y-auto custom-scrollbar px-4 pb-4">
-                          {avisos.map((a, i) => (
-                            <li key={i} className="text-[11px] text-amber-900/90 dark:text-amber-300/90">
-                              <span className="font-black">{a.codigo || "—"}</span>
-                              {a.codigo_presupuestal ? <span className="opacity-70"> ({a.codigo_presupuestal})</span> : null}
-                              {" — "}{a.motivo}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
+                        <button
+                          type="button"
+                          onClick={() => toggleColapso(g.clave)}
+                          className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
+                        >
+                          <ChevronDown
+                            className={`size-4 text-slate-400 shrink-0 transition-transform ${colapsada ? "-rotate-90" : ""}`}
+                          />
+                          <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">{g.nombre_hoja}</span>
+                          <span className="text-[11px] font-semibold text-slate-400 shrink-0">
+                            {fmtFecha(g.fecha_inicio)} — {fmtFecha(g.fecha_fin)}
+                          </span>
+                        </button>
 
-                  {grupos.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
-                      <Layers className="size-8 text-slate-300 dark:text-slate-700" />
-                      <p className="text-sm font-bold text-slate-500">No hay ninguna plaza que se pueda valuar.</p>
-                      <p className="text-xs text-slate-400">Revisa los avisos de arriba.</p>
-                    </div>
-                  ) : (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragEnd={handleDragEnd}
-                      onDragCancel={handleDragCancel}
-                    >
-                      {grupos.map((g) => {
-                        const vista = gruposVista.find((v) => v.clave === g.clave);
-                        const detallePlazas = vista?.detalle_plazas || g.detalle_plazas || [];
-                        return (
-                          <div key={g.clave} className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-950 overflow-hidden">
-                            <div className="px-4 py-3 bg-slate-50/70 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-end gap-3">
+                        {!colapsada && (
+                          <>
+                            <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 border-b flex flex-wrap items-end gap-3">
                               <div className="flex flex-col gap-1 min-w-[220px] flex-1">
                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nombre de la hoja</label>
                                 <input
@@ -563,60 +660,66 @@ export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anex
                                 </table>
                               </div>
 
-                              {g.valuacion && (
-                                <div className="mt-3 flex flex-wrap items-center justify-end gap-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                  {[
-                                    ["Período colectivo", g.valuacion.total.periodo, true],
-                                    ["Complemento", g.valuacion.total.complemento, false],
-                                    ["Regularizable (12m)", g.valuacion.total.anual, false],
-                                  ].map(([label, valor, destacado]) => (
-                                    <div key={label} className="text-right">
-                                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-                                      <p className={`text-[13px] font-black ${destacado ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300"}`}>
-                                        {fmtMoneda(valor)}
-                                      </p>
-                                    </div>
-                                  ))}
+                              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total de plazas en esta hoja</p>
+                                  <p className="text-[13px] font-black text-slate-700 dark:text-slate-200">{g.total_plazas}</p>
                                 </div>
-                              )}
+                                {g.valuacion && (
+                                  <div className="flex flex-wrap items-center justify-end gap-4">
+                                    {[
+                                      ["Período colectivo", g.valuacion.total.periodo, true],
+                                      ["Complemento", g.valuacion.total.complemento, false],
+                                      ["Regularizable (12m)", g.valuacion.total.anual, false],
+                                    ].map(([label, valor, destacado]) => (
+                                      <div key={label} className="text-right">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+                                        <p className={`text-[13px] font-black ${destacado ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300"}`}>
+                                          {fmtMoneda(valor)}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-
-                      <ZonaNuevaHoja visible={Boolean(activeId)} />
-
-                      <DragOverlay>
-                        {activePlaza && (
-                          <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-3 py-2 flex items-center gap-3 text-[11px]">
-                            <GripVertical className="size-3.5 text-slate-400 shrink-0" />
-                            <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{activePlaza.codigo}</span>
-                            <span className="text-slate-500 dark:text-slate-400 truncate max-w-[220px]">{activePlaza.denominacion}</span>
-                          </div>
+                          </>
                         )}
-                      </DragOverlay>
-                    </DndContext>
-                  )}
-                </>
-              )}
-            </div>
+                      </div>
+                    );
+                  })}
 
-            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/10 flex items-center justify-between gap-3 shrink-0">
-              <p className="text-[11px] font-bold text-slate-400">
-                {grupos.length > 0 && `${grupos.length} ${grupos.length === 1 ? "hoja" : "hojas"} · ${grupos.reduce((t, g) => t + g.total_plazas, 0)} plazas`}
-              </p>
-              <button
-                onClick={handleDescargar}
-                disabled={generando || cargando || grupos.length === 0 || hayPeriodoInvalido}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                {generando ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-                <span>{generando ? "Generando..." : "Descargar Anexo 3"}</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <ZonaNuevaHoja visible={Boolean(activeId)} />
+
+                  <DragOverlay>
+                    {activePlaza && (
+                      <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-3 py-2 flex items-center gap-3 text-[11px]">
+                        <GripVertical className="size-3.5 text-slate-400 shrink-0" />
+                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{activePlaza.codigo}</span>
+                        <span className="text-slate-500 dark:text-slate-400 truncate max-w-[220px]">{activePlaza.denominacion}</span>
+                      </div>
+                    )}
+                  </DragOverlay>
+                </DndContext>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/10 flex items-center justify-between gap-3 shrink-0">
+        <p className="text-[11px] font-bold text-slate-400">
+          {grupos.length > 0 && `${grupos.length} ${grupos.length === 1 ? "hoja" : "hojas"} · ${grupos.reduce((t, g) => t + g.total_plazas, 0)} plazas`}
+        </p>
+        <button
+          onClick={handleDescargar}
+          disabled={generando || cargando || grupos.length === 0 || hayPeriodoInvalido}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+        >
+          {generando ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          <span>{generando ? "Generando..." : "Descargar Anexo 3"}</span>
+        </button>
+      </div>
 
       <Anexo3VersionesModal
         open={isVersionesOpen}
@@ -624,7 +727,6 @@ export default function Anexo3Editor({ open, onClose, hojas, nombreArchivo, anex
         anexoId={anexoIdActual}
         onCargar={handleCargarVersion}
       />
-    </>,
-    document.body
+    </div>
   );
 }
