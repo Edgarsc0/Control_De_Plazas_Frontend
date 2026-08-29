@@ -14,7 +14,7 @@
  * tal cual al backend); Plantilla Detalle y Bajas no tienen backend de filtros,
  * así que evalúan client-side con `evaluateAdvancedFilters`.
  */
-import { matchesTextCondition, parseFlexibleDate, defaultGetCellValue } from './columnFilters';
+import { matchesTextCondition, parseFlexibleDate, defaultGetCellValue, TEXT_CONDITION_KEYS, CONDITION_OPTIONS } from './columnFilters';
 
 /** Condiciones para columnas de fecha (distintas a las de texto). */
 export const ADV_DATE_CONDITIONS = [
@@ -41,6 +41,16 @@ export const ADV_NUMBER_CONDITIONS = [
   { key: 'equals', label: 'Es igual a (=)' },
   { key: 'not_equals', label: 'Diferente de (!=)' },
 ];
+
+/**
+ * Condiciones de texto ofrecidas ADEMÁS de {@link ADV_NUMBER_CONDITIONS} en
+ * columnas numéricas (p. ej. "posición no comienza con 1039"). Excluye
+ * 'equals'/'not_equals' — ya están cubiertas por las numéricas, con la misma
+ * etiqueta.
+ */
+export const ADV_NUMBER_TEXT_CONDITIONS = CONDITION_OPTIONS.filter(
+  (o) => o.key !== 'equals' && o.key !== 'not_equals'
+);
 
 /** Operador lógico entre una condición y la anterior. */
 export const ADV_LOGIC_OPTIONS = [
@@ -84,25 +94,66 @@ export const isColumnNumericByData = (data, key, getCellValue = defaultGetCellVa
 
 /** Condición avanzada vacía, con el `id` que le toque asignar el caller. */
 export const emptyAdvancedCondition = (id = 0) => ({
-  id, column: null, condition: 'contains', compareType: 'valor', compareColumn: null, value: '', logic: 'AND',
+  id, type: 'condition', column: null, condition: 'contains', compareType: 'valor', compareColumn: null, value: '', logic: 'AND',
 });
 
 /**
- * Filtra las condiciones de un formulario de filtros avanzados a las que están
- * completas y listas para aplicarse (columna elegida, y valor o compareColumn
- * según corresponda). Despoja el `id` interno de edición.
- * @param {Object[]} conditions - Condiciones crudas del formulario.
- * @returns {Object[]} Condiciones válidas, listas para aplicar/enviar.
+ * Grupo vacío (paréntesis explícito): agrupa condiciones hijas que se
+ * evalúan entre sí ANTES de combinarse con el resto de la lista donde vive
+ * el grupo — un solo nivel de anidamiento (un grupo no contiene otros
+ * grupos). `logic` combina el grupo completo con el nodo anterior de esa
+ * misma lista, igual que en una condición suelta.
+ * @param {number} [id=0]
+ * @returns {Object}
+ */
+export const emptyAdvancedGroup = (id = 0) => ({
+  id, type: 'group', logic: 'AND', children: [],
+});
+
+/**
+ * Filtra un nodo (condición o grupo) de un formulario de filtros avanzados a
+ * su forma válida lista para aplicarse, o `null` si debe descartarse:
+ *  - Condición: columna elegida, y valor o compareColumn según corresponda.
+ *  - Grupo: le queda al menos un hijo válido tras filtrar (si no, se
+ *    descarta el grupo entero — un grupo vacío no aporta nada al fold).
+ * Despoja el `id` interno de edición (recursivamente en los hijos).
+ * @param {Object} node
+ * @returns {Object|null}
+ */
+const toValidAdvancedNode = (node) => {
+  if (node.type === 'group') {
+    const children = getValidAdvancedConditions(node.children || []);
+    if (children.length === 0) return null;
+    return { type: 'group', logic: node.logic, children };
+  }
+  const { column, condition, compareType, compareColumn, value, logic } = node;
+  if (!column) return null;
+  if (condition === 'empty' || condition === 'not_empty') return { type: 'condition', column, condition, compareType, compareColumn, value, logic };
+  if (compareType === 'campo') return compareColumn ? { type: 'condition', column, condition, compareType, compareColumn, value, logic } : null;
+  if (value == null || String(value).trim() === '') return null;
+  return { type: 'condition', column, condition, compareType, compareColumn, value, logic };
+};
+
+/**
+ * Filtra las condiciones/grupos de un formulario de filtros avanzados a los
+ * que están completos y listos para aplicarse. Recursiva (ver
+ * {@link toValidAdvancedNode}).
+ * @param {Object[]} conditions - Condiciones/grupos crudos del formulario.
+ * @returns {Object[]} Nodos válidos, listos para aplicar/enviar.
  */
 export const getValidAdvancedConditions = (conditions) =>
-  conditions
-    .filter((c) => {
-      if (!c.column) return false;
-      if (c.condition === 'empty' || c.condition === 'not_empty') return true;
-      if (c.compareType === 'campo') return !!c.compareColumn;
-      return c.value != null && String(c.value).trim() !== '';
-    })
-    .map(({ column, condition, compareType, compareColumn, value, logic }) => ({ column, condition, compareType, compareColumn, value, logic }));
+  conditions.map(toValidAdvancedNode).filter(Boolean);
+
+/**
+ * Aplana recursivamente condiciones/grupos a la lista de condiciones hoja
+ * (sin los nodos `group`), para el código que necesita inspeccionar todas
+ * las condiciones sin importar si quedaron dentro de un grupo (ver
+ * `filtroIncluyeVacantes` en `PlantillaDetalleTab`).
+ * @param {Object[]} nodes
+ * @returns {Object[]}
+ */
+export const flattenAdvancedConditions = (nodes) =>
+  (nodes || []).flatMap((n) => (n.type === 'group' ? flattenAdvancedConditions(n.children || []) : [n]));
 
 /**
  * Evalúa una única condición de fecha.
@@ -184,34 +235,54 @@ export const matchesAdvancedCondition = (row, cond, opts = {}) => {
   // matchesTextCondition/matchesDateCondition (pensado para compareType
   // 'valor'): si la columna destino está vacía en esta fila, la condición
   // debe evaluar como false, no como coincidencia automática.
+  // Una condición de texto (p. ej. "comienza con") es válida también sobre
+  // columnas numéricas/fecha — el modal las ofrece ahí para casos como
+  // "posición no comienza con 1039". Se evalúa como texto sin importar el
+  // tipo de columna detectado.
+  const isTextCondition = TEXT_CONDITION_KEYS.includes(cond.condition);
+
   if (cond.compareType === 'campo') {
     const compareValue = getCellValue(row, cond.compareColumn);
     if (compareValue === null || compareValue === undefined || String(compareValue).trim() === '') return false;
-    if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
-    if (isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, compareValue);
+    if (!isTextCondition && isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, compareValue);
+    if (!isTextCondition && isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, compareValue);
     return matchesTextCondition(rowValue, cond.condition, compareValue, { normalize: true });
   }
 
-  if (isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, cond.value);
-  if (isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, cond.value);
+  if (!isTextCondition && isDateColumn(cond.column)) return matchesDateCondition(rowValue, cond.condition, cond.value);
+  if (!isTextCondition && isNumericColumn(cond.column)) return matchesNumberCondition(rowValue, cond.condition, cond.value);
   return matchesTextCondition(rowValue, cond.condition, cond.value, { normalize: true });
 };
 
 /**
- * Evalúa una lista completa de condiciones avanzadas sobre una fila,
- * combinándolas en orden con el `logic` (AND/OR) de cada una respecto a la
- * anterior (sin precedencia de operadores, evaluación estrictamente secuencial
- * de izquierda a derecha — igual que se construyen en el modal).
+ * Evalúa un nodo (condición u grupo) sobre una fila. Un grupo evalúa a su
+ * vez la lista de `children` con el mismo fold de {@link evaluateAdvancedFilters}
+ * — el "paréntesis" se resuelve antes de combinarse con el resto de la
+ * lista donde vive el grupo.
  * @param {Object} row - Fila de datos.
- * @param {Object[]} conditions - Condiciones válidas (ver {@link getValidAdvancedConditions}).
+ * @param {Object} node - Condición o grupo.
+ * @param {Object} [opts={}] - Ver {@link matchesAdvancedCondition}.
+ * @returns {boolean}
+ */
+export const evaluateAdvancedNode = (row, node, opts = {}) =>
+  node.type === 'group' ? evaluateAdvancedFilters(row, node.children || [], opts) : matchesAdvancedCondition(row, node, opts);
+
+/**
+ * Evalúa una lista completa de condiciones/grupos avanzados sobre una fila,
+ * combinándolos en orden con el `logic` (AND/OR) de cada uno respecto al
+ * anterior (evaluación secuencial de izquierda a derecha dentro de la
+ * lista — igual que se construyen en el modal; un grupo actúa como
+ * paréntesis explícito para forzar precedencia, ver {@link evaluateAdvancedNode}).
+ * @param {Object} row - Fila de datos.
+ * @param {Object[]} conditions - Condiciones/grupos válidos (ver {@link getValidAdvancedConditions}).
  * @param {Object} [opts={}] - Ver {@link matchesAdvancedCondition}.
  * @returns {boolean} `true` si la fila pasa el conjunto de condiciones.
  */
 export const evaluateAdvancedFilters = (row, conditions, opts = {}) => {
   if (!conditions || conditions.length === 0) return true;
-  let result = matchesAdvancedCondition(row, conditions[0], opts);
+  let result = evaluateAdvancedNode(row, conditions[0], opts);
   for (let i = 1; i < conditions.length; i++) {
-    const cur = matchesAdvancedCondition(row, conditions[i], opts);
+    const cur = evaluateAdvancedNode(row, conditions[i], opts);
     result = conditions[i].logic === 'OR' ? (result || cur) : (result && cur);
   }
   return result;

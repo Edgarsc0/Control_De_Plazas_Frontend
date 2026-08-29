@@ -43,7 +43,7 @@ import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosici
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, applyColumnFilters, defaultGetCellValue } from "@/utils/columnFilters";
-import { evaluateAdvancedFilters, isColumnNumericByData, emptyAdvancedCondition, getValidAdvancedConditions } from "@/utils/advancedFilters";
+import { evaluateAdvancedFilters, isColumnNumericByData, flattenAdvancedConditions, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
@@ -1650,6 +1650,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
     advancedConditions, setAdvancedConditions,
     appliedAdvancedFilters,
     addAdvancedCondition, removeAdvancedCondition, updateAdvancedCondition,
+    addAdvancedGroup, removeAdvancedGroup, loadSavedFilter,
     applyAdvancedFilters, resetAdvancedFilters,
   } = useAdvancedFilters({ mode: "client", isDateColumn, isNumericColumn });
   const filtrosGuardados = useFiltrosGuardados("plantilla_detalle");
@@ -1684,7 +1685,7 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
   // literal "Vacante" — a nivel de fila cruda las 3 siguen siendo vacantes.
   const filtroIncluyeVacantes = [...VACANCY_DEFINING_KEYS].some(
     (key) => (columnFilters[key] || []).some((v) => VACANTE_FAMILY_LABELS.has(v))
-  ) || appliedAdvancedFilters.some(
+  ) || flattenAdvancedConditions(appliedAdvancedFilters).some(
     (cond) => VACANCY_DEFINING_KEYS.has(cond.column) && cond.compareType === "valor"
       && [...VACANTE_FAMILY_LABELS].some((label) => matchesTextCondition(label, cond.condition, cond.value, { normalize: true }))
   );
@@ -4127,12 +4128,14 @@ export default function PlantillaDetalleTab({ detalle = [], onCellEdited, resume
         onAddCondition={addAdvancedCondition}
         onRemoveCondition={removeAdvancedCondition}
         onUpdateCondition={updateAdvancedCondition}
+        onAddGroup={addAdvancedGroup}
+        onRemoveGroup={removeAdvancedGroup}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
         isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvSuggestions}
         savedFilters={filtrosGuardados.filtros}
-        onLoadSavedFilter={(condiciones) => setAdvancedConditions(condiciones.map((c, i) => ({ ...emptyAdvancedCondition(Date.now() + i), ...c })))}
+        onLoadSavedFilter={loadSavedFilter}
         onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
         onDeleteSavedFilter={filtrosGuardados.eliminar}
       />

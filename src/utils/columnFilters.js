@@ -211,6 +211,9 @@ export const CONDITION_OPTIONS = [
   { key: 'not_equals', label: 'Diferente de (!=)' },
 ];
 
+/** Claves de {@link CONDITION_OPTIONS} — usado para reconocer una condición de texto sin importar el tipo de columna (p. ej. "comienza con" sobre una columna numérica). */
+export const TEXT_CONDITION_KEYS = CONDITION_OPTIONS.map((o) => o.key);
+
 /** Atajos de un carácter por condición. */
 export const CONDITION_SHORTHANDS = {
   contains: '*', not_contains: '!*',
