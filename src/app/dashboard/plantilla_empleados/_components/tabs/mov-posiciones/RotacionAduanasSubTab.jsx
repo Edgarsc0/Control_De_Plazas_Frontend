@@ -59,7 +59,11 @@ gsap.registerPlugin(useGSAP);
 
 import { VacantesService } from "@/services/vacantes.service";
 import { formatDateEsMx, normalizeForSearch } from "@/utils/columnFilters";
-import { addExcelLetterhead } from "@/utils/excelLetterhead";
+import {
+    LETTERHEAD_LOGO_BASE64,
+    LETTERHEAD_LOGO_WIDTH,
+    LETTERHEAD_LOGO_HEIGHT,
+} from "@/assets/letterhead-logo";
 import { getMovimientoDiff } from "../../../_utils/movimientosDiff";
 import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 
@@ -805,8 +809,9 @@ function codigoUaActual(aduana) {
 }
 
 // ─── Exportación a Excel ────────────────────────────────────────────────────
-// Reporte formal (membretado institucional vía addExcelLetterhead, igual que
-// el resto del sistema — ver excelLetterhead.js) con una leyenda de colores
+// Reporte formal (membretado institucional REPETIDO por rebanada de página —
+// ver addLetterheadRepetido más abajo, distinto del membrete único que usa
+// el resto del sistema en excelLetterhead.js) con una leyenda de colores
 // propia del diagrama (además de la leyenda de generación que ya trae el
 // membrete) y una fila-banda por aduana para conservar, en formato tabular,
 // la misma agrupación "una columna por aduana" que se ve en pantalla.
@@ -954,6 +959,81 @@ function detalleDestinoPuesto(seg) {
     };
 }
 
+const LETTERHEAD_TITLE_LINES = [
+    "AGENCIA NACIONAL DE ADUANAS DE MÉXICO",
+    "UNIDAD DE ADMINISTRACIÓN Y FINANZAS",
+    "DIRECCIÓN DE RECURSOS HUMANOS",
+];
+
+function fmtFechaHoraGeneracionLetterhead() {
+    const now = new Date();
+    const fecha = now.toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
+    const hora = now.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `${hora} horas del ${fecha}`;
+}
+
+// Ancho, en columnas, de cada "rebanada" del membrete repetido — calibrado
+// contra el reporte de referencia (4 copias de logo+título en un layout de
+// 24 columnas, 6 columnas cada una).
+const LETTERHEAD_SEGMENT_COLS = 6;
+
+/**
+ * Membretado institucional (logo + título + leyenda de generación) REPETIDO
+ * cada `LETTERHEAD_SEGMENT_COLS` columnas a lo ancho de la hoja — a pedido
+ * explícito, distinto del membrete único de `addExcelLetterhead` (compartido
+ * por el resto de exports del sistema): esta tabla es demasiado ancha para
+ * una sola página impresa, así que cada "rebanada" horizontal que Excel
+ * imprime en su propia hoja de papel trae su propio logo/título en vez de
+ * quedar sin membrete en las páginas 2, 3, 4...
+ *
+ * El logo se registra UNA sola vez (`workbook.addImage`) y se ancla N veces
+ * — cada ancla es una referencia barata, no duplica los bytes de la imagen.
+ */
+function addLetterheadRepetido(workbook, worksheet, numCols, logoWidth = 260) {
+    const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
+    const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
+    const fechaGeneracion = fmtFechaHoraGeneracionLetterhead();
+
+    const segmentos = [];
+    for (let inicio = 1; inicio <= numCols; inicio += LETTERHEAD_SEGMENT_COLS) {
+        segmentos.push([inicio, Math.min(inicio + LETTERHEAD_SEGMENT_COLS - 1, numCols)]);
+    }
+
+    segmentos.forEach(([colIni]) => {
+        worksheet.addImage(imageId, {
+            tl: { col: colIni - 1 + 0.05, row: 0.05 },
+            ext: { width: logoWidth, height: logoHeight },
+        });
+    });
+    worksheet.getRow(1).height = Math.max(Math.round(logoHeight * 1.05), 34);
+
+    segmentos.forEach(([colIni, colFin]) => {
+        const letraIni = worksheet.getColumn(colIni).letter;
+        const letraFin = worksheet.getColumn(colFin).letter;
+        worksheet.mergeCells(`${letraIni}2:${letraFin}2`);
+        const cell = worksheet.getCell(`${letraIni}2`);
+        cell.value = LETTERHEAD_TITLE_LINES.join("\n");
+        cell.font = { bold: true, size: 11, name: "Calibri", color: { argb: "FF621F32" } };
+        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    });
+    worksheet.getRow(2).height = 54;
+
+    segmentos.forEach(([colIni, colFin]) => {
+        const letraIni = worksheet.getColumn(colIni).letter;
+        const letraFin = worksheet.getColumn(colFin).letter;
+        worksheet.mergeCells(`${letraIni}3:${letraFin}3`);
+        const cell = worksheet.getCell(`${letraIni}3`);
+        cell.value = `Reporte generado por el sistema de control de plazas a las ${fechaGeneracion}.`;
+        cell.font = { italic: true, size: 9, color: { argb: "FF64748B" }, name: "Calibri" };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+    });
+    worksheet.getRow(3).height = 18;
+
+    worksheet.getRow(4).height = 8;
+
+    return 4;
+}
+
 /**
  * Arma y descarga el Excel formal de rotación de titulares de aduanas:
  * membrete institucional, leyenda de colores del diagrama, y una fila por
@@ -994,9 +1074,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     worksheet.columns = columns.map(({ key, width }) => ({ key, width }));
 
     // Logo más grande que el estándar (260px) — pedido explícito para este
-    // reporte, no toca el tamaño de los demás exports del sistema (el
-    // parámetro es opcional en addExcelLetterhead, default 260).
-    let row = addExcelLetterhead(workbook, worksheet, numCols, 560) + 1;
+    // reporte, no toca el tamaño de los demás exports del sistema.
+    let row = addLetterheadRepetido(workbook, worksheet, numCols, 560) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
     // Título del reporte, ancho completo.
@@ -1030,13 +1109,15 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         const colores = EXCEL_TIPO_COLOR[tipo];
         const cell = worksheet.getCell(`${letraIni}${legendRowNum}`);
         cell.value = `${label}: ${desc}`;
-        cell.font = { name: "Calibri", size: 8, color: { argb: colores.text } };
+        cell.font = { name: "Calibri", size: 14, bold: true, color: { argb: colores.text } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: colores.bg } };
         cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
         const chipBorder = { style: "thin", color: { argb: "FFFFFFFF" } };
         cell.border = { top: chipBorder, bottom: chipBorder, left: chipBorder, right: chipBorder };
     });
-    worksheet.getRow(legendRowNum).height = 26;
+    // Fila más alta que antes (26 -> 56): letra 14pt en celdas angostas
+    // envuelve a 2-3 líneas, con 26pt el texto se veía cortado.
+    worksheet.getRow(legendRowNum).height = 56;
     row += 1;
 
     worksheet.mergeCells(`A${row}:${lastCol}${row}`);
@@ -1115,7 +1196,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         estadoCell.value = tieneTitular ? `Titular actual: ${aduana.titular_actual}` : "Sin titular actualmente";
         estadoCell.font = { name: "Calibri", bold: !tieneTitular, italic: !tieneTitular, size: 9.5, color: { argb: tieneTitular ? "FF3E131F" : "FFBE123C" } };
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tieneTitular ? "FFF5EBEF" : "FFFFF1F2" } };
-        estadoCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        estadoCell.alignment = { vertical: "middle", horizontal: "center" };
 
         const bandBorder = { style: "thin", color: { argb: "FFBC955C" } };
         for (let c = 1; c <= numCols; c++) {
@@ -1134,7 +1215,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             const vacCell = worksheet.getCell(`A${row}`);
             vacCell.value = "Sin gestiones registradas.";
             vacCell.font = { name: "Calibri", italic: true, size: 9, color: { argb: "FF94A3B8" } };
-            vacCell.alignment = { horizontal: "center" };
+            vacCell.alignment = { vertical: "middle", horizontal: "center" };
             row += 1;
             return;
         }
@@ -1215,7 +1296,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                 cell.value = values[col.key];
                 cell.border = { top: thinGray, left: thinGray, bottom: thinGray, right: thinGray };
                 cell.font = { name: "Calibri", size: 9 };
-                cell.alignment = { vertical: "middle", horizontal: "left" };
+                cell.alignment = { vertical: "middle", horizontal: "center" };
                 if (filaFillColor) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: filaFillColor } };
             });
 
