@@ -59,11 +59,7 @@ gsap.registerPlugin(useGSAP);
 
 import { VacantesService } from "@/services/vacantes.service";
 import { formatDateEsMx, normalizeForSearch } from "@/utils/columnFilters";
-import {
-    LETTERHEAD_LOGO_BASE64,
-    LETTERHEAD_LOGO_WIDTH,
-    LETTERHEAD_LOGO_HEIGHT,
-} from "@/assets/letterhead-logo";
+import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { getMovimientoDiff } from "../../../_utils/movimientosDiff";
 import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 
@@ -809,9 +805,8 @@ function codigoUaActual(aduana) {
 }
 
 // ─── Exportación a Excel ────────────────────────────────────────────────────
-// Reporte formal (membretado institucional REPETIDO por rebanada de página —
-// ver addLetterheadRepetido más abajo, distinto del membrete único que usa
-// el resto del sistema en excelLetterhead.js) con una leyenda de colores
+// Reporte formal (membretado institucional vía addExcelLetterhead, igual que
+// el resto del sistema — ver excelLetterhead.js) con una leyenda de colores
 // propia del diagrama (además de la leyenda de generación que ya trae el
 // membrete) y una fila-banda por aduana para conservar, en formato tabular,
 // la misma agrupación "una columna por aduana" que se ve en pantalla.
@@ -874,12 +869,19 @@ const EXPORT_COLUMNS_ROTACION = [
     { key: "depDirectaDestino", header: "Dependencia Directa Destino", width: 20 },
 ];
 
-// Alto de fila / tamaño de imagen calibrados con margen (mismo criterio que
-// downloadExcelConFoto en HistorialMovimientosTab: la fila necesita más aire
-// que la imagen para que esta NUNCA toque el borde inferior — una imagen
-// flotante se dibuja POR ENCIMA de los bordes de celda).
-const FOTO_ROW_HEIGHT = 78;
-const FOTO_COL_WIDTH = 20;
+// Tamaño de la foto y celda que la contiene, calibrados para que la foto
+// quede CENTRADA en la celda (no pegada a una esquina) con un margen parejo
+// de sobra en cada lado — no exacto pixel a pixel, pero suficiente.
+// Conversión aproximada Excel (misma fórmula que usan xlsxwriter/openpyxl):
+// ancho de columna en unidades -> px = unidades*7 + 5; alto de fila en
+// puntos -> px = puntos * 4/3 (96dpi).
+const FOTO_IMG_SIZE = 64; // px, ancho y alto de la foto insertada
+const FOTO_COL_WIDTH = 20; // unidades de columna Excel
+const FOTO_ROW_HEIGHT = 60; // puntos — ajustado al tamaño de la foto, no arbitrario
+const FOTO_COL_WIDTH_PX = FOTO_COL_WIDTH * 7 + 5;
+const FOTO_ROW_HEIGHT_PX = FOTO_ROW_HEIGHT * (4 / 3);
+const FOTO_COL_OFFSET = (FOTO_COL_WIDTH_PX - FOTO_IMG_SIZE) / 2 / FOTO_COL_WIDTH_PX;
+const FOTO_ROW_OFFSET = (FOTO_ROW_HEIGHT_PX - FOTO_IMG_SIZE) / 2 / FOTO_ROW_HEIGHT_PX;
 
 /**
  * Trae, en paralelo con concurrencia acotada, la fotografía de cada
@@ -959,81 +961,6 @@ function detalleDestinoPuesto(seg) {
     };
 }
 
-const LETTERHEAD_TITLE_LINES = [
-    "AGENCIA NACIONAL DE ADUANAS DE MÉXICO",
-    "UNIDAD DE ADMINISTRACIÓN Y FINANZAS",
-    "DIRECCIÓN DE RECURSOS HUMANOS",
-];
-
-function fmtFechaHoraGeneracionLetterhead() {
-    const now = new Date();
-    const fecha = now.toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
-    const hora = now.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    return `${hora} horas del ${fecha}`;
-}
-
-// Ancho, en columnas, de cada "rebanada" del membrete repetido — calibrado
-// contra el reporte de referencia (4 copias de logo+título en un layout de
-// 24 columnas, 6 columnas cada una).
-const LETTERHEAD_SEGMENT_COLS = 6;
-
-/**
- * Membretado institucional (logo + título + leyenda de generación) REPETIDO
- * cada `LETTERHEAD_SEGMENT_COLS` columnas a lo ancho de la hoja — a pedido
- * explícito, distinto del membrete único de `addExcelLetterhead` (compartido
- * por el resto de exports del sistema): esta tabla es demasiado ancha para
- * una sola página impresa, así que cada "rebanada" horizontal que Excel
- * imprime en su propia hoja de papel trae su propio logo/título en vez de
- * quedar sin membrete en las páginas 2, 3, 4...
- *
- * El logo se registra UNA sola vez (`workbook.addImage`) y se ancla N veces
- * — cada ancla es una referencia barata, no duplica los bytes de la imagen.
- */
-function addLetterheadRepetido(workbook, worksheet, numCols, logoWidth = 260) {
-    const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
-    const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
-    const fechaGeneracion = fmtFechaHoraGeneracionLetterhead();
-
-    const segmentos = [];
-    for (let inicio = 1; inicio <= numCols; inicio += LETTERHEAD_SEGMENT_COLS) {
-        segmentos.push([inicio, Math.min(inicio + LETTERHEAD_SEGMENT_COLS - 1, numCols)]);
-    }
-
-    segmentos.forEach(([colIni]) => {
-        worksheet.addImage(imageId, {
-            tl: { col: colIni - 1 + 0.05, row: 0.05 },
-            ext: { width: logoWidth, height: logoHeight },
-        });
-    });
-    worksheet.getRow(1).height = Math.max(Math.round(logoHeight * 1.05), 34);
-
-    segmentos.forEach(([colIni, colFin]) => {
-        const letraIni = worksheet.getColumn(colIni).letter;
-        const letraFin = worksheet.getColumn(colFin).letter;
-        worksheet.mergeCells(`${letraIni}2:${letraFin}2`);
-        const cell = worksheet.getCell(`${letraIni}2`);
-        cell.value = LETTERHEAD_TITLE_LINES.join("\n");
-        cell.font = { bold: true, size: 11, name: "Calibri", color: { argb: "FF621F32" } };
-        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    });
-    worksheet.getRow(2).height = 54;
-
-    segmentos.forEach(([colIni, colFin]) => {
-        const letraIni = worksheet.getColumn(colIni).letter;
-        const letraFin = worksheet.getColumn(colFin).letter;
-        worksheet.mergeCells(`${letraIni}3:${letraFin}3`);
-        const cell = worksheet.getCell(`${letraIni}3`);
-        cell.value = `Reporte generado por el sistema de control de plazas a las ${fechaGeneracion}.`;
-        cell.font = { italic: true, size: 9, color: { argb: "FF64748B" }, name: "Calibri" };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
-    });
-    worksheet.getRow(3).height = 18;
-
-    worksheet.getRow(4).height = 8;
-
-    return 4;
-}
-
 /**
  * Arma y descarga el Excel formal de rotación de titulares de aduanas:
  * membrete institucional, leyenda de colores del diagrama, y una fila por
@@ -1074,8 +1001,9 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     worksheet.columns = columns.map(({ key, width }) => ({ key, width }));
 
     // Logo más grande que el estándar (260px) — pedido explícito para este
-    // reporte, no toca el tamaño de los demás exports del sistema.
-    let row = addLetterheadRepetido(workbook, worksheet, numCols, 560) + 1;
+    // reporte, no toca el tamaño de los demás exports del sistema (el
+    // parámetro es opcional en addExcelLetterhead, default 260).
+    let row = addExcelLetterhead(workbook, worksheet, numCols, 560) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
     // Título del reporte, ancho completo.
@@ -1109,15 +1037,13 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         const colores = EXCEL_TIPO_COLOR[tipo];
         const cell = worksheet.getCell(`${letraIni}${legendRowNum}`);
         cell.value = `${label}: ${desc}`;
-        cell.font = { name: "Calibri", size: 14, bold: true, color: { argb: colores.text } };
+        cell.font = { name: "Calibri", size: 8, color: { argb: colores.text } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: colores.bg } };
         cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
         const chipBorder = { style: "thin", color: { argb: "FFFFFFFF" } };
         cell.border = { top: chipBorder, bottom: chipBorder, left: chipBorder, right: chipBorder };
     });
-    // Fila más alta que antes (26 -> 56): letra 14pt en celdas angostas
-    // envuelve a 2-3 líneas, con 26pt el texto se veía cortado.
-    worksheet.getRow(legendRowNum).height = 56;
+    worksheet.getRow(legendRowNum).height = 26;
     row += 1;
 
     worksheet.mergeCells(`A${row}:${lastCol}${row}`);
@@ -1321,8 +1247,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                         imageIdPorEmpleado.set(numEmpleadoFoto, imageId);
                     }
                     worksheet.addImage(imageId, {
-                        tl: { col: 0.12, row: (row - 1) + 0.1 },
-                        ext: { width: 64, height: 64 },
+                        tl: { col: FOTO_COL_OFFSET, row: (row - 1) + FOTO_ROW_OFFSET },
+                        ext: { width: FOTO_IMG_SIZE, height: FOTO_IMG_SIZE },
                     });
                 }
             }
@@ -1401,7 +1327,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     });
 
     worksheet.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: row - 1, column: numCols } };
-    worksheet.views = [{ state: "frozen", ySplit: headerRowNum, showGridLines: false }];
+    worksheet.views = [{ showGridLines: false }];
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
