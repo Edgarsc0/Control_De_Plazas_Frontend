@@ -873,8 +873,8 @@ const EXPORT_COLUMNS_ROTACION = [
 // downloadExcelConFoto en HistorialMovimientosTab: la fila necesita más aire
 // que la imagen para que esta NUNCA toque el borde inferior — una imagen
 // flotante se dibuja POR ENCIMA de los bordes de celda).
-const FOTO_ROW_HEIGHT = 40;
-const FOTO_COL_WIDTH = 14;
+const FOTO_ROW_HEIGHT = 78;
+const FOTO_COL_WIDTH = 20;
 
 /**
  * Trae, en paralelo con concurrencia acotada, la fotografía de cada
@@ -1240,8 +1240,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                         imageIdPorEmpleado.set(numEmpleadoFoto, imageId);
                     }
                     worksheet.addImage(imageId, {
-                        tl: { col: 0.15, row: (row - 1) + 0.15 },
-                        ext: { width: 32, height: 34 },
+                        tl: { col: 0.12, row: (row - 1) + 0.1 },
+                        ext: { width: 64, height: 64 },
                     });
                 }
             }
