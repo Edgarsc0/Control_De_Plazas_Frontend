@@ -16,7 +16,6 @@ const TITLE_LINES = [
 ];
 
 const LOGO_DISPLAY_WIDTH = 260;
-const LOGO_DISPLAY_HEIGHT = Math.round((LOGO_DISPLAY_WIDTH * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
 
 // Filas que ocupa el membretado: 1=logo, 2=título (3 líneas envueltas),
 // 3=leyenda de generación, 4=separador en blanco. El contenido real de cada
@@ -39,16 +38,22 @@ function fmtFechaHoraGeneracion() {
  * @param {import('exceljs').Workbook} workbook
  * @param {import('exceljs').Worksheet} worksheet
  * @param {number} numCols - número de columnas de la hoja, para saber hasta dónde fusionar.
+ * @param {number} [logoWidth] - ancho del logo en px; por defecto 260 (el tamaño estándar del resto del sistema).
  */
-export function addExcelLetterhead(workbook, worksheet, numCols) {
+export function addExcelLetterhead(workbook, worksheet, numCols, logoWidth = LOGO_DISPLAY_WIDTH) {
   const cols = Math.max(numCols, 1);
+  const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
 
   const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: 'png' });
   worksheet.addImage(imageId, {
     tl: { col: 0.1, row: 0.1 },
-    ext: { width: LOGO_DISPLAY_WIDTH, height: LOGO_DISPLAY_HEIGHT },
+    ext: { width: logoWidth, height: logoHeight },
   });
-  worksheet.getRow(1).height = Math.max(Math.round(LOGO_DISPLAY_HEIGHT * 0.85), 34);
+  // Margen generoso (bastante por encima de la conversión exacta px->pt de
+  // Excel, ~0.75) para que la fila 1 SIEMPRE contenga el logo completo sin
+  // invadir la fila 2 (título) — con logos grandes un margen ajustado se
+  // nota y "recorta" visualmente el encabezado.
+  worksheet.getRow(1).height = Math.max(Math.round(logoHeight * 1.05), 34);
 
   worksheet.mergeCells(2, 1, 2, cols);
   const titleCell = worksheet.getCell(2, 1);
