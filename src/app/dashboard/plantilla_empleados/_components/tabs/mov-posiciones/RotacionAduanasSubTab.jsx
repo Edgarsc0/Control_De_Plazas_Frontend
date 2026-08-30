@@ -871,17 +871,28 @@ const EXPORT_COLUMNS_ROTACION = [
 
 // Tamaño de la foto y celda que la contiene, calibrados para que la foto
 // quede CENTRADA en la celda (no pegada a una esquina) con un margen parejo
-// de sobra en cada lado — no exacto pixel a pixel, pero suficiente.
-// Conversión aproximada Excel (misma fórmula que usan xlsxwriter/openpyxl):
-// ancho de columna en unidades -> px = unidades*7 + 5; alto de fila en
-// puntos -> px = puntos * 4/3 (96dpi).
+// de sobra en cada lado.
+//
+// El offset se calcula en EMU directo (`nativeColOff`/`nativeRowOff`), NO
+// con la fracción decimal `tl: {col, row}` — esa fracción la convierte
+// ExcelJS con su PROPIA escala interna (1 unidad de ancho de columna = 10000
+// unidades internas, sin relación con los píxeles reales de Excel), así que
+// una fracción calculada contra el ancho REAL en píxeles queda pegada a la
+// esquina en vez de centrada. Verificado abriendo el .xlsx generado: con la
+// fracción, el offset horizontal real salía en ~6px en vez de los ~40px
+// esperados. `nativeColOff`/`nativeRowOff` sí se escriben tal cual en el XML
+// (unidades EMU: 914400 EMU = 1 pulgada = 96px a 96dpi), sin pasar por esa
+// conversión — por eso el cálculo aquí usa la fórmula REAL de Excel (ancho
+// de columna en unidades -> px = unidades*7 + 5; alto de fila en puntos ->
+// px = puntos * 4/3) y convierte el margen resultante a EMU a mano.
 const FOTO_IMG_SIZE = 64; // px, ancho y alto de la foto insertada
 const FOTO_COL_WIDTH = 20; // unidades de columna Excel
 const FOTO_ROW_HEIGHT = 60; // puntos — ajustado al tamaño de la foto, no arbitrario
+const EMU_POR_PX = 9525; // 914400 EMU/pulgada ÷ 96 px/pulgada
 const FOTO_COL_WIDTH_PX = FOTO_COL_WIDTH * 7 + 5;
 const FOTO_ROW_HEIGHT_PX = FOTO_ROW_HEIGHT * (4 / 3);
-const FOTO_COL_OFFSET = (FOTO_COL_WIDTH_PX - FOTO_IMG_SIZE) / 2 / FOTO_COL_WIDTH_PX;
-const FOTO_ROW_OFFSET = (FOTO_ROW_HEIGHT_PX - FOTO_IMG_SIZE) / 2 / FOTO_ROW_HEIGHT_PX;
+const FOTO_COL_OFFSET_EMU = Math.round(((FOTO_COL_WIDTH_PX - FOTO_IMG_SIZE) / 2) * EMU_POR_PX);
+const FOTO_ROW_OFFSET_EMU = Math.round(((FOTO_ROW_HEIGHT_PX - FOTO_IMG_SIZE) / 2) * EMU_POR_PX);
 
 /**
  * Trae, en paralelo con concurrencia acotada, la fotografía de cada
@@ -1247,7 +1258,12 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                         imageIdPorEmpleado.set(numEmpleadoFoto, imageId);
                     }
                     worksheet.addImage(imageId, {
-                        tl: { col: FOTO_COL_OFFSET, row: (row - 1) + FOTO_ROW_OFFSET },
+                        tl: {
+                            nativeCol: 0,
+                            nativeColOff: FOTO_COL_OFFSET_EMU,
+                            nativeRow: row - 1,
+                            nativeRowOff: FOTO_ROW_OFFSET_EMU,
+                        },
                         ext: { width: FOTO_IMG_SIZE, height: FOTO_IMG_SIZE },
                     });
                 }
