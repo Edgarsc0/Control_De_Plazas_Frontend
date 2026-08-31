@@ -1023,7 +1023,7 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
     worksheet.mergeCells(1, tituloIniCol, 1, tituloFinCol);
     const tituloInstCell = worksheet.getCell(1, tituloIniCol);
     tituloInstCell.value = LETTERHEAD_TITLE_LINES.join("\n");
-    tituloInstCell.font = { name: "Calibri", bold: true, size: 16, color: { argb: "FF621F32" } };
+    tituloInstCell.font = { name: "Noto Sans", bold: true, size: 16, color: { argb: "FF621F32" } };
     tituloInstCell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
 
     // Título del reporte: extremo derecho, ocupa esta fila Y la siguiente
@@ -1032,14 +1032,14 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
     worksheet.mergeCells(1, reporteIniCol, 2, numCols);
     const tituloReporteCell = worksheet.getCell(1, reporteIniCol);
     tituloReporteCell.value = "ROTACIÓN DE TITULARES DE ADUANAS";
-    tituloReporteCell.font = { name: "Calibri", bold: true, size: 22, color: { argb: "FF621F32" } };
+    tituloReporteCell.font = { name: "Noto Sans", bold: true, size: 22, color: { argb: "FF621F32" } };
     tituloReporteCell.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
 
     // "Reporte generado..." — angosto, a la izquierda, debajo del logo.
     worksheet.mergeCells(2, 1, 2, 7);
     const generadoCell = worksheet.getCell(2, 1);
     generadoCell.value = `Reporte generado por el sistema de control de plazas a las ${fmtFechaHoraGeneracionRotacion()}.`;
-    generadoCell.font = { name: "Calibri", italic: true, size: 9, color: { argb: "FF64748B" } };
+    generadoCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF64748B" } };
     generadoCell.alignment = { vertical: "middle", horizontal: "center" };
     worksheet.getRow(2).height = 15;
 
@@ -1099,7 +1099,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     worksheet.mergeCells(row, 1, row, 7);
     const statsCell = worksheet.getCell(row, 1);
     statsCell.value = `${resumen.aduanas} aduanas · ${resumen.titulares} titulares · ${resumen.gestiones} gestiones · ${resumen.vacancias} vacancias · ${resumen.acefalasHoy} acéfalas hoy`;
-    statsCell.font = { name: "Calibri", italic: true, size: 10, color: { argb: "FF621F32" } };
+    statsCell.font = { name: "Noto Sans", italic: true, size: 10, color: { argb: "FF621F32" } };
     statsCell.alignment = { vertical: "middle", horizontal: "center" };
     worksheet.getRow(row).height = 18;
     row += 1;
@@ -1111,7 +1111,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         worksheet.mergeCells(`A${row}:${lastCol}${row}`);
         const filtroCell = worksheet.getCell(`A${row}`);
         filtroCell.value = `Vista exportada con ${notasFiltro.join(" · ")}.`;
-        filtroCell.font = { name: "Calibri", italic: true, size: 9, color: { argb: "FFB45309" } };
+        filtroCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FFB45309" } };
         filtroCell.alignment = { vertical: "middle", horizontal: "center" };
         worksheet.getRow(row).height = 16;
         row += 1;
@@ -1130,11 +1130,11 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         const cell = headerRow.getCell(i + 1);
         cell.value = col.header;
         cell.border = { top: goldBorder, left: goldBorder, bottom: goldBorder, right: goldBorder };
-        cell.font = { name: "Calibri", bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+        cell.font = { name: "Noto Sans", bold: true, size: 10, color: { argb: "FFFFFFFF" } };
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
         cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     });
-    headerRow.height = 34;
+    headerRow.height = 40;
     row += 1;
 
     // Gris más oscuro que el gris casi invisible de antes (FFE2E8F0) — a
@@ -1172,7 +1172,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         worksheet.mergeCells(`A${row}:${lastCol}${row}`);
         const estadoCell = worksheet.getCell(`A${row}`);
         estadoCell.value = tieneTitular ? `Titular actual: ${aduana.titular_actual}` : "Sin titular actualmente";
-        estadoCell.font = { name: "Calibri", bold: !tieneTitular, italic: !tieneTitular, size: 9.5, color: { argb: tieneTitular ? "FF3E131F" : "FFBE123C" } };
+        estadoCell.font = { name: "Noto Sans", bold: !tieneTitular, italic: !tieneTitular, size: 9.5, color: { argb: tieneTitular ? "FF3E131F" : "FFBE123C" } };
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tieneTitular ? "FFF5EBEF" : "FFFFF1F2" } };
         estadoCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -1192,7 +1192,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             worksheet.mergeCells(`A${row}:${lastCol}${row}`);
             const vacCell = worksheet.getCell(`A${row}`);
             vacCell.value = "Sin gestiones registradas.";
-            vacCell.font = { name: "Calibri", italic: true, size: 9, color: { argb: "FF94A3B8" } };
+            vacCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF94A3B8" } };
             vacCell.alignment = { vertical: "middle", horizontal: "center" };
             row += 1;
             return;
@@ -1277,14 +1277,14 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                 const cell = dataRow.getCell(ci + 1);
                 cell.value = values[col.key];
                 cell.border = { top: thinGray, left: thinGray, bottom: thinGray, right: thinGray };
-                cell.font = { name: "Calibri", size: 9 };
+                cell.font = { name: "Noto Sans", size: 9 };
                 cell.alignment = { vertical: "middle", horizontal: "center" };
                 if (filaFillColor) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: filaFillColor } };
             });
 
             const colores = EXCEL_TIPO_COLOR[tipoColorKey] || EXCEL_TIPO_COLOR.BAJA;
             const tipoCell = dataRow.getCell(tipoMovimientoCol);
-            tipoCell.font = { name: "Calibri", bold: true, size: 9, color: { argb: colores.text } };
+            tipoCell.font = { name: "Noto Sans", bold: true, size: 9, color: { argb: colores.text } };
             tipoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: colores.bg } };
             tipoCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -1293,7 +1293,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             // de columnas (pedido explícito).
             // Mismo rosita/guinda que la banda "Titular actual: ..." de cada
             // aduana (ver estadoCell más abajo) — pedido explícito.
-            const fechaDestacadaFont = { name: "Calibri", bold: true, size: 9, color: { argb: "FF3E131F" } };
+            const fechaDestacadaFont = { name: "Noto Sans", bold: true, size: 9, color: { argb: "FF3E131F" } };
             const fechaDestacadaFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5EBEF" } };
             const fechaDesdeCell = dataRow.getCell(fechaDesdeCol);
             fechaDesdeCell.font = fechaDestacadaFont;
@@ -1302,18 +1302,21 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             fechaHastaCell.font = fechaDestacadaFont;
             fechaHastaCell.fill = fechaDestacadaFill;
 
-            // Salario al entrar / al dejar: celdas NUMÉRICAS con formato de
-            // moneda (no texto) cuando hay dato — así Excel las trata como
-            // número real (suma, ordena, filtra por rango), no como una
-            // cadena con signo de pesos pegado a mano.
+            // Salario al entrar / al dejar: celdas NUMÉRICAS en formato
+            // CONTABILIDAD (no texto) cuando hay dato — así Excel las trata
+            // como número real (suma, ordena, filtra por rango), no como una
+            // cadena con signo de pesos pegado a mano. Negritas a propósito.
+            const ACCOUNTING_FMT = '_-$* #,##0.00_-;-$* #,##0.00_-;_-$* "-"??_-;_-@_-';
             if (typeof values.salarioEntrada === "number") {
                 const salarioEntradaCell = dataRow.getCell(salarioEntradaCol);
-                salarioEntradaCell.numFmt = '"$"#,##0.00';
+                salarioEntradaCell.numFmt = ACCOUNTING_FMT;
+                salarioEntradaCell.font = { name: "Noto Sans", bold: true, size: 9 };
                 salarioEntradaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
             if (typeof values.salarioSalida === "number") {
                 const salarioSalidaCell = dataRow.getCell(salarioSalidaCol);
-                salarioSalidaCell.numFmt = '"$"#,##0.00';
+                salarioSalidaCell.numFmt = ACCOUNTING_FMT;
+                salarioSalidaCell.font = { name: "Noto Sans", bold: true, size: 9 };
                 salarioSalidaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
 
@@ -1413,7 +1416,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         const celda = worksheet.getRow(filaOrigen).getCell(colIdxPorNombre[columna]);
         const texto = String(celda.value ?? "").replace(/"/g, '""');
         celda.value = { formula: `HYPERLINK("#'${hojaRef}'!A${filaDestino}","${texto}")` };
-        celda.font = { name: "Calibri", size: 9, underline: true, color: { argb: "FF1D4ED8" } };
+        celda.font = { name: "Noto Sans", size: 9, underline: true, color: { argb: "FF1D4ED8" } };
     });
 
     worksheet.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: row - 1, column: numCols } };
