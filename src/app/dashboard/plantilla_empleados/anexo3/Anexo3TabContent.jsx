@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import Anexo3Editor from "../_components/tabs/anuencia/Anexo3Editor";
 import { CANAL_ANEXO3, leerDatosAnexo3, borrarDatosAnexo3 } from "../_components/tabs/anuencia/anexo3TabChannel";
@@ -43,16 +44,24 @@ export default function Anexo3TabContent() {
         window.close();
     };
 
+    // Portal a document.body: el layout de la app le da a <main> su propio
+    // contexto de apilamiento (position:relative + z-10), así que cualquier
+    // z-index puesto DENTRO de <main> —por alto que sea— nunca gana contra el
+    // Banner/Navbar del sitio (fixed, z-40/z-50, hijos directos de <body>).
+    // Sin este portal, el encabezado del editor (con los botones de guardar
+    // versión / ver versiones) queda pintado por DEBAJO de esos elementos, es
+    // decir, invisible aunque el código sí se esté renderizando.
+    if (typeof document === "undefined") return null;
+
+    let contenido;
     if (datos === undefined) {
-        return (
+        contenido = (
             <div className="h-screen w-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-slate-950">
                 <Loader2 className="size-8 animate-spin text-[#621f32] dark:text-[#bc955c]" />
             </div>
         );
-    }
-
-    if (!datos) {
-        return (
+    } else if (!datos) {
+        contenido = (
             <div className="h-screen w-full flex flex-col items-center justify-center gap-2 text-center bg-white dark:bg-slate-950 px-6">
                 <AlertTriangle className="size-8 text-amber-500" />
                 <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
@@ -63,14 +72,19 @@ export default function Anexo3TabContent() {
                 </p>
             </div>
         );
+    } else {
+        contenido = (
+            <Anexo3Editor
+                hojas={datos.hojas}
+                nombreArchivo={datos.nombreArchivo}
+                anexoIdActual={datos.anexoIdActual}
+                onCerrar={handleCerrar}
+            />
+        );
     }
 
-    return (
-        <Anexo3Editor
-            hojas={datos.hojas}
-            nombreArchivo={datos.nombreArchivo}
-            anexoIdActual={datos.anexoIdActual}
-            onCerrar={handleCerrar}
-        />
+    return createPortal(
+        <div className="fixed inset-0 z-50 bg-white dark:bg-slate-950">{contenido}</div>,
+        document.body
     );
 }

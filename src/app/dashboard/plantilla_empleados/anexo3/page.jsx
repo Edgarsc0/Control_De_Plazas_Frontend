@@ -5,9 +5,7 @@ import Anexo3TabContent from "./Anexo3TabContent";
 export default function Anexo3Page() {
     return (
         <RequirePermission permission={PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES} redirectTo="/dashboard/plantilla_empleados">
-            <div className="fixed inset-0 z-50 bg-white dark:bg-slate-950">
-                <Anexo3TabContent />
-            </div>
+            <Anexo3TabContent />
         </RequirePermission>
     );
 }

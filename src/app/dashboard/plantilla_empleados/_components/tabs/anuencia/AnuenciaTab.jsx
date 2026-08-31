@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useToast } from "@/hooks/useToast";
@@ -216,6 +217,40 @@ export default function AnuenciaTab({ cardRef }) {
   // o apunta a una hoja que ya se borró — así nunca queda sin hoja activa.
   const hojaActiva = hojas.find((h) => h._id === hojaActivaId) || hojas[0];
 
+  // --- Virtualización del cuadro de plazas ----------------------------------
+  // Hojas como "DGOA" llegan a tener cientos de filas — dibujarlas todas de
+  // golpe (cada una con varios inputs y su propio autollenado) es lo que
+  // trababa el navegador al entrar al componente. En vez de eso, el cuadro
+  // vive en su propio contenedor con scroll y sólo se montan al DOM las
+  // filas que caben en pantalla (más un colchón arriba/abajo) — el resto se
+  // reemplaza por dos filas "espaciadoras" que ocupan su alto exacto, así el
+  // scroll se siente idéntico a tener las 800 filas reales sin pagar su costo.
+  const ALTO_FILA_PX = 36; // h-9, igual que las celdas del cuadro (ver CELDA_BASE)
+  const scrollCuadroRef = useRef(null);
+  const virtualizadorFilas = useVirtualizer({
+    count: hojaActiva.filas.length,
+    getScrollElement: () => scrollCuadroRef.current,
+    estimateSize: () => ALTO_FILA_PX,
+    overscan: 12,
+  });
+
+  // Al cambiar de hoja, el contenedor conserva el scroll de la hoja anterior
+  // (es el mismo <div>, sólo cambian los datos) — sin esto, una hoja corta
+  // podría abrir "a la mitad" si la anterior estaba muy desplazada.
+  useEffect(() => {
+    scrollCuadroRef.current?.scrollTo({ top: 0 });
+    virtualizadorFilas.scrollToOffset(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hojaActivaId]);
+
+  // Total de columnas reales del cuadro (para los colSpan de las filas
+  // espaciadoras y la de mensajes) — 12 columnas del formato + la de Unidad
+  // Administrativa informativa (sólo tras "codigo") + la de acciones.
+  const totalColumnasCuadro = useMemo(
+    () => ANEXO2_COLUMNAS.length + ANEXO2_COLUMNAS.filter((c) => c.esLlave).length + 1,
+    []
+  );
+
   // Un AbortController por fila: si el capturista sigue escribiendo el código,
   // la búsqueda anterior de ESA fila se cancela (no las de las demás).
   const peticiones = useRef({});
@@ -364,7 +399,11 @@ export default function AnuenciaTab({ cardRef }) {
 
   const agregarFila = useCallback((hojaId) => {
     parchearFilas(hojaId, (filas) => [...filas, crearFilaVacia()]);
-  }, [parchearFilas]);
+    // La fila nueva se agrega al final — con el cuadro virtualizado esa
+    // posición puede quedar fuera de lo que hay montado en pantalla, así que
+    // se desplaza el cuadro para que la vea de inmediato y pueda capturar.
+    requestAnimationFrame(() => virtualizadorFilas.scrollToIndex(hojaActiva.filas.length, { align: "end" }));
+  }, [parchearFilas, virtualizadorFilas, hojaActiva]);
 
   const eliminarFila = useCallback((hojaId, filaId) => {
     // Nunca se queda sin filas: el formato siempre muestra al menos una vacía.
@@ -877,6 +916,8 @@ export default function AnuenciaTab({ cardRef }) {
     );
   };
 
+  const filasVirtuales = virtualizadorFilas.getVirtualItems();
+
   return (
     <div ref={cardRef} className="w-full px-0 sm:px-4 lg:px-6">
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
@@ -907,23 +948,26 @@ export default function AnuenciaTab({ cardRef }) {
           <div className="flex items-center gap-1.5 bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-1.5 shrink-0">
             <button
               onClick={() => setIsHistorialOpen(true)}
-              className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 cursor-pointer"
+              disabled={anexo3Bloqueado}
+              title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : undefined}
+              className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <History className="size-3.5" />
               <span>Historial</span>
             </button>
             <button
               onClick={solicitarNuevoAnexo}
-              title="Empieza un anexo en blanco (avisa si hay cambios sin guardar)"
-              className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 cursor-pointer"
+              disabled={anexo3Bloqueado}
+              title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : "Empieza un anexo en blanco (avisa si hay cambios sin guardar)"}
+              className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <FilePlus2 className="size-3.5" />
               <span>Nuevo anexo</span>
             </button>
             <button
               onClick={handleGuardar}
-              disabled={guardando || !hayCambiosSinGuardar}
-              title="Guarda el anexo en el historial sin descargar el .xlsx"
+              disabled={guardando || !hayCambiosSinGuardar || anexo3Bloqueado}
+              title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : "Guarda el anexo en el historial sin descargar el .xlsx"}
               className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {guardando ? (
@@ -950,7 +994,8 @@ export default function AnuenciaTab({ cardRef }) {
             </button>
             <button
               onClick={handleExportar}
-              disabled={exportando}
+              disabled={exportando || anexo3Bloqueado}
+              title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : undefined}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
             >
               {exportando ? (
@@ -1083,97 +1128,122 @@ export default function AnuenciaTab({ cardRef }) {
                   </span>
                 </div>
               )}
-            <table className="border-collapse w-full table-fixed">
-              <colgroup>
-                {ANEXO2_COLUMNAS.map((col) => (
-                  <Fragment key={col.key}>
-                    <col style={{ width: `${anchoColumnaPorcentaje(col)}%` }} />
-                    {col.esLlave && <col style={{ width: `${ANCHO_INFO_UA_PORCENTAJE}%` }} />}
-                  </Fragment>
-                ))}
-                <col style={{ width: `${ANCHO_ACCION_PORCENTAJE}%` }} />
-              </colgroup>
-              <thead>
-                <tr>
+            <div ref={scrollCuadroRef} className="max-h-[65vh] min-h-[240px] overflow-y-auto custom-scrollbar rounded-lg">
+              <table className="border-collapse w-full table-fixed">
+                <colgroup>
                   {ANEXO2_COLUMNAS.map((col) => (
                     <Fragment key={col.key}>
-                      <th className="border border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-2 align-middle text-center text-[9px] font-black text-slate-700 dark:text-slate-200 leading-tight">
-                        {col.label}
-                      </th>
-                      {col.esLlave && (
-                        <th
-                          title="Sólo informativa — no forma parte del Anexo 2, no se incluye en el .xlsx"
-                          className="border border-slate-400 dark:border-slate-600 bg-blue-100 dark:bg-blue-950/50 px-2 py-2 align-middle text-center text-[9px] font-black text-blue-700 dark:text-blue-300 leading-tight"
-                        >
-                          Unidad Administrativa (info)
-                        </th>
-                      )}
+                      <col style={{ width: `${anchoColumnaPorcentaje(col)}%` }} />
+                      {col.esLlave && <col style={{ width: `${ANCHO_INFO_UA_PORCENTAJE}%` }} />}
                     </Fragment>
                   ))}
-                  {/* Columna de acciones — no forma parte del formato */}
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {hojaActiva.filas.map((fila) => (
-                  <tr key={fila._id} className="group">
+                  <col style={{ width: `${ANCHO_ACCION_PORCENTAJE}%` }} />
+                </colgroup>
+                <thead>
+                  <tr>
                     {ANEXO2_COLUMNAS.map((col) => (
                       <Fragment key={col.key}>
-                        <td className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle">
-                          {renderCelda(hojaActiva, fila, col)}
-                        </td>
+                        <th className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-2 align-middle text-center text-[9px] font-black text-slate-700 dark:text-slate-200 leading-tight">
+                          {col.label}
+                        </th>
                         {col.esLlave && (
-                          <td
+                          <th
                             title="Sólo informativa — no forma parte del Anexo 2, no se incluye en el .xlsx"
-                            className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle bg-blue-50/70 dark:bg-blue-950/20"
+                            className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-blue-100 dark:bg-blue-950/50 px-2 py-2 align-middle text-center text-[9px] font-black text-blue-700 dark:text-blue-300 leading-tight"
                           >
-                            <p className="px-2 py-1.5 text-[10px] text-blue-800 dark:text-blue-300 truncate">
-                              {fila._unidadAdministrativaResuelta || "—"}
-                            </p>
-                          </td>
+                            Unidad Administrativa (info)
+                          </th>
                         )}
                       </Fragment>
                     ))}
-                    <td className="p-0 pl-1 align-middle">
-                      <button
-                        onClick={() => eliminarFila(hojaActiva._id, fila._id)}
-                        title="Eliminar fila"
-                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </td>
+                    {/* Columna de acciones — no forma parte del formato */}
+                    <th className="sticky top-0 z-[1] w-10 bg-white dark:bg-slate-950" />
                   </tr>
-                ))}
-                {/* Mensajes de autollenado, fuera del cuadro para no romperlo */}
-                {hojaActiva.filas.some((f) => estados[f._id]?.mensaje) && (
-                  <tr>
-                    <td colSpan={ANEXO2_COLUMNAS.length + 1} className="pt-2">
-                      <div className="flex flex-col gap-1">
-                        {hojaActiva.filas.map((f) => {
-                          const e = estados[f._id];
-                          if (!e?.mensaje) return null;
-                          const esError = e.estado === ESTADO.ERROR;
-                          return (
-                            <p
-                              key={f._id}
-                              className={`text-[10px] font-bold flex items-center gap-1.5 ${
-                                esError
-                                  ? "text-amber-700 dark:text-amber-500"
-                                  : "text-emerald-700 dark:text-emerald-500"
-                              }`}
-                            >
-                              {esError ? <AlertTriangle className="size-3" /> : <CheckCircle2 className="size-3" />}
-                              <span className="font-bold">{f.codigo}</span> — {e.mensaje}
-                            </p>
-                          );
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {/* Fila espaciadora de arriba: ocupa el alto exacto de todas
+                      las filas anteriores a la ventana visible, para que el
+                      scroll se sienta idéntico a tener las filas reales. */}
+                  {filasVirtuales.length > 0 && (
+                    <tr aria-hidden="true">
+                      <td colSpan={totalColumnasCuadro} style={{ height: filasVirtuales[0].start, padding: 0, border: 0 }} />
+                    </tr>
+                  )}
+                  {filasVirtuales.map((filaVirtual) => {
+                    const fila = hojaActiva.filas[filaVirtual.index];
+                    if (!fila) return null;
+                    return (
+                      <tr key={fila._id} className="group">
+                        {ANEXO2_COLUMNAS.map((col) => (
+                          <Fragment key={col.key}>
+                            <td className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle">
+                              {renderCelda(hojaActiva, fila, col)}
+                            </td>
+                            {col.esLlave && (
+                              <td
+                                title="Sólo informativa — no forma parte del Anexo 2, no se incluye en el .xlsx"
+                                className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle bg-blue-50/70 dark:bg-blue-950/20"
+                              >
+                                <p className="px-2 py-1.5 text-[10px] text-blue-800 dark:text-blue-300 truncate">
+                                  {fila._unidadAdministrativaResuelta || "—"}
+                                </p>
+                              </td>
+                            )}
+                          </Fragment>
+                        ))}
+                        <td className="p-0 pl-1 align-middle">
+                          <button
+                            onClick={() => eliminarFila(hojaActiva._id, fila._id)}
+                            title="Eliminar fila"
+                            className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Fila espaciadora de abajo: el resto del alto total. */}
+                  {filasVirtuales.length > 0 && (
+                    <tr aria-hidden="true">
+                      <td
+                        colSpan={totalColumnasCuadro}
+                        style={{
+                          height: virtualizadorFilas.getTotalSize() - filasVirtuales[filasVirtuales.length - 1].end,
+                          padding: 0,
+                          border: 0,
+                        }}
+                      />
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mensajes de autollenado — fuera del cuadro virtualizado (son
+                pocos a la vez, no hace falta virtualizarlos también). */}
+            {hojaActiva.filas.some((f) => estados[f._id]?.mensaje) && (
+              <div className="flex flex-col gap-1 pt-2">
+                {hojaActiva.filas.map((f) => {
+                  const e = estados[f._id];
+                  if (!e?.mensaje) return null;
+                  const esError = e.estado === ESTADO.ERROR;
+                  return (
+                    <p
+                      key={f._id}
+                      className={`text-[10px] font-bold flex items-center gap-1.5 ${
+                        esError
+                          ? "text-amber-700 dark:text-amber-500"
+                          : "text-emerald-700 dark:text-emerald-500"
+                      }`}
+                    >
+                      {esError ? <AlertTriangle className="size-3" /> : <CheckCircle2 className="size-3" />}
+                      <span className="font-bold">{f.codigo}</span> — {e.mensaje}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
 
             <button
               onClick={() => agregarFila(hojaActiva._id)}
