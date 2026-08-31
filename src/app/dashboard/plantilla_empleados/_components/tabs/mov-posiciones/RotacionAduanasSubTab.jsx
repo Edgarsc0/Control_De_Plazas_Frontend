@@ -269,6 +269,12 @@ const diasEntre = (desde, hasta) => {
 const esInsubsistencia = (segmento) =>
     segmento.tipoSalida === "BAJA" && normalizeForSearch(segmento.salidaMotivo || "").includes("insubsistencia");
 
+/** Mismo criterio que `esInsubsistencia`, pero contra la GESTIÓN completa
+ * (no un segmento) — usado por el "Consecutivo" del export a Excel, que debe
+ * decidir esto ANTES de recorrer los segmentos de la gestión. */
+const esInsubsistenciaGestion = (gestion) =>
+    gestion.tipo_salida === "BAJA" && normalizeForSearch(gestion.salida_motivo_nombre || "").includes("insubsistencia");
+
 /** Llave única de una gestión: aduana + titular + fecha en que entró a ella. */
 const claveGestion = (aduanaNombre, gestion) => `${aduanaNombre}|${gestion.num_empleado}|${gestion.fecha_entrada}`;
 
@@ -881,11 +887,19 @@ const EXPORT_COLUMNS_ROTACION = [
     { key: "duracion", header: "Duración", width: 14 },
     { key: "motivoEntrada", header: "Motivo de Entrada", width: 30 },
     { key: "procedencia", header: "Procedencia", width: 26 },
+    // Detalle de procedencia (solo cuando "Procedencia" venía de un puesto
+    // ajeno a titularidad de aduana, vía gestion.origen_completo) — antes
+    // "Procedencia" solo decía "Puesto X" sin más contexto de dónde salió.
+    { key: "posicionOrigen", header: "Plaza Origen", width: 14 },
+    { key: "uaOrigen", header: "UA Origen", width: 26 },
+    { key: "deptoOrigen", header: "Departamento Origen", width: 18 },
+    { key: "depDirectaOrigen", header: "Dependencia Directa Origen", width: 20 },
     { key: "motivoSalida", header: "Motivo de Salida", width: 30 },
     { key: "tipoMovimiento", header: "Tipo de Movimiento", width: 22 },
     { key: "destino", header: "Destino", width: 26 },
     // Detalle del puesto destino (solo SALIDA_PUESTO, vía gestion.salida_completo)
     // en columnas propias en vez de todo apachurrado en "Destino".
+    { key: "posicionDestino", header: "Posición", width: 14 },
     { key: "puestoDestino", header: "Código Puesto Destino", width: 18 },
     { key: "nombrePuestoFuncionalDestino", header: "Nombre Puesto Funcional Destino", width: 34 },
     { key: "uaDestino", header: "UA Destino", width: 26 },
@@ -980,6 +994,7 @@ function detalleDestinoPuesto(seg) {
     const s = seg.tipoSalida === "SALIDA_PUESTO" ? seg.gestion?.salida_completo : null;
     if (!s) {
         return {
+            posicionDestino: "—",
             puestoDestino: "—",
             nombrePuestoFuncionalDestino: "—",
             uaDestino: "—",
@@ -988,11 +1003,41 @@ function detalleDestinoPuesto(seg) {
         };
     }
     return {
+        posicionDestino: s.posicion || "—",
         puestoDestino: s.cd_puesto || "—",
         nombrePuestoFuncionalDestino: s.nombre_puesto_funcional || "—",
         uaDestino: s.un_admin ? `${s.un_admin}${s.desc_larga_un ? ` — ${nombreCorto(s.desc_larga_un)}` : ""}` : "—",
         deptoDestino: s.id_depto || "—",
         depDirectaDestino: s.depen_direc || "—",
+    };
+}
+
+/**
+ * Detalle del puesto de PROCEDENCIA, en columnas propias — solo cuando
+ * `entradaOrigen.tipo === "PUESTO"` (vino de un puesto que no es de
+ * titularidad de aduana, "Procedencia" solo mostraba "Puesto X"), a partir
+ * de `gestion.origen_completo` (fila cruda del movimiento previo a la
+ * entrada, ver rotacion_aduanas.py). "—" en cualquier otro tipo de origen o
+ * si la respuesta viene de un caché anterior a que el backend mandara ese
+ * campo. Solo aplica al PRIMER segmento de la gestión — los demás vienen de
+ * otra plaza DENTRO de la misma aduana (`entradaOrigen.tipo === "PLAZA"`),
+ * que ya es dato completo tal cual se muestra en "Procedencia".
+ */
+function detalleProcedenciaPuesto(seg) {
+    const o = seg.esPrimero && seg.entradaOrigen?.tipo === "PUESTO" ? seg.gestion?.origen_completo : null;
+    if (!o) {
+        return {
+            posicionOrigen: "—",
+            uaOrigen: "—",
+            deptoOrigen: "—",
+            depDirectaOrigen: "—",
+        };
+    }
+    return {
+        posicionOrigen: o.posicion || "—",
+        uaOrigen: o.un_admin ? `${o.un_admin}${o.desc_larga_un ? ` — ${nombreCorto(o.desc_larga_un)}` : ""}` : "—",
+        deptoOrigen: o.id_depto || "—",
+        depDirectaOrigen: o.depen_direc || "—",
     };
 }
 
@@ -1087,10 +1132,16 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     const incluirFotos = fotosPorEmpleado.size > 0;
     const imageIdPorEmpleado = new Map();
 
+    // "Consecutivo": cuántos titulares REALES tuvo la aduana hasta esta fila
+    // (una insubsistencia nunca llegó a ejercer, así que no cuenta; una
+    // vacancia no es un titular). Va junto a "Foto" siempre, la tenga la
+    // exportación o no.
+    const CONSECUTIVO_COL = { key: "__consecutivo", header: "Consecutivo", width: 12 };
     const columns = incluirFotos
-        ? [{ key: "__foto", header: "Foto", width: FOTO_COL_WIDTH }, ...EXPORT_COLUMNS_ROTACION]
-        : EXPORT_COLUMNS_ROTACION;
+        ? [{ key: "__foto", header: "Foto", width: FOTO_COL_WIDTH }, CONSECUTIVO_COL, ...EXPORT_COLUMNS_ROTACION]
+        : [CONSECUTIVO_COL, ...EXPORT_COLUMNS_ROTACION];
     const tipoMovimientoCol = columns.findIndex((c) => c.key === "tipoMovimiento") + 1;
+    const consecutivoCol = columns.findIndex((c) => c.key === "__consecutivo") + 1;
     const fechaDesdeCol = columns.findIndex((c) => c.key === "fechaDesde") + 1;
     const fechaHastaCol = columns.findIndex((c) => c.key === "fechaHasta") + 1;
     const salarioEntradaCol = columns.findIndex((c) => c.key === "salarioEntrada") + 1;
@@ -1104,7 +1155,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     // Logo + título institucional + título del reporte, los tres en la misma
     // fila (más "reporte generado" en la fila siguiente) — layout compacto
     // pedido explícito, ver addMembreteCompactoRotacion.
-    const colOffset = incluirFotos ? 1 : 0;
+    // +1 por "Consecutivo" (siempre presente) y +1 más por "Foto" si aplica.
+    const colOffset = (incluirFotos ? 1 : 0) + 1;
     let row = addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, 560) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
@@ -1210,9 +1262,29 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             return;
         }
 
+        // "Consecutivo": cuenta titulares REALES de esta aduana en orden
+        // cronológico. Todos los segmentos de la MISMA gestión (cambios de
+        // plaza dentro de la aduana) comparten un solo número — solo se
+        // avanza al llegar a una gestión distinta. Una insubsistencia nunca
+        // llegó a ejercer, así que NO avanza el contador y su fila queda sin
+        // número (igual que una vacancia).
+        let consecutivoActual = 0;
+        let claveGestionVista = null;
+        let gestionVistaEsInsubsistencia = false;
+
         entradas.forEach((entrada, i) => {
             const isVacancia = entrada.tipo === "vacancia";
             const seg = entrada.dato;
+
+            let consecutivo = "—";
+            if (!isVacancia) {
+                if (seg.claveGestion !== claveGestionVista) {
+                    claveGestionVista = seg.claveGestion;
+                    gestionVistaEsInsubsistencia = esInsubsistenciaGestion(seg.gestion);
+                    if (!gestionVistaEsInsubsistencia) consecutivoActual += 1;
+                }
+                consecutivo = gestionVistaEsInsubsistencia ? "—" : consecutivoActual;
+            }
 
             let values;
             let tipoColorKey;
@@ -1235,9 +1307,14 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     duracion: duracion(seg.dias),
                     motivoEntrada: "—",
                     procedencia: "—",
+                    posicionOrigen: "—",
+                    uaOrigen: "—",
+                    deptoOrigen: "—",
+                    depDirectaOrigen: "—",
                     motivoSalida: "—",
                     tipoMovimiento: seg.abierta ? "Acéfala hoy" : "Vacante",
                     destino: "—",
+                    posicionDestino: "—",
                     puestoDestino: "—",
                     nombrePuestoFuncionalDestino: "—",
                     uaDestino: "—",
@@ -1265,6 +1342,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     duracion: duracion(diasEntre(seg.fechaDesde, seg.fechaHasta)),
                     motivoEntrada: seg.entradaMotivo || "—",
                     procedencia: textoOrigen(seg.entradaOrigen),
+                    ...detalleProcedenciaPuesto(seg),
                     motivoSalida: seg.salidaMotivo || "—",
                     tipoMovimiento: esInsubsistencia(seg)
                         ? "Baja (Insubsistencia)"
@@ -1274,6 +1352,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                 };
                 tipoColorKey = esInsubsistencia(seg) ? "INSUBSISTENCIA" : seg.tipoSalida;
             }
+            values.__consecutivo = consecutivo;
 
             const dataRow = worksheet.getRow(row);
             // Fondo zebra/insubsistencia: destaca la fila COMPLETA, no solo
