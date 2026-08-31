@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   X,
@@ -164,6 +164,173 @@ function CuerpoHojaDroppable({ clave, children }) {
 }
 
 /**
+ * Tarjeta completa de UNA hoja del Anexo 3 — arrastrable como bloque entero
+ * (agarradera propia, separada del botón de colapsar) para reordenar en qué
+ * lugar de la lista aparece, sin tocar qué plazas trae ni su identidad
+ * (nombre/UA siguen viniendo de `g`, ver AnuenciaAnexo3View). El id de este
+ * `useSortable` lleva el prefijo "hoja:" para no chocar con el id que
+ * `CuerpoHojaDroppable` ya usa para la MISMA `clave` (arrastrar una plaza
+ * hasta el cuerpo de la tabla).
+ */
+function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColapso, onAplicarOverride, onMenuContextual, registrarRef }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `hoja:${g.clave}`,
+    data: { type: "hoja", clave: g.clave },
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={(el) => {
+        setNodeRef(el);
+        registrarRef(el);
+      }}
+      style={style}
+      className={`rounded-2xl border overflow-hidden scroll-mt-4 transition-colors ${
+        seleccionada
+          ? "border-[#621f32] dark:border-[#bc955c] ring-2 ring-[#621f32]/30 dark:ring-[#bc955c]/30"
+          : "border-slate-200/70 dark:border-slate-800/70"
+      } bg-white dark:bg-slate-950`}
+    >
+      <div className="w-full flex items-center gap-2 px-4 py-3 bg-slate-50/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          title="Arrastrar para reordenar esta hoja"
+          className="cursor-grab active:cursor-grabbing p-1.5 -m-1.5 rounded-lg text-slate-300 dark:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 touch-none shrink-0"
+        >
+          <GripVertical className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleColapso}
+          className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
+        >
+          <ChevronDown className={`size-4 text-slate-400 shrink-0 transition-transform ${colapsada ? "-rotate-90" : ""}`} />
+          <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">{g.nombre_hoja}</span>
+          <span className="text-[11px] font-semibold text-slate-400 shrink-0">
+            {fmtFecha(g.fecha_inicio)} — {fmtFecha(g.fecha_fin)}
+          </span>
+        </button>
+      </div>
+
+      {!colapsada && (
+        <>
+          <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 border-b flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1 min-w-[220px] flex-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nombre de la hoja</label>
+              <input
+                type="text"
+                value={g.nombre_hoja}
+                maxLength={31}
+                onChange={(e) => onAplicarOverride(g.clave, "nombre_hoja", e.target.value)}
+                className="px-2.5 py-1.5 text-[12px] font-black text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Del (fecha de alta)</label>
+              <span className="px-2.5 py-1.5 text-[12px] font-bold text-slate-600 dark:text-slate-300">{fmtFecha(g.fecha_inicio)}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Al</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={g.fecha_fin}
+                  onChange={(e) => onAplicarOverride(g.clave, "fecha_fin", e.target.value)}
+                  className="px-2.5 py-1.5 text-[12px] font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors"
+                />
+                {g.fecha_fin !== finDeAnio(g.fecha_inicio) && (
+                  <button
+                    onClick={() => onAplicarOverride(g.clave, "fecha_fin", finDeAnio(g.fecha_inicio))}
+                    title="Volver al 31 de diciembre"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            {g.periodo_invalido && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Período</label>
+                <span className="px-2.5 py-1.5 text-[12px] font-black text-red-600">Fechas inválidas</span>
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 py-3">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 truncate" title={g.unidad_administrativa}>
+              {g.unidad_administrativa}
+            </p>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800">
+                    <th className="w-7" />
+                    {CABECERAS_PLAZA.map((h) => (
+                      <th key={h} className="px-2 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                    <th
+                      title="Sólo informativa — no se incluye en el .xlsx del Anexo 3"
+                      className="px-2 py-1.5 text-[9px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wider whitespace-nowrap bg-blue-50 dark:bg-blue-950/40"
+                    >
+                      Unidad Administrativa
+                    </th>
+                    {CABECERAS_PLAZA_FIN.map((h) => (
+                      <th key={h} className="px-2 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <SortableContext items={detallePlazas.map((p) => p.codigo)} strategy={verticalListSortingStrategy}>
+                  <CuerpoHojaDroppable clave={g.clave}>
+                    {detallePlazas.map((p) => (
+                      <FilaPlazaArrastrable
+                        key={p.codigo}
+                        plaza={p}
+                        onMenuContextual={(evento, plaza) => onMenuContextual(evento, plaza, g)}
+                      />
+                    ))}
+                  </CuerpoHojaDroppable>
+                </SortableContext>
+              </table>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total de plazas en esta hoja</p>
+                <p className="text-[13px] font-black text-slate-700 dark:text-slate-200">{g.total_plazas}</p>
+              </div>
+              {g.valuacion && (
+                <div className="flex flex-wrap items-center justify-end gap-4">
+                  {[
+                    ["Período colectivo", g.valuacion.total.periodo, true],
+                    ["Complemento", g.valuacion.total.complemento, false],
+                    ["Regularizable (12m)", g.valuacion.total.anual, false],
+                  ].map(([label, valor, destacado]) => (
+                    <div key={label} className="text-right">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+                      <p className={`text-[13px] font-black ${destacado ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300"}`}>
+                        {fmtMoneda(valor)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * Editor del Anexo 3 antes de descargarlo — a diferencia de una previa de
  * sólo lectura, aquí se puede corregir a mano el acomodo de plazas entre
  * hojas (arrastrando filas, sólo entre hojas del MISMO período/fecha de
@@ -196,6 +363,13 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
   // (después de cada `cargar()`), nunca se calcula nada de dinero aquí.
   const [gruposVista, setGruposVista] = useState([]);
   const [activeId, setActiveId] = useState(null);
+
+  // Orden visual de las hojas — copia local de las claves en el orden en que
+  // se dibujan, para poder previsualizar el reacomodo mientras se arrastra
+  // una hoja completa (igual que `gruposVista` hace para las plazas). Se
+  // resincroniza con el orden real cada vez que llegan `grupos` nuevos.
+  const [ordenVisualHojas, setOrdenVisualHojas] = useState([]);
+  const [activeHojaClave, setActiveHojaClave] = useState(null);
 
   // Versión guardada que se está editando (si se abrió una del historial).
   const [versionIdActual, setVersionIdActual] = useState(null);
@@ -242,6 +416,7 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     setGruposVista(
       grupos.map((g) => ({ clave: g.clave, fecha_inicio: g.fecha_inicio, detalle_plazas: g.detalle_plazas || [] }))
     );
+    setOrdenVisualHojas(grupos.map((g) => g.clave));
     // Toda hoja nueva (incluida una creada al arrastrar fuera) arranca
     // colapsada; una hoja que ya no aparece (se quedó sin plazas) se olvida.
     setColapsadas((prev) => {
@@ -306,6 +481,28 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     else setGrupos((prev) => prev.map((g) => (g.clave === clave ? { ...g, nombre_hoja: valor } : g)));
   };
 
+  // Grupos indexados por clave, y esa misma lista en el orden VISUAL actual
+  // (`ordenVisualHojas`, que se reordena en vivo mientras se arrastra una
+  // hoja) — así el reacomodo se ve al instante sin esperar la respuesta del
+  // servidor, igual que `gruposVista` para las plazas.
+  const gruposPorClave = useMemo(() => new Map(grupos.map((g) => [g.clave, g])), [grupos]);
+  const gruposEnOrdenVisual = useMemo(
+    () => ordenVisualHojas.map((clave) => gruposPorClave.get(clave)).filter(Boolean),
+    [ordenVisualHojas, gruposPorClave]
+  );
+
+  // Orden efectivo de una hoja para calcular dónde cae un reacomodo nuevo: el
+  // override manual si ya se arrastró antes, si no la posición natural (ver
+  // `posicionDeClave`) — mismo criterio que usa el backend para ordenar.
+  const ordenEfectivo = useCallback(
+    (clave) => {
+      const ov = overrides[clave];
+      if (ov && typeof ov.orden === "number") return ov.orden;
+      return posicionDeClave(clave) ?? 0;
+    },
+    [overrides]
+  );
+
   // --- Drag-and-drop entre hojas del mismo período -------------------------
   const claveDeCodigo = useCallback(
     (codigo) => gruposVista.find((g) => g.detalle_plazas.some((p) => p.codigo === codigo))?.clave,
@@ -322,12 +519,67 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     }
     return null;
   }, [activeId, gruposVista]);
+  const activeHoja = useMemo(
+    () => (activeHojaClave ? gruposPorClave.get(activeHojaClave) : null),
+    [activeHojaClave, gruposPorClave]
+  );
 
-  const handleDragStart = (event) => setActiveId(event.active.id);
-  const handleDragCancel = () => setActiveId(null);
+  const handleDragStart = (event) => {
+    if (event.active.data.current?.type === "hoja") {
+      setActiveHojaClave(event.active.data.current.clave);
+    } else {
+      setActiveId(event.active.id);
+    }
+  };
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setActiveHojaClave(null);
+    // Si se canceló a medio arrastrar una hoja, el orden visual pudo haberse
+    // adelantado (ver handleDragOverHoja) — se regresa al orden real.
+    setOrdenVisualHojas(grupos.map((g) => g.clave));
+  };
+
+  // --- Arrastrar una hoja COMPLETA para reordenarla -------------------------
+  const handleDragOverHoja = (event) => {
+    const { active, over } = event;
+    const claveActiva = active.data.current?.clave;
+    const claveOver = over?.data?.current?.type === "hoja" ? over.data.current.clave : null;
+    if (!claveActiva || !claveOver || claveOver === claveActiva) return;
+    setOrdenVisualHojas((prev) => {
+      const oldIndex = prev.indexOf(claveActiva);
+      const newIndex = prev.indexOf(claveOver);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  };
+
+  const handleDragEndHoja = (event) => {
+    setActiveHojaClave(null);
+    const claveActiva = event.active.data.current?.clave;
+    if (!claveActiva) return;
+    const idx = ordenVisualHojas.indexOf(claveActiva);
+    if (idx === -1) return;
+    const claveAnterior = ordenVisualHojas[idx - 1] || null;
+    const claveSiguiente = ordenVisualHojas[idx + 1] || null;
+    const posAnterior = claveAnterior ? ordenEfectivo(claveAnterior) : null;
+    const posSiguiente = claveSiguiente ? ordenEfectivo(claveSiguiente) : null;
+
+    let nuevoOrden;
+    if (posAnterior != null && posSiguiente != null) nuevoOrden = (posAnterior + posSiguiente) / 2;
+    else if (posAnterior != null) nuevoOrden = posAnterior + 1;
+    else if (posSiguiente != null) nuevoOrden = posSiguiente - 1;
+    else nuevoOrden = 0;
+
+    if (nuevoOrden === ordenEfectivo(claveActiva)) return; // no se movió de verdad
+
+    const siguientesOverrides = { ...overrides, [claveActiva]: { ...(overrides[claveActiva] || {}), orden: nuevoOrden } };
+    setOverrides(siguientesOverrides);
+    cargar(siguientesOverrides, reasignaciones);
+  };
 
   const handleDragOver = (event) => {
     const { active, over } = event;
+    if (active.data.current?.type === "hoja") return handleDragOverHoja(event);
     if (!over) return;
     const codigoActivo = active.id;
     const overId = over.id;
@@ -383,6 +635,7 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
   }, [reasignaciones, overrides, cargar]);
 
   const handleDragEnd = (event) => {
+    if (event.active.data.current?.type === "hoja") return handleDragEndHoja(event);
     setActiveId(null);
     const { active, over } = event;
     const codigo = active.id;
@@ -495,7 +748,7 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
           <div className="min-w-0">
             <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">Generar Anexo 3 (FUMP)</h3>
             <p className="text-[11px] font-semibold text-slate-400 mt-0.5 truncate">
-              Una hoja por Unidad Administrativa y período · arrastra una plaza a otra hoja del MISMO período para moverla
+              Una hoja por Unidad Administrativa y período · arrastra una plaza a otra hoja del MISMO período para moverla, o arrastra el ícono ⠿ de una hoja para reordenarla
               {versionIdActual && <span className="text-[#621f32] dark:text-[#bc955c]"> · editando versión &quot;{versionNombre}&quot;</span>}
             </p>
           </div>
@@ -673,150 +926,32 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                   onDragEnd={handleDragEnd}
                   onDragCancel={handleDragCancel}
                 >
-                  {grupos.map((g, indice) => {
-                    const vista = gruposVista.find((v) => v.clave === g.clave);
-                    const detallePlazas = vista?.detalle_plazas || g.detalle_plazas || [];
-                    const colapsada = colapsadas[g.clave] ?? true;
-                    const claveAnterior = grupos[indice - 1]?.clave || null;
-                    return (
-                      <Fragment key={g.clave}>
-                        <ZonaGapNuevaHoja claveAnterior={claveAnterior} claveSiguiente={g.clave} visible={Boolean(activeId)} />
-                        <div
-                          ref={(el) => { hojaRefs.current[g.clave] = el; }}
-                          className={`rounded-2xl border overflow-hidden scroll-mt-4 transition-colors ${
-                            hojaSeleccionada === g.clave
-                              ? "border-[#621f32] dark:border-[#bc955c] ring-2 ring-[#621f32]/30 dark:ring-[#bc955c]/30"
-                              : "border-slate-200/70 dark:border-slate-800/70"
-                          } bg-white dark:bg-slate-950`}
-                        >
-                        <button
-                          type="button"
-                          onClick={() => toggleColapso(g.clave)}
-                          className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
-                        >
-                          <ChevronDown
-                            className={`size-4 text-slate-400 shrink-0 transition-transform ${colapsada ? "-rotate-90" : ""}`}
+                  <SortableContext items={gruposEnOrdenVisual.map((g) => `hoja:${g.clave}`)} strategy={verticalListSortingStrategy}>
+                    {gruposEnOrdenVisual.map((g, indice) => {
+                      const vista = gruposVista.find((v) => v.clave === g.clave);
+                      const detallePlazas = vista?.detalle_plazas || g.detalle_plazas || [];
+                      const colapsada = colapsadas[g.clave] ?? true;
+                      const claveAnterior = gruposEnOrdenVisual[indice - 1]?.clave || null;
+                      return (
+                        <Fragment key={g.clave}>
+                          <ZonaGapNuevaHoja claveAnterior={claveAnterior} claveSiguiente={g.clave} visible={Boolean(activeId)} />
+                          <TarjetaHoja
+                            g={g}
+                            detallePlazas={detallePlazas}
+                            colapsada={colapsada}
+                            seleccionada={hojaSeleccionada === g.clave}
+                            onToggleColapso={() => toggleColapso(g.clave)}
+                            onAplicarOverride={aplicarOverride}
+                            onMenuContextual={abrirMenuContextual}
+                            registrarRef={(el) => { hojaRefs.current[g.clave] = el; }}
                           />
-                          <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">{g.nombre_hoja}</span>
-                          <span className="text-[11px] font-semibold text-slate-400 shrink-0">
-                            {fmtFecha(g.fecha_inicio)} — {fmtFecha(g.fecha_fin)}
-                          </span>
-                        </button>
-
-                        {!colapsada && (
-                          <>
-                            <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 border-b flex flex-wrap items-end gap-3">
-                              <div className="flex flex-col gap-1 min-w-[220px] flex-1">
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nombre de la hoja</label>
-                                <input
-                                  type="text"
-                                  value={g.nombre_hoja}
-                                  maxLength={31}
-                                  onChange={(e) => aplicarOverride(g.clave, "nombre_hoja", e.target.value)}
-                                  className="px-2.5 py-1.5 text-[12px] font-black text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors"
-                                />
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Del (fecha de alta)</label>
-                                <span className="px-2.5 py-1.5 text-[12px] font-bold text-slate-600 dark:text-slate-300">{fmtFecha(g.fecha_inicio)}</span>
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Al</label>
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="date"
-                                    value={g.fecha_fin}
-                                    onChange={(e) => aplicarOverride(g.clave, "fecha_fin", e.target.value)}
-                                    className="px-2.5 py-1.5 text-[12px] font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors"
-                                  />
-                                  {g.fecha_fin !== finDeAnio(g.fecha_inicio) && (
-                                    <button
-                                      onClick={() => aplicarOverride(g.clave, "fecha_fin", finDeAnio(g.fecha_inicio))}
-                                      title="Volver al 31 de diciembre"
-                                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                    >
-                                      <RotateCcw className="size-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              {g.periodo_invalido && (
-                                <div className="flex flex-col gap-1">
-                                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Período</label>
-                                  <span className="px-2.5 py-1.5 text-[12px] font-black text-red-600">Fechas inválidas</span>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="px-4 py-3">
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 truncate" title={g.unidad_administrativa}>
-                                {g.unidad_administrativa}
-                              </p>
-                              <div className="overflow-x-auto custom-scrollbar">
-                                <table className="w-full text-left border-collapse">
-                                  <thead>
-                                    <tr className="border-b border-slate-200 dark:border-slate-800">
-                                      <th className="w-7" />
-                                      {CABECERAS_PLAZA.map((h) => (
-                                        <th key={h} className="px-2 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                                      ))}
-                                      <th
-                                        title="Sólo informativa — no se incluye en el .xlsx del Anexo 3"
-                                        className="px-2 py-1.5 text-[9px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-wider whitespace-nowrap bg-blue-50 dark:bg-blue-950/40"
-                                      >
-                                        Unidad Administrativa
-                                      </th>
-                                      {CABECERAS_PLAZA_FIN.map((h) => (
-                                        <th key={h} className="px-2 py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <SortableContext items={detallePlazas.map((p) => p.codigo)} strategy={verticalListSortingStrategy}>
-                                    <CuerpoHojaDroppable clave={g.clave}>
-                                      {detallePlazas.map((p) => (
-                                        <FilaPlazaArrastrable
-                                          key={p.codigo}
-                                          plaza={p}
-                                          onMenuContextual={(evento, plaza) => abrirMenuContextual(evento, plaza, g)}
-                                        />
-                                      ))}
-                                    </CuerpoHojaDroppable>
-                                  </SortableContext>
-                                </table>
-                              </div>
-
-                              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total de plazas en esta hoja</p>
-                                  <p className="text-[13px] font-black text-slate-700 dark:text-slate-200">{g.total_plazas}</p>
-                                </div>
-                                {g.valuacion && (
-                                  <div className="flex flex-wrap items-center justify-end gap-4">
-                                    {[
-                                      ["Período colectivo", g.valuacion.total.periodo, true],
-                                      ["Complemento", g.valuacion.total.complemento, false],
-                                      ["Regularizable (12m)", g.valuacion.total.anual, false],
-                                    ].map(([label, valor, destacado]) => (
-                                      <div key={label} className="text-right">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-                                        <p className={`text-[13px] font-black ${destacado ? "text-[#621f32] dark:text-[#bc955c]" : "text-slate-600 dark:text-slate-300"}`}>
-                                          {fmtMoneda(valor)}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        </div>
-                      </Fragment>
-                    );
-                  })}
+                        </Fragment>
+                      );
+                    })}
+                  </SortableContext>
 
                   <ZonaGapNuevaHoja
-                    claveAnterior={grupos[grupos.length - 1]?.clave || null}
+                    claveAnterior={gruposEnOrdenVisual[gruposEnOrdenVisual.length - 1]?.clave || null}
                     claveSiguiente={null}
                     visible={Boolean(activeId)}
                   />
@@ -827,6 +962,14 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                         <GripVertical className="size-3.5 text-slate-400 shrink-0" />
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{activePlaza.codigo}</span>
                         <span className="text-slate-500 dark:text-slate-400 truncate max-w-[220px]">{activePlaza.denominacion}</span>
+                      </div>
+                    )}
+                    {activeHoja && (
+                      <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-4 py-3 flex items-center gap-3 text-[11px] opacity-95">
+                        <GripVertical className="size-4 text-slate-400 shrink-0" />
+                        <span className="font-black text-slate-800 dark:text-slate-100">{activeHoja.nombre_hoja}</span>
+                        <span className="text-slate-400">·</span>
+                        <span className="text-slate-500 dark:text-slate-400">{activeHoja.total_plazas} plazas</span>
                       </div>
                     )}
                   </DragOverlay>
