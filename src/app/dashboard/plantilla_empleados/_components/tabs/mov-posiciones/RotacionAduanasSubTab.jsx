@@ -232,10 +232,22 @@ function StatPlano({ icon: Icon, value, label }) {
 
 const fecha = (valor) => (valor ? formatDateEsMx(valor) : "—");
 
+/** Desglose años/meses/días (no "1,8 años") — años y meses con longitud
+ * promedio (365.25 / 30.44 días), suficiente para mostrar, no para calcular
+ * fechas exactas. */
 const duracion = (dias) => {
     if (dias === null || dias === undefined) return "";
     if (dias < 365) return `${dias} ${dias === 1 ? "día" : "días"}`;
-    return `${(dias / 365.25).toFixed(1).replace(".", ",")} años`;
+    const anios = Math.floor(dias / 365.25);
+    const restoTrasAnios = dias - Math.floor(anios * 365.25);
+    const meses = Math.floor(restoTrasAnios / 30.44);
+    const diasRestantes = Math.floor(restoTrasAnios - meses * 30.44);
+
+    const partes = [];
+    if (anios > 0) partes.push(`${anios} ${anios === 1 ? "año" : "años"}`);
+    if (meses > 0) partes.push(`${meses} ${meses === 1 ? "mes" : "meses"}`);
+    if (diasRestantes > 0) partes.push(`${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`);
+    return partes.join(", ");
 };
 
 /** Días entre dos fechas ISO ("YYYY-MM-DD"); `hasta` nulo = hoy. */
