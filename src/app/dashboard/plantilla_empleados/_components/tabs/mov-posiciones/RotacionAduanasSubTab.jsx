@@ -331,6 +331,17 @@ function construirSegmentos(gestion) {
         const esUltimo = i === crudos.length - 1;
         const siguiente = crudos[i + 1];
         const idxInicio = seg.idxs[0];
+        // Último ítem que TODAVÍA pertenece a este segmento (misma plaza) —
+        // el nivel/salario "al salir" de la plaza es el de ESTA fila, no el
+        // de la primera fila del segmento siguiente: esa ya es la fila de
+        // LLEGADA a la nueva plaza (posicion Y nivel_tabular/sal_base ya
+        // cambiados ahí mismo), así que leerla como "salida" de la plaza
+        // anterior mostraba el nivel/salario NUEVO en vez del que realmente
+        // tuvo mientras ocupó esta plaza. Bug real reportado: plaza 10300874
+        // (num_empleado 00020220323) se ejerció completa en A106 pero
+        // "Nivel Tabular al Salir" mostraba A110 — el nivel de la SIGUIENTE
+        // plaza (10300562), no el que tuvo aquí.
+        const idxFin = seg.idxs[seg.idxs.length - 1];
         const idxsMostrados = esPrimero ? seg.idxs.slice(1) : seg.idxs;
 
         // Solo el último segmento de una gestión que sale por SALIDA_PUESTO
@@ -358,13 +369,17 @@ function construirSegmentos(gestion) {
             // entrada, `items[idxInicio]`) — mismo campo que ya se muestra en
             // el acordeón "N mov." de la tarjeta en pantalla.
             salarioEntrada: items[idxInicio].sal_base ?? null,
-            // Salario al DEJARLO: si es el último segmento de la gestión,
-            // `gestion.salida_completo` es la fila real de salida (puede no
-            // existir — vigente, o caché viejo sin ese campo); si no, el
-            // siguiente segmento de la MISMA gestión ya trae la fila.
-            salarioSalida: esUltimo
-                ? (gestion.salida_completo?.sal_base ?? null)
-                : (items[siguiente.idxs[0]].sal_base ?? null),
+            // Salario al DEJAR ESTA PLAZA: la última fila que todavía está en
+            // ella (`idxFin`) — si es el último segmento de la gestión y de
+            // verdad hubo salida (BAJA/TRASLADO/OTRO_PUESTO), coincide con el
+            // último ítem de `items` (vigente → sin salida, queda null).
+            salarioSalida: (esUltimo && !gestion.fecha_salida) ? null : (items[idxFin].sal_base ?? null),
+            // Mismo criterio que salarioEntrada/salarioSalida: nivel tabular
+            // al ENTRAR y al SALIR de ESTA PLAZA (no siempre es el mismo en
+            // toda la gestión — un cambio de plaza dentro de la aduana puede
+            // traer cambio de nivel).
+            nivelEntrada: items[idxInicio].nivel_tabular ?? null,
+            nivelSalida: (esUltimo && !gestion.fecha_salida) ? null : (items[idxFin].nivel_tabular ?? null),
             fechaCapturaDesde: items[idxInicio].fecha_captura,
             fechaCapturaHasta: esUltimo ? gestion.salida_fecha_captura : items[siguiente.idxs[0]].fecha_captura,
             entradaMotivo: esPrimero ? gestion.entrada_motivo_nombre : items[idxInicio].motivo_nombre,
@@ -723,6 +738,16 @@ function TarjetaSegmento({ segmento, clave, cardRef, canViewPhoto, scrollRootRef
                             <span className="font-bold text-amber-700 dark:text-amber-500"> · desde plaza {segmento.entradaOrigen.valor}</span>
                         )}
                     </p>
+                    {/* Nivel/salario CON el que entra a esta plaza (no el de
+                        toda la gestión — un cambio de plaza dentro de la
+                        misma aduana puede traer nivel/salario distintos). */}
+                    {(segmento.nivelEntrada || typeof segmento.salarioEntrada === "number") && (
+                        <p className="font-mono text-[10px] text-slate-500 dark:text-slate-500">
+                            {segmento.nivelEntrada && <>Nivel {segmento.nivelEntrada}</>}
+                            {segmento.nivelEntrada && typeof segmento.salarioEntrada === "number" && " · "}
+                            {typeof segmento.salarioEntrada === "number" && `$${Math.round(segmento.salarioEntrada).toLocaleString("es-MX")}`}
+                        </p>
+                    )}
                     {segmento.salidaMotivo && (
                         <p>
                             <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400">Sale</span>{" "}
@@ -748,7 +773,12 @@ function TarjetaSegmento({ segmento, clave, cardRef, canViewPhoto, scrollRootRef
                         </p>
                     )}
                     <p className="font-mono text-[10px] text-slate-400">
-                        Plaza {segmento.plaza} · {g.nivel_tabular} · {g.cd_puesto}
+                        {/* Bug real: antes usaba `g.nivel_tabular` (nivel de
+                            ENTRADA A LA GESTIÓN completa, fijo del backend) —
+                            en un segmento posterior a un cambio de plaza
+                            mostraba el nivel viejo. `segmento.nivelEntrada`
+                            es el de ESTA plaza. */}
+                        Plaza {segmento.plaza} · {segmento.nivelEntrada || "—"} · {g.cd_puesto}
                     </p>
                 </div>
 
@@ -873,7 +903,8 @@ const EXPORT_COLUMNS_ROTACION = [
     { key: "aduana", header: "Aduana", width: 30 },
     { key: "codigosUa", header: "Código UA", width: 15 },
     { key: "plaza", header: "Plaza", width: 13 },
-    { key: "nivel", header: "Nivel Tabular", width: 13 },
+    { key: "nivelEntrada", header: "Nivel Tabular al Ingresar", width: 20 },
+    { key: "nivelSalida", header: "Nivel Tabular al Salir", width: 20 },
     { key: "puesto", header: "Código de Puesto", width: 15 },
     { key: "salarioEntrada", header: "Salario al Entrar", width: 21 },
     { key: "salarioSalida", header: "Salario al Dejar", width: 20 },
@@ -932,6 +963,17 @@ const FOTO_COL_WIDTH_PX = FOTO_COL_WIDTH * 7 + 5;
 const FOTO_ROW_HEIGHT_PX = FOTO_ROW_HEIGHT * (4 / 3);
 const FOTO_COL_OFFSET_EMU = Math.round(((FOTO_COL_WIDTH_PX - FOTO_IMG_SIZE) / 2) * EMU_POR_PX);
 const FOTO_ROW_OFFSET_EMU = Math.round(((FOTO_ROW_HEIGHT_PX - FOTO_IMG_SIZE) / 2) * EMU_POR_PX);
+// Esquina inferior-derecha del ancla — MISMA celda que el `tl` (col0,
+// row-1), solo con el offset avanzado el tamaño de la foto. Con esto la
+// foto queda anclada como "twoCellAnchor" (tl+br), no "oneCellAnchor"
+// (tl+ext) — equivalente a `object_position=1` (xlMoveAndSize) del backend
+// (ver excel_fotos.py): así la foto se MUEVE y se OCULTA junto con su fila
+// al filtrar en Excel. Con tl+ext (lo que había antes) la foto quedaba fija
+// en su lugar aunque la fila se ocultara por un filtro — bug real
+// reportado ("las fotos de personas aparecen por ahí volando").
+const FOTO_IMG_SIZE_EMU = FOTO_IMG_SIZE * EMU_POR_PX;
+const FOTO_COL_OFFSET_BR_EMU = FOTO_COL_OFFSET_EMU + FOTO_IMG_SIZE_EMU;
+const FOTO_ROW_OFFSET_BR_EMU = FOTO_ROW_OFFSET_EMU + FOTO_IMG_SIZE_EMU;
 
 /**
  * Trae, en paralelo con concurrencia acotada, la fotografía de cada
@@ -1110,12 +1152,222 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
 }
 
 /**
+ * Resumen por aduana (hoja "Resumen", primera pestaña del export): cuántos
+ * titulares REALES ha tenido cada aduana y cuánto tiempo ha estado ocupada.
+ *
+ * "Titulares" usa el mismo criterio que la columna "Consecutivo" de la hoja
+ * de detalle: cuenta gestiones distintas (un titular que cambió de plaza
+ * DENTRO de la misma aduana sigue siendo el mismo titular), y una gestión
+ * declarada insubsistente (ver esInsubsistenciaGestion) no cuenta — nunca
+ * llegó a ejercer.
+ *
+ * "Tiempo ocupado" suma la duración de cada segmento que NO sea una vacancia
+ * ni una insubsistencia (mismo criterio). "Días de Vacancia" suma la
+ * duración de cada vacancia registrada. El "% de ocupación" compara días
+ * ocupados contra la suma de días ocupados + días de vacancia (el periodo
+ * con dato real para esa aduana).
+ */
+function construirResumenPorAduana(aduanas, entradasPorAduana) {
+    return aduanas.map((aduana) => {
+        const entradas = entradasPorAduana.get(aduana.aduana) || [];
+
+        let titulares = 0;
+        let diasOcupados = 0;
+        let diasVacancia = 0;
+        let claveGestionVista = null;
+        let gestionVistaEsInsubsistencia = false;
+
+        entradas.forEach((entrada) => {
+            if (entrada.tipo === "vacancia") {
+                const dias = diasEntre(entrada.dato.desde, entrada.dato.hasta);
+                if (dias) diasVacancia += dias;
+                return;
+            }
+            const seg = entrada.dato;
+            if (seg.claveGestion !== claveGestionVista) {
+                claveGestionVista = seg.claveGestion;
+                gestionVistaEsInsubsistencia = esInsubsistenciaGestion(seg.gestion);
+                if (!gestionVistaEsInsubsistencia) titulares += 1;
+            }
+            if (gestionVistaEsInsubsistencia || esInsubsistencia(seg)) return;
+            const dias = diasEntre(seg.fechaDesde, seg.fechaHasta);
+            if (dias) diasOcupados += dias;
+        });
+
+        const diasConDato = diasOcupados + diasVacancia;
+
+        return {
+            aduana: aduana.aduana,
+            codigosUa: codigoUaActual(aduana),
+            titulares,
+            diasOcupados,
+            diasVacancia,
+            fraccionOcupada: diasConDato > 0 ? Math.min(diasOcupados / diasConDato, 1) : 0,
+            sinTitularHoy: !aduana.titular_actual,
+        };
+    });
+}
+
+const RESUMEN_COLUMNS = [
+    { key: "aduana", header: "Aduana", width: 36 },
+    { key: "codigosUa", header: "Código UA", width: 13 },
+    { key: "titulares", header: "Titulares", width: 12 },
+    { key: "diasOcupados", header: "Días Ocupada", width: 14 },
+    { key: "tiempoOcupado", header: "Tiempo Ocupado", width: 26 },
+    { key: "diasVacancia", header: "Días de Vacancia", width: 16 },
+    { key: "porcentajeOcupado", header: "% Periodo de Ocupación", width: 20 },
+];
+
+/**
+ * Membrete propio de la hoja "Resumen" — no reusa addMembreteCompactoRotacion
+ * porque ese layout coloca el título del reporte a partir de `numCols - 3`,
+ * pensado para las ~32 columnas de la hoja de detalle; con las 7 columnas de
+ * esta hoja esa cuenta encima al título institucional (rangos de mergeCells
+ * superpuestos, que ExcelJS rechaza). Aquí todo va apilado en 3 filas, ancho
+ * completo de la tabla real.
+ */
+function addMembreteResumen(workbook, worksheet, numCols) {
+    const logoWidth = 260;
+    const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
+    const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
+    worksheet.addImage(imageId, {
+        tl: { nativeCol: 0, nativeColOff: 60000, nativeRow: 0, nativeRowOff: 60000 },
+        ext: { width: logoWidth, height: logoHeight },
+    });
+    worksheet.getRow(1).height = 60;
+
+    worksheet.mergeCells(1, 3, 1, numCols);
+    const tituloInstCell = worksheet.getCell(1, 3);
+    tituloInstCell.value = LETTERHEAD_TITLE_LINES.join("\n");
+    tituloInstCell.font = { name: "Noto Sans", bold: true, size: 11, color: { argb: "FF621F32" } };
+    tituloInstCell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+
+    worksheet.mergeCells(2, 1, 2, numCols);
+    const tituloReporteCell = worksheet.getCell(2, 1);
+    tituloReporteCell.value = "RESUMEN DE ROTACIÓN DE TITULARES DE ADUANAS";
+    tituloReporteCell.font = { name: "Noto Sans", bold: true, size: 16, color: { argb: "FF621F32" } };
+    tituloReporteCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(2).height = 26;
+
+    worksheet.mergeCells(3, 1, 3, numCols);
+    const generadoCell = worksheet.getCell(3, 1);
+    generadoCell.value = `Reporte generado por el sistema de control de plazas a las ${fmtFechaHoraGeneracionRotacion()}.`;
+    generadoCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF64748B" } };
+    generadoCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(3).height = 15;
+
+    return 3;
+}
+
+/** Arma la hoja "Resumen" completa (membrete + tabla + fila de totales). */
+function addHojaResumenAduanas(workbook, resumenPorAduana) {
+    const worksheet = workbook.addWorksheet("Resumen");
+    const numCols = RESUMEN_COLUMNS.length;
+    worksheet.columns = RESUMEN_COLUMNS.map(({ key, width }) => ({ key, width }));
+
+    let row = addMembreteResumen(workbook, worksheet, numCols) + 1;
+    const lastCol = worksheet.getColumn(numCols).letter;
+
+    worksheet.mergeCells(`A${row}:${lastCol}${row}`);
+    const subtitleCell = worksheet.getCell(`A${row}`);
+    subtitleCell.value = "Titulares y tiempo de ocupación por aduana (excluye vacancias e insubsistencias).";
+    subtitleCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF64748B" } };
+    subtitleCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(row).height = 16;
+    row += 1;
+
+    const headerRowNum = row;
+    const headerRow = worksheet.getRow(headerRowNum);
+    const goldBorder = { style: "thin", color: { argb: "FFBC955C" } };
+    RESUMEN_COLUMNS.forEach((col, i) => {
+        const cell = headerRow.getCell(i + 1);
+        cell.value = col.header;
+        cell.border = { top: goldBorder, left: goldBorder, bottom: goldBorder, right: goldBorder };
+        cell.font = { name: "Noto Sans", bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
+        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    });
+    headerRow.height = 30;
+    row += 1;
+
+    const thinGray = { style: "thin", color: { argb: "FF94A3B8" } };
+    const porcentajeColIdx = RESUMEN_COLUMNS.findIndex((c) => c.key === "porcentajeOcupado") + 1;
+    let totalTitulares = 0;
+    let totalDiasOcupados = 0;
+    let totalDiasVacancia = 0;
+
+    resumenPorAduana.forEach((r, i) => {
+        totalTitulares += r.titulares;
+        totalDiasOcupados += r.diasOcupados;
+        totalDiasVacancia += r.diasVacancia;
+
+        const dataRow = worksheet.getRow(row);
+        const values = {
+            aduana: r.aduana,
+            codigosUa: r.codigosUa,
+            titulares: r.titulares,
+            diasOcupados: r.diasOcupados,
+            tiempoOcupado: duracion(r.diasOcupados) || "0 días",
+            diasVacancia: r.diasVacancia,
+            porcentajeOcupado: r.fraccionOcupada,
+        };
+        RESUMEN_COLUMNS.forEach((col, ci) => {
+            const cell = dataRow.getCell(ci + 1);
+            cell.value = values[col.key];
+            cell.border = { top: thinGray, left: thinGray, bottom: thinGray, right: thinGray };
+            cell.font = { name: "Noto Sans", size: 9 };
+            cell.alignment = { vertical: "middle", horizontal: "center" };
+            if (i % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+        });
+        const pctCell = dataRow.getCell(porcentajeColIdx);
+        pctCell.numFmt = "0.0%";
+        pctCell.font = { name: "Noto Sans", bold: true, size: 9, color: { argb: "FF621F32" } };
+        if (r.sinTitularHoy) {
+            dataRow.getCell(1).font = { name: "Noto Sans", size: 9, italic: true, color: { argb: "FFBE123C" } };
+        }
+        worksheet.getRow(row).height = 18;
+        row += 1;
+    });
+
+    // Fila de totales: titulares, días ocupados y días de vacancia sumados
+    // directo; el % es ponderado (días ocupados / (ocupados + vacancia)
+    // totales), no un promedio simple de porcentajes por aduana.
+    const totalRow = worksheet.getRow(row);
+    const totalDiasConDato = totalDiasOcupados + totalDiasVacancia;
+    const totalValues = {
+        aduana: "TOTAL",
+        codigosUa: "",
+        titulares: totalTitulares,
+        diasOcupados: totalDiasOcupados,
+        tiempoOcupado: duracion(totalDiasOcupados) || "0 días",
+        diasVacancia: totalDiasVacancia,
+        porcentajeOcupado: totalDiasConDato > 0 ? totalDiasOcupados / totalDiasConDato : 0,
+    };
+    RESUMEN_COLUMNS.forEach((col, ci) => {
+        const cell = totalRow.getCell(ci + 1);
+        cell.value = totalValues[col.key];
+        cell.border = { top: { style: "double", color: { argb: "FFBC955C" } }, left: thinGray, bottom: thinGray, right: thinGray };
+        cell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF3E131F" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5EBEF" } };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+    });
+    totalRow.getCell(porcentajeColIdx).numFmt = "0.0%";
+    worksheet.getRow(row).height = 20;
+    const totalRowNum = row;
+    row += 1;
+
+    worksheet.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: totalRowNum - 1, column: numCols } };
+    worksheet.views = [{ state: "frozen", ySplit: headerRowNum, showGridLines: false }];
+}
+
+/**
  * Arma y descarga el Excel formal de rotación de titulares de aduanas:
- * membrete institucional, y una fila por segmento/vacancia (mismas
- * `entradasPorAduana` que ya alimentan el diagrama en pantalla) agrupadas
- * por aduana con una banda separadora. Exporta exactamente las aduanas
- * visibles (`aduanas`, ya filtradas por búsqueda/chips) para que el archivo
- * coincida con lo que el usuario ve.
+ * hoja "Resumen" (titulares y tiempo de ocupación por aduana) + membrete
+ * institucional y una fila por segmento/vacancia (mismas `entradasPorAduana`
+ * que ya alimentan el diagrama en pantalla) agrupadas por aduana con una
+ * banda separadora. Exporta exactamente las aduanas visibles (`aduanas`, ya
+ * filtradas por búsqueda/chips) para que el archivo coincida con lo que el
+ * usuario ve.
  */
 async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, filtrosTipo, canViewPhoto }) {
     // Fotos: una por titular ÚNICO (no por fila — el mismo titular puede
@@ -1136,7 +1388,6 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         fotosPorEmpleado = await precargarFotosRotacion(numerosEmpleado);
     }
     const incluirFotos = fotosPorEmpleado.size > 0;
-    const imageIdPorEmpleado = new Map();
 
     // "Consecutivo": cuántos titulares REALES tuvo la aduana hasta esta fila
     // (una insubsistencia nunca llegó a ejercer, así que no cuenta; una
@@ -1154,6 +1405,11 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     const salarioSalidaCol = columns.findIndex((c) => c.key === "salarioSalida") + 1;
 
     const workbook = new ExcelJS.Workbook();
+
+    // Hoja "Resumen": PRIMERA pestaña del workbook — el orden de
+    // `addWorksheet` es el orden de las pestañas en Excel.
+    addHojaResumenAduanas(workbook, construirResumenPorAduana(aduanas, entradasPorAduana));
+
     const worksheet = workbook.addWorksheet("Rotación de Aduanas");
     const numCols = columns.length;
     worksheet.columns = columns.map(({ key, width }) => ({ key, width }));
@@ -1272,8 +1528,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         worksheet.mergeCells(`A${row}:${bandaSplitColLetter}${row}`);
         const nombreCell = worksheet.getCell(`A${row}`);
         nombreCell.value = aduana.aduana;
-        nombreCell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF621F32" } };
-        nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFE3D0" } };
+        nombreCell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF3E131F" } };
+        nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5EBEF" } };
         nombreCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
 
         const estadoIniLetter = worksheet.getColumn(bandaSplitCol + 1).letter;
@@ -1282,7 +1538,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         estadoCell.value = tieneTitular ? `Titular actual: ${aduana.titular_actual}` : "Sin titular actualmente";
         estadoCell.font = { name: "Noto Sans", bold: !tieneTitular, italic: !tieneTitular, size: 9.5, color: { argb: tieneTitular ? "FF3E131F" : "FFBE123C" } };
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tieneTitular ? "FFF5EBEF" : "FFFFF1F2" } };
-        estadoCell.alignment = { vertical: "middle", horizontal: "center" };
+        estadoCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
         const bandBorder = { style: "thin", color: { argb: "FFBC955C" } };
         for (let c = 1; c <= numCols; c++) {
@@ -1337,7 +1593,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     aduana: aduana.aduana_corta,
                     codigosUa: codigoUaActual(aduana),
                     plaza: seg.plazaAncla || "—",
-                    nivel: "—",
+                    nivelEntrada: "—",
+                    nivelSalida: "—",
                     puesto: "—",
                     salarioEntrada: "—",
                     salarioSalida: "—",
@@ -1373,7 +1630,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     aduana: aduana.aduana_corta,
                     codigosUa: codigoUaActual(aduana),
                     plaza: seg.plaza,
-                    nivel: g.nivel_tabular || "—",
+                    nivelEntrada: seg.nivelEntrada || "—",
+                    nivelSalida: seg.nivelSalida || "—",
                     puesto: g.cd_puesto || "—",
                     salarioEntrada: typeof seg.salarioEntrada === "number" ? seg.salarioEntrada : "—",
                     salarioSalida: typeof seg.salarioSalida === "number" ? seg.salarioSalida : "—",
@@ -1456,20 +1714,26 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                 salarioSalidaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
 
-            // Foto del titular — misma imagen se registra UNA vez por
-            // titular (workbook.addImage) y se ancla N veces (una por fila
-            // donde aparece), igual mecánica que downloadExcelConFoto en
-            // HistorialMovimientosTab. Las vacancias no tienen titular, así
-            // que no llevan foto.
+            // Foto del titular — se REGISTRA de nuevo (workbook.addImage) en
+            // CADA fila donde aparece, aunque sea el mismo titular repetido
+            // por un cambio de plaza interno. NO reusar un mismo imageId en
+            // dos filas no-adyacentes: ExcelJS 4.4.0 tiene un bug real en
+            // worksheet-xform.js (el caché `drawingRelsHash` mezcla el índice
+            // "imageId" con el índice "cuántas relaciones lleva creadas el
+            // drawing" — dos contadores con significado distinto que
+            // divergen apenas hay suficientes fotos) que hace que la SEGUNDA
+            // ancla de un imageId reusado termine apuntando a la foto de OTRO
+            // empleado sin relación (verificado con un archivo real: la
+            // segunda fila de un titular con 2 segmentos mostraba la foto de
+            // alguien de otra aduana). Registrar de nuevo por fila pesa un
+            // poco más el archivo pero evita el bug por completo — el fetch
+            // de red sigue cacheado en `fotosPorEmpleado`, solo cambia que se
+            // vuelve a insertar en el workbook.
             if (incluirFotos && !isVacancia) {
                 const numEmpleadoFoto = String(seg.gestion?.num_empleado || "");
                 const foto = fotosPorEmpleado.get(numEmpleadoFoto);
                 if (foto) {
-                    let imageId = imageIdPorEmpleado.get(numEmpleadoFoto);
-                    if (imageId === undefined) {
-                        imageId = workbook.addImage({ buffer: foto.buffer, extension: foto.extension });
-                        imageIdPorEmpleado.set(numEmpleadoFoto, imageId);
-                    }
+                    const imageId = workbook.addImage({ buffer: foto.buffer, extension: foto.extension });
                     worksheet.addImage(imageId, {
                         tl: {
                             nativeCol: 0,
@@ -1477,7 +1741,13 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                             nativeRow: row - 1,
                             nativeRowOff: FOTO_ROW_OFFSET_EMU,
                         },
-                        ext: { width: FOTO_IMG_SIZE, height: FOTO_IMG_SIZE },
+                        br: {
+                            nativeCol: 0,
+                            nativeColOff: FOTO_COL_OFFSET_BR_EMU,
+                            nativeRow: row - 1,
+                            nativeRowOff: FOTO_ROW_OFFSET_BR_EMU,
+                        },
+                        editAs: "twoCell",
                     });
                 }
             }
@@ -1591,7 +1861,12 @@ function ColumnaAduana({ aduana, entradas, cardRefs, canViewPhoto, scrollRootRef
                 const candidata = e.dato.fechaHasta || e.dato.fechaDesde;
                 if (!m.ultimaFecha || candidata > m.ultimaFecha) m.ultimaFecha = candidata;
             }
-            m.nivel = e.dato.gestion.nivel_tabular || m.nivel;
+            // Mismo bug que la tarjeta: `gestion.nivel_tabular` es fijo (el
+            // de entrada a TODA la gestión), no el de esta plaza — usa el
+            // nivel con el que salió de este segmento (o con el que entró,
+            // si sigue vigente y aún no hay salida) para que sea el nivel
+            // REAL más reciente en esta plaza específica.
+            m.nivel = (e.dato.nivelSalida ?? e.dato.nivelEntrada) || m.nivel;
         });
         return map;
     }, [lanes, entradas]);

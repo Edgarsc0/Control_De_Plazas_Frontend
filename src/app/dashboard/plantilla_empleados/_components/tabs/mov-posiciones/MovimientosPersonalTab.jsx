@@ -338,6 +338,16 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const { toast } = useToast();
   const [data, setData] = useState([]);
   const tbodyRef = useRef(null);
+  // Sin este ref, DataTable no puede encontrar sus <tr> para revelarlos tras
+  // la carga (ver `needsPreHideRef`/`hasRevealedRef` en DataTable.jsx): la
+  // fila nace con la clase `invisible` y, sin `tbodyRef`, el efecto que la
+  // revela consulta `undefined?.current` y sale sin hacer nada — la tabla
+  // queda en blanco pese a tener datos reales. Se reproduce al visitar el
+  // subtab "rotacion" (desmonta este DataTable) y volver: para entonces
+  // `loading` ya está en `false`, así que al remontar nace directamente
+  // oculta. No se puede reutilizar `tbodyRef` de arriba: ese es el ref del
+  // contenedor con scroll (`containerRef`), no el del `<tbody>`.
+  const dataTableTbodyRef = useRef(null);
   const bitacoraDateInputRef = useRef(null);
 
   const deptoCatalog = useOrganigramaCatalog();
@@ -2625,6 +2635,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
             <DataTable
             containerRef={tbodyRef}
+            tbodyRef={dataTableTbodyRef}
             onScroll={() => {}}
             columns={columns}
             columnFilters={columnFilters}
