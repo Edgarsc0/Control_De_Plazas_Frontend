@@ -738,6 +738,16 @@ function TarjetaSegmento({ segmento, clave, cardRef, canViewPhoto, scrollRootRef
                             <span className="font-bold text-amber-700 dark:text-amber-500"> · desde plaza {segmento.entradaOrigen.valor}</span>
                         )}
                     </p>
+                    {/* Nivel/salario CON el que entra a esta plaza (no el de
+                        toda la gestión — un cambio de plaza dentro de la
+                        misma aduana puede traer nivel/salario distintos). */}
+                    {(segmento.nivelEntrada || typeof segmento.salarioEntrada === "number") && (
+                        <p className="font-mono text-[10px] text-slate-500 dark:text-slate-500">
+                            {segmento.nivelEntrada && <>Nivel {segmento.nivelEntrada}</>}
+                            {segmento.nivelEntrada && typeof segmento.salarioEntrada === "number" && " · "}
+                            {typeof segmento.salarioEntrada === "number" && `$${Math.round(segmento.salarioEntrada).toLocaleString("es-MX")}`}
+                        </p>
+                    )}
                     {segmento.salidaMotivo && (
                         <p>
                             <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400">Sale</span>{" "}
@@ -763,7 +773,12 @@ function TarjetaSegmento({ segmento, clave, cardRef, canViewPhoto, scrollRootRef
                         </p>
                     )}
                     <p className="font-mono text-[10px] text-slate-400">
-                        Plaza {segmento.plaza} · {g.nivel_tabular} · {g.cd_puesto}
+                        {/* Bug real: antes usaba `g.nivel_tabular` (nivel de
+                            ENTRADA A LA GESTIÓN completa, fijo del backend) —
+                            en un segmento posterior a un cambio de plaza
+                            mostraba el nivel viejo. `segmento.nivelEntrada`
+                            es el de ESTA plaza. */}
+                        Plaza {segmento.plaza} · {segmento.nivelEntrada || "—"} · {g.cd_puesto}
                     </p>
                 </div>
 
@@ -1631,7 +1646,12 @@ function ColumnaAduana({ aduana, entradas, cardRefs, canViewPhoto, scrollRootRef
                 const candidata = e.dato.fechaHasta || e.dato.fechaDesde;
                 if (!m.ultimaFecha || candidata > m.ultimaFecha) m.ultimaFecha = candidata;
             }
-            m.nivel = e.dato.gestion.nivel_tabular || m.nivel;
+            // Mismo bug que la tarjeta: `gestion.nivel_tabular` es fijo (el
+            // de entrada a TODA la gestión), no el de esta plaza — usa el
+            // nivel con el que salió de este segmento (o con el que entró,
+            // si sigue vigente y aún no hay salida) para que sea el nivel
+            // REAL más reciente en esta plaza específica.
+            m.nivel = (e.dato.nivelSalida ?? e.dato.nivelEntrada) || m.nivel;
         });
         return map;
     }, [lanes, entradas]);
