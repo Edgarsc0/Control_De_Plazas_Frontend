@@ -365,6 +365,14 @@ function construirSegmentos(gestion) {
             salarioSalida: esUltimo
                 ? (gestion.salida_completo?.sal_base ?? null)
                 : (items[siguiente.idxs[0]].sal_base ?? null),
+            // Mismo criterio que salarioEntrada/salarioSalida: nivel tabular
+            // al ENTRAR y al SALIR de este segmento (no siempre es el mismo
+            // en toda la gestión — un cambio de plaza dentro de la aduana
+            // puede traer cambio de nivel).
+            nivelEntrada: items[idxInicio].nivel_tabular ?? null,
+            nivelSalida: esUltimo
+                ? (gestion.salida_completo?.nivel_tabular ?? null)
+                : (items[siguiente.idxs[0]].nivel_tabular ?? null),
             fechaCapturaDesde: items[idxInicio].fecha_captura,
             fechaCapturaHasta: esUltimo ? gestion.salida_fecha_captura : items[siguiente.idxs[0]].fecha_captura,
             entradaMotivo: esPrimero ? gestion.entrada_motivo_nombre : items[idxInicio].motivo_nombre,
@@ -873,7 +881,8 @@ const EXPORT_COLUMNS_ROTACION = [
     { key: "aduana", header: "Aduana", width: 30 },
     { key: "codigosUa", header: "Código UA", width: 15 },
     { key: "plaza", header: "Plaza", width: 13 },
-    { key: "nivel", header: "Nivel Tabular", width: 13 },
+    { key: "nivelEntrada", header: "Nivel Tabular al Ingresar", width: 20 },
+    { key: "nivelSalida", header: "Nivel Tabular al Salir", width: 20 },
     { key: "puesto", header: "Código de Puesto", width: 15 },
     { key: "salarioEntrada", header: "Salario al Entrar", width: 21 },
     { key: "salarioSalida", header: "Salario al Dejar", width: 20 },
@@ -1347,7 +1356,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     aduana: aduana.aduana_corta,
                     codigosUa: codigoUaActual(aduana),
                     plaza: seg.plazaAncla || "—",
-                    nivel: "—",
+                    nivelEntrada: "—",
+                    nivelSalida: "—",
                     puesto: "—",
                     salarioEntrada: "—",
                     salarioSalida: "—",
@@ -1383,7 +1393,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     aduana: aduana.aduana_corta,
                     codigosUa: codigoUaActual(aduana),
                     plaza: seg.plaza,
-                    nivel: g.nivel_tabular || "—",
+                    nivelEntrada: seg.nivelEntrada || "—",
+                    nivelSalida: seg.nivelSalida || "—",
                     puesto: g.cd_puesto || "—",
                     salarioEntrada: typeof seg.salarioEntrada === "number" ? seg.salarioEntrada : "—",
                     salarioSalida: typeof seg.salarioSalida === "number" ? seg.salarioSalida : "—",
