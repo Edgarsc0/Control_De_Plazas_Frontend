@@ -871,12 +871,12 @@ const EXCEL_FILA_INSUBSISTENCIA_BG = "FFFEF2F2";
 
 const EXPORT_COLUMNS_ROTACION = [
     { key: "aduana", header: "Aduana", width: 30 },
-    { key: "codigosUa", header: "Código UA", width: 13 },
+    { key: "codigosUa", header: "Código UA", width: 15 },
     { key: "plaza", header: "Plaza", width: 13 },
     { key: "nivel", header: "Nivel Tabular", width: 13 },
     { key: "puesto", header: "Código de Puesto", width: 15 },
-    { key: "salarioEntrada", header: "Salario al Entrar", width: 16 },
-    { key: "salarioSalida", header: "Salario al Dejar", width: 16 },
+    { key: "salarioEntrada", header: "Salario al Entrar", width: 21 },
+    { key: "salarioSalida", header: "Salario al Dejar", width: 20 },
     { key: "nombrePuestoFuncional", header: "Nombre Puesto Funcional", width: 34 },
     { key: "numEmpleado", header: "No. Empleado", width: 12 },
     { key: "titular", header: "Titular", width: 32 },
@@ -1065,14 +1065,17 @@ function fmtFechaHoraGeneracionRotacion() {
  * Devuelve el número de filas que ocupó (2: logo+títulos, "reporte
  * generado") — el caller sigue escribiendo desde la siguiente fila.
  */
-function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, logoWidth = 560) {
+function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, logoWidth = 674) {
     const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
     const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
+    // nativeColOff/nativeRowOff en EMU directo, no la fracción `tl:{col,row}`
+    // — esa fracción la convierte ExcelJS con su propia escala interna, sin
+    // relación con píxeles reales (mismo motivo que el centrado de fotos).
     worksheet.addImage(imageId, {
-        tl: { col: 0.1, row: 0.1 },
+        tl: { nativeCol: 0, nativeColOff: 124773, nativeRow: 0, nativeRowOff: 113249 },
         ext: { width: logoWidth, height: logoHeight },
     });
-    worksheet.getRow(1).height = Math.max(Math.round(logoHeight * 1.05), 34);
+    worksheet.getRow(1).height = 101;
 
     // Título institucional: a la derecha del logo, en la misma fila.
     const tituloIniCol = 5 + colOffset;
@@ -1093,7 +1096,7 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
     tituloReporteCell.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
 
     // "Reporte generado..." — angosto, a la izquierda, debajo del logo.
-    worksheet.mergeCells(2, 1, 2, 7);
+    worksheet.mergeCells(2, 1, 2, 10);
     const generadoCell = worksheet.getCell(2, 1);
     generadoCell.value = `Reporte generado por el sistema de control de plazas a las ${fmtFechaHoraGeneracionRotacion()}.`;
     generadoCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF64748B" } };
@@ -1157,10 +1160,10 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     // pedido explícito, ver addMembreteCompactoRotacion.
     // +1 por "Consecutivo" (siempre presente) y +1 más por "Foto" si aplica.
     const colOffset = (incluirFotos ? 1 : 0) + 1;
-    let row = addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, 560) + 1;
+    let row = addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, 674) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
-    worksheet.mergeCells(row, 1, row, 7);
+    worksheet.mergeCells(row, 1, row, 10);
     const statsCell = worksheet.getCell(row, 1);
     statsCell.value = `${resumen.aduanas} aduanas · ${resumen.titulares} titulares · ${resumen.gestiones} gestiones · ${resumen.vacancias} vacancias · ${resumen.acefalasHoy} acéfalas hoy`;
     statsCell.font = { name: "Noto Sans", italic: true, size: 10, color: { argb: "FF621F32" } };
@@ -1181,6 +1184,33 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         row += 1;
     }
 
+    // Fila agrupadora: "Procedencia" sobre sus 4 columnas de detalle de
+    // origen, "Destino" sobre sus 6 columnas de detalle de destino — antes
+    // esta fila iba en blanco, ahora deja claro que esas columnas satélite
+    // pertenecen al mismo grupo que su columna resumen.
+    const grupoBorder = { style: "thin", color: { argb: "FFBC955C" } };
+    const grupoFont = { name: "Noto Sans", bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+    const grupoFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
+    const grupoAlign = { vertical: "middle", horizontal: "center" };
+    const procIni = columns.findIndex((c) => c.key === "procedencia") + 1;
+    const procFin = columns.findIndex((c) => c.key === "depDirectaOrigen") + 1;
+    worksheet.mergeCells(row, procIni, row, procFin);
+    const procGrupoCell = worksheet.getCell(row, procIni);
+    procGrupoCell.value = "Procedencia";
+    procGrupoCell.font = grupoFont;
+    procGrupoCell.fill = grupoFill;
+    procGrupoCell.alignment = grupoAlign;
+    procGrupoCell.border = { bottom: grupoBorder };
+    const destIni = columns.findIndex((c) => c.key === "destino") + 1;
+    const destFin = columns.findIndex((c) => c.key === "depDirectaDestino") + 1;
+    worksheet.mergeCells(row, destIni, row, destFin);
+    const destGrupoCell = worksheet.getCell(row, destIni);
+    destGrupoCell.value = "Destino";
+    destGrupoCell.font = grupoFont;
+    destGrupoCell.fill = grupoFill;
+    destGrupoCell.alignment = grupoAlign;
+    destGrupoCell.border = { bottom: grupoBorder };
+    worksheet.getRow(row).height = 18;
     row += 1;
 
     const headerRowNum = row;
