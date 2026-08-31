@@ -18,7 +18,9 @@ import {
   Database,
   Layers,
   GitCompareArrows,
-  FileSpreadsheet
+  FileSpreadsheet,
+  UserCheck,
+  Building2
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
@@ -209,6 +211,7 @@ export default function PlantillaEmpleadosDetalle({
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
+  const [activeMovPersonalSubTab, setActiveMovPersonalSubTab] = useState("movimientos");
   const [alineacionVisited, setAlineacionVisited] = useState(false);
   useEffect(() => {
     if (activeMovimientosSubTab === "alineacion") setAlineacionVisited(true);
@@ -279,7 +282,7 @@ export default function PlantillaEmpleadosDetalle({
     },
     {
       scope: tabContentRef,
-      dependencies: [activeTab, activeMovimientosSubTab, activeMapaSubTab, activeCatalogoSubTab],
+      dependencies: [activeTab, activeMovimientosSubTab, activeMapaSubTab, activeCatalogoSubTab, activeMovPersonalSubTab],
       revertOnUpdate: true,
     }
   );
@@ -313,6 +316,15 @@ export default function PlantillaEmpleadosDetalle({
       active: activeMapaSubTab,
       setActive: setActiveMapaSubTab,
     },
+    movimientos_personal: {
+      options: [
+        { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
+        { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck },
+        { id: "rotacion", label: "Rotación de titulares de Aduanas", icon: Building2 },
+      ],
+      active: activeMovPersonalSubTab,
+      setActive: setActiveMovPersonalSubTab,
+    },
     catalogos_estructura: {
       options: [
         ...CATALOGOS_ORDER.map((key) => ({
@@ -330,6 +342,7 @@ export default function PlantillaEmpleadosDetalle({
     activeMovimientosSubTab,
     activeMapaSubTab,
     activeCatalogoSubTab,
+    activeMovPersonalSubTab,
   ]);
 
   // Publica los tabs de esta página al BottomNav para abrirlos en un Drawer
@@ -566,6 +579,8 @@ export default function PlantillaEmpleadosDetalle({
                 isPending={isPending}
                 startTransition={startTransition}
                 cardRef={cardRefMovPersonal}
+                activeSubTab={activeMovPersonalSubTab}
+                setActiveSubTab={setActiveMovPersonalSubTab}
               />
             </div>
           )}

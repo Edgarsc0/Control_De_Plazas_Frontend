@@ -718,7 +718,16 @@ export default function AnuenciaTab({ cardRef }) {
   // memoria de JS con ésta — ver anexo3TabChannel.js) y bloquea esta pestaña
   // hasta que la otra avise que se cerró.
   const handleGenerarAnexo3 = useCallback(() => {
-    const id = crypto.randomUUID();
+    // crypto.randomUUID() exige contexto seguro (https o localhost) — en
+    // producción este sistema corre sobre HTTP plano, donde la función ni
+    // siquiera existe. Sin este fallback, la línea de abajo lanzaba
+    // TypeError de inmediato y todo el clic quedaba en silencio (nunca se
+    // llegaba a guardar en localStorage ni a abrir la pestaña). Mismo
+    // patrón que ya usan anexo2Schema.js y Anexo3Editor.jsx.
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `anexo3-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     guardarDatosAnexo3(id, { hojas, nombreArchivo, anexoIdActual });
 
     canalAnexo3Ref.current?.close();

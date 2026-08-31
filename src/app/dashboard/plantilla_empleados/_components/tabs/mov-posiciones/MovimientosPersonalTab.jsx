@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, 
   X, Check, RotateCcw, Filter, ArrowUpDown, Briefcase
-, UserCheck, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight, ListFilter } from "lucide-react";
+, Eye, BarChart, ArrowLeft, ChevronRight, PieChart, MousePointerClick, ChevronsLeft, ChevronsRight, ListFilter } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -18,6 +18,7 @@ import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import RotacionAduanasSubTab from "./RotacionAduanasSubTab";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import ModalShell from "@/components/shared/ModalShell";
@@ -325,7 +326,7 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
   );
 };
 
-export default function MovimientosPersonalTab({ isPending, startTransition, cardRef }) {
+export default function MovimientosPersonalTab({ isPending, startTransition, cardRef, activeSubTab, setActiveSubTab }) {
   const { hasPermission } = useAuth();
   const canViewFotoMovimientos = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO);
   const [mounted, setMounted] = useState(false);
@@ -370,7 +371,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const filtrosGuardados = useFiltrosGuardados("plantilla_mov_posiciones");
 
   // Subtab State
-  const [activeSubTab, setActiveSubTab] = useState("movimientos"); // "movimientos" or "bitacora"
+  // activeSubTab / setActiveSubTab llegan controlados desde ClientComponent
+  // (subtabConfigs.movimientos_personal), igual que en EstatusTab/MapaTab: el
+  // switcher vive en PageTabBar, no aquí. El cambio de subtab SÍ debe resetear
+  // la paginación (antes lo hacía el propio botón interno al hacer clic).
+  useEffect(() => { setPage(1); }, [activeSubTab]);
   
   // Bitacora Date Selector State
   const [distinctDates, setDistinctDates] = useState([]);
@@ -1949,6 +1954,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   return (
     <div className="w-full flex flex-col">
+      {activeSubTab !== "rotacion" && (
       <div className="w-full px-4 lg:px-6 pt-2">
       {/* Statistics Card and Pie Chart */}
         <Zoom triggerOnce>
@@ -2414,23 +2420,16 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           </div>
         </Zoom>
       </div>
+      )}
       <div className="w-full flex justify-center mt-4">
         <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%' }}>
-          <div className="flex items-center gap-2 p-3 bg-slate-50/50 dark:bg-slate-900/10 border-b border-slate-200/50 dark:border-slate-800/80">
-            {[
-              { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
-              { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck }
-            ].map((sub) => {
-              const Icon = sub.icon;
-              return (
-                <button key={sub.id} onClick={() => { setActiveSubTab(sub.id); setPage(1); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${activeSubTab === sub.id ? "bg-[#621f32] text-white shadow-md" : "text-slate-500 hover:text-[#621f32]"}`}>
-                  <Icon className="size-3.5" />
-                  {sub.label}
-                </button>
-              );
-            })}
-          </div>
-
+          {activeSubTab === "rotacion" ? (
+            /* La rotación de titulares no es una vista tabular: no comparte
+               toolbar, paginador ni filtros de columna con los otros dos
+               subtabs, y trae su propio estado. */
+            <RotacionAduanasSubTab canViewPhoto={canViewFotoMovimientos} />
+          ) : (
+          <>
           <MobileTableToolbar
             searchValue={searchQuery}
             onSearch={(v) => setSearchQuery(v)}
@@ -2693,6 +2692,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               />
             </div>
 
+          </>
+          )}
       </div>
     </div>
 

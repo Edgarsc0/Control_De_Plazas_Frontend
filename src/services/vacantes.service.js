@@ -805,6 +805,24 @@ export const VacantesService = {
     },
 
     /**
+     * Línea de tiempo de titularidad de las 50 aduanas del país.
+     *
+     * Devuelve, por aduana, las gestiones de cada titular (entrada, salida,
+     * motivo, movimientos durante la gestión) y los periodos de acefalía. La
+     * derivación se hace completa en el backend: aquí no hay que agrupar nada.
+     *
+     * @param {{refrescar?: (1|'1')}} [params={}] - `refrescar` salta el caché del servidor.
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getRotacionTitularesAduanas: (params = {}, options = {}) => {
+        return apiFetch(`/plantilla/rotacion-titulares-aduanas/${buildQuery(params)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Historial completo de empleados desde cp_tbl_mov_completo_29_05_26 via raw SQL.
      * Sin filtro de año. Ordenado por num_empleado, fecha_efectiva, sec ASC.
      * @param {string[]} numEmpleadoList - Array de num_empleado
