@@ -1125,7 +1125,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
         cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     });
-    headerRow.height = 24;
+    headerRow.height = 34;
     row += 1;
 
     // Gris más oscuro que el gris casi invisible de antes (FFE2E8F0) — a
@@ -1280,8 +1280,10 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             // Destaca "Fecha Efectiva Desde"/"Fecha Efectiva Hasta" — tinte
             // dorado + negrita, para que salten a la vista frente al resto
             // de columnas (pedido explícito).
-            const fechaDestacadaFont = { name: "Calibri", bold: true, size: 9, color: { argb: "FF7A5A30" } };
-            const fechaDestacadaFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3E4C7" } };
+            // Mismo rosita/guinda que la banda "Titular actual: ..." de cada
+            // aduana (ver estadoCell más abajo) — pedido explícito.
+            const fechaDestacadaFont = { name: "Calibri", bold: true, size: 9, color: { argb: "FF3E131F" } };
+            const fechaDestacadaFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5EBEF" } };
             const fechaDesdeCell = dataRow.getCell(fechaDesdeCol);
             fechaDesdeCell.font = fechaDestacadaFont;
             fechaDesdeCell.fill = fechaDestacadaFill;
