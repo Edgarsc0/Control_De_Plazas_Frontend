@@ -1984,20 +1984,24 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100vh-var(--stack-h))]">
-            {/* Controles: volver, búsqueda, recargar */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/70 bg-slate-50/50 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
+            {/* Controles: volver, búsqueda, stats+filtros, exportar, recargar
+                — TODOS en una sola fila con scroll horizontal propio (no se
+                envuelven a otra línea); el botón "<" destaca con borde/fondo
+                dorado-guinda permanentes, no solo al pasar el mouse, para que
+                no se pierda entre el resto de controles. */}
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto border-b border-slate-200/70 bg-slate-50/50 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
                 <button
                     type="button"
                     onClick={volver}
                     disabled={!puedeVolver}
                     aria-label="Regresar a donde estaba antes del salto"
                     title={puedeVolver ? "Regresar a donde estaba antes" : "No hay salto que deshacer"}
-                    className="cursor-pointer rounded-xl bg-white p-2 text-slate-400 transition-colors hover:text-[#621f32] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-slate-400 dark:bg-slate-950 dark:hover:text-[#bc955c] dark:disabled:hover:text-slate-400"
+                    className="shrink-0 cursor-pointer rounded-xl border-2 border-[#bc955c] bg-[#621f32]/10 p-2 text-[#621f32] transition-colors hover:bg-[#621f32]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-white disabled:text-slate-300 dark:border-[#bc955c]/70 dark:bg-[#621f32]/25 dark:text-[#e3c793] dark:hover:bg-[#621f32]/40 dark:disabled:border-slate-700 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
                 >
                     <ChevronLeft className="size-3.5" />
                 </button>
 
-                <div className="relative">
+                <div className="relative shrink-0">
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
@@ -2019,13 +2023,48 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     )}
                 </div>
 
+                {/* Stats + chips-filtro: cada chip es a la vez leyenda y
+                    filtro — clic reduce `aduanas` a las que tienen ese tipo
+                    de movimiento; clic de nuevo lo quita. Sin toggle activo
+                    se ven todas. */}
+                <div className="flex shrink-0 flex-nowrap items-stretch gap-x-0.5">
+                    <StatPlano icon={Building2} value={resumen.aduanas} label="aduanas" />
+                    <StatPlano icon={Users} value={`${resumen.titulares} · ${resumen.gestiones}`} label="titulares · gestiones" />
+
+                    <span className="mx-1 my-1.5 w-px shrink-0 bg-slate-200 dark:bg-slate-800" />
+
+                    <ChipFiltro tipoKey="ACTIVO" count={conteoPorTipo.ACTIVO} active={filtrosTipo.includes("ACTIVO")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="TRASLADO_ADUANA" count={conteoPorTipo.TRASLADO_ADUANA} active={filtrosTipo.includes("TRASLADO_ADUANA")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="CAMBIO_PLAZA" count={conteoPorTipo.CAMBIO_PLAZA} active={filtrosTipo.includes("CAMBIO_PLAZA")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="SALIDA_PUESTO" count={conteoPorTipo.SALIDA_PUESTO} active={filtrosTipo.includes("SALIDA_PUESTO")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="BAJA" count={conteoPorTipo.BAJA} active={filtrosTipo.includes("BAJA")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="INSUBSISTENCIA" count={conteoPorTipo.INSUBSISTENCIA} active={filtrosTipo.includes("INSUBSISTENCIA")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="VACANCIA" count={resumen.vacancias} active={filtrosTipo.includes("VACANCIA")} onToggle={toggleFiltro} />
+                    <ChipFiltro tipoKey="SIN_TITULAR" count={resumen.acefalasHoy} active={filtrosTipo.includes("SIN_TITULAR")} onToggle={toggleFiltro} />
+
+                    {filtrosTipo.length > 0 && (
+                        <div className="flex shrink-0 items-center gap-2 self-center pl-1">
+                            {filtrosTipo.length > 1 && (
+                                <span className="whitespace-nowrap text-[9px] font-semibold italic text-slate-400">cumple cualquiera de los {filtrosTipo.length}</span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setFiltrosTipo([])}
+                                className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2 text-[10px] font-bold text-slate-400 hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-500"
+                            >
+                                <X className="size-3" /> Quitar filtros
+                            </button>
+                        </div>
+                    )}
+                </div>
+
                 <button
                     type="button"
                     onClick={handleExportarExcel}
                     disabled={exportando || aduanas.length === 0}
                     aria-label="Exportar a Excel"
                     title="Exportar la rotación de titulares a un Excel formal, con membrete y leyenda de Control de Plazas"
-                    className="ml-auto flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#621f32] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#621f32] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {exportando ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />}
                     Exportar a Excel
@@ -2036,44 +2075,10 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     onClick={() => cargar(true)}
                     aria-label="Recargar"
                     title="Recargar ignorando el caché"
-                    className="cursor-pointer rounded-xl bg-white p-2 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
+                    className="shrink-0 cursor-pointer rounded-xl bg-white p-2 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
                 >
                     <RefreshCw className="size-3.5" />
                 </button>
-            </div>
-
-            {/* Stats + chips-filtro: cada chip es a la vez leyenda y filtro —
-                clic reduce `aduanas` a las que tienen ese tipo de movimiento;
-                clic de nuevo lo quita. Sin toggle activo se ven todas. */}
-            <div className="flex flex-wrap items-stretch gap-x-0.5 gap-y-1 border-b border-slate-200/70 px-2 py-1 dark:border-slate-800/80">
-                <StatPlano icon={Building2} value={resumen.aduanas} label="aduanas" />
-                <StatPlano icon={Users} value={`${resumen.titulares} · ${resumen.gestiones}`} label="titulares · gestiones" />
-
-                <span className="mx-1 my-1.5 w-px shrink-0 bg-slate-200 dark:bg-slate-800" />
-
-                <ChipFiltro tipoKey="ACTIVO" count={conteoPorTipo.ACTIVO} active={filtrosTipo.includes("ACTIVO")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="TRASLADO_ADUANA" count={conteoPorTipo.TRASLADO_ADUANA} active={filtrosTipo.includes("TRASLADO_ADUANA")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="CAMBIO_PLAZA" count={conteoPorTipo.CAMBIO_PLAZA} active={filtrosTipo.includes("CAMBIO_PLAZA")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="SALIDA_PUESTO" count={conteoPorTipo.SALIDA_PUESTO} active={filtrosTipo.includes("SALIDA_PUESTO")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="BAJA" count={conteoPorTipo.BAJA} active={filtrosTipo.includes("BAJA")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="INSUBSISTENCIA" count={conteoPorTipo.INSUBSISTENCIA} active={filtrosTipo.includes("INSUBSISTENCIA")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="VACANCIA" count={resumen.vacancias} active={filtrosTipo.includes("VACANCIA")} onToggle={toggleFiltro} />
-                <ChipFiltro tipoKey="SIN_TITULAR" count={resumen.acefalasHoy} active={filtrosTipo.includes("SIN_TITULAR")} onToggle={toggleFiltro} />
-
-                {filtrosTipo.length > 0 && (
-                    <div className="flex items-center gap-2 self-center pl-1">
-                        {filtrosTipo.length > 1 && (
-                            <span className="text-[9px] font-semibold italic text-slate-400">cumple cualquiera de los {filtrosTipo.length}</span>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => setFiltrosTipo([])}
-                            className="flex cursor-pointer items-center gap-1 border-b-2 border-transparent px-2 py-2 text-[10px] font-bold text-slate-400 hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-500"
-                        >
-                            <X className="size-3" /> Quitar filtros
-                        </button>
-                    </div>
-                )}
             </div>
 
             {aduanas.length === 0 ? (
