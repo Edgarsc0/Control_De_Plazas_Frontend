@@ -891,6 +891,7 @@ const EXPORT_COLUMNS_ROTACION = [
     // ajeno a titularidad de aduana, vía gestion.origen_completo) — antes
     // "Procedencia" solo decía "Puesto X" sin más contexto de dónde salió.
     { key: "posicionOrigen", header: "Plaza Origen", width: 14 },
+    { key: "nombrePuestoFuncionalOrigen", header: "Nombre Puesto Funcional Origen", width: 34 },
     { key: "uaOrigen", header: "UA Origen", width: 26 },
     { key: "deptoOrigen", header: "Departamento Origen", width: 18 },
     { key: "depDirectaOrigen", header: "Dependencia Directa Origen", width: 20 },
@@ -1028,6 +1029,7 @@ function detalleProcedenciaPuesto(seg) {
     if (!o) {
         return {
             posicionOrigen: "—",
+            nombrePuestoFuncionalOrigen: "—",
             uaOrigen: "—",
             deptoOrigen: "—",
             depDirectaOrigen: "—",
@@ -1035,6 +1037,7 @@ function detalleProcedenciaPuesto(seg) {
     }
     return {
         posicionOrigen: o.posicion || "—",
+        nombrePuestoFuncionalOrigen: o.nombre_puesto_funcional || "—",
         uaOrigen: o.un_admin ? `${o.un_admin}${o.desc_larga_un ? ` — ${nombreCorto(o.desc_larga_un)}` : ""}` : "—",
         deptoOrigen: o.id_depto || "—",
         depDirectaOrigen: o.depen_direc || "—",
@@ -1338,6 +1341,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     motivoEntrada: "—",
                     procedencia: "—",
                     posicionOrigen: "—",
+                    nombrePuestoFuncionalOrigen: "—",
                     uaOrigen: "—",
                     deptoOrigen: "—",
                     depDirectaOrigen: "—",
