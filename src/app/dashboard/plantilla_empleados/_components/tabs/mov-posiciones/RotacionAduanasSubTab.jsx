@@ -331,6 +331,17 @@ function construirSegmentos(gestion) {
         const esUltimo = i === crudos.length - 1;
         const siguiente = crudos[i + 1];
         const idxInicio = seg.idxs[0];
+        // Último ítem que TODAVÍA pertenece a este segmento (misma plaza) —
+        // el nivel/salario "al salir" de la plaza es el de ESTA fila, no el
+        // de la primera fila del segmento siguiente: esa ya es la fila de
+        // LLEGADA a la nueva plaza (posicion Y nivel_tabular/sal_base ya
+        // cambiados ahí mismo), así que leerla como "salida" de la plaza
+        // anterior mostraba el nivel/salario NUEVO en vez del que realmente
+        // tuvo mientras ocupó esta plaza. Bug real reportado: plaza 10300874
+        // (num_empleado 00020220323) se ejerció completa en A106 pero
+        // "Nivel Tabular al Salir" mostraba A110 — el nivel de la SIGUIENTE
+        // plaza (10300562), no el que tuvo aquí.
+        const idxFin = seg.idxs[seg.idxs.length - 1];
         const idxsMostrados = esPrimero ? seg.idxs.slice(1) : seg.idxs;
 
         // Solo el último segmento de una gestión que sale por SALIDA_PUESTO
@@ -358,21 +369,17 @@ function construirSegmentos(gestion) {
             // entrada, `items[idxInicio]`) — mismo campo que ya se muestra en
             // el acordeón "N mov." de la tarjeta en pantalla.
             salarioEntrada: items[idxInicio].sal_base ?? null,
-            // Salario al DEJARLO: si es el último segmento de la gestión,
-            // `gestion.salida_completo` es la fila real de salida (puede no
-            // existir — vigente, o caché viejo sin ese campo); si no, el
-            // siguiente segmento de la MISMA gestión ya trae la fila.
-            salarioSalida: esUltimo
-                ? (gestion.salida_completo?.sal_base ?? null)
-                : (items[siguiente.idxs[0]].sal_base ?? null),
+            // Salario al DEJAR ESTA PLAZA: la última fila que todavía está en
+            // ella (`idxFin`) — si es el último segmento de la gestión y de
+            // verdad hubo salida (BAJA/TRASLADO/OTRO_PUESTO), coincide con el
+            // último ítem de `items` (vigente → sin salida, queda null).
+            salarioSalida: (esUltimo && !gestion.fecha_salida) ? null : (items[idxFin].sal_base ?? null),
             // Mismo criterio que salarioEntrada/salarioSalida: nivel tabular
-            // al ENTRAR y al SALIR de este segmento (no siempre es el mismo
-            // en toda la gestión — un cambio de plaza dentro de la aduana
-            // puede traer cambio de nivel).
+            // al ENTRAR y al SALIR de ESTA PLAZA (no siempre es el mismo en
+            // toda la gestión — un cambio de plaza dentro de la aduana puede
+            // traer cambio de nivel).
             nivelEntrada: items[idxInicio].nivel_tabular ?? null,
-            nivelSalida: esUltimo
-                ? (gestion.salida_completo?.nivel_tabular ?? null)
-                : (items[siguiente.idxs[0]].nivel_tabular ?? null),
+            nivelSalida: (esUltimo && !gestion.fecha_salida) ? null : (items[idxFin].nivel_tabular ?? null),
             fechaCapturaDesde: items[idxInicio].fecha_captura,
             fechaCapturaHasta: esUltimo ? gestion.salida_fecha_captura : items[siguiente.idxs[0]].fecha_captura,
             entradaMotivo: esPrimero ? gestion.entrada_motivo_nombre : items[idxInicio].motivo_nombre,
