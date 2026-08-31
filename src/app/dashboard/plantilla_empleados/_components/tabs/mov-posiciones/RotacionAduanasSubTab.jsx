@@ -29,47 +29,44 @@
  * gestión destino en su propia columna.
  */
 
-import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
     AlertTriangle,
-    ArrowLeftRight,
     ArrowRight,
-    Ban,
     Building2,
-    Calendar,
-    ChevronDown,
+    Check,
     ChevronLeft,
-    Clock,
     FileSpreadsheet,
+    Filter,
     Loader2,
-    LogOut,
     RefreshCw,
     Search,
-    UserCheck,
-    Users,
-    UserX,
     X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
 import { gsap } from "gsap";
-import { useGSAP } from "@gsap/react";
 import ExcelJS from "exceljs";
 
-gsap.registerPlugin(useGSAP);
-
 import { VacantesService } from "@/services/vacantes.service";
-import { formatDateEsMx, normalizeForSearch } from "@/utils/columnFilters";
+import {
+    formatDateEsMx,
+    normalizeForSearch,
+    getUniqueColumnValues,
+    finalizeFilterDropdownValues,
+    resolveColumnFilterCommit,
+    applyColumnFilters,
+    CONDITION_OPTIONS,
+    CONDITION_SHORTHANDS,
+    getConditionLabel,
+} from "@/utils/columnFilters";
+import { useColumnFilters } from "../../../_hooks/useColumnFilters";
+import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import {
     LETTERHEAD_LOGO_BASE64,
     LETTERHEAD_LOGO_WIDTH,
     LETTERHEAD_LOGO_HEIGHT,
 } from "@/assets/letterhead-logo";
-import { getMovimientoDiff } from "../../../_utils/movimientosDiff";
 import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
-
-const GOLD = "#bc955c";
-const AMBER = "#f59e0b";
-const LANE_W = 360;
 
 const TIPO_SALIDA = {
     ACTIVO: { etiqueta: "Titular actual", clase: "emerald" },
@@ -81,154 +78,6 @@ const TIPO_SALIDA = {
     // — "se movió" — pero aquí resuelta con una línea, no con un botón).
     CAMBIO_PLAZA: { etiqueta: "Cambió de plaza", clase: "amber" },
 };
-
-/**
- * Clases completas por variante: Tailwind no puede resolver nombres armados
- * en tiempo de ejecución. Misma paleta institucional (maroon/gold/slate) y
- * mismo layout de tarjeta que shared/HistorialMovimientosTab — antes cada
- * tipo de salida tenía su propio color de acento (emerald/amber/slate/sky)
- * con fondo teñido, aquí solo el borde acentúa y el fondo es blanco liso.
- */
-const ESTILO_TARJETA = {
-    emerald: "border-[#621f32]/30 dark:border-[#621f32]/50 bg-white dark:bg-slate-900",
-    amber: "border-amber-400/70 dark:border-amber-700/60 bg-white dark:bg-slate-900",
-    slate: "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900",
-    sky: "border-[#bc955c]/50 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900",
-};
-
-const ESTILO_ETIQUETA = {
-    emerald: "bg-[#621f32]/10 text-[#621f32] dark:bg-[#621f32]/20 dark:text-[#e3c793]",
-    amber: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400",
-    slate: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-    sky: "bg-[#bc955c]/15 text-[#7a5a30] dark:bg-[#bc955c]/20 dark:text-[#bc955c]",
-};
-
-/**
- * Chips-filtro del encabezado: cada uno es a la vez leyenda (color/ícono) y
- * control — clic filtra `aduanas` para mostrar solo las que tienen al menos
- * un segmento de ese tipo (o, para SIN_TITULAR/VACANCIA, una condición propia
- * de la aduana). Las claves ACTIVO/TRASLADO_ADUANA/CAMBIO_PLAZA/SALIDA_PUESTO/
- * BAJA coinciden con `TIPO_SALIDA` a propósito, para que el filtro reutilice
- * exactamente la misma clasificación que ya pinta cada tarjeta.
- */
-const FILTRO_META = {
-    ACTIVO: {
-        label: "Con titular",
-        icon: UserCheck,
-        accent: "maroon",
-        desc: "Muestra solo las aduanas que hoy tienen un titular en funciones.",
-    },
-    TRASLADO_ADUANA: {
-        label: "Traslados",
-        icon: ArrowRight,
-        accent: "amber",
-        desc: "Muestra solo las aduanas con algún titular que se trasladó a otra aduana.",
-    },
-    CAMBIO_PLAZA: {
-        label: "Cambios de plaza",
-        icon: ArrowLeftRight,
-        accent: "amber",
-        dashed: true,
-        desc: "Muestra solo las aduanas donde un titular cambió de plaza sin salir de la aduana.",
-    },
-    SALIDA_PUESTO: {
-        label: "Otro puesto",
-        icon: LogOut,
-        accent: "gold",
-        desc: "Muestra solo las aduanas con algún titular que dejó el puesto para ocupar otro distinto.",
-    },
-    BAJA: {
-        label: "Bajas",
-        icon: UserX,
-        accent: "slate",
-        desc: "Muestra solo las aduanas con algún titular dado de baja.",
-    },
-    INSUBSISTENCIA: {
-        label: "Insubsistencias",
-        icon: Ban,
-        accent: "rose",
-        desc: "Muestra solo las aduanas con algún nombramiento declarado insubsistente (anulado, nunca llegó a ejercer).",
-    },
-    SIN_TITULAR: {
-        label: "Sin titular hoy",
-        icon: AlertTriangle,
-        accent: "rose",
-        desc: "Muestra solo las aduanas que hoy no tienen titular.",
-    },
-    VACANCIA: {
-        label: "Con vacancias",
-        icon: Clock,
-        accent: "slate",
-        desc: "Muestra solo las aduanas que en algún momento se quedaron sin titular.",
-    },
-};
-
-const ACCENT_FILTRO = {
-    maroon: { text: "text-[#621f32] dark:text-[#e3c793]", border: "border-[#621f32] dark:border-[#bc955c]", bg: "bg-[#621f32]/5 dark:bg-[#621f32]/15" },
-    amber: { text: "text-amber-700 dark:text-amber-500", border: "border-amber-500 dark:border-amber-500", bg: "bg-amber-50 dark:bg-amber-950/30" },
-    gold: { text: "text-[#7a5a30] dark:text-[#bc955c]", border: "border-[#bc955c] dark:border-[#bc955c]", bg: "bg-[#bc955c]/10" },
-    slate: { text: "text-slate-700 dark:text-slate-200", border: "border-slate-500 dark:border-slate-400", bg: "bg-slate-100 dark:bg-slate-800/50" },
-    rose: { text: "text-rose-700 dark:text-rose-500", border: "border-rose-500 dark:border-rose-500", bg: "bg-rose-50 dark:bg-rose-950/30" },
-};
-
-/**
- * Ficha de la fila de estadísticas: número (mono, como el resto de cifras de
- * la vista) + etiqueta debajo, sin píldora ni ícono de color de fondo — el
- * subrayado de 2px es la ÚNICA marca de color, y solo aparece si el filtro
- * está activo. Deliberadamente distinto del "chip con ícono" genérico.
- */
-function ChipFiltro({ tipoKey, count, active, onToggle }) {
-    const meta = FILTRO_META[tipoKey];
-    const Icon = meta.icon;
-    const c = ACCENT_FILTRO[meta.accent];
-    return (
-        <div className="group/chip relative">
-            <button
-                type="button"
-                onClick={() => onToggle(tipoKey)}
-                aria-pressed={active}
-                aria-label={meta.desc}
-                className={`flex min-w-[52px] cursor-pointer flex-col items-start gap-0.5 border-b-2 px-2 py-1 text-left transition-colors ${
-                    active ? `${meta.dashed ? "border-dashed" : "border-solid"} ${c.border} ${c.bg}` : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-900/40"
-                }`}
-            >
-                <span className="flex items-center gap-1">
-                    <Icon className={`size-3 shrink-0 ${active ? c.text : "text-slate-400"}`} />
-                    <span className={`font-mono text-sm font-black leading-none ${active ? c.text : "text-slate-700 dark:text-slate-200"}`}>{count}</span>
-                </span>
-                <span className={`text-[8px] font-bold uppercase tracking-wider ${active ? c.text : "text-slate-400"}`}>{meta.label}</span>
-            </button>
-
-            {/* Tooltip propio (no `title` nativo): explica en lenguaje de
-                negocio qué hará el clic. Aparece HACIA ABAJO (no arriba): la
-                barra de controles vive dentro de una tarjeta con
-                `overflow-hidden` (ver cardRef en MovimientosPersonalTab) —
-                cualquier cosa posicionada por ENCIMA de esta fila se recorta
-                sin importar el z-index, porque el recorte es por overflow,
-                no por orden de apilamiento. Abajo sí hay espacio dentro de
-                esa misma tarjeta. */}
-            <div
-                role="tooltip"
-                className="pointer-events-none absolute top-full left-1/2 z-30 mt-2 w-56 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-center text-[10px] font-semibold normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 dark:bg-slate-800"
-            >
-                {active ? "Ya está aplicado. Clic de nuevo para quitarlo y ver todas las aduanas." : meta.desc}
-                <span className="absolute left-1/2 bottom-full -translate-x-1/2 border-4 border-transparent border-b-slate-900 dark:border-b-slate-800" />
-            </div>
-        </div>
-    );
-}
-
-function StatPlano({ icon: Icon, value, label }) {
-    return (
-        <span className="flex flex-col items-start gap-0.5 px-2 py-1">
-            <span className="flex items-center gap-1">
-                <Icon className="size-2.5 shrink-0 text-[#bc955c]" />
-                <span className="font-mono text-xs font-black leading-none text-slate-700 dark:text-slate-200">{value}</span>
-            </span>
-            <span className="text-[7px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
-        </span>
-    );
-}
 
 const fecha = (valor) => (valor ? formatDateEsMx(valor) : "—");
 
@@ -277,6 +126,33 @@ const esInsubsistenciaGestion = (gestion) =>
 
 /** Llave única de una gestión: aduana + titular + fecha en que entró a ella. */
 const claveGestion = (aduanaNombre, gestion) => `${aduanaNombre}|${gestion.num_empleado}|${gestion.fecha_entrada}`;
+
+/**
+ * Anota cada entrada (segmento o vacancia) de la línea de tiempo de una
+ * aduana con su "Consecutivo" — cuántos titulares REALES ha tenido la
+ * aduana hasta esa fila (mismo criterio que la columna "Consecutivo" del
+ * Excel y que "Titulares" del resumen: cuenta gestiones distintas, todos los
+ * segmentos de una misma gestión —cambios de plaza dentro de la aduana—
+ * comparten un solo número, y una gestión insubsistente nunca llegó a
+ * ejercer así que no avanza el contador). Centralizado aquí porque tanto el
+ * export a Excel como la tabla en pantalla necesitan exactamente el mismo
+ * número en la misma fila.
+ */
+function anotarConsecutivos(entradas) {
+    let consecutivoActual = 0;
+    let claveGestionVista = null;
+    let gestionVistaEsInsubsistencia = false;
+    return entradas.map((entrada) => {
+        if (entrada.tipo === "vacancia") return { entrada, consecutivo: "—" };
+        const seg = entrada.dato;
+        if (seg.claveGestion !== claveGestionVista) {
+            claveGestionVista = seg.claveGestion;
+            gestionVistaEsInsubsistencia = esInsubsistenciaGestion(seg.gestion);
+            if (!gestionVistaEsInsubsistencia) consecutivoActual += 1;
+        }
+        return { entrada, consecutivo: gestionVistaEsInsubsistencia ? "—" : consecutivoActual };
+    });
+}
 
 /**
  * Parte el tramo de una gestión (entrada + `movimientos`) en rachas
@@ -383,12 +259,21 @@ function construirSegmentos(gestion) {
             fechaCapturaDesde: items[idxInicio].fecha_captura,
             fechaCapturaHasta: esUltimo ? gestion.salida_fecha_captura : items[siguiente.idxs[0]].fecha_captura,
             entradaMotivo: esPrimero ? gestion.entrada_motivo_nombre : items[idxInicio].motivo_nombre,
-            entradaOrigen: esPrimero ? gestion.origen : { tipo: "PLAZA", valor: items[idxInicio - 1].posicion },
+            // `completo`: fila cruda del movimiento previo (mismo `idxInicio - 1`
+            // que ya resuelve `valor`) — permite que `detalleProcedenciaPuesto`
+            // muestre plaza/puesto/UA/depto de origen también para un cambio de
+            // plaza DENTRO de la misma aduana, no solo para origen tipo PUESTO.
+            entradaOrigen: esPrimero ? gestion.origen : { tipo: "PLAZA", valor: items[idxInicio - 1].posicion, completo: items[idxInicio - 1] },
             salidaMotivo: esUltimo ? gestion.salida_motivo_nombre : items[siguiente.idxs[0]].motivo_nombre,
             tipoSalida: esUltimo ? gestion.tipo_salida : "CAMBIO_PLAZA",
             salidaDestinoUnidad: esUltimo ? gestion.salida_destino_unidad : null,
             salidaDestinoPuesto: esUltimo ? gestion.salida_destino_puesto : null,
             salidaDestinoPlaza: esUltimo ? null : siguiente.plaza,
+            // Fila cruda de ENTRADA al siguiente segmento (misma `idxs[0]` que
+            // ya resuelve `salidaDestinoPlaza`) — para que `detalleDestinoPuesto`
+            // muestre plaza/puesto/UA/depto también en un cambio de plaza
+            // interno, no solo cuando la salida es a un puesto fuera de aduana.
+            salidaDestinoCompleto: esUltimo ? null : items[siguiente.idxs[0]],
             // Clave del segmento que sigue DENTRO de esta misma gestión (el
             // siguiente cambio de plaza) — permite enlazar el Excel sin
             // adivinar por posición de fila, igual que `destinoSegmentoPorClave`
@@ -474,387 +359,6 @@ function construirDestinos(aduanas) {
     return destinoPorClave;
 }
 
-function TarjetaVacancia({ vacancia }) {
-    return (
-        <div className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/60 px-4 py-3">
-            <div className="flex items-center gap-2.5">
-                <AlertTriangle className="size-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                    {vacancia.abierta ? "Sin titular hoy" : "Sin titular"}
-                </span>
-                <span className="ml-auto font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    {duracion(vacancia.dias)}
-                </span>
-            </div>
-            <p className="mt-2 border-t border-dashed border-slate-300/70 pt-2 font-mono text-[10px] text-slate-500 dark:border-slate-700/60 dark:text-slate-500">
-                {fecha(vacancia.desde)} → {vacancia.hasta ? fecha(vacancia.hasta) : "hoy"}
-            </p>
-        </div>
-    );
-}
-
-/**
- * Fila de un movimiento dentro del acordeón "N mov." de una tarjeta de
- * segmento — su propio botón/flecha despliega el diff contra el registro
- * INMEDIATO ANTERIOR (el movimiento previo del mismo tramo, o la entrada a
- * la plaza si es el primero), igual mecánica que MovementCard en
- * HistorialMovimientosTab.
- */
-function FilaMovimiento({ mov, diff }) {
-    const [abierta, setAbierta] = useState(false);
-    const [showUnchanged, setShowUnchanged] = useState(false);
-    const detailRef = useRef(null);
-
-    // Entrada del panel de diff: SOLO fundido + deslizado (nunca `height`) —
-    // el panel nace ya a su alto natural ("auto"), así que abrir "Sin
-    // cambios" después (que agrega contenido al mismo contenedor) lo hace
-    // crecer solo, sin que quede un alto fijo pegado de una animación previa
-    // que lo recorte. Las filas de "Cambios detectados" entran en cascada.
-    useGSAP(() => {
-        if (!abierta || !detailRef.current) return;
-        const el = detailRef.current;
-        const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
-        tl.from(el, { autoAlpha: 0, y: -6, duration: 0.28 });
-        const filas = el.querySelectorAll(".diff-row");
-        if (filas.length) tl.from(filas, { autoAlpha: 0, x: -8, stagger: 0.04, duration: 0.22, ease: "power1.out" }, "-=0.12");
-    }, { dependencies: [abierta] });
-
-    // "Sin cambios" es un despliegue aparte — se anima independiente para no
-    // repetir la entrada de todo el panel cada vez que se abre/cierra.
-    useGSAP(() => {
-        if (!showUnchanged || !detailRef.current) return;
-        const chips = detailRef.current.querySelectorAll(".unchanged-chip");
-        if (chips.length) gsap.from(chips, { autoAlpha: 0, y: 4, stagger: 0.02, duration: 0.2, ease: "power1.out" });
-    }, { dependencies: [showUnchanged] });
-
-    return (
-        <li className="text-[10px]">
-            <button
-                type="button"
-                onClick={() => setAbierta((v) => !v)}
-                aria-expanded={abierta}
-                className="flex w-full cursor-pointer items-baseline gap-2 text-left transition-colors hover:text-[#621f32] dark:hover:text-[#bc955c]"
-            >
-                <span className="w-[62px] shrink-0 font-mono text-slate-400">{fecha(mov.fecha_efectiva)}</span>
-                <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-400">{mov.motivo_nombre}</span>
-                {mov.sal_base ? (
-                    <span className="shrink-0 font-mono text-slate-400">
-                        ${Math.round(mov.sal_base).toLocaleString("es-MX")}
-                    </span>
-                ) : null}
-                <ChevronDown className={`size-3 shrink-0 text-slate-400 transition-transform ${abierta ? "rotate-180" : ""}`} />
-            </button>
-
-            {abierta && (
-                <div ref={detailRef} className="mt-1.5 mb-1 overflow-hidden rounded-lg border border-dashed border-[#621f32]/20 bg-[#621f32]/[0.03] px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900/40">
-                    <h6 className="mb-1.5 text-[8px] font-black uppercase tracking-widest text-[#621f32] dark:text-[#bc955c]">
-                        Cambios detectados{diff.differences.length > 0 ? ` (${diff.differences.length})` : ""}
-                    </h6>
-                    {diff.differences.length === 0 ? (
-                        <p className="text-[9px] italic text-slate-400">Sin cambios de datos respecto al movimiento anterior.</p>
-                    ) : (
-                        <div className="flex flex-col gap-1">
-                            {diff.differences.map((d) => (
-                                <div key={d.key} className="diff-row flex flex-wrap items-center gap-1 rounded border border-slate-100 bg-white px-1.5 py-1 text-[9px] dark:border-slate-800 dark:bg-slate-950">
-                                    <span className="mr-0.5 font-black text-slate-600 dark:text-slate-300">{d.label}:</span>
-                                    <span className="rounded bg-slate-100 px-1 py-0.5 italic text-slate-400 line-through dark:bg-slate-800 dark:text-slate-600">{d.oldValue}</span>
-                                    <span className="text-slate-400">→</span>
-                                    <span className="rounded bg-[#621f32]/10 px-1 py-0.5 font-black text-[#621f32] dark:bg-[#bc955c]/10 dark:text-[#e3c793]">{d.newValue}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    {diff.unchanged.length > 0 && (
-                        <div className="mt-1.5">
-                            <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setShowUnchanged((v) => !v); }}
-                                className="mb-1 flex cursor-pointer items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-400"
-                            >
-                                <ChevronDown className={`size-2.5 transition-transform ${showUnchanged ? "rotate-180" : ""}`} />
-                                Sin cambios ({diff.unchanged.length})
-                            </button>
-                            {showUnchanged && (
-                                <div className="flex flex-col gap-1">
-                                    {diff.unchanged.map((u) => (
-                                        <span key={u.key} title={u.value} className="unchanged-chip truncate rounded bg-slate-100 px-1 py-0.5 text-[8px] font-semibold text-slate-500 dark:bg-slate-800/60 dark:text-slate-500">
-                                            {u.label}: {u.value}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
-        </li>
-    );
-}
-
-/**
- * Panel del botón "Pasó a otro puesto" → flecha hacia abajo: diff campo por
- * campo entre la fila que lo saca de la aduana (`mov`, que por construcción
- * ya ES la fila de entrada al nuevo puesto — ver rotacion_aduanas.py) y el
- * último movimiento que tuvo DENTRO de la titularidad de esta aduana
- * (`anterior`). Misma mecánica visual que el acordeón "N mov." / FilaMovimiento,
- * pero independiente: aquí no hay fila que colapsar, solo el detalle.
- */
-function PanelSiguienteMovimiento({ mov, anterior }) {
-    const diff = useMemo(() => getMovimientoDiff(mov, anterior), [mov, anterior]);
-    const [showUnchanged, setShowUnchanged] = useState(false);
-    const panelRef = useRef(null);
-
-    useGSAP(() => {
-        if (!panelRef.current) return;
-        const el = panelRef.current;
-        const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
-        tl.from(el, { autoAlpha: 0, y: -6, duration: 0.28 });
-        const filas = el.querySelectorAll(".diff-row");
-        if (filas.length) tl.from(filas, { autoAlpha: 0, x: -8, stagger: 0.04, duration: 0.22, ease: "power1.out" }, "-=0.12");
-    }, []);
-
-    return (
-        <div ref={panelRef} className="mt-2 overflow-hidden rounded-lg border border-dashed border-[#bc955c]/30 bg-[#bc955c]/[0.04] px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900/40">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-                <h6 className="text-[8px] font-black uppercase tracking-widest text-[#7a5a30] dark:text-[#bc955c]">
-                    Siguiente movimiento{diff.differences.length > 0 ? ` (${diff.differences.length} cambios)` : ""}
-                </h6>
-                <span className="shrink-0 font-mono text-[9px] font-bold text-slate-400">
-                    {fecha(mov.fecha_efectiva)}
-                    {mov.fecha_captura && (
-                        <span className="ml-1.5 font-semibold text-slate-400/70" title="Fecha de captura">
-                            · Cap. {fecha(mov.fecha_captura)}
-                        </span>
-                    )}
-                </span>
-            </div>
-            <p className="mb-1.5 text-[10px] text-slate-600 dark:text-slate-400">
-                {mov.motivo_nombre}
-                {mov.cd_puesto && <span className="font-bold text-[#7a5a30] dark:text-[#bc955c]"> · {mov.cd_puesto}</span>}
-            </p>
-            {diff.differences.length === 0 ? (
-                <p className="text-[9px] italic text-slate-400">Sin cambios de datos respecto a la salida de la aduana.</p>
-            ) : (
-                <div className="flex flex-col gap-1">
-                    {diff.differences.map((d) => (
-                        <div key={d.key} className="diff-row flex flex-wrap items-center gap-1 rounded border border-slate-100 bg-white px-1.5 py-1 text-[9px] dark:border-slate-800 dark:bg-slate-950">
-                            <span className="mr-0.5 font-black text-slate-600 dark:text-slate-300">{d.label}:</span>
-                            <span className="rounded bg-slate-100 px-1 py-0.5 italic text-slate-400 line-through dark:bg-slate-800 dark:text-slate-600">{d.oldValue}</span>
-                            <span className="text-slate-400">→</span>
-                            <span className="rounded bg-[#621f32]/10 px-1 py-0.5 font-black text-[#621f32] dark:bg-[#bc955c]/10 dark:text-[#e3c793]">{d.newValue}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-            {diff.unchanged.length > 0 && (
-                <div className="mt-1.5">
-                    <button
-                        type="button"
-                        onClick={() => setShowUnchanged((v) => !v)}
-                        className="mb-1 flex cursor-pointer items-center gap-1 text-[8px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-400"
-                    >
-                        <ChevronDown className={`size-2.5 transition-transform ${showUnchanged ? "rotate-180" : ""}`} />
-                        Sin cambios ({diff.unchanged.length})
-                    </button>
-                    {showUnchanged && (
-                        <div className="flex flex-col gap-1">
-                            {diff.unchanged.map((u) => (
-                                <span key={u.key} title={u.value} className="unchanged-chip truncate rounded bg-slate-100 px-1 py-0.5 text-[8px] font-semibold text-slate-500 dark:bg-slate-800/60 dark:text-slate-500">
-                                    {u.label}: {u.value}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function TarjetaSegmento({ segmento, clave, cardRef, canViewPhoto, scrollRootRef, claveDestino, onIrADestino }) {
-    const [abierta, setAbierta] = useState(false);
-    const [mostrarSiguiente, setMostrarSiguiente] = useState(false);
-    const meta = TIPO_SALIDA[segmento.tipoSalida] || TIPO_SALIDA.BAJA;
-    const g = segmento.gestion;
-    const movimientos = segmento.movimientos || [];
-    const dias = diasEntre(segmento.fechaDesde, segmento.fechaHasta);
-
-    return (
-        <div ref={cardRef} className={`rounded-xl border shadow-sm transition-all hover:shadow-md hover:border-[#bc955c]/50 ${ESTILO_TARJETA[meta.clase]}`}>
-            <div className="p-3.5">
-                <div className="flex items-start gap-2.5">
-                    <FotoEmpleadoCell
-                        numempleado={g.num_empleado}
-                        rootRef={scrollRootRef}
-                        enabled={canViewPhoto}
-                        size={36}
-                        caption={g.cd_puesto ? `${g.nombre} · ${g.cd_puesto}` : g.nombre}
-                    />
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                            <h4 className="min-w-0 truncate text-[12px] font-black uppercase leading-tight tracking-tight text-[#621f32] dark:text-[#e3c793]">
-                                {g.nombre}
-                            </h4>
-                            {g.corregida_por_mov_pos && (
-                                <span
-                                    title="Unidad corregida contra MOV_POS: la fila de personal conservó el código de unidad anterior a la renumeración."
-                                    className="shrink-0 cursor-help rounded-md bg-slate-200 px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                                >
-                                    ajustada
-                                </span>
-                            )}
-                        </div>
-                        <p className="mt-0.5 font-mono text-[10px] font-bold text-slate-400">#{g.num_empleado}</p>
-                    </div>
-                </div>
-
-                {/* Periodo de fechas efectivas de este segmento (plaza), misma
-                    cuadrícula Desde/Hasta que usa HistorialMovimientosTab. */}
-                <div className="mt-2.5 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
-                    <div>
-                        <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">Desde</span>
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{fecha(segmento.fechaDesde)}</span>
-                    </div>
-                    <div>
-                        <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">Hasta</span>
-                        <span className="font-mono font-bold text-slate-600 dark:text-slate-400">
-                            {segmento.fechaHasta ? fecha(segmento.fechaHasta) : "hoy"}
-                        </span>
-                    </div>
-                </div>
-                <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] font-medium text-slate-400">
-                    <Calendar className="size-3 shrink-0" />
-                    {duracion(dias)}
-                </div>
-
-                <div className="mt-3 space-y-1 text-[11px] leading-snug text-slate-600 dark:text-slate-400">
-                    <p>
-                        <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400">Entra</span>{" "}
-                        {segmento.entradaMotivo}
-                        {segmento.entradaOrigen?.tipo === "ADUANA" && (
-                            <span className="text-slate-400"> · desde {nombreCorto(segmento.entradaOrigen.valor)}</span>
-                        )}
-                        {segmento.entradaOrigen?.tipo === "PLAZA" && (
-                            <span className="font-bold text-amber-700 dark:text-amber-500"> · desde plaza {segmento.entradaOrigen.valor}</span>
-                        )}
-                    </p>
-                    {/* Nivel/salario CON el que entra a esta plaza (no el de
-                        toda la gestión — un cambio de plaza dentro de la
-                        misma aduana puede traer nivel/salario distintos). */}
-                    {(segmento.nivelEntrada || typeof segmento.salarioEntrada === "number") && (
-                        <p className="font-mono text-[10px] text-slate-500 dark:text-slate-500">
-                            {segmento.nivelEntrada && <>Nivel {segmento.nivelEntrada}</>}
-                            {segmento.nivelEntrada && typeof segmento.salarioEntrada === "number" && " · "}
-                            {typeof segmento.salarioEntrada === "number" && `$${Math.round(segmento.salarioEntrada).toLocaleString("es-MX")}`}
-                        </p>
-                    )}
-                    {segmento.salidaMotivo && (
-                        <p>
-                            <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400">Sale</span>{" "}
-                            {segmento.salidaMotivo}
-                            {segmento.tipoSalida === "TRASLADO_ADUANA" && segmento.salidaDestinoUnidad && (
-                                <span className="font-bold text-amber-700 dark:text-amber-500">
-                                    {" "}
-                                    · a {nombreCorto(segmento.salidaDestinoUnidad)}
-                                </span>
-                            )}
-                            {segmento.tipoSalida === "SALIDA_PUESTO" && segmento.salidaDestinoPuesto && (
-                                <span className="font-bold text-[#7a5a30] dark:text-[#bc955c]">
-                                    {" "}
-                                    · {segmento.salidaDestinoPuesto}
-                                </span>
-                            )}
-                            {segmento.tipoSalida === "CAMBIO_PLAZA" && segmento.salidaDestinoPlaza && (
-                                <span className="font-bold text-amber-700 dark:text-amber-500">
-                                    {" "}
-                                    · a plaza {segmento.salidaDestinoPlaza}
-                                </span>
-                            )}
-                        </p>
-                    )}
-                    <p className="font-mono text-[10px] text-slate-400">
-                        {/* Bug real: antes usaba `g.nivel_tabular` (nivel de
-                            ENTRADA A LA GESTIÓN completa, fijo del backend) —
-                            en un segmento posterior a un cambio de plaza
-                            mostraba el nivel viejo. `segmento.nivelEntrada`
-                            es el de ESTA plaza. */}
-                        Plaza {segmento.plaza} · {segmento.nivelEntrada || "—"} · {g.cd_puesto}
-                    </p>
-                </div>
-
-                <div className="mt-3 flex items-center gap-2">
-                    {claveDestino ? (
-                        <button
-                            type="button"
-                            onClick={() => onIrADestino(claveDestino, clave)}
-                            title="Ir a la tarjeta donde llega a la aduana destino"
-                            className={`flex cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-transform hover:scale-105 ${ESTILO_ETIQUETA[meta.clase]}`}
-                        >
-                            {meta.etiqueta}
-                            <ArrowRight className="size-2.5" />
-                        </button>
-                    ) : (
-                        <span className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${ESTILO_ETIQUETA[meta.clase]}`}>
-                            {meta.etiqueta}
-                        </span>
-                    )}
-                    {segmento.siguienteMovimiento && (
-                        <button
-                            type="button"
-                            onClick={() => setMostrarSiguiente((v) => !v)}
-                            aria-expanded={mostrarSiguiente}
-                            title="Ver el siguiente movimiento y qué cambió al salir de la aduana"
-                            className={`flex cursor-pointer items-center justify-center rounded-md p-1 transition-colors hover:opacity-75 ${ESTILO_ETIQUETA[meta.clase]}`}
-                        >
-                            <ChevronDown className={`size-3 transition-transform ${mostrarSiguiente ? "rotate-180" : ""}`} />
-                        </button>
-                    )}
-                    {movimientos.length > 0 && (
-                        <button
-                            type="button"
-                            onClick={() => setAbierta((v) => !v)}
-                            aria-expanded={abierta}
-                            className="ml-auto flex cursor-pointer items-center gap-1 text-[10px] font-bold text-slate-400 transition-colors hover:text-[#621f32] dark:hover:text-[#bc955c]"
-                        >
-                            {movimientos.length} mov.
-                            <ChevronDown className={`size-3 transition-transform ${abierta ? "rotate-180" : ""}`} />
-                        </button>
-                    )}
-                </div>
-
-                {mostrarSiguiente && segmento.siguienteMovimiento && (
-                    <PanelSiguienteMovimiento
-                        mov={segmento.siguienteMovimiento.item}
-                        anterior={segmento.siguienteMovimiento.anterior}
-                    />
-                )}
-            </div>
-
-            <AnimatePresence initial={false}>
-                {abierta && movimientos.length > 0 && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.18 }}
-                        className="overflow-hidden border-t border-slate-200/70 dark:border-slate-700/70"
-                    >
-                        <ul className="space-y-1 px-4 py-3">
-                            {movimientos.map(({ item, anterior }, i) => (
-                                <FilaMovimiento
-                                    key={`${item.fecha_efectiva}-${i}`}
-                                    mov={item}
-                                    diff={getMovimientoDiff(item, anterior)}
-                                />
-                            ))}
-                        </ul>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-}
-
 function nombreCorto(nombre) {
     if (!nombre) return "";
     return nombre.split(" con sede")[0].replace(/^Aduana del /, "").replace(/^Aduana de /, "").trim();
@@ -899,44 +403,52 @@ const EXCEL_TIPO_COLOR = {
 // la celda de tipo) — "destacar", a pedido explícito, no solo clasificar.
 const EXCEL_FILA_INSUBSISTENCIA_BG = "FFFEF2F2";
 
+// `uiWidth` (px) es SOLO para la tabla en pantalla — `width` (caracteres)
+// es lo que ya consumía el export a Excel, escalas distintas a propósito.
+// `detalle: true` marca las columnas satélite de Procedencia/Destino
+// (plaza/puesto/UA/departamento/dependencia directa de origen y destino) —
+// se llenan para CUALQUIER tipo de movimiento (traslado a otra aduana,
+// cambio de plaza dentro de la misma aduana, o salida a un puesto fuera de
+// titularidad), no solo puesto externo — ver `detalleProcedenciaPuesto`/
+// `detalleDestinoPuesto`. "—" solo si de verdad no hay fila de origen/
+// destino que mostrar (p. ej. alta nueva, o baja sin movimiento posterior).
 const EXPORT_COLUMNS_ROTACION = [
-    { key: "aduana", header: "Aduana", width: 30 },
-    { key: "codigosUa", header: "Código UA", width: 15 },
-    { key: "plaza", header: "Plaza", width: 13 },
-    { key: "nivelEntrada", header: "Nivel Tabular al Ingresar", width: 20 },
-    { key: "nivelSalida", header: "Nivel Tabular al Salir", width: 20 },
-    { key: "puesto", header: "Código de Puesto", width: 15 },
-    { key: "salarioEntrada", header: "Salario al Entrar", width: 21 },
-    { key: "salarioSalida", header: "Salario al Dejar", width: 20 },
-    { key: "nombrePuestoFuncional", header: "Nombre Puesto Funcional", width: 34 },
-    { key: "numEmpleado", header: "No. Empleado", width: 12 },
-    { key: "titular", header: "Titular", width: 32 },
-    { key: "fechaDesde", header: "Fecha Efectiva Desde", width: 14 },
-    { key: "fechaCapturaDesde", header: "Fecha Captura Desde", width: 14 },
-    { key: "fechaHasta", header: "Fecha Efectiva Hasta", width: 14 },
-    { key: "fechaCapturaHasta", header: "Fecha Captura Hasta", width: 14 },
-    { key: "duracion", header: "Duración", width: 14 },
-    { key: "motivoEntrada", header: "Motivo de Entrada", width: 30 },
-    { key: "procedencia", header: "Procedencia", width: 26 },
-    // Detalle de procedencia (solo cuando "Procedencia" venía de un puesto
-    // ajeno a titularidad de aduana, vía gestion.origen_completo) — antes
-    // "Procedencia" solo decía "Puesto X" sin más contexto de dónde salió.
-    { key: "posicionOrigen", header: "Plaza Origen", width: 14 },
-    { key: "nombrePuestoFuncionalOrigen", header: "Nombre Puesto Funcional Origen", width: 34 },
-    { key: "uaOrigen", header: "UA Origen", width: 26 },
-    { key: "deptoOrigen", header: "Departamento Origen", width: 18 },
-    { key: "depDirectaOrigen", header: "Dependencia Directa Origen", width: 20 },
-    { key: "motivoSalida", header: "Motivo de Salida", width: 30 },
-    { key: "tipoMovimiento", header: "Tipo de Movimiento", width: 22 },
-    { key: "destino", header: "Destino", width: 26 },
-    // Detalle del puesto destino (solo SALIDA_PUESTO, vía gestion.salida_completo)
-    // en columnas propias en vez de todo apachurrado en "Destino".
-    { key: "posicionDestino", header: "Posición", width: 14 },
-    { key: "puestoDestino", header: "Código Puesto Destino", width: 18 },
-    { key: "nombrePuestoFuncionalDestino", header: "Nombre Puesto Funcional Destino", width: 34 },
-    { key: "uaDestino", header: "UA Destino", width: 26 },
-    { key: "deptoDestino", header: "Departamento Destino", width: 18 },
-    { key: "depDirectaDestino", header: "Dependencia Directa Destino", width: 20 },
+    { key: "aduana", header: "Aduana", width: 30, uiWidth: 190 },
+    { key: "codigosUa", header: "Código UA", width: 15, uiWidth: 90 },
+    { key: "plaza", header: "Plaza", width: 13, uiWidth: 90 },
+    { key: "nivelEntrada", header: "Nivel Tabular al Ingresar", width: 20, uiWidth: 130 },
+    { key: "nivelSalida", header: "Nivel Tabular al Salir", width: 20, uiWidth: 130 },
+    { key: "puesto", header: "Código de Puesto", width: 15, uiWidth: 110 },
+    { key: "salarioEntrada", header: "Salario al Entrar", width: 21, uiWidth: 130 },
+    { key: "salarioSalida", header: "Salario al Dejar", width: 20, uiWidth: 130 },
+    { key: "nombrePuestoFuncional", header: "Nombre Puesto Funcional", width: 34, uiWidth: 220 },
+    { key: "numEmpleado", header: "No. Empleado", width: 12, uiWidth: 100 },
+    { key: "titular", header: "Titular", width: 32, uiWidth: 200 },
+    { key: "fechaDesde", header: "Fecha Efectiva Desde", width: 14, uiWidth: 115 },
+    { key: "fechaCapturaDesde", header: "Fecha Captura Desde", width: 14, uiWidth: 115 },
+    { key: "fechaHasta", header: "Fecha Efectiva Hasta", width: 14, uiWidth: 115 },
+    { key: "fechaCapturaHasta", header: "Fecha Captura Hasta", width: 14, uiWidth: 115 },
+    { key: "duracion", header: "Duración", width: 14, uiWidth: 140 },
+    { key: "motivoEntrada", header: "Motivo de Entrada", width: 30, uiWidth: 190 },
+    { key: "procedencia", header: "Procedencia", width: 26, uiWidth: 230 },
+    // Detalle de procedencia (ver detalleProcedenciaPuesto) — "Procedencia"
+    // sola solo decía "Aduana X"/"Plaza X"/"Puesto X" sin más contexto.
+    { key: "posicionOrigen", header: "Plaza Origen", width: 14, uiWidth: 100, detalle: true },
+    { key: "nombrePuestoFuncionalOrigen", header: "Nombre Puesto Funcional Origen", width: 34, uiWidth: 220, detalle: true },
+    { key: "uaOrigen", header: "UA Origen", width: 26, uiWidth: 170, detalle: true },
+    { key: "deptoOrigen", header: "Departamento Origen", width: 18, uiWidth: 130, detalle: true },
+    { key: "depDirectaOrigen", header: "Dependencia Directa Origen", width: 20, uiWidth: 150, detalle: true },
+    { key: "motivoSalida", header: "Motivo de Salida", width: 30, uiWidth: 190 },
+    { key: "tipoMovimiento", header: "Tipo de Movimiento", width: 22, uiWidth: 170 },
+    { key: "destino", header: "Destino", width: 26, uiWidth: 170 },
+    // Detalle de destino (ver detalleDestinoPuesto) — en columnas propias en
+    // vez de todo apachurrado en "Destino".
+    { key: "posicionDestino", header: "Posición", width: 14, uiWidth: 100, detalle: true },
+    { key: "puestoDestino", header: "Código Puesto Destino", width: 18, uiWidth: 140, detalle: true },
+    { key: "nombrePuestoFuncionalDestino", header: "Nombre Puesto Funcional Destino", width: 34, uiWidth: 220, detalle: true },
+    { key: "uaDestino", header: "UA Destino", width: 26, uiWidth: 170, detalle: true },
+    { key: "deptoDestino", header: "Departamento Destino", width: 18, uiWidth: 130, detalle: true },
+    { key: "depDirectaDestino", header: "Dependencia Directa Destino", width: 20, uiWidth: 150, detalle: true },
 ];
 
 // Tamaño de la foto y celda que la contiene, calibrados para que la foto
@@ -1027,14 +539,27 @@ function textoDestino(seg) {
 }
 
 /**
- * Detalle del puesto destino, en columnas propias — solo para SALIDA_PUESTO,
- * a partir de `gestion.salida_completo` (fila cruda del movimiento que lo
- * saca de la aduana, ver rotacion_aduanas.py: es la MISMA fila que la
- * entrada al nuevo puesto). "—" en cualquier otro tipo de salida o si la
- * respuesta viene de un caché anterior a que el backend mandara ese campo.
+ * Detalle del puesto destino, en columnas propias — para CUALQUIER tipo de
+ * salida (TRASLADO_ADUANA, CAMBIO_PLAZA, SALIDA_PUESTO), no solo cuando el
+ * destino es un puesto fuera de titularidad de aduana: un cambio de plaza
+ * interno usa la fila cruda de entrada al siguiente segmento
+ * (`salidaDestinoCompleto`, ver `construirSegmentos`); cualquier salida de
+ * la GESTIÓN (última fila) usa `gestion.salida_completo` — la misma fila
+ * que la entrada a la nueva plaza/puesto/aduana (ver rotacion_aduanas.py).
+ * "—" si no hay dato (p. ej. una BAJA sin fila de destino, o caché viejo de
+ * antes de que el backend mandara estos campos).
  */
 function detalleDestinoPuesto(seg) {
-    const s = seg.tipoSalida === "SALIDA_PUESTO" ? seg.gestion?.salida_completo : null;
+    // Una BAJA no tiene "destino" — `gestion.salida_completo` en ese caso es
+    // la fila cruda del propio movimiento de baja (misma plaza, no una
+    // nueva), así que mostrarla como "destino" es incorrecto (bug real
+    // reportado: bajas con las columnas de destino llenas). Solo
+    // TRASLADO_ADUANA y SALIDA_PUESTO son salidas reales a OTRA posición.
+    const s = !seg.esUltimo
+        ? seg.salidaDestinoCompleto
+        : seg.tipoSalida === "TRASLADO_ADUANA" || seg.tipoSalida === "SALIDA_PUESTO"
+          ? seg.gestion?.salida_completo
+          : null;
     if (!s) {
         return {
             posicionDestino: "—",
@@ -1056,18 +581,19 @@ function detalleDestinoPuesto(seg) {
 }
 
 /**
- * Detalle del puesto de PROCEDENCIA, en columnas propias — solo cuando
- * `entradaOrigen.tipo === "PUESTO"` (vino de un puesto que no es de
- * titularidad de aduana, "Procedencia" solo mostraba "Puesto X"), a partir
- * de `gestion.origen_completo` (fila cruda del movimiento previo a la
- * entrada, ver rotacion_aduanas.py). "—" en cualquier otro tipo de origen o
- * si la respuesta viene de un caché anterior a que el backend mandara ese
- * campo. Solo aplica al PRIMER segmento de la gestión — los demás vienen de
- * otra plaza DENTRO de la misma aduana (`entradaOrigen.tipo === "PLAZA"`),
- * que ya es dato completo tal cual se muestra en "Procedencia".
+ * Detalle del puesto de PROCEDENCIA, en columnas propias — para CUALQUIER
+ * tipo de origen (ADUANA, PLAZA, PUESTO), no solo cuando viene de un puesto
+ * fuera de titularidad de aduana: un cambio de plaza interno usa la fila
+ * cruda del movimiento anterior (`entradaOrigen.completo`, ver
+ * `construirSegmentos`); el PRIMER segmento de la gestión (venga de un
+ * traslado de otra aduana o de un puesto externo) usa
+ * `gestion.origen_completo` — la misma fila que la salida de la posición
+ * anterior (ver rotacion_aduanas.py). "—" si no hay dato (p. ej. alta nueva
+ * sin origen previo, o caché viejo de antes de que el backend mandara estos
+ * campos).
  */
 function detalleProcedenciaPuesto(seg) {
-    const o = seg.esPrimero && seg.entradaOrigen?.tipo === "PUESTO" ? seg.gestion?.origen_completo : null;
+    const o = seg.entradaOrigen?.tipo === "PLAZA" ? seg.entradaOrigen.completo : seg.esPrimero ? seg.gestion?.origen_completo : null;
     if (!o) {
         return {
             posicionOrigen: "—",
@@ -1083,6 +609,93 @@ function detalleProcedenciaPuesto(seg) {
         uaOrigen: o.un_admin ? `${o.un_admin}${o.desc_larga_un ? ` — ${nombreCorto(o.desc_larga_un)}` : ""}` : "—",
         deptoOrigen: o.id_depto || "—",
         depDirectaOrigen: o.depen_direc || "—",
+    };
+}
+
+/**
+ * Valores de UNA fila (segmento o vacancia) en el layout tabular — mismas
+ * columnas y mismo texto que escribe el export a Excel (`EXPORT_COLUMNS_ROTACION`
+ * + Foto/Consecutivo), compartido a propósito entre el Excel y la tabla en
+ * pantalla (`TablaRotacion`) para que nunca diverjan. `consecutivo` viene de
+ * `anotarConsecutivos`.
+ */
+function filaValoresRotacion(aduana, entrada, consecutivo) {
+    const isVacancia = entrada.tipo === "vacancia";
+    const seg = entrada.dato;
+
+    if (isVacancia) {
+        return {
+            isVacancia: true,
+            tipoColorKey: "VACANCIA",
+            values: {
+                aduana: aduana.aduana_corta,
+                codigosUa: codigoUaActual(aduana),
+                plaza: seg.plazaAncla || "—",
+                nivelEntrada: "—",
+                nivelSalida: "—",
+                puesto: "—",
+                salarioEntrada: "—",
+                salarioSalida: "—",
+                nombrePuestoFuncional: "—",
+                numEmpleado: "—",
+                titular: seg.abierta ? "— Sin titular hoy —" : "— Vacante —",
+                fechaDesde: fecha(seg.desde),
+                fechaCapturaDesde: "—",
+                fechaHasta: seg.hasta ? fecha(seg.hasta) : "—",
+                fechaCapturaHasta: "—",
+                duracion: duracion(seg.dias),
+                motivoEntrada: "—",
+                procedencia: "—",
+                posicionOrigen: "—",
+                nombrePuestoFuncionalOrigen: "—",
+                uaOrigen: "—",
+                deptoOrigen: "—",
+                depDirectaOrigen: "—",
+                motivoSalida: "—",
+                tipoMovimiento: seg.abierta ? "Sin titular hoy" : "Vacante",
+                destino: "—",
+                posicionDestino: "—",
+                puestoDestino: "—",
+                nombrePuestoFuncionalDestino: "—",
+                uaDestino: "—",
+                deptoDestino: "—",
+                depDirectaDestino: "—",
+                __consecutivo: "—",
+            },
+        };
+    }
+
+    const g = seg.gestion;
+    const tipoColorKey = esInsubsistencia(seg) ? "INSUBSISTENCIA" : seg.tipoSalida;
+    return {
+        isVacancia: false,
+        tipoColorKey,
+        values: {
+            aduana: aduana.aduana_corta,
+            codigosUa: codigoUaActual(aduana),
+            plaza: seg.plaza,
+            nivelEntrada: seg.nivelEntrada || "—",
+            nivelSalida: seg.nivelSalida || "—",
+            puesto: g.cd_puesto || "—",
+            salarioEntrada: typeof seg.salarioEntrada === "number" ? seg.salarioEntrada : "—",
+            salarioSalida: typeof seg.salarioSalida === "number" ? seg.salarioSalida : "—",
+            nombrePuestoFuncional: g.nombre_puesto_funcional || "—",
+            numEmpleado: g.num_empleado || "—",
+            titular: g.nombre,
+            fechaDesde: fecha(seg.fechaDesde),
+            fechaCapturaDesde: seg.fechaCapturaDesde ? fecha(seg.fechaCapturaDesde) : "—",
+            fechaHasta: seg.fechaHasta ? fecha(seg.fechaHasta) : "Vigente",
+            fechaCapturaHasta: seg.fechaCapturaHasta ? fecha(seg.fechaCapturaHasta) : "—",
+            duracion: duracion(diasEntre(seg.fechaDesde, seg.fechaHasta)),
+            motivoEntrada: seg.entradaMotivo || "—",
+            procedencia: textoOrigen(seg.entradaOrigen),
+            ...detalleProcedenciaPuesto(seg),
+            motivoSalida: seg.salidaMotivo || "—",
+            tipoMovimiento: esInsubsistencia(seg) ? "Baja (Insubsistencia)" : (TIPO_SALIDA[seg.tipoSalida] || TIPO_SALIDA.BAJA).etiqueta,
+            destino: textoDestino(seg),
+            ...detalleDestinoPuesto(seg),
+            __consecutivo: consecutivo,
+        },
     };
 }
 
@@ -1374,7 +987,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
  * filtradas por búsqueda/chips) para que el archivo coincida con lo que el
  * usuario ve.
  */
-async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, filtrosTipo, canViewPhoto }) {
+async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto }) {
     // Fotos: una por titular ÚNICO (no por fila — el mismo titular puede
     // repetir varias filas/segmentos), pedidas ANTES de armar el workbook
     // porque cuántas columnas tiene la tabla (numCols, usado por el
@@ -1437,7 +1050,6 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
 
     const notasFiltro = [];
     if (busqueda?.trim()) notasFiltro.push(`búsqueda "${busqueda.trim()}"`);
-    if (filtrosTipo?.length) notasFiltro.push(`filtro${filtrosTipo.length > 1 ? "s" : ""}: ${filtrosTipo.map((t) => FILTRO_META[t]?.label || t).join(", ")}`);
     if (notasFiltro.length > 0) {
         worksheet.mergeCells(`A${row}:${lastCol}${row}`);
         const filtroCell = worksheet.getCell(`A${row}`);
@@ -1567,100 +1179,13 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             return;
         }
 
-        // "Consecutivo": cuenta titulares REALES de esta aduana en orden
-        // cronológico. Todos los segmentos de la MISMA gestión (cambios de
-        // plaza dentro de la aduana) comparten un solo número — solo se
-        // avanza al llegar a una gestión distinta. Una insubsistencia nunca
-        // llegó a ejercer, así que NO avanza el contador y su fila queda sin
-        // número (igual que una vacancia).
-        let consecutivoActual = 0;
-        let claveGestionVista = null;
-        let gestionVistaEsInsubsistencia = false;
-
-        entradas.forEach((entrada, i) => {
+        // "Consecutivo" + valores de cada fila: misma lógica que la tabla en
+        // pantalla (ver anotarConsecutivos/filaValoresRotacion), para que
+        // ambas vistas nunca diverjan.
+        anotarConsecutivos(entradas).forEach(({ entrada, consecutivo }, i) => {
             const isVacancia = entrada.tipo === "vacancia";
             const seg = entrada.dato;
-
-            let consecutivo = "—";
-            if (!isVacancia) {
-                if (seg.claveGestion !== claveGestionVista) {
-                    claveGestionVista = seg.claveGestion;
-                    gestionVistaEsInsubsistencia = esInsubsistenciaGestion(seg.gestion);
-                    if (!gestionVistaEsInsubsistencia) consecutivoActual += 1;
-                }
-                consecutivo = gestionVistaEsInsubsistencia ? "—" : consecutivoActual;
-            }
-
-            let values;
-            let tipoColorKey;
-            if (isVacancia) {
-                values = {
-                    aduana: aduana.aduana_corta,
-                    codigosUa: codigoUaActual(aduana),
-                    plaza: seg.plazaAncla || "—",
-                    nivelEntrada: "—",
-                    nivelSalida: "—",
-                    puesto: "—",
-                    salarioEntrada: "—",
-                    salarioSalida: "—",
-                    nombrePuestoFuncional: "—",
-                    numEmpleado: "—",
-                    titular: seg.abierta ? "— Sin titular hoy —" : "— Vacante —",
-                    fechaDesde: fecha(seg.desde),
-                    fechaCapturaDesde: "—",
-                    fechaHasta: seg.hasta ? fecha(seg.hasta) : "—",
-                    fechaCapturaHasta: "—",
-                    duracion: duracion(seg.dias),
-                    motivoEntrada: "—",
-                    procedencia: "—",
-                    posicionOrigen: "—",
-                    nombrePuestoFuncionalOrigen: "—",
-                    uaOrigen: "—",
-                    deptoOrigen: "—",
-                    depDirectaOrigen: "—",
-                    motivoSalida: "—",
-                    tipoMovimiento: seg.abierta ? "Sin titular hoy" : "Vacante",
-                    destino: "—",
-                    posicionDestino: "—",
-                    puestoDestino: "—",
-                    nombrePuestoFuncionalDestino: "—",
-                    uaDestino: "—",
-                    deptoDestino: "—",
-                    depDirectaDestino: "—",
-                };
-                tipoColorKey = "VACANCIA";
-            } else {
-                const g = seg.gestion;
-                values = {
-                    aduana: aduana.aduana_corta,
-                    codigosUa: codigoUaActual(aduana),
-                    plaza: seg.plaza,
-                    nivelEntrada: seg.nivelEntrada || "—",
-                    nivelSalida: seg.nivelSalida || "—",
-                    puesto: g.cd_puesto || "—",
-                    salarioEntrada: typeof seg.salarioEntrada === "number" ? seg.salarioEntrada : "—",
-                    salarioSalida: typeof seg.salarioSalida === "number" ? seg.salarioSalida : "—",
-                    nombrePuestoFuncional: g.nombre_puesto_funcional || "—",
-                    numEmpleado: g.num_empleado || "—",
-                    titular: g.nombre,
-                    fechaDesde: fecha(seg.fechaDesde),
-                    fechaCapturaDesde: seg.fechaCapturaDesde ? fecha(seg.fechaCapturaDesde) : "—",
-                    fechaHasta: seg.fechaHasta ? fecha(seg.fechaHasta) : "Vigente",
-                    fechaCapturaHasta: seg.fechaCapturaHasta ? fecha(seg.fechaCapturaHasta) : "—",
-                    duracion: duracion(diasEntre(seg.fechaDesde, seg.fechaHasta)),
-                    motivoEntrada: seg.entradaMotivo || "—",
-                    procedencia: textoOrigen(seg.entradaOrigen),
-                    ...detalleProcedenciaPuesto(seg),
-                    motivoSalida: seg.salidaMotivo || "—",
-                    tipoMovimiento: esInsubsistencia(seg)
-                        ? "Baja (Insubsistencia)"
-                        : (TIPO_SALIDA[seg.tipoSalida] || TIPO_SALIDA.BAJA).etiqueta,
-                    destino: textoDestino(seg),
-                    ...detalleDestinoPuesto(seg),
-                };
-                tipoColorKey = esInsubsistencia(seg) ? "INSUBSISTENCIA" : seg.tipoSalida;
-            }
-            values.__consecutivo = consecutivo;
+            const { values, tipoColorKey } = filaValoresRotacion(aduana, entrada, consecutivo);
 
             const dataRow = worksheet.getRow(row);
             // Fondo zebra/insubsistencia: destaca la fila COMPLETA, no solo
@@ -1845,311 +1370,588 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     document.body.removeChild(a);
 }
 
-function ColumnaAduana({ aduana, entradas, cardRefs, canViewPhoto, scrollRootRef, destinoSegmentoPorClave, onIrADestino }) {
-    const lanes = useMemo(() => (aduana.plazas && aduana.plazas.length > 0 ? aduana.plazas : ["—"]), [aduana]);
-    const laneIndexByPlaza = useMemo(() => new Map(lanes.map((p, i) => [p, i])), [lanes]);
-    const acefala = !aduana.titular_actual;
-    const uid = useId();
+// ─── Tabla en pantalla ──────────────────────────────────────────────────────
+// Mismas columnas y mismos textos que `exportarRotacionAExcel` (comparten
+// `EXPORT_COLUMNS_ROTACION`, `anotarConsecutivos` y `filaValoresRotacion`) —
+// esta tabla es justo lo que el usuario ve ANTES de exportar, no una vista
+// aparte que pueda desincronizarse del archivo.
 
-    // Metadatos de cabecera por carril (plaza): rango de fechas, nivel más
-    // reciente y si es la plaza donde está sentado el titular vigente.
-    const laneMeta = useMemo(() => {
-        const map = new Map(lanes.map((p) => [p, { primeraFecha: null, ultimaFecha: null, nivel: null, esActual: false }]));
-        entradas.forEach((e) => {
-            if (e.tipo !== "segmento") return;
-            const m = map.get(e.dato.plaza);
-            if (!m) return;
-            if (!m.primeraFecha || e.dato.fechaDesde < m.primeraFecha) m.primeraFecha = e.dato.fechaDesde;
-            if (e.dato.esUltimo && e.dato.tipoSalida === "ACTIVO") {
-                m.esActual = true;
-            } else if (!m.esActual) {
-                const candidata = e.dato.fechaHasta || e.dato.fechaDesde;
-                if (!m.ultimaFecha || candidata > m.ultimaFecha) m.ultimaFecha = candidata;
-            }
-            // Mismo bug que la tarjeta: `gestion.nivel_tabular` es fijo (el
-            // de entrada a TODA la gestión), no el de esta plaza — usa el
-            // nivel con el que salió de este segmento (o con el que entró,
-            // si sigue vigente y aún no hay salida) para que sea el nivel
-            // REAL más reciente en esta plaza específica.
-            m.nivel = (e.dato.nivelSalida ?? e.dato.nivelEntrada) || m.nivel;
-        });
-        return map;
-    }, [lanes, entradas]);
+/** Mismo criterio de color que `EXCEL_TIPO_COLOR`, en clases Tailwind — pero
+ * a diferencia del badge/pastilla, aquí PINTAN LA CELDA COMPLETA de "Tipo de
+ * Movimiento" (a pedido explícito), así que llevan más saturación que un
+ * badge normal para seguir siendo legibles a ese tamaño. */
+const BADGE_TIPO_MOVIMIENTO = {
+    ACTIVO: "bg-[#621f32] text-white dark:bg-[#7a2740]",
+    TRASLADO_ADUANA: "bg-amber-200/80 text-amber-900 dark:bg-amber-900/60 dark:text-amber-300",
+    CAMBIO_PLAZA: "bg-amber-100/70 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400",
+    SALIDA_PUESTO: "bg-[#bc955c]/35 text-[#5c4322] dark:bg-[#bc955c]/25 dark:text-[#e3c793]",
+    BAJA: "bg-slate-200/70 text-slate-700 dark:bg-slate-800/70 dark:text-slate-300",
+    INSUBSISTENCIA: "bg-rose-200/80 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300",
+    VACANCIA: "bg-slate-200/50 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+};
 
-    const plazaDe = useCallback((entrada) => (entrada.tipo === "segmento" ? entrada.dato.plaza : entrada.dato.plazaAncla), []);
+/** Letra estilo hoja de cálculo (A, B, ... Z, AA, AB, ...) — misma función
+ * que ya usa `DataTable`/`HistoryDataTable`, para que el encabezado de esta
+ * tabla se lea igual que el resto de tablas de plantilla. */
+function getColumnLetterRotacion(index) {
+    let letter = "";
+    let n = index;
+    while (n >= 0) {
+        letter = String.fromCharCode((n % 26) + 65) + letter;
+        n = Math.floor(n / 26) - 1;
+    }
+    return letter;
+}
 
-    const canvasRef = useRef(null);
-    const laneRefs = useRef(new Map());
-    const pathRefs = useRef(new Map());
-    const [paths, setPaths] = useState([]);
-    const [dividers, setDividers] = useState([]);
-    const [laneBands, setLaneBands] = useState([]);
-    const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-
-    // Mismo cálculo analítico que Historial (recomputeLayout): conectores
-    // entre tarjetas CONSECUTIVAS de esta aduana (fondo-centro de la anterior
-    // a tope-centro de la siguiente), divisores entre carriles a la mitad del
-    // gap, y bandas de sombreado alternado.
-    const recomputeLayout = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas || entradas.length === 0) return;
-        const canvasRect = canvas.getBoundingClientRect();
-        setCanvasSize({ width: canvas.scrollWidth, height: canvas.scrollHeight });
-
-        const nextPaths = [];
-        for (let i = 0; i < entradas.length - 1; i++) {
-            const elA = cardRefs.current.get(entradas[i].clave);
-            const elB = cardRefs.current.get(entradas[i + 1].clave);
-            if (!elA || !elB) continue;
-            const rectA = elA.getBoundingClientRect();
-            const rectB = elB.getBoundingClientRect();
-            const xA = rectA.left - canvasRect.left + rectA.width / 2;
-            const yA = rectA.bottom - canvasRect.top;
-            const xB = rectB.left - canvasRect.left + rectB.width / 2;
-            const yB = rectB.top - canvasRect.top;
-            const cambio = plazaDe(entradas[i]) !== plazaDe(entradas[i + 1]);
-            const d = Math.abs(xA - xB) < 1
-                ? `M ${xA} ${yA} L ${xB} ${yB}`
-                : `M ${xA} ${yA} V ${(yA + yB) / 2} H ${xB} V ${yB}`;
-            nextPaths.push({ id: `${entradas[i].clave}->${entradas[i + 1].clave}`, d, cambio });
-        }
-        setPaths(nextPaths);
-
-        const dividerXs = [];
-        for (let i = 0; i < lanes.length - 1; i++) {
-            const elA = laneRefs.current.get(lanes[i]);
-            const elB = laneRefs.current.get(lanes[i + 1]);
-            if (!elA || !elB) continue;
-            const rectA = elA.getBoundingClientRect();
-            const rectB = elB.getBoundingClientRect();
-            dividerXs.push(((rectA.right - canvasRect.left) + (rectB.left - canvasRect.left)) / 2);
-        }
-        setDividers(dividerXs.map((x, i) => ({ plaza: lanes[i], x })));
-
-        if (dividerXs.length === lanes.length - 1) {
-            const boundaries = [0, ...dividerXs, canvas.scrollWidth];
-            setLaneBands(
-                lanes
-                    .map((plaza, i) => ({ plaza, left: boundaries[i], width: boundaries[i + 1] - boundaries[i], shaded: i % 2 === 1 }))
-                    .filter((band) => band.shaded)
-            );
-        }
-    }, [entradas, lanes, plazaDe, cardRefs]);
-
-    useLayoutEffect(() => {
-        recomputeLayout();
-    }, [recomputeLayout]);
-
-    // El acordeón "N mov." de cada tarjeta cambia el alto del canvas al
-    // abrir/cerrar — el ResizeObserver sobre el propio canvas (no tiene alto
-    // fijo, lo determina el contenido) recalcula los conectores en ese caso.
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ro = new ResizeObserver(() => recomputeLayout());
-        ro.observe(canvas);
-        return () => ro.disconnect();
-    }, [recomputeLayout]);
-
-    return (
-        <section className="flex flex-col">
-            <header className="sticky top-0 z-20 rounded-t-2xl border-b-2 border-[#bc955c]/40 bg-white/95 px-4 py-3 backdrop-blur-sm dark:bg-slate-900/95">
-                <div className="flex items-start gap-2">
-                    <Building2 className="mt-0.5 size-4 shrink-0 text-[#bc955c]" />
-                    <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-[13px] font-black uppercase leading-tight tracking-tight text-[#621f32] dark:text-[#bc955c]">
-                            {aduana.aduana_corta}
-                        </h3>
-                        <p className="mt-0.5 truncate font-mono text-[9px] text-slate-400">
-                            UA {codigoUaActual(aduana)} · {aduana.total_gestiones} gestiones · {lanes.length} {lanes.length === 1 ? "plaza" : "plazas"}
-                        </p>
-                    </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                    {acefala ? (
-                        <span className="flex items-center gap-1 rounded-md bg-slate-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-700 dark:text-slate-400">
-                            <AlertTriangle className="size-2.5" /> Sin titular
-                        </span>
-                    ) : (
-                        <span className="flex min-w-0 items-center gap-1 rounded-md bg-[#621f32]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#621f32] dark:bg-[#621f32]/20 dark:text-[#e3c793]">
-                            <UserCheck className="size-2.5 shrink-0" />
-                            <span className="truncate">{aduana.titular_actual}</span>
-                        </span>
-                    )}
-                    {aduana.dias_acefalia > 0 && (
-                        <span
-                            title="Días acumulados sin titular desde 2022"
-                            className="ml-auto shrink-0 cursor-help font-mono text-[10px] font-bold text-slate-500 dark:text-slate-400"
-                        >
-                            {aduana.dias_acefalia}d
-                        </span>
-                    )}
-                </div>
-            </header>
-
-            <div>
-                <div ref={canvasRef} className="relative p-3" style={{ minWidth: lanes.length * LANE_W }}>
-                    {/* Fondo (sombreado + conectores + divisores), igual que Historial. */}
-                    <div className="pointer-events-none absolute inset-0">
-                        {laneBands.map((band) => (
-                            <div
-                                key={band.plaza}
-                                className="absolute top-0 bottom-0 bg-slate-100/70 dark:bg-slate-900/40"
-                                style={{ left: band.left, width: band.width }}
-                            />
-                        ))}
-                        <svg className="absolute top-0 left-0" width={canvasSize.width} height={canvasSize.height}>
-                            <defs>
-                                <marker id={`arrow-gold-${uid}`} viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="7" refX="9" refY="5" orient="auto-start-reverse">
-                                    <path d="M0,0 L10,5 L0,10 Z" fill={GOLD} />
-                                </marker>
-                                <marker id={`arrow-amber-${uid}`} viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="7" refX="9" refY="5" orient="auto-start-reverse">
-                                    <path d="M0,0 L10,5 L0,10 Z" fill={AMBER} />
-                                </marker>
-                            </defs>
-                            {paths.map((p) => (
-                                <path
-                                    key={p.id}
-                                    ref={(el) => {
-                                        if (el) pathRefs.current.set(p.id, el);
-                                        else pathRefs.current.delete(p.id);
-                                    }}
-                                    d={p.d}
-                                    fill="none"
-                                    stroke={p.cambio ? AMBER : GOLD}
-                                    strokeWidth={p.cambio ? 2.5 : 2}
-                                    strokeDasharray={p.cambio ? "6 4" : undefined}
-                                    strokeLinecap="round"
-                                    opacity={p.cambio ? 0.85 : 0.55}
-                                    markerEnd={`url(#${p.cambio ? `arrow-amber-${uid}` : `arrow-gold-${uid}`})`}
-                                />
-                            ))}
-                        </svg>
-                        {dividers.map((d) => (
-                            <div
-                                key={d.plaza}
-                                className="absolute top-0 bottom-0 border-l border-dashed border-slate-300 dark:border-slate-700"
-                                style={{ left: d.x }}
-                            />
-                        ))}
-                    </div>
-
-                    {/* Cabeceras de carril (una por plaza) */}
-                    <div className="relative z-10 grid gap-2 pb-3" style={{ gridTemplateColumns: `repeat(${lanes.length}, minmax(${LANE_W - 20}px, 1fr))` }}>
-                        {lanes.map((plaza) => {
-                            const meta = laneMeta.get(plaza) || {};
-                            return (
-                                <div
-                                    key={plaza}
-                                    ref={(el) => {
-                                        if (el) laneRefs.current.set(plaza, el);
-                                        else laneRefs.current.delete(plaza);
-                                    }}
-                                    className={`rounded-lg border px-2.5 py-2 ${meta.esActual
-                                        ? "border-[#621f32] dark:border-[#bc955c] bg-[#621f32]/[0.06] dark:bg-slate-900"
-                                        : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40"}`}
-                                >
-                                    <div className="flex items-center justify-between gap-1">
-                                        <span className="truncate font-mono text-[11px] font-black text-[#621f32] dark:text-[#e3c793]">{plaza}</span>
-                                        {meta.esActual && (
-                                            <span className="shrink-0 rounded-full bg-[#621f32] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-white dark:bg-[#bc955c] dark:text-slate-950">
-                                                Vigente
-                                            </span>
-                                        )}
-                                    </div>
-                                    {meta.nivel && (
-                                        <span className="mt-1 inline-block rounded border border-[#bc955c]/30 bg-[#bc955c]/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-[#7a5a30] dark:text-[#e3c793]">
-                                            Nivel {meta.nivel}
-                                        </span>
-                                    )}
-                                    <p className="mt-1 font-mono text-[9px] font-bold text-slate-400 dark:text-slate-600">
-                                        {fecha(meta.primeraFecha)} — {meta.esActual ? "actual" : fecha(meta.ultimaFecha)}
-                                    </p>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Tarjetas: una por segmento (racha de plaza) o vacancia, en su carril. */}
-                    <div className="relative z-10 grid gap-2" style={{ gridTemplateColumns: `repeat(${lanes.length}, minmax(${LANE_W - 20}px, 1fr))`, gridAutoRows: "min-content" }}>
-                        {entradas.map((entrada, i) => {
-                            const col = laneIndexByPlaza.get(plazaDe(entrada)) ?? 0;
-                            if (entrada.tipo === "vacancia") {
-                                return (
-                                    <div
-                                        key={entrada.clave}
-                                        ref={(el) => {
-                                            if (el) cardRefs.current.set(entrada.clave, el);
-                                            else cardRefs.current.delete(entrada.clave);
-                                        }}
-                                        style={{ gridColumn: col + 1, gridRow: i + 1, minWidth: 0 }}
-                                    >
-                                        <TarjetaVacancia vacancia={entrada.dato} />
-                                    </div>
-                                );
-                            }
-                            return (
-                                <div key={entrada.clave} style={{ gridColumn: col + 1, gridRow: i + 1, minWidth: 0 }}>
-                                    <TarjetaSegmento
-                                        segmento={entrada.dato}
-                                        clave={entrada.clave}
-                                        canViewPhoto={canViewPhoto}
-                                        scrollRootRef={scrollRootRef}
-                                        claveDestino={entrada.dato.esUltimo ? destinoSegmentoPorClave.get(entrada.dato.claveGestion) || null : null}
-                                        onIrADestino={onIrADestino}
-                                        cardRef={(el) => {
-                                            if (el) cardRefs.current.set(entrada.clave, el);
-                                            else cardRefs.current.delete(entrada.clave);
-                                        }}
-                                    />
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-        </section>
+/** Foto + Consecutivo van SIEMPRE al frente, antes de las columnas del Excel
+ * — mismo orden que `columns` en `exportarRotacionAExcel`. Siempre las 32
+ * columnas completas (Procedencia/Destino con su detalle incluido) — mismo
+ * layout que exporta el Excel, sin nada oculto por defecto. */
+function useColumnasTabla(canViewPhoto) {
+    return useMemo(
+        () => [
+            ...(canViewPhoto ? [{ key: "__foto", header: "Foto", uiWidth: 56 }] : []),
+            { key: "__consecutivo", header: "No.", uiWidth: 52 },
+            ...EXPORT_COLUMNS_ROTACION,
+        ],
+        [canViewPhoto]
     );
 }
 
-/** Placeholder de una columna de aduana, con el mismo header y 2-4 tarjetas de alto variable. */
-function ColumnaEsqueleto({ alturas }) {
+/** Celda de texto genérica: truncada con tooltip — la mayoría de las 30
+ * columnas son texto/fecha/código sin tratamiento especial. */
+function CeldaTexto({ value, className = "" }) {
+    const texto = value === null || value === undefined || value === "" ? "—" : String(value);
     return (
-        <div className="w-full shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800/80 dark:bg-slate-900/30 md:w-[320px]">
-            <div className="rounded-t-2xl border-b-2 border-[#bc955c]/20 bg-white/95 px-4 py-3 dark:bg-slate-900/95">
-                <div className="flex items-start gap-2">
-                    <Building2 className="mt-0.5 size-4 shrink-0 text-slate-200 dark:text-slate-700" />
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                        <div className="h-3 w-28 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                        <div className="h-2 w-36 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                    </div>
+        <td className={`truncate border-r border-slate-300 px-3 align-middle text-[12.5px] text-slate-800 dark:border-slate-600 dark:text-slate-200 ${className}`} title={texto}>
+            {texto}
+        </td>
+    );
+}
+
+function FilaTabla({ fila, i, canViewPhoto, scrollRootRef, ctx, rowRef }) {
+    const { entrada, values, tipoColorKey, isVacancia } = fila;
+    const seg = entrada.dato;
+    const badge = BADGE_TIPO_MOVIMIENTO[tipoColorKey] || BADGE_TIPO_MOVIMIENTO.BAJA;
+
+    // Mismo criterio que el Excel: el ÚLTIMO segmento de una gestión que
+    // salió por TRASLADO_ADUANA sabe a qué fila salta (destino resuelto vía
+    // `destinoSegmentoPorClave`); un CAMBIO_PLAZA (cambio de plaza DENTRO de
+    // la misma aduana) enlaza directo a `claveSiguienteSegmento`, ya
+    // resuelto por `construirSegmentos`.
+    let claveDestino = null;
+    if (!isVacancia) {
+        if (seg.esUltimo) claveDestino = ctx.destinoSegmentoPorClave.get(seg.claveGestion) || null;
+        else if (seg.tipoSalida === "CAMBIO_PLAZA") claveDestino = seg.claveSiguienteSegmento || null;
+    }
+
+    // "Procedencia" dinámica — mismo criterio que el Excel: si esta plaza se
+    // ocupó tras un cambio de plaza DENTRO de la misma aduana, el origen es
+    // el segmento anterior de la misma gestión (`claveSegmentoAnterior`, ya
+    // resuelto); si vino de OTRA aduana (TRASLADO_ADUANA), el origen se
+    // resuelve vía `origenSegmentoPorClave` (mapa inverso de destino).
+    let claveProcedencia = null;
+    if (!isVacancia) {
+        if (seg.entradaOrigen?.tipo === "PLAZA" && seg.claveSegmentoAnterior) {
+            claveProcedencia = seg.claveSegmentoAnterior;
+        } else if (seg.entradaOrigen?.tipo === "ADUANA") {
+            claveProcedencia = ctx.origenSegmentoPorClave.get(entrada.clave) || null;
+        }
+    }
+
+    const filaFillClass = tipoColorKey === "INSUBSISTENCIA"
+        ? "bg-rose-50/70 dark:bg-rose-950/20"
+        : i % 2 === 1 ? "bg-slate-50/70 dark:bg-slate-900/30" : "bg-white dark:bg-slate-950";
+
+    return (
+        <tr
+            ref={rowRef}
+            className={`h-[44px] transition-colors hover:bg-[#621f32]/[0.03] dark:hover:bg-[#bc955c]/[0.05] ${filaFillClass}`}
+        >
+            {canViewPhoto && (
+                <td className="border-r border-slate-300 px-1.5 text-center align-middle dark:border-slate-600">
+                    {!isVacancia && (
+                        <FotoEmpleadoCell
+                            numempleado={seg.gestion.num_empleado}
+                            rootRef={scrollRootRef}
+                            enabled={canViewPhoto}
+                            size={26}
+                            caption={seg.gestion.cd_puesto ? `${seg.gestion.nombre} · ${seg.gestion.cd_puesto}` : seg.gestion.nombre}
+                        />
+                    )}
+                </td>
+            )}
+            <td className="border-r border-slate-300 px-1 text-center align-middle font-mono text-[12px] font-black text-[#621f32] dark:border-slate-600 dark:text-[#e3c793]">
+                {values.__consecutivo}
+            </td>
+            {ctx.columnas.map((col) => {
+                if (col.key === "tipoMovimiento") {
+                    return (
+                        <td key={col.key} className={`truncate border-r border-slate-300 px-2 text-center align-middle text-[10.5px] font-black uppercase tracking-wide dark:border-slate-600 ${badge}`}>
+                            {values.tipoMovimiento}
+                        </td>
+                    );
+                }
+                if (col.key === "procedencia" && claveProcedencia) {
+                    return (
+                        <td key={col.key} className="border-r border-slate-300 px-2 align-middle dark:border-slate-600">
+                            <button
+                                type="button"
+                                onClick={() => ctx.viajarA(claveProcedencia, entrada.clave)}
+                                title="Ir a la fila de donde viene"
+                                className="group flex w-full min-w-0 cursor-pointer items-center gap-1 text-[12.5px] font-bold text-amber-700 hover:text-amber-900 dark:text-amber-500 dark:hover:text-amber-400"
+                            >
+                                <ArrowRight className="size-2.5 shrink-0 -scale-x-100 transition-transform group-hover:-translate-x-1" />
+                                <span className="min-w-0 flex-1 truncate underline decoration-dotted">{values.procedencia}</span>
+                            </button>
+                        </td>
+                    );
+                }
+                if (col.key === "destino" && claveDestino) {
+                    return (
+                        <td key={col.key} className="border-r border-slate-300 px-2 align-middle dark:border-slate-600">
+                            <button
+                                type="button"
+                                onClick={() => ctx.viajarA(claveDestino, entrada.clave)}
+                                title="Ir a la fila destino"
+                                className="group flex w-full min-w-0 cursor-pointer items-center gap-1 text-[12.5px] font-bold text-amber-700 hover:text-amber-900 dark:text-amber-500 dark:hover:text-amber-400"
+                            >
+                                <span className="min-w-0 flex-1 truncate underline decoration-dotted">{values.destino}</span>
+                                <ArrowRight className="size-2.5 shrink-0 transition-transform group-hover:translate-x-1" />
+                            </button>
+                        </td>
+                    );
+                }
+                if (col.key === "fechaDesde" || col.key === "fechaHasta") {
+                    return (
+                        <td key={col.key} className="truncate border-r border-slate-300 bg-[#621f32]/[0.035] px-2 align-middle font-mono text-[12.5px] font-bold text-[#3e131f] dark:border-slate-600 dark:bg-[#bc955c]/[0.06] dark:text-[#e3c793]" title={String(values[col.key])}>
+                            {values[col.key]}
+                        </td>
+                    );
+                }
+                if (col.key === "salarioEntrada" || col.key === "salarioSalida") {
+                    const num = values[col.key];
+                    return (
+                        <td key={col.key} className="truncate border-r border-slate-300 px-2 text-right align-middle font-mono text-[12.5px] text-slate-800 dark:border-slate-600 dark:text-slate-200">
+                            {typeof num === "number" ? `$${Math.round(num).toLocaleString("es-MX")}` : "—"}
+                        </td>
+                    );
+                }
+                if (col.key === "aduana") {
+                    return <CeldaTexto key={col.key} value={values.aduana} className="font-bold text-[#621f32] dark:text-[#e3c793]" />;
+                }
+                if (col.key === "titular") {
+                    return <CeldaTexto key={col.key} value={values.titular} className="font-bold" />;
+                }
+                return <CeldaTexto key={col.key} value={values[col.key]} />;
+            })}
+        </tr>
+    );
+}
+
+function TablaRotacion({ aduanas, entradasPorAduana, cardRefs, canViewPhoto, scrollAreaRef, destinoSegmentoPorClave, onIrADestino }) {
+    const columnas = useColumnasTabla(canViewPhoto);
+    const numCols = columnas.length;
+    // Columnas "reales" (sin Foto/Consecutivo, que tienen su propia celda
+    // fija) — la lista que se recorre para pintar encabezado, buscador y
+    // celdas de cada fila.
+    const columnasVisibles = useMemo(() => columnas.filter((c) => c.key !== "__foto" && c.key !== "__consecutivo"), [columnas]);
+
+    // Anchos de columna redimensionados a mano (override sobre `uiWidth`) —
+    // por clave de columna, solo las que el usuario haya arrastrado. El
+    // control vive en la esquina inferior derecha de cada encabezado (grip
+    // diagonal, como el de un `<textarea>`) y solo permite arrastre
+    // HORIZONTAL: el ancho de fila (alto) no cambia.
+    const [colWidths, setColWidths] = useState({});
+    const anchoDe = useCallback((col) => colWidths[col.key] ?? col.uiWidth, [colWidths]);
+    const handleResizeStart = useCallback(
+        (e, colKey) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startX = e.clientX;
+            const startWidth = colWidths[colKey] ?? columnasVisibles.find((c) => c.key === colKey)?.uiWidth ?? 120;
+            const onMouseMove = (moveEvent) => {
+                const deltaX = moveEvent.clientX - startX;
+                setColWidths((prev) => ({ ...prev, [colKey]: Math.max(60, startWidth + deltaX) }));
+            };
+            const onMouseUp = () => {
+                document.removeEventListener("mousemove", onMouseMove);
+                document.removeEventListener("mouseup", onMouseUp);
+            };
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+        },
+        [colWidths, columnasVisibles]
+    );
+
+    // Inverso de `destinoSegmentoPorClave` a nivel de SEGMENTO — mismo
+    // mecanismo que `origenSegmentoPorClave` en `exportarRotacionAExcel`:
+    // se llena recorriendo el segmento que SALE por TRASLADO_ADUANA (ahí se
+    // conoce a la vez su propia clave y la del segmento al que llega), y
+    // alimenta el link de "Procedencia" en la fila de llegada. Se calcula
+    // sobre TODAS las aduanas (`entradasPorAduana`, no el `aduanas` ya
+    // filtrado) para que el link funcione aunque la aduana de origen esté
+    // oculta por el buscador/chips — igual criterio que `destinoSegmentoPorClave`.
+    const origenSegmentoPorClave = useMemo(() => {
+        const map = new Map();
+        entradasPorAduana.forEach((entradas) => {
+            entradas.forEach((e) => {
+                if (e.tipo !== "segmento" || !e.dato.esUltimo || e.dato.tipoSalida !== "TRASLADO_ADUANA") return;
+                const claveDestino = destinoSegmentoPorClave.get(e.dato.claveGestion);
+                if (claveDestino) map.set(claveDestino, e.clave);
+            });
+        });
+        return map;
+    }, [entradasPorAduana, destinoSegmentoPorClave]);
+
+    const ctx = useMemo(
+        () => ({ viajarA: onIrADestino, destinoSegmentoPorClave, origenSegmentoPorClave, columnas: columnasVisibles }),
+        [onIrADestino, destinoSegmentoPorClave, origenSegmentoPorClave, columnasVisibles]
+    );
+
+    // Filas SIN filtro de columna (solo con el consecutivo/valores ya
+    // resueltos) — base para dos cosas: (1) el universo de valores únicos que
+    // ofrece `ColumnFilterDropdown` (para que la lista de opciones no se
+    // encoja al ir marcando filtros de OTRAS columnas), y (2) la lista real
+    // que se pinta, ya con `filters.columnFilters` aplicado.
+    const filasBasePorAduana = useMemo(() => {
+        return aduanas.map((aduana) => {
+            const entradas = entradasPorAduana.get(aduana.aduana) || [];
+            const filas = anotarConsecutivos(entradas).map(({ entrada, consecutivo }) => ({
+                entrada,
+                ...filaValoresRotacion(aduana, entrada, consecutivo),
+            }));
+            return { aduana, entradasOriginal: entradas, filas };
+        });
+    }, [aduanas, entradasPorAduana]);
+
+    // Filtro de columna estilo Excel — mismo mecanismo que el resto de tablas
+    // de plantilla (`useColumnFilters` + `ColumnFilterDropdown` + el
+    // buscador rápido con condición, estilo `DataTable`), combinados con AND
+    // vía `applyColumnFilters` (la misma lógica canónica que ya usan las
+    // demás tablas). `values` ya es un objeto plano con una clave por
+    // columna, así que basta con envolver cada fila en un arreglo de 1.
+    const filters = useColumnFilters();
+
+    // Dropdown de condición del buscador rápido (contiene/empieza con/es
+    // igual a…, ver `CONDITION_OPTIONS`) — se porta a `document.body` vía
+    // `createPortal` (posicionado por el rect del botón) para no quedar
+    // recortado por el `overflow-auto` de la tabla, igual que `DataTable`.
+    const [conditionDropdownRect, setConditionDropdownRect] = useState(null);
+    const closeConditionDropdown = useCallback(() => {
+        filters.setActiveConditionDropdown(null);
+        setConditionDropdownRect(null);
+    }, [filters]);
+    useEffect(() => {
+        if (!filters.activeConditionDropdown) return;
+        const scrollEl = scrollAreaRef.current;
+        if (!scrollEl) return;
+        const handleScroll = () => closeConditionDropdown();
+        scrollEl.addEventListener("scroll", handleScroll);
+        return () => scrollEl.removeEventListener("scroll", handleScroll);
+    }, [filters.activeConditionDropdown, scrollAreaRef, closeConditionDropdown]);
+
+    const columnasFiltradas = filters.columnFilters;
+    const hayFiltroActivo =
+        Object.keys(columnasFiltradas).some((k) => columnasFiltradas[k]?.length > 0) ||
+        Object.values(filters.textFilters).some((f) => f?.value?.trim());
+
+    const cumpleFiltros = useCallback(
+        (values) => applyColumnFilters([values], { columnFilters: columnasFiltradas, textFilters: filters.textFilters }).length > 0,
+        [columnasFiltradas, filters.textFilters]
+    );
+
+    const filasPorAduana = useMemo(
+        () =>
+            filasBasePorAduana.map(({ aduana, entradasOriginal, filas }) => ({
+                aduana,
+                entradasOriginal,
+                filas: hayFiltroActivo ? filas.filter((f) => cumpleFiltros(f.values)) : filas,
+            })),
+        [filasBasePorAduana, hayFiltroActivo, cumpleFiltros]
+    );
+
+    // Universo de valores de la columna con el dropdown abierto — se calcula
+    // solo bajo demanda (no las 32 columnas en cada render) sobre
+    // `filasBasePorAduana` (sin el propio filtro de columna, para no
+    // "comerse a sí mismo" al reabrir un filtro ya aplicado).
+    const columnaActiva = filters.activeFilterDropdown;
+    const todasLasFilasBase = useMemo(() => filasBasePorAduana.flatMap((g) => g.filas.map((f) => f.values)), [filasBasePorAduana]);
+    const baseUniqueValues = useMemo(
+        () => (columnaActiva ? getUniqueColumnValues(todasLasFilasBase, columnaActiva) : []),
+        [todasLasFilasBase, columnaActiva]
+    );
+    const filteredValues = useMemo(() => {
+        const q = normalizeForSearch(filters.filterSearchText);
+        return q ? baseUniqueValues.filter((v) => normalizeForSearch(v.value).includes(q)) : baseUniqueValues;
+    }, [baseUniqueValues, filters.filterSearchText]);
+    const dropdownValues = useMemo(
+        () =>
+            finalizeFilterDropdownValues({
+                baseUniqueValues,
+                filtered: filteredValues,
+                tempSelectedValues: filters.tempSelectedValues,
+                committedSelectedValues: columnaActiva ? columnasFiltradas[columnaActiva] || [] : [],
+            }),
+        [baseUniqueValues, filteredValues, filters.tempSelectedValues, columnasFiltradas, columnaActiva]
+    );
+
+    const handleOpenFilter = useCallback(
+        (colKey) => {
+            const committed = columnasFiltradas[colKey] || [];
+            const valores = getUniqueColumnValues(todasLasFilasBase, colKey);
+            filters.setTempSelectedValues(committed.length > 0 ? committed : valores.map((v) => v.value));
+            filters.setActiveFilterDropdown(colKey);
+        },
+        [columnasFiltradas, todasLasFilasBase, filters]
+    );
+    const handleApplyFilter = useCallback(() => {
+        const { shouldClear, valuesToCommit } = resolveColumnFilterCommit(filters.tempSelectedValues, dropdownValues.allVals);
+        filters.setColumnFilters((prev) => {
+            const next = { ...prev };
+            if (shouldClear) delete next[columnaActiva];
+            else next[columnaActiva] = valuesToCommit;
+            return next;
+        });
+        filters.setActiveFilterDropdown(null);
+    }, [filters, dropdownValues, columnaActiva]);
+    const handleClearFilter = useCallback(() => {
+        filters.setColumnFilters((prev) => {
+            const next = { ...prev };
+            delete next[columnaActiva];
+            return next;
+        });
+        filters.setActiveFilterDropdown(null);
+    }, [filters, columnaActiva]);
+
+    return (
+        <div className="flex min-h-0 flex-1 flex-col">
+            {hayFiltroActivo && (
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/70 bg-white px-3 py-1.5 dark:border-slate-800/80 dark:bg-slate-950">
+                    <button
+                        type="button"
+                        onClick={() => { filters.setColumnFilters({}); filters.setTextFilters({}); }}
+                        className="flex cursor-pointer items-center gap-1 rounded-lg border border-transparent px-2.5 py-1.5 text-[11px] font-bold text-slate-400 hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-500"
+                    >
+                        <X className="size-3" /> Quitar filtros de columna
+                    </button>
                 </div>
-                <div className="mt-2.5 h-4 w-24 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800" />
+            )}
+
+            <div ref={scrollAreaRef} className="custom-scrollbar min-h-[420px] overflow-auto md:min-h-0 md:flex-1">
+                <table className="w-full border-collapse text-left" style={{ tableLayout: "fixed" }}>
+                    <colgroup>
+                        {canViewPhoto && <col style={{ width: 56 }} />}
+                        <col style={{ width: 52 }} />
+                        {columnasVisibles.map((c) => (
+                            <col key={c.key} style={{ width: anchoDe(c) }} />
+                        ))}
+                    </colgroup>
+                    <thead className="sticky top-0 z-30 bg-[#501929] text-white shadow-md dark:bg-[#3e131f]">
+                        <tr>
+                            {canViewPhoto && <th className="border-r border-[#621f32]/35 bg-[#40121e] px-1 py-2.5 text-center align-middle text-[10px] font-bold text-slate-400">Foto</th>}
+                            <th className="border-r border-[#621f32]/35 bg-[#40121e] px-1 py-2.5 text-center align-middle text-[10px] font-bold text-slate-400">No.</th>
+                            {columnasVisibles.map((col, index) => {
+                                const hasFilter = (columnasFiltradas[col.key]?.length || 0) > 0 || !!(filters.textFilters[col.key] && filters.textFilters[col.key].value);
+                                return (
+                                    <th
+                                        key={col.key}
+                                        className={`relative border-r border-[#621f32]/30 px-3 py-2.5 font-black uppercase transition-colors ${
+                                            hasFilter ? "bg-[#bc955c] text-slate-900 shadow-inner" : "bg-[#501929] text-slate-200"
+                                        }`}
+                                    >
+                                        {hasFilter && <div className="absolute top-1 right-1 size-2 animate-pulse rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
+                                        <div className="flex w-full flex-col items-center gap-1">
+                                            <span className={`font-mono text-[9.5px] ${hasFilter ? "text-[#3e131f]/70" : "text-[#bc955c]"}`}>{getColumnLetterRotacion(index)}</span>
+                                            <div className="flex w-full items-center justify-center gap-1.5">
+                                                <span className="truncate text-[11px]" title={col.header}>{col.header}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenFilter(col.key)}
+                                                    title={columnasFiltradas[col.key]?.length ? `${columnasFiltradas[col.key].length} valor(es) filtrado(s)` : "Filtrar columna"}
+                                                    className="shrink-0 cursor-pointer rounded p-0.5 transition-colors hover:bg-black/10"
+                                                >
+                                                    <Filter className={`size-2.5 fill-current ${hasFilter ? "text-[#3e131f]" : "text-white/50"}`} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                        <tr className="bg-[#40121e] dark:bg-[#2b0d15]">
+                            {canViewPhoto && <th className="border-r border-[#621f32]/35" />}
+                            <th className="border-r border-[#621f32]/35" />
+                            {columnasVisibles.map((col) => {
+                                const filterObj = filters.textFilters[col.key] || { value: "", condition: "contains" };
+                                const condition = filterObj.condition || "contains";
+                                const symbol = CONDITION_SHORTHANDS[condition] || "*";
+                                return (
+                                    <th key={`f-${col.key}`} className="relative border-r border-[#621f32]/30 p-1.5">
+                                        <div className="relative flex w-full items-center">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (filters.activeConditionDropdown === col.key) {
+                                                        closeConditionDropdown();
+                                                    } else {
+                                                        setConditionDropdownRect(e.currentTarget.getBoundingClientRect());
+                                                        filters.setActiveConditionDropdown(col.key);
+                                                    }
+                                                }}
+                                                title={`Condición: ${getConditionLabel(condition)}`}
+                                                className="absolute left-1.5 z-10 flex size-4 cursor-pointer select-none items-center justify-center rounded border border-white/15 bg-white/10 text-[8px] font-black text-white transition-colors hover:bg-white/20"
+                                            >
+                                                {symbol}
+                                            </button>
+                                            <input
+                                                type="text"
+                                                value={filterObj.value || ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    filters.setTextFilters((prev) => {
+                                                        const next = { ...prev };
+                                                        if (val === "") delete next[col.key];
+                                                        else next[col.key] = { value: val, condition };
+                                                        return next;
+                                                    });
+                                                }}
+                                                placeholder="Filtrar…"
+                                                className="w-full rounded-md border border-white/5 bg-white/10 py-1.5 pl-7 pr-2 text-[10.5px] font-bold text-white outline-none placeholder-white/30 transition-all hover:bg-white/20 focus:border-[#bc955c]/50 focus:bg-white/30"
+                                            />
+                                        </div>
+
+                                        {/* Grip de redimensionado — esquina inferior derecha, SOLO
+                                            arrastre horizontal (igual que un `<textarea>`, pero
+                                            restringido a ancho: el alto de la fila no cambia). */}
+                                        <div
+                                            onMouseDown={(e) => handleResizeStart(e, col.key)}
+                                            title="Arrastra para cambiar el ancho de la columna"
+                                            className="absolute bottom-0 right-0 z-20 flex size-3.5 cursor-ew-resize items-end justify-end p-0.5 text-white/40 transition-colors hover:text-white"
+                                        >
+                                            <svg viewBox="0 0 10 10" className="size-2.5 fill-current">
+                                                <circle cx="8" cy="2" r="1" />
+                                                <circle cx="8" cy="5" r="1" />
+                                                <circle cx="8" cy="8" r="1" />
+                                                <circle cx="5" cy="5" r="1" />
+                                                <circle cx="5" cy="8" r="1" />
+                                                <circle cx="2" cy="8" r="1" />
+                                            </svg>
+                                        </div>
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
+                        {filasPorAduana.map(({ aduana, entradasOriginal, filas }) => {
+                            if (entradasOriginal.length === 0 || (hayFiltroActivo && filas.length === 0)) {
+                                if (entradasOriginal.length === 0) {
+                                    return (
+                                        <React.Fragment key={aduana.aduana}>
+                                            <tr className="bg-[#f5ebef] dark:bg-[#2a1620]">
+                                                <td colSpan={numCols} className="px-3 py-2 text-[10.5px] font-black uppercase tracking-wide text-[#3e131f] dark:text-[#e3c793]">
+                                                    {aduana.aduana}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colSpan={numCols} className="px-3 py-2 text-center text-[10px] italic text-slate-400">
+                                                    Sin gestiones registradas.
+                                                </td>
+                                            </tr>
+                                        </React.Fragment>
+                                    );
+                                }
+                                return null;
+                            }
+                            const tieneTitular = !!aduana.titular_actual;
+                            return (
+                                <React.Fragment key={aduana.aduana}>
+                                    <tr className="bg-[#f5ebef] dark:bg-[#2a1620]">
+                                        <td colSpan={numCols} className="px-3 py-2">
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                                                <span className="flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-wide text-[#3e131f] dark:text-[#e3c793]">
+                                                    <Building2 className="size-3 shrink-0 text-[#bc955c]" />
+                                                    {aduana.aduana}
+                                                </span>
+                                                <span className={`text-[10px] font-bold ${tieneTitular ? "text-[#621f32]/80 dark:text-[#e3c793]/80" : "italic text-rose-600 dark:text-rose-400"}`}>
+                                                    {tieneTitular ? `Titular actual: ${aduana.titular_actual}` : "Sin titular actualmente"}
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {filas.map((fila, i) => (
+                                        <FilaTabla
+                                            key={fila.entrada.clave}
+                                            fila={fila}
+                                            i={i}
+                                            canViewPhoto={canViewPhoto}
+                                            scrollRootRef={scrollAreaRef}
+                                            ctx={ctx}
+                                            rowRef={(el) => {
+                                                if (el) cardRefs.current.set(fila.entrada.clave, el);
+                                                else cardRefs.current.delete(fila.entrada.clave);
+                                            }}
+                                        />
+                                    ))}
+                                </React.Fragment>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
 
-            <div className="flex flex-col gap-2 p-3">
-                {alturas.map((h, i) => (
+            {filters.activeConditionDropdown && conditionDropdownRect && typeof document !== "undefined" && createPortal(
+                <>
+                    <div className="fixed inset-0 z-[110] bg-transparent" onClick={(e) => { e.stopPropagation(); closeConditionDropdown(); }} />
                     <div
-                        key={i}
-                        style={{ height: h }}
-                        className="animate-pulse rounded-2xl border border-slate-200/70 bg-white dark:border-slate-700/70 dark:bg-slate-800/60"
-                    />
-                ))}
-            </div>
+                        className="fixed z-[120] flex w-36 flex-col gap-0.5 rounded-xl border border-slate-700/80 bg-slate-900 p-1 text-left text-slate-200 shadow-xl"
+                        style={{ top: conditionDropdownRect.bottom + 4, left: conditionDropdownRect.left }}
+                    >
+                        {CONDITION_OPTIONS.map((item) => {
+                            const colKey = filters.activeConditionDropdown;
+                            const current = filters.textFilters[colKey]?.condition || "contains";
+                            return (
+                                <button
+                                    key={item.key}
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        filters.setTextFilters((prev) => ({ ...prev, [colKey]: { value: prev[colKey]?.value || "", condition: item.key } }));
+                                        closeConditionDropdown();
+                                    }}
+                                    className={`flex w-full items-center justify-between rounded-lg px-2 py-1 text-left text-[9px] font-bold transition-colors ${current === item.key ? "bg-[#bc955c] text-slate-950" : "hover:bg-white/10"}`}
+                                >
+                                    <span>{item.label}</span>
+                                    {current === item.key && <Check className="size-2.5" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </>,
+                document.body
+            )}
+
+            <ColumnFilterDropdown
+                open={!!columnaActiva}
+                columnKey={columnaActiva}
+                columnLabel={columnasVisibles.find((c) => c.key === columnaActiva)?.header || columnaActiva}
+                isDate={false}
+                data={todasLasFilasBase}
+                filters={filters}
+                dropdownValues={dropdownValues}
+                onApply={handleApplyFilter}
+                onClear={handleClearFilter}
+                onClose={() => filters.setActiveFilterDropdown(null)}
+            />
         </div>
     );
 }
 
-/** Alturas variadas por columna para que el esqueleto no se vea uniforme/artificial. */
-const ALTURAS_ESQUELETO = [
-    [132, 96, 148],
-    [110, 132],
-    [96, 148, 110, 96],
-    [132, 96],
-    [148, 110, 132],
-    [96, 132, 96],
-];
-
+/** Esqueleto de carga: barra de toolbar + filas de tabla con pulso, mismo
+ * ritmo visual que el resto de tabs de plantilla mientras llega el primer
+ * fetch. */
 function EsqueletoRotacion() {
     return (
         <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100vh-var(--stack-h))]">
@@ -2166,17 +1968,11 @@ function EsqueletoRotacion() {
                     <div className="h-9 w-9 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
                 </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-2.5 w-24 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                ))}
-            </div>
-
-            <div className="custom-scrollbar min-h-[420px] overflow-x-auto md:min-h-0 md:flex-1">
-                <div className="flex flex-col gap-4 p-2 md:flex-row md:items-start md:gap-3">
-                    {ALTURAS_ESQUELETO.map((alturas, i) => (
-                        <ColumnaEsqueleto key={i} alturas={alturas} />
+            <div className="flex-1 p-3">
+                <div className="mb-2 h-8 w-full animate-pulse rounded-lg bg-[#621f32]/10 dark:bg-[#621f32]/20" />
+                <div className="flex flex-col gap-1">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="h-[38px] w-full animate-pulse rounded bg-slate-100 dark:bg-slate-900/40" />
                     ))}
                 </div>
             </div>
@@ -2189,13 +1985,12 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState(null);
     const [busqueda, setBusqueda] = useState("");
-    const [filtrosTipo, setFiltrosTipo] = useState([]); // varios chips activos a la vez, combinados con "o"
     const [puedeVolver, setPuedeVolver] = useState(false);
     const abortRef = useRef(null);
     const scrollAreaRef = useRef(null);
     const cardRefs = useRef(new Map());
     const pendingAccionRef = useRef(null); // { tipo: "clave", clave } | { tipo: "posicion", left, top }
-    const historialRef = useRef([]); // pila de {scrollLeft, scrollTop, busqueda, filtrosTipo} previos a cada salto
+    const historialRef = useRef([]); // pila de {scrollLeft, scrollTop, busqueda} previos a cada salto
 
     const cargar = useCallback((refrescar = false) => {
         abortRef.current?.abort();
@@ -2260,84 +2055,95 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
         return { entradasPorAduana: entradasMap, destinoSegmentoPorClave: destinoSegmento };
     }, [datos]);
 
-    // Filtro por chip, con varios activos a la vez combinados con "o": basta
-    // con que la aduana cumpla UNO cualquiera de los seleccionados.
-    // ACTIVO/TRASLADO_ADUANA/CAMBIO_PLAZA/SALIDA_PUESTO/BAJA buscan un
-    // segmento de ese tipo en la línea de tiempo de la aduana; SIN_TITULAR y
-    // VACANCIA son propiedades de la aduana misma.
-    const cumpleFiltro = useCallback(
-        (a, tipo) => {
-            if (tipo === "SIN_TITULAR") return !a.titular_actual;
-            if (tipo === "VACANCIA") return (a.total_vacancias || 0) > 0;
-            const entradas = entradasPorAduana.get(a.aduana) || [];
-            if (tipo === "INSUBSISTENCIA") return entradas.some((e) => e.tipo === "segmento" && esInsubsistencia(e.dato));
-            return entradas.some((e) => e.tipo === "segmento" && e.dato.tipoSalida === tipo);
-        },
-        [entradasPorAduana]
-    );
-
+    // Búsqueda global: sobre TODO el dataset, no solo aduana/titular — cada
+    // aduana entra si el término aparece en CUALQUIER valor de CUALQUIER
+    // columna de CUALQUIERA de sus filas (mismos `values` que ya pinta la
+    // tabla, vía `filaValoresRotacion`), o en el nombre completo/titular
+    // actual que solo aparece en la banda de encabezado de la aduana.
     const aduanas = useMemo(() => {
         const todas = datos?.aduanas || [];
         const termino = normalizeForSearch(busqueda.trim());
+        if (!termino) return todas;
         return todas.filter((a) => {
-            if (termino) {
-                const coincideNombre = normalizeForSearch(a.aduana).includes(termino);
-                const coincideTitular = (a.gestiones || []).some((g) => normalizeForSearch(g.nombre).includes(termino));
-                if (!coincideNombre && !coincideTitular) return false;
-            }
-            if (filtrosTipo.length === 0) return true;
-            return filtrosTipo.some((tipo) => cumpleFiltro(a, tipo));
+            if (normalizeForSearch(a.aduana).includes(termino)) return true;
+            if (a.titular_actual && normalizeForSearch(a.titular_actual).includes(termino)) return true;
+            const entradas = entradasPorAduana.get(a.aduana) || [];
+            return entradas.some((entrada) => {
+                const { values } = filaValoresRotacion(a, entrada, "—");
+                return Object.values(values).some(
+                    (v) => v !== null && v !== undefined && v !== "" && normalizeForSearch(String(v)).includes(termino)
+                );
+            });
         });
-    }, [datos, busqueda, filtrosTipo, cumpleFiltro]);
+    }, [datos, busqueda, entradasPorAduana]);
 
-    // Centra `el` en el contenedor con scroll y lo resalta con un pulso —
-    // GSAP puede animar scrollLeft/scrollTop de un elemento como cualquier
-    // otra propiedad numérica, sin necesitar ScrollToPlugin.
-    const animarHacia = useCallback((el) => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-        const containerRect = container.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        const targetLeft = container.scrollLeft + (elRect.left - containerRect.left) - (containerRect.width - elRect.width) / 2;
-        const targetTop = container.scrollTop + (elRect.top - containerRect.top) - (containerRect.height - elRect.height) / 2;
-
-        const tl = gsap.timeline();
-        tl.to(container, {
-            scrollLeft: Math.max(0, targetLeft),
-            scrollTop: Math.max(0, targetTop),
-            duration: 0.9,
-            ease: "power2.inOut",
-        });
+    // Destaca una FILA completa (ahora la tabla, no tarjetas): anima el
+    // fondo de TODAS sus `<td>` a la vez, no un box-shadow sobre el `<tr>`
+    // — un box-shadow en una fila de tabla se aplasta contra las filas
+    // vecinas (border-collapse + fondos de celda encima) y termina
+    // viéndose como una simple línea, ambigua sobre si pertenece a la fila
+    // de arriba o la de abajo (bug real reportado). El fondo de celda SÍ
+    // es inequívoco: toda la fila se tiñe pareja. `clearProps` al final
+    // quita el inline style para que la fila recupere su cebra/tinte
+    // normal (insubsistencia, etc.) en vez de quedar transparente.
+    const destacarFila = useCallback((el, tl, position) => {
+        const celdas = el.querySelectorAll("td");
+        if (!celdas.length) return;
         tl.fromTo(
-            el,
-            { boxShadow: "0 0 0 5px rgba(245,158,11,0.65)" },
-            { boxShadow: "0 0 0 0 rgba(245,158,11,0)", duration: 1, ease: "power2.out" },
-            "-=0.35"
+            celdas,
+            { backgroundColor: "rgba(245,158,11,0.25)" },
+            { backgroundColor: "rgba(245,158,11,0)", duration: 1.1, ease: "power2.out", clearProps: "backgroundColor" },
+            position
         );
     }, []);
 
-    // Vuelta al lugar exacto de donde salió un salto — mismo pulso que
-    // animarHacia, pero sobre la tarjeta de origen (a la que se regresa).
-    const animarAPosicion = useCallback((left, top, elParaDestacar) => {
-        const container = scrollAreaRef.current;
-        if (!container) return;
-        const tl = gsap.timeline();
-        tl.to(container, { scrollLeft: Math.max(0, left), scrollTop: Math.max(0, top), duration: 0.9, ease: "power2.inOut" });
-        if (elParaDestacar) {
-            tl.fromTo(
-                elParaDestacar,
-                { boxShadow: "0 0 0 5px rgba(245,158,11,0.65)" },
-                { boxShadow: "0 0 0 0 rgba(245,158,11,0)", duration: 1, ease: "power2.out" },
-                "-=0.35"
-            );
-        }
-    }, []);
+    // Centra `el` en el contenedor con scroll y lo resalta — GSAP puede
+    // animar scrollLeft/scrollTop de un elemento como cualquier otra
+    // propiedad numérica, sin necesitar ScrollToPlugin.
+    const animarHacia = useCallback(
+        (el) => {
+            const container = scrollAreaRef.current;
+            if (!container) return;
+            const containerRect = container.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            // Horizontal SIEMPRE al inicio de la tabla (Foto/Consecutivo/
+            // Aduana…), nunca centrado: `el` es la fila completa, tan ancha
+            // como TODA la tabla (~30 columnas), así que centrar por su
+            // ancho terminaba desplazando el scroll horizontal a la mitad
+            // de la tabla en vez de mostrar el registro desde sus primeras
+            // columnas (bug real reportado).
+            const targetTop = container.scrollTop + (elRect.top - containerRect.top) - (containerRect.height - elRect.height) / 2;
 
-    // Si la tarjeta destino no está montada (filtrada por búsqueda/"solo
-    // acéfalas"), se limpian los filtros y se guarda la acción pendiente: el
-    // efecto de abajo la resuelve en cuanto la columna vuelva a aparecer.
-    // `claveOrigen` es la tarjeta con el botón que se acaba de clicar —se
-    // guarda en el historial para poder destacarla de vuelta al regresar.
+            const tl = gsap.timeline();
+            tl.to(container, {
+                scrollLeft: 0,
+                scrollTop: Math.max(0, targetTop),
+                duration: 0.9,
+                ease: "power2.inOut",
+            });
+            destacarFila(el, tl, "+=1.2");
+        },
+        [destacarFila]
+    );
+
+    // Vuelta al lugar exacto de donde salió un salto — mismo resalte que
+    // animarHacia, pero sobre la fila de origen (a la que se regresa).
+    const animarAPosicion = useCallback(
+        (left, top, elParaDestacar) => {
+            const container = scrollAreaRef.current;
+            if (!container) return;
+            const tl = gsap.timeline();
+            tl.to(container, { scrollLeft: Math.max(0, left), scrollTop: Math.max(0, top), duration: 0.9, ease: "power2.inOut" });
+            if (elParaDestacar) destacarFila(elParaDestacar, tl, "+=1.2");
+        },
+        [destacarFila]
+    );
+
+    // Si la tarjeta destino no está montada (filtrada por búsqueda), se
+    // limpia la búsqueda y se guarda la acción pendiente: el efecto de abajo
+    // la resuelve en cuanto la columna vuelva a aparecer. `claveOrigen` es la
+    // tarjeta con el botón que se acaba de clicar — se guarda en el
+    // historial para poder destacarla de vuelta al regresar.
     const viajarA = useCallback(
         (claveDestino, claveOrigen) => {
             const container = scrollAreaRef.current;
@@ -2345,7 +2151,6 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                 scrollLeft: container?.scrollLeft ?? 0,
                 scrollTop: container?.scrollTop ?? 0,
                 busqueda,
-                filtrosTipo,
                 clave: claveOrigen,
             });
             setPuedeVolver(true);
@@ -2357,12 +2162,11 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
             }
             pendingAccionRef.current = { tipo: "clave", clave: claveDestino };
             setBusqueda("");
-            setFiltrosTipo([]);
         },
-        [animarHacia, busqueda, filtrosTipo]
+        [animarHacia, busqueda]
     );
 
-    // Deshace el último salto: restaura filtros (si cambiaron), la posición
+    // Deshace el último salto: restaura la búsqueda (si cambió), la posición
     // de scroll exacta en la que estaba antes de dar clic en "Pasó a otra
     // aduana" y destaca esa misma tarjeta de origen brevemente.
     const volver = useCallback(() => {
@@ -2370,14 +2174,13 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
         if (!anterior) return;
         setPuedeVolver(historialRef.current.length > 0);
 
-        if (anterior.busqueda !== busqueda || anterior.filtrosTipo !== filtrosTipo) {
+        if (anterior.busqueda !== busqueda) {
             pendingAccionRef.current = { tipo: "posicion", left: anterior.scrollLeft, top: anterior.scrollTop, clave: anterior.clave };
             setBusqueda(anterior.busqueda);
-            setFiltrosTipo(anterior.filtrosTipo);
         } else {
             animarAPosicion(anterior.scrollLeft, anterior.scrollTop, cardRefs.current.get(anterior.clave));
         }
-    }, [busqueda, filtrosTipo, animarAPosicion]);
+    }, [busqueda, animarAPosicion]);
 
     useEffect(() => {
         const accion = pendingAccionRef.current;
@@ -2405,37 +2208,18 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
         };
     }, [datos]);
 
-    // Cuenta de segmentos por tipo, para el número de cada chip-filtro —
-    // reutiliza la misma clasificación (`tipoSalida`) que ya pinta las
-    // tarjetas, así el número del chip nunca se desincroniza del diagrama.
-    const conteoPorTipo = useMemo(() => {
-        const c = { ACTIVO: 0, TRASLADO_ADUANA: 0, CAMBIO_PLAZA: 0, SALIDA_PUESTO: 0, BAJA: 0, INSUBSISTENCIA: 0 };
-        entradasPorAduana.forEach((entradas) => {
-            entradas.forEach((e) => {
-                if (e.tipo !== "segmento") return;
-                if (c[e.dato.tipoSalida] !== undefined) c[e.dato.tipoSalida] += 1;
-                if (esInsubsistencia(e.dato)) c.INSUBSISTENCIA += 1;
-            });
-        });
-        return c;
-    }, [entradasPorAduana]);
-
-    const toggleFiltro = useCallback((tipoKey) => {
-        setFiltrosTipo((prev) => (prev.includes(tipoKey) ? prev.filter((t) => t !== tipoKey) : [...prev, tipoKey]));
-    }, []);
-
     const [exportando, setExportando] = useState(false);
     const handleExportarExcel = useCallback(async () => {
         if (exportando) return;
         setExportando(true);
         try {
-            await exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, filtrosTipo, canViewPhoto });
+            await exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto });
         } catch (err) {
             console.error("Error exportando rotación de aduanas a Excel:", err);
         } finally {
             setExportando(false);
         }
-    }, [aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, filtrosTipo, exportando, canViewPhoto]);
+    }, [aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, exportando, canViewPhoto]);
 
     if (cargando) {
         return <EsqueletoRotacion />;
@@ -2477,15 +2261,15 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     <ChevronLeft className="size-3.5" />
                 </button>
 
-                <div className="relative shrink-0">
+                <div className="relative w-72 shrink-0">
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
                     <input
                         type="text"
                         value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
-                        placeholder="Aduana o titular…"
-                        aria-label="Buscar aduana o titular"
-                        className="w-32 rounded-xl border border-slate-200 bg-white py-1.5 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-[#bc955c] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                        placeholder="Buscar en toda la tabla…"
+                        aria-label="Buscar en toda la tabla"
+                        className="w-full rounded-xl border border-slate-200 bg-white py-1.5 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-[#bc955c] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
                     />
                     {busqueda && (
                         <button
@@ -2496,39 +2280,6 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                         >
                             <X className="size-3.5" />
                         </button>
-                    )}
-                </div>
-
-                {/* Stats + chips-filtro: cada chip es a la vez leyenda y
-                    filtro — clic reduce `aduanas` a las que tienen ese tipo
-                    de movimiento; clic de nuevo lo quita. Sin toggle activo
-                    se ven todas. */}
-                <div className="flex shrink-0 flex-nowrap items-stretch gap-x-0.5">
-                    <StatPlano icon={Building2} value={resumen.aduanas} label="aduanas" />
-                    <StatPlano icon={Users} value={`${resumen.titulares} · ${resumen.gestiones}`} label="titulares · gestiones" />
-
-                    <span className="mx-0.5 my-1 w-px shrink-0 bg-slate-200 dark:bg-slate-800" />
-
-                    <ChipFiltro tipoKey="ACTIVO" count={conteoPorTipo.ACTIVO} active={filtrosTipo.includes("ACTIVO")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="TRASLADO_ADUANA" count={conteoPorTipo.TRASLADO_ADUANA} active={filtrosTipo.includes("TRASLADO_ADUANA")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="CAMBIO_PLAZA" count={conteoPorTipo.CAMBIO_PLAZA} active={filtrosTipo.includes("CAMBIO_PLAZA")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="SALIDA_PUESTO" count={conteoPorTipo.SALIDA_PUESTO} active={filtrosTipo.includes("SALIDA_PUESTO")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="BAJA" count={conteoPorTipo.BAJA} active={filtrosTipo.includes("BAJA")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="INSUBSISTENCIA" count={conteoPorTipo.INSUBSISTENCIA} active={filtrosTipo.includes("INSUBSISTENCIA")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="VACANCIA" count={resumen.vacancias} active={filtrosTipo.includes("VACANCIA")} onToggle={toggleFiltro} />
-                    <ChipFiltro tipoKey="SIN_TITULAR" count={resumen.acefalasHoy} active={filtrosTipo.includes("SIN_TITULAR")} onToggle={toggleFiltro} />
-
-                    {filtrosTipo.length > 0 && (
-                        <div className="flex shrink-0 items-center self-center pl-1">
-                            <button
-                                type="button"
-                                onClick={() => setFiltrosTipo([])}
-                                title={filtrosTipo.length > 1 ? `Cumple cualquiera de los ${filtrosTipo.length} filtros activos` : undefined}
-                                className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-1.5 py-1 text-[9px] font-bold text-slate-400 hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-500"
-                            >
-                                <X className="size-2.5" /> Quitar
-                            </button>
-                        </div>
                     )}
                 </div>
 
@@ -2561,35 +2312,15 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     <p className="text-sm font-bold">Ninguna aduana coincide con la búsqueda.</p>
                 </div>
             ) : (
-                /* En móvil las columnas se apilan y la página scrollea; en
-                   escritorio se recorren en horizontal. Ninguna columna
-                   scrollea por su cuenta a nivel de página: todas comparten
-                   el scroll de este contenedor, que es justo lo que
-                   `viajarA` anima con GSAP para llegar a la tarjeta destino
-                   de un traslado entre aduanas (el scroll horizontal DENTRO
-                   de cada columna, entre sus subcolumnas de plaza, es propio
-                   de esa columna). */
-                <div ref={scrollAreaRef} className="custom-scrollbar min-h-[420px] overflow-auto md:min-h-0 md:flex-1">
-                    <div className="flex flex-col gap-4 p-2 md:flex-row md:items-start md:gap-3">
-                        {aduanas.map((aduana) => (
-                            <div
-                                key={aduana.aduana}
-                                className="w-full shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800/80 dark:bg-slate-900/30 md:w-auto md:min-w-[var(--col-w)]"
-                                style={{ "--col-w": `${(aduana.plazas?.length || 1) * LANE_W}px` }}
-                            >
-                                <ColumnaAduana
-                                    aduana={aduana}
-                                    entradas={entradasPorAduana.get(aduana.aduana) || []}
-                                    cardRefs={cardRefs}
-                                    canViewPhoto={canViewPhoto}
-                                    scrollRootRef={scrollAreaRef}
-                                    destinoSegmentoPorClave={destinoSegmentoPorClave}
-                                    onIrADestino={viajarA}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <TablaRotacion
+                    aduanas={aduanas}
+                    entradasPorAduana={entradasPorAduana}
+                    cardRefs={cardRefs}
+                    canViewPhoto={canViewPhoto}
+                    scrollAreaRef={scrollAreaRef}
+                    destinoSegmentoPorClave={destinoSegmentoPorClave}
+                    onIrADestino={viajarA}
+                />
             )}
         </div>
     );
