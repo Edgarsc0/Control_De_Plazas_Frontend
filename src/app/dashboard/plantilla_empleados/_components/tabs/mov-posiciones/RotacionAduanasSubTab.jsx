@@ -188,25 +188,31 @@ function ChipFiltro({ tipoKey, count, active, onToggle }) {
                 onClick={() => onToggle(tipoKey)}
                 aria-pressed={active}
                 aria-label={meta.desc}
-                className={`flex min-w-[46px] cursor-pointer flex-col items-start gap-0.5 border-b-2 px-2 py-1 text-left transition-colors ${
+                className={`flex min-w-[52px] cursor-pointer flex-col items-start gap-0.5 border-b-2 px-2 py-1 text-left transition-colors ${
                     active ? `${meta.dashed ? "border-dashed" : "border-solid"} ${c.border} ${c.bg}` : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-900/40"
                 }`}
             >
                 <span className="flex items-center gap-1">
-                    <Icon className={`size-2.5 shrink-0 ${active ? c.text : "text-slate-400"}`} />
-                    <span className={`font-mono text-xs font-black leading-none ${active ? c.text : "text-slate-700 dark:text-slate-200"}`}>{count}</span>
+                    <Icon className={`size-3 shrink-0 ${active ? c.text : "text-slate-400"}`} />
+                    <span className={`font-mono text-sm font-black leading-none ${active ? c.text : "text-slate-700 dark:text-slate-200"}`}>{count}</span>
                 </span>
-                <span className={`text-[7px] font-bold uppercase tracking-wider ${active ? c.text : "text-slate-400"}`}>{meta.label}</span>
+                <span className={`text-[8px] font-bold uppercase tracking-wider ${active ? c.text : "text-slate-400"}`}>{meta.label}</span>
             </button>
 
             {/* Tooltip propio (no `title` nativo): explica en lenguaje de
-                negocio qué hará el clic, aparece arriba de la ficha. */}
+                negocio qué hará el clic. Aparece HACIA ABAJO (no arriba): la
+                barra de controles vive dentro de una tarjeta con
+                `overflow-hidden` (ver cardRef en MovimientosPersonalTab) —
+                cualquier cosa posicionada por ENCIMA de esta fila se recorta
+                sin importar el z-index, porque el recorte es por overflow,
+                no por orden de apilamiento. Abajo sí hay espacio dentro de
+                esa misma tarjeta. */}
             <div
                 role="tooltip"
-                className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-center text-[10px] font-semibold normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 dark:bg-slate-800"
+                className="pointer-events-none absolute top-full left-1/2 z-30 mt-2 w-56 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-center text-[10px] font-semibold normal-case leading-snug tracking-normal text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/chip:opacity-100 group-focus-within/chip:opacity-100 dark:bg-slate-800"
             >
                 {active ? "Ya está aplicado. Clic de nuevo para quitarlo y ver todas las aduanas." : meta.desc}
-                <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800" />
+                <span className="absolute left-1/2 bottom-full -translate-x-1/2 border-4 border-transparent border-b-slate-900 dark:border-b-slate-800" />
             </div>
         </div>
     );
@@ -2099,7 +2105,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                         {aduanas.map((aduana) => (
                             <div
                                 key={aduana.aduana}
-                                className="w-full shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800/80 dark:bg-slate-900/30 md:min-w-[var(--col-w)]"
+                                className="w-full shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800/80 dark:bg-slate-900/30 md:w-auto md:min-w-[var(--col-w)]"
                                 style={{ "--col-w": `${(aduana.plazas?.length || 1) * LANE_W}px` }}
                             >
                                 <ColumnaAduana
