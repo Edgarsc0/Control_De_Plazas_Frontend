@@ -188,15 +188,15 @@ function ChipFiltro({ tipoKey, count, active, onToggle }) {
                 onClick={() => onToggle(tipoKey)}
                 aria-pressed={active}
                 aria-label={meta.desc}
-                className={`flex min-w-[64px] cursor-pointer flex-col items-start gap-1 border-b-2 px-3 py-2 text-left transition-colors ${
+                className={`flex min-w-[46px] cursor-pointer flex-col items-start gap-0.5 border-b-2 px-2 py-1 text-left transition-colors ${
                     active ? `${meta.dashed ? "border-dashed" : "border-solid"} ${c.border} ${c.bg}` : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-900/40"
                 }`}
             >
-                <span className="flex items-center gap-1.5">
-                    <Icon className={`size-3 shrink-0 ${active ? c.text : "text-slate-400"}`} />
-                    <span className={`font-mono text-sm font-black leading-none ${active ? c.text : "text-slate-700 dark:text-slate-200"}`}>{count}</span>
+                <span className="flex items-center gap-1">
+                    <Icon className={`size-2.5 shrink-0 ${active ? c.text : "text-slate-400"}`} />
+                    <span className={`font-mono text-xs font-black leading-none ${active ? c.text : "text-slate-700 dark:text-slate-200"}`}>{count}</span>
                 </span>
-                <span className={`text-[8px] font-bold uppercase tracking-wider ${active ? c.text : "text-slate-400"}`}>{meta.label}</span>
+                <span className={`text-[7px] font-bold uppercase tracking-wider ${active ? c.text : "text-slate-400"}`}>{meta.label}</span>
             </button>
 
             {/* Tooltip propio (no `title` nativo): explica en lenguaje de
@@ -214,12 +214,12 @@ function ChipFiltro({ tipoKey, count, active, onToggle }) {
 
 function StatPlano({ icon: Icon, value, label }) {
     return (
-        <span className="flex flex-col items-start gap-1 px-3 py-2">
-            <span className="flex items-center gap-1.5">
-                <Icon className="size-3 shrink-0 text-[#bc955c]" />
-                <span className="font-mono text-sm font-black leading-none text-slate-700 dark:text-slate-200">{value}</span>
+        <span className="flex flex-col items-start gap-0.5 px-2 py-1">
+            <span className="flex items-center gap-1">
+                <Icon className="size-2.5 shrink-0 text-[#bc955c]" />
+                <span className="font-mono text-xs font-black leading-none text-slate-700 dark:text-slate-200">{value}</span>
             </span>
-            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+            <span className="text-[7px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
         </span>
     );
 }
@@ -1985,18 +1985,19 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
     return (
         <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100vh-var(--stack-h))]">
             {/* Controles: volver, búsqueda, stats+filtros, exportar, recargar
-                — TODOS en una sola fila con scroll horizontal propio (no se
-                envuelven a otra línea); el botón "<" destaca con borde/fondo
-                dorado-guinda permanentes, no solo al pasar el mouse, para que
-                no se pierda entre el resto de controles. */}
-            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto border-b border-slate-200/70 bg-slate-50/50 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
+                — TODOS en una sola fila SIN scroll (todo compacto para que
+                quepa: chips/stats más chicos, input más angosto, menos
+                padding); el botón "<" destaca con borde/fondo dorado-guinda
+                permanentes, no solo al pasar el mouse, para que no se pierda
+                entre el resto de controles. */}
+            <div className="flex flex-nowrap items-center gap-1.5 border-b border-slate-200/70 bg-slate-50/50 px-3 py-1.5 dark:border-slate-800/80 dark:bg-slate-900/20">
                 <button
                     type="button"
                     onClick={volver}
                     disabled={!puedeVolver}
                     aria-label="Regresar a donde estaba antes del salto"
                     title={puedeVolver ? "Regresar a donde estaba antes" : "No hay salto que deshacer"}
-                    className="shrink-0 cursor-pointer rounded-xl border-2 border-[#bc955c] bg-[#621f32]/10 p-2 text-[#621f32] transition-colors hover:bg-[#621f32]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-white disabled:text-slate-300 dark:border-[#bc955c]/70 dark:bg-[#621f32]/25 dark:text-[#e3c793] dark:hover:bg-[#621f32]/40 dark:disabled:border-slate-700 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
+                    className="shrink-0 cursor-pointer rounded-xl border-2 border-[#bc955c] bg-[#621f32]/10 p-1.5 text-[#621f32] transition-colors hover:bg-[#621f32]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-white disabled:text-slate-300 dark:border-[#bc955c]/70 dark:bg-[#621f32]/25 dark:text-[#e3c793] dark:hover:bg-[#621f32]/40 dark:disabled:border-slate-700 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
                 >
                     <ChevronLeft className="size-3.5" />
                 </button>
@@ -2009,7 +2010,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                         onChange={(e) => setBusqueda(e.target.value)}
                         placeholder="Aduana o titular…"
                         aria-label="Buscar aduana o titular"
-                        className="w-48 rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-[#bc955c] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                        className="w-32 rounded-xl border border-slate-200 bg-white py-1.5 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-[#bc955c] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
                     />
                     {busqueda && (
                         <button
@@ -2031,7 +2032,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     <StatPlano icon={Building2} value={resumen.aduanas} label="aduanas" />
                     <StatPlano icon={Users} value={`${resumen.titulares} · ${resumen.gestiones}`} label="titulares · gestiones" />
 
-                    <span className="mx-1 my-1.5 w-px shrink-0 bg-slate-200 dark:bg-slate-800" />
+                    <span className="mx-0.5 my-1 w-px shrink-0 bg-slate-200 dark:bg-slate-800" />
 
                     <ChipFiltro tipoKey="ACTIVO" count={conteoPorTipo.ACTIVO} active={filtrosTipo.includes("ACTIVO")} onToggle={toggleFiltro} />
                     <ChipFiltro tipoKey="TRASLADO_ADUANA" count={conteoPorTipo.TRASLADO_ADUANA} active={filtrosTipo.includes("TRASLADO_ADUANA")} onToggle={toggleFiltro} />
@@ -2043,16 +2044,14 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     <ChipFiltro tipoKey="SIN_TITULAR" count={resumen.acefalasHoy} active={filtrosTipo.includes("SIN_TITULAR")} onToggle={toggleFiltro} />
 
                     {filtrosTipo.length > 0 && (
-                        <div className="flex shrink-0 items-center gap-2 self-center pl-1">
-                            {filtrosTipo.length > 1 && (
-                                <span className="whitespace-nowrap text-[9px] font-semibold italic text-slate-400">cumple cualquiera de los {filtrosTipo.length}</span>
-                            )}
+                        <div className="flex shrink-0 items-center self-center pl-1">
                             <button
                                 type="button"
                                 onClick={() => setFiltrosTipo([])}
-                                className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2 text-[10px] font-bold text-slate-400 hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-500"
+                                title={filtrosTipo.length > 1 ? `Cumple cualquiera de los ${filtrosTipo.length} filtros activos` : undefined}
+                                className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-1.5 py-1 text-[9px] font-bold text-slate-400 hover:border-rose-300 hover:text-rose-600 dark:hover:text-rose-500"
                             >
-                                <X className="size-3" /> Quitar filtros
+                                <X className="size-2.5" /> Quitar
                             </button>
                         </div>
                     )}
@@ -2064,10 +2063,10 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     disabled={exportando || aduanas.length === 0}
                     aria-label="Exportar a Excel"
                     title="Exportar la rotación de titulares a un Excel formal, con membrete y leyenda de Control de Plazas"
-                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#621f32] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 rounded-xl bg-[#621f32] px-2 py-1.5 text-[9px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {exportando ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />}
-                    Exportar a Excel
+                    {exportando ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />}
+                    Excel
                 </button>
 
                 <button
@@ -2075,7 +2074,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     onClick={() => cargar(true)}
                     aria-label="Recargar"
                     title="Recargar ignorando el caché"
-                    className="shrink-0 cursor-pointer rounded-xl bg-white p-2 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
+                    className="shrink-0 cursor-pointer rounded-xl bg-white p-1.5 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
                 >
                     <RefreshCw className="size-3.5" />
                 </button>
