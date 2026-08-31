@@ -932,6 +932,17 @@ const FOTO_COL_WIDTH_PX = FOTO_COL_WIDTH * 7 + 5;
 const FOTO_ROW_HEIGHT_PX = FOTO_ROW_HEIGHT * (4 / 3);
 const FOTO_COL_OFFSET_EMU = Math.round(((FOTO_COL_WIDTH_PX - FOTO_IMG_SIZE) / 2) * EMU_POR_PX);
 const FOTO_ROW_OFFSET_EMU = Math.round(((FOTO_ROW_HEIGHT_PX - FOTO_IMG_SIZE) / 2) * EMU_POR_PX);
+// Esquina inferior-derecha del ancla — MISMA celda que el `tl` (col0,
+// row-1), solo con el offset avanzado el tamaño de la foto. Con esto la
+// foto queda anclada como "twoCellAnchor" (tl+br), no "oneCellAnchor"
+// (tl+ext) — equivalente a `object_position=1` (xlMoveAndSize) del backend
+// (ver excel_fotos.py): así la foto se MUEVE y se OCULTA junto con su fila
+// al filtrar en Excel. Con tl+ext (lo que había antes) la foto quedaba fija
+// en su lugar aunque la fila se ocultara por un filtro — bug real
+// reportado ("las fotos de personas aparecen por ahí volando").
+const FOTO_IMG_SIZE_EMU = FOTO_IMG_SIZE * EMU_POR_PX;
+const FOTO_COL_OFFSET_BR_EMU = FOTO_COL_OFFSET_EMU + FOTO_IMG_SIZE_EMU;
+const FOTO_ROW_OFFSET_BR_EMU = FOTO_ROW_OFFSET_EMU + FOTO_IMG_SIZE_EMU;
 
 /**
  * Trae, en paralelo con concurrencia acotada, la fotografía de cada
@@ -1136,7 +1147,6 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         fotosPorEmpleado = await precargarFotosRotacion(numerosEmpleado);
     }
     const incluirFotos = fotosPorEmpleado.size > 0;
-    const imageIdPorEmpleado = new Map();
 
     // "Consecutivo": cuántos titulares REALES tuvo la aduana hasta esta fila
     // (una insubsistencia nunca llegó a ejercer, así que no cuenta; una
@@ -1272,8 +1282,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         worksheet.mergeCells(`A${row}:${bandaSplitColLetter}${row}`);
         const nombreCell = worksheet.getCell(`A${row}`);
         nombreCell.value = aduana.aduana;
-        nombreCell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF621F32" } };
-        nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFE3D0" } };
+        nombreCell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF3E131F" } };
+        nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5EBEF" } };
         nombreCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
 
         const estadoIniLetter = worksheet.getColumn(bandaSplitCol + 1).letter;
@@ -1282,7 +1292,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
         estadoCell.value = tieneTitular ? `Titular actual: ${aduana.titular_actual}` : "Sin titular actualmente";
         estadoCell.font = { name: "Noto Sans", bold: !tieneTitular, italic: !tieneTitular, size: 9.5, color: { argb: tieneTitular ? "FF3E131F" : "FFBE123C" } };
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tieneTitular ? "FFF5EBEF" : "FFFFF1F2" } };
-        estadoCell.alignment = { vertical: "middle", horizontal: "center" };
+        estadoCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
         const bandBorder = { style: "thin", color: { argb: "FFBC955C" } };
         for (let c = 1; c <= numCols; c++) {
@@ -1456,20 +1466,26 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                 salarioSalidaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
 
-            // Foto del titular — misma imagen se registra UNA vez por
-            // titular (workbook.addImage) y se ancla N veces (una por fila
-            // donde aparece), igual mecánica que downloadExcelConFoto en
-            // HistorialMovimientosTab. Las vacancias no tienen titular, así
-            // que no llevan foto.
+            // Foto del titular — se REGISTRA de nuevo (workbook.addImage) en
+            // CADA fila donde aparece, aunque sea el mismo titular repetido
+            // por un cambio de plaza interno. NO reusar un mismo imageId en
+            // dos filas no-adyacentes: ExcelJS 4.4.0 tiene un bug real en
+            // worksheet-xform.js (el caché `drawingRelsHash` mezcla el índice
+            // "imageId" con el índice "cuántas relaciones lleva creadas el
+            // drawing" — dos contadores con significado distinto que
+            // divergen apenas hay suficientes fotos) que hace que la SEGUNDA
+            // ancla de un imageId reusado termine apuntando a la foto de OTRO
+            // empleado sin relación (verificado con un archivo real: la
+            // segunda fila de un titular con 2 segmentos mostraba la foto de
+            // alguien de otra aduana). Registrar de nuevo por fila pesa un
+            // poco más el archivo pero evita el bug por completo — el fetch
+            // de red sigue cacheado en `fotosPorEmpleado`, solo cambia que se
+            // vuelve a insertar en el workbook.
             if (incluirFotos && !isVacancia) {
                 const numEmpleadoFoto = String(seg.gestion?.num_empleado || "");
                 const foto = fotosPorEmpleado.get(numEmpleadoFoto);
                 if (foto) {
-                    let imageId = imageIdPorEmpleado.get(numEmpleadoFoto);
-                    if (imageId === undefined) {
-                        imageId = workbook.addImage({ buffer: foto.buffer, extension: foto.extension });
-                        imageIdPorEmpleado.set(numEmpleadoFoto, imageId);
-                    }
+                    const imageId = workbook.addImage({ buffer: foto.buffer, extension: foto.extension });
                     worksheet.addImage(imageId, {
                         tl: {
                             nativeCol: 0,
@@ -1477,7 +1493,13 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                             nativeRow: row - 1,
                             nativeRowOff: FOTO_ROW_OFFSET_EMU,
                         },
-                        ext: { width: FOTO_IMG_SIZE, height: FOTO_IMG_SIZE },
+                        br: {
+                            nativeCol: 0,
+                            nativeColOff: FOTO_COL_OFFSET_BR_EMU,
+                            nativeRow: row - 1,
+                            nativeRowOff: FOTO_ROW_OFFSET_BR_EMU,
+                        },
+                        editAs: "twoCell",
                     });
                 }
             }
