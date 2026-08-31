@@ -1512,7 +1512,7 @@ function ColumnaAduana({ aduana, entradas, cardRefs, canViewPhoto, scrollRootRef
                 </div>
             </header>
 
-            <div className="overflow-x-auto">
+            <div>
                 <div ref={canvasRef} className="relative p-3" style={{ minWidth: lanes.length * LANE_W }}>
                     {/* Fondo (sombreado + conectores + divisores), igual que Historial. */}
                     <div className="pointer-events-none absolute inset-0">
@@ -1990,14 +1990,14 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                 padding); el botón "<" destaca con borde/fondo dorado-guinda
                 permanentes, no solo al pasar el mouse, para que no se pierda
                 entre el resto de controles. */}
-            <div className="flex flex-nowrap items-center gap-1.5 border-b border-slate-200/70 bg-slate-50/50 px-3 py-1.5 dark:border-slate-800/80 dark:bg-slate-900/20">
+            <div className="flex flex-nowrap items-center gap-1.5 border-b border-slate-200/70 bg-slate-50/50 px-3 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
                 <button
                     type="button"
                     onClick={volver}
                     disabled={!puedeVolver}
                     aria-label="Regresar a donde estaba antes del salto"
                     title={puedeVolver ? "Regresar a donde estaba antes" : "No hay salto que deshacer"}
-                    className="shrink-0 cursor-pointer rounded-xl border-2 border-[#bc955c] bg-[#621f32]/10 p-1.5 text-[#621f32] transition-colors hover:bg-[#621f32]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-white disabled:text-slate-300 dark:border-[#bc955c]/70 dark:bg-[#621f32]/25 dark:text-[#e3c793] dark:hover:bg-[#621f32]/40 dark:disabled:border-slate-700 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
+                    className="shrink-0 cursor-pointer rounded-xl border-2 border-[#bc955c] bg-[#621f32]/10 p-2.5 text-[#621f32] transition-colors hover:bg-[#621f32]/20 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-white disabled:text-slate-300 dark:border-[#bc955c]/70 dark:bg-[#621f32]/25 dark:text-[#e3c793] dark:hover:bg-[#621f32]/40 dark:disabled:border-slate-700 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
                 >
                     <ChevronLeft className="size-3.5" />
                 </button>
@@ -2063,9 +2063,9 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     disabled={exportando || aduanas.length === 0}
                     aria-label="Exportar a Excel"
                     title="Exportar la rotación de titulares a un Excel formal, con membrete y leyenda de Control de Plazas"
-                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1 rounded-xl bg-[#621f32] px-2 py-1.5 text-[9px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#621f32] px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    {exportando ? <Loader2 className="size-3 animate-spin" /> : <FileSpreadsheet className="size-3" />}
+                    {exportando ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />}
                     Excel
                 </button>
 
@@ -2074,7 +2074,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     onClick={() => cargar(true)}
                     aria-label="Recargar"
                     title="Recargar ignorando el caché"
-                    className="shrink-0 cursor-pointer rounded-xl bg-white p-1.5 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
+                    className="shrink-0 cursor-pointer rounded-xl bg-white p-2.5 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
                 >
                     <RefreshCw className="size-3.5" />
                 </button>
@@ -2099,7 +2099,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                         {aduanas.map((aduana) => (
                             <div
                                 key={aduana.aduana}
-                                className="w-full shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800/80 dark:bg-slate-900/30 md:w-[var(--col-w)]"
+                                className="w-full shrink-0 rounded-2xl border border-slate-200/80 bg-slate-50/40 dark:border-slate-800/80 dark:bg-slate-900/30 md:min-w-[var(--col-w)]"
                                 style={{ "--col-w": `${(aduana.plazas?.length || 1) * LANE_W}px` }}
                             >
                                 <ColumnaAduana
