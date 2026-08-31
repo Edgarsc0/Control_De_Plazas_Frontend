@@ -1310,13 +1310,13 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             if (typeof values.salarioEntrada === "number") {
                 const salarioEntradaCell = dataRow.getCell(salarioEntradaCol);
                 salarioEntradaCell.numFmt = ACCOUNTING_FMT;
-                salarioEntradaCell.font = { name: "Noto Sans", bold: true, size: 9 };
+                salarioEntradaCell.font = { name: "Noto Sans", size: 9 };
                 salarioEntradaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
             if (typeof values.salarioSalida === "number") {
                 const salarioSalidaCell = dataRow.getCell(salarioSalidaCol);
                 salarioSalidaCell.numFmt = ACCOUNTING_FMT;
-                salarioSalidaCell.font = { name: "Noto Sans", bold: true, size: 9 };
+                salarioSalidaCell.font = { name: "Noto Sans", size: 9 };
                 salarioSalidaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
 
