@@ -336,10 +336,17 @@ function construirSegmentos(gestion) {
             esUltimo,
             fechaDesde: items[idxInicio].fecha_efectiva,
             fechaHasta: esUltimo ? gestion.fecha_salida : items[siguiente.idxs[0]].fecha_efectiva,
-            // Salario base vigente AL ENTRAR a este segmento (fila del
-            // movimiento de entrada, `items[idxInicio]`) — mismo campo que ya
-            // se muestra en el acordeón "N mov." de la tarjeta en pantalla.
-            salarioBase: items[idxInicio].sal_base ?? null,
+            // Salario al ENTRAR a este segmento (fila del movimiento de
+            // entrada, `items[idxInicio]`) — mismo campo que ya se muestra en
+            // el acordeón "N mov." de la tarjeta en pantalla.
+            salarioEntrada: items[idxInicio].sal_base ?? null,
+            // Salario al DEJARLO: si es el último segmento de la gestión,
+            // `gestion.salida_completo` es la fila real de salida (puede no
+            // existir — vigente, o caché viejo sin ese campo); si no, el
+            // siguiente segmento de la MISMA gestión ya trae la fila.
+            salarioSalida: esUltimo
+                ? (gestion.salida_completo?.sal_base ?? null)
+                : (items[siguiente.idxs[0]].sal_base ?? null),
             fechaCapturaDesde: items[idxInicio].fecha_captura,
             fechaCapturaHasta: esUltimo ? gestion.salida_fecha_captura : items[siguiente.idxs[0]].fecha_captura,
             entradaMotivo: esPrimero ? gestion.entrada_motivo_nombre : items[idxInicio].motivo_nombre,
@@ -850,7 +857,8 @@ const EXPORT_COLUMNS_ROTACION = [
     { key: "plaza", header: "Plaza", width: 13 },
     { key: "nivel", header: "Nivel Tabular", width: 13 },
     { key: "puesto", header: "Código de Puesto", width: 15 },
-    { key: "salarioBase", header: "Salario Base", width: 15 },
+    { key: "salarioEntrada", header: "Salario al Entrar", width: 16 },
+    { key: "salarioSalida", header: "Salario al Dejar", width: 16 },
     { key: "nombrePuestoFuncional", header: "Nombre Puesto Funcional", width: 34 },
     { key: "numEmpleado", header: "No. Empleado", width: 12 },
     { key: "titular", header: "Titular", width: 32 },
@@ -1073,7 +1081,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     const tipoMovimientoCol = columns.findIndex((c) => c.key === "tipoMovimiento") + 1;
     const fechaDesdeCol = columns.findIndex((c) => c.key === "fechaDesde") + 1;
     const fechaHastaCol = columns.findIndex((c) => c.key === "fechaHasta") + 1;
-    const salarioBaseCol = columns.findIndex((c) => c.key === "salarioBase") + 1;
+    const salarioEntradaCol = columns.findIndex((c) => c.key === "salarioEntrada") + 1;
+    const salarioSalidaCol = columns.findIndex((c) => c.key === "salarioSalida") + 1;
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Rotación de Aduanas");
@@ -1202,7 +1211,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     plaza: seg.plazaAncla || "—",
                     nivel: "—",
                     puesto: "—",
-                    salarioBase: "—",
+                    salarioEntrada: "—",
+                    salarioSalida: "—",
                     nombrePuestoFuncional: "—",
                     numEmpleado: "—",
                     titular: seg.abierta ? "— Acéfala hoy —" : "— Vacante —",
@@ -1231,7 +1241,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     plaza: seg.plaza,
                     nivel: g.nivel_tabular || "—",
                     puesto: g.cd_puesto || "—",
-                    salarioBase: typeof seg.salarioBase === "number" ? seg.salarioBase : "—",
+                    salarioEntrada: typeof seg.salarioEntrada === "number" ? seg.salarioEntrada : "—",
+                    salarioSalida: typeof seg.salarioSalida === "number" ? seg.salarioSalida : "—",
                     nombrePuestoFuncional: g.nombre_puesto_funcional || "—",
                     numEmpleado: g.num_empleado || "—",
                     titular: g.nombre,
@@ -1291,14 +1302,19 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
             fechaHastaCell.font = fechaDestacadaFont;
             fechaHastaCell.fill = fechaDestacadaFill;
 
-            // Salario base: celda NUMÉRICA con formato de moneda (no texto)
-            // cuando hay dato — así Excel la trata como número real (suma,
-            // ordena, filtra por rango), no como una cadena con signo de
-            // pesos pegado a mano.
-            if (typeof values.salarioBase === "number") {
-                const salarioCell = dataRow.getCell(salarioBaseCol);
-                salarioCell.numFmt = '"$"#,##0.00';
-                salarioCell.alignment = { vertical: "middle", horizontal: "right" };
+            // Salario al entrar / al dejar: celdas NUMÉRICAS con formato de
+            // moneda (no texto) cuando hay dato — así Excel las trata como
+            // número real (suma, ordena, filtra por rango), no como una
+            // cadena con signo de pesos pegado a mano.
+            if (typeof values.salarioEntrada === "number") {
+                const salarioEntradaCell = dataRow.getCell(salarioEntradaCol);
+                salarioEntradaCell.numFmt = '"$"#,##0.00';
+                salarioEntradaCell.alignment = { vertical: "middle", horizontal: "right" };
+            }
+            if (typeof values.salarioSalida === "number") {
+                const salarioSalidaCell = dataRow.getCell(salarioSalidaCol);
+                salarioSalidaCell.numFmt = '"$"#,##0.00';
+                salarioSalidaCell.alignment = { vertical: "middle", horizontal: "right" };
             }
 
             // Foto del titular — misma imagen se registra UNA vez por
