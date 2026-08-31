@@ -1152,12 +1152,223 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
 }
 
 /**
+ * Resumen por aduana (hoja "Resumen", primera pestaña del export): cuántos
+ * titulares REALES ha tenido cada aduana y cuánto tiempo ha estado ocupada.
+ *
+ * "Titulares" usa el mismo criterio que la columna "Consecutivo" de la hoja
+ * de detalle: cuenta gestiones distintas (un titular que cambió de plaza
+ * DENTRO de la misma aduana sigue siendo el mismo titular), y una gestión
+ * declarada insubsistente (ver esInsubsistenciaGestion) no cuenta — nunca
+ * llegó a ejercer.
+ *
+ * "Tiempo ocupado" suma la duración de cada segmento que NO sea una vacancia
+ * ni una insubsistencia (mismo criterio). El "% de ocupación" lo compara
+ * contra el periodo total registrado para esa aduana: desde su primer
+ * movimiento conocido hasta hoy (o hasta el fin de su último segmento/
+ * vacancia si esa aduana ya no está vigente en los datos).
+ */
+function construirResumenPorAduana(aduanas, entradasPorAduana) {
+    return aduanas.map((aduana) => {
+        const entradas = entradasPorAduana.get(aduana.aduana) || [];
+
+        let titulares = 0;
+        let diasOcupados = 0;
+        let claveGestionVista = null;
+        let gestionVistaEsInsubsistencia = false;
+
+        entradas.forEach((entrada) => {
+            if (entrada.tipo !== "segmento") return;
+            const seg = entrada.dato;
+            if (seg.claveGestion !== claveGestionVista) {
+                claveGestionVista = seg.claveGestion;
+                gestionVistaEsInsubsistencia = esInsubsistenciaGestion(seg.gestion);
+                if (!gestionVistaEsInsubsistencia) titulares += 1;
+            }
+            if (gestionVistaEsInsubsistencia || esInsubsistencia(seg)) return;
+            const dias = diasEntre(seg.fechaDesde, seg.fechaHasta);
+            if (dias) diasOcupados += dias;
+        });
+
+        let periodoDias = 0;
+        if (entradas.length > 0) {
+            const primera = entradas[0];
+            const ultima = entradas[entradas.length - 1];
+            const desde = primera.tipo === "segmento" ? primera.dato.fechaDesde : primera.dato.desde;
+            const hasta = ultima.tipo === "segmento" ? ultima.dato.fechaHasta : ultima.dato.hasta;
+            periodoDias = diasEntre(desde, hasta) || 0;
+        }
+
+        return {
+            aduana: aduana.aduana,
+            codigosUa: codigoUaActual(aduana),
+            titulares,
+            diasOcupados,
+            periodoDias,
+            fraccionOcupada: periodoDias > 0 ? Math.min(diasOcupados / periodoDias, 1) : 0,
+            sinTitularHoy: !aduana.titular_actual,
+        };
+    });
+}
+
+const RESUMEN_COLUMNS = [
+    { key: "aduana", header: "Aduana", width: 36 },
+    { key: "codigosUa", header: "Código UA", width: 13 },
+    { key: "titulares", header: "Titulares", width: 12 },
+    { key: "diasOcupados", header: "Días Ocupada", width: 14 },
+    { key: "tiempoOcupado", header: "Tiempo Ocupado", width: 26 },
+    { key: "periodoDias", header: "Días del Periodo", width: 16 },
+    { key: "porcentajeOcupado", header: "% Tiempo Ocupado", width: 18 },
+];
+
+/**
+ * Membrete propio de la hoja "Resumen" — no reusa addMembreteCompactoRotacion
+ * porque ese layout coloca el título del reporte a partir de `numCols - 3`,
+ * pensado para las ~32 columnas de la hoja de detalle; con las 7 columnas de
+ * esta hoja esa cuenta encima al título institucional (rangos de mergeCells
+ * superpuestos, que ExcelJS rechaza). Aquí todo va apilado en 3 filas, ancho
+ * completo de la tabla real.
+ */
+function addMembreteResumen(workbook, worksheet, numCols) {
+    const logoWidth = 260;
+    const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
+    const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
+    worksheet.addImage(imageId, {
+        tl: { nativeCol: 0, nativeColOff: 60000, nativeRow: 0, nativeRowOff: 60000 },
+        ext: { width: logoWidth, height: logoHeight },
+    });
+    worksheet.getRow(1).height = 60;
+
+    worksheet.mergeCells(1, 3, 1, numCols);
+    const tituloInstCell = worksheet.getCell(1, 3);
+    tituloInstCell.value = LETTERHEAD_TITLE_LINES.join("\n");
+    tituloInstCell.font = { name: "Noto Sans", bold: true, size: 11, color: { argb: "FF621F32" } };
+    tituloInstCell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+
+    worksheet.mergeCells(2, 1, 2, numCols);
+    const tituloReporteCell = worksheet.getCell(2, 1);
+    tituloReporteCell.value = "RESUMEN DE ROTACIÓN DE TITULARES DE ADUANAS";
+    tituloReporteCell.font = { name: "Noto Sans", bold: true, size: 16, color: { argb: "FF621F32" } };
+    tituloReporteCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(2).height = 26;
+
+    worksheet.mergeCells(3, 1, 3, numCols);
+    const generadoCell = worksheet.getCell(3, 1);
+    generadoCell.value = `Reporte generado por el sistema de control de plazas a las ${fmtFechaHoraGeneracionRotacion()}.`;
+    generadoCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF64748B" } };
+    generadoCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(3).height = 15;
+
+    return 3;
+}
+
+/** Arma la hoja "Resumen" completa (membrete + tabla + fila de totales). */
+function addHojaResumenAduanas(workbook, resumenPorAduana) {
+    const worksheet = workbook.addWorksheet("Resumen");
+    const numCols = RESUMEN_COLUMNS.length;
+    worksheet.columns = RESUMEN_COLUMNS.map(({ key, width }) => ({ key, width }));
+
+    let row = addMembreteResumen(workbook, worksheet, numCols) + 1;
+    const lastCol = worksheet.getColumn(numCols).letter;
+
+    worksheet.mergeCells(`A${row}:${lastCol}${row}`);
+    const subtitleCell = worksheet.getCell(`A${row}`);
+    subtitleCell.value = "Titulares y tiempo de ocupación por aduana (excluye vacancias e insubsistencias).";
+    subtitleCell.font = { name: "Noto Sans", italic: true, size: 9, color: { argb: "FF64748B" } };
+    subtitleCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(row).height = 16;
+    row += 1;
+
+    const headerRowNum = row;
+    const headerRow = worksheet.getRow(headerRowNum);
+    const goldBorder = { style: "thin", color: { argb: "FFBC955C" } };
+    RESUMEN_COLUMNS.forEach((col, i) => {
+        const cell = headerRow.getCell(i + 1);
+        cell.value = col.header;
+        cell.border = { top: goldBorder, left: goldBorder, bottom: goldBorder, right: goldBorder };
+        cell.font = { name: "Noto Sans", bold: true, size: 10, color: { argb: "FFFFFFFF" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
+        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    });
+    headerRow.height = 30;
+    row += 1;
+
+    const thinGray = { style: "thin", color: { argb: "FF94A3B8" } };
+    const porcentajeColIdx = RESUMEN_COLUMNS.findIndex((c) => c.key === "porcentajeOcupado") + 1;
+    let totalTitulares = 0;
+    let totalDiasOcupados = 0;
+    let totalDiasPeriodo = 0;
+
+    resumenPorAduana.forEach((r, i) => {
+        totalTitulares += r.titulares;
+        totalDiasOcupados += r.diasOcupados;
+        totalDiasPeriodo += r.periodoDias;
+
+        const dataRow = worksheet.getRow(row);
+        const values = {
+            aduana: r.aduana,
+            codigosUa: r.codigosUa,
+            titulares: r.titulares,
+            diasOcupados: r.diasOcupados,
+            tiempoOcupado: duracion(r.diasOcupados) || "0 días",
+            periodoDias: r.periodoDias,
+            porcentajeOcupado: r.fraccionOcupada,
+        };
+        RESUMEN_COLUMNS.forEach((col, ci) => {
+            const cell = dataRow.getCell(ci + 1);
+            cell.value = values[col.key];
+            cell.border = { top: thinGray, left: thinGray, bottom: thinGray, right: thinGray };
+            cell.font = { name: "Noto Sans", size: 9 };
+            cell.alignment = { vertical: "middle", horizontal: "center" };
+            if (i % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+        });
+        const pctCell = dataRow.getCell(porcentajeColIdx);
+        pctCell.numFmt = "0.0%";
+        pctCell.font = { name: "Noto Sans", bold: true, size: 9, color: { argb: "FF621F32" } };
+        if (r.sinTitularHoy) {
+            dataRow.getCell(1).font = { name: "Noto Sans", size: 9, italic: true, color: { argb: "FFBE123C" } };
+        }
+        worksheet.getRow(row).height = 18;
+        row += 1;
+    });
+
+    // Fila de totales: titulares y días ocupados sumados directo; el % es
+    // ponderado por el periodo de cada aduana (días ocupados / días de
+    // periodo totales), no un promedio simple de porcentajes.
+    const totalRow = worksheet.getRow(row);
+    const totalValues = {
+        aduana: "TOTAL",
+        codigosUa: "",
+        titulares: totalTitulares,
+        diasOcupados: totalDiasOcupados,
+        tiempoOcupado: duracion(totalDiasOcupados) || "0 días",
+        periodoDias: totalDiasPeriodo,
+        porcentajeOcupado: totalDiasPeriodo > 0 ? totalDiasOcupados / totalDiasPeriodo : 0,
+    };
+    RESUMEN_COLUMNS.forEach((col, ci) => {
+        const cell = totalRow.getCell(ci + 1);
+        cell.value = totalValues[col.key];
+        cell.border = { top: { style: "double", color: { argb: "FFBC955C" } }, left: thinGray, bottom: thinGray, right: thinGray };
+        cell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF3E131F" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5EBEF" } };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+    });
+    totalRow.getCell(porcentajeColIdx).numFmt = "0.0%";
+    worksheet.getRow(row).height = 20;
+    const totalRowNum = row;
+    row += 1;
+
+    worksheet.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: totalRowNum - 1, column: numCols } };
+    worksheet.views = [{ state: "frozen", ySplit: headerRowNum, showGridLines: false }];
+}
+
+/**
  * Arma y descarga el Excel formal de rotación de titulares de aduanas:
- * membrete institucional, y una fila por segmento/vacancia (mismas
- * `entradasPorAduana` que ya alimentan el diagrama en pantalla) agrupadas
- * por aduana con una banda separadora. Exporta exactamente las aduanas
- * visibles (`aduanas`, ya filtradas por búsqueda/chips) para que el archivo
- * coincida con lo que el usuario ve.
+ * hoja "Resumen" (titulares y tiempo de ocupación por aduana) + membrete
+ * institucional y una fila por segmento/vacancia (mismas `entradasPorAduana`
+ * que ya alimentan el diagrama en pantalla) agrupadas por aduana con una
+ * banda separadora. Exporta exactamente las aduanas visibles (`aduanas`, ya
+ * filtradas por búsqueda/chips) para que el archivo coincida con lo que el
+ * usuario ve.
  */
 async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, filtrosTipo, canViewPhoto }) {
     // Fotos: una por titular ÚNICO (no por fila — el mismo titular puede
@@ -1195,6 +1406,11 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     const salarioSalidaCol = columns.findIndex((c) => c.key === "salarioSalida") + 1;
 
     const workbook = new ExcelJS.Workbook();
+
+    // Hoja "Resumen": PRIMERA pestaña del workbook — el orden de
+    // `addWorksheet` es el orden de las pestañas en Excel.
+    addHojaResumenAduanas(workbook, construirResumenPorAduana(aduanas, entradasPorAduana));
+
     const worksheet = workbook.addWorksheet("Rotación de Aduanas");
     const numCols = columns.length;
     worksheet.columns = columns.map(({ key, width }) => ({ key, width }));
