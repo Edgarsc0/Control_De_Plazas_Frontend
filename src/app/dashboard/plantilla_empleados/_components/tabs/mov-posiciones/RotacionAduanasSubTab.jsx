@@ -59,7 +59,11 @@ gsap.registerPlugin(useGSAP);
 
 import { VacantesService } from "@/services/vacantes.service";
 import { formatDateEsMx, normalizeForSearch } from "@/utils/columnFilters";
-import { addExcelLetterhead } from "@/utils/excelLetterhead";
+import {
+    LETTERHEAD_LOGO_BASE64,
+    LETTERHEAD_LOGO_WIDTH,
+    LETTERHEAD_LOGO_HEIGHT,
+} from "@/assets/letterhead-logo";
 import { getMovimientoDiff } from "../../../_utils/movimientosDiff";
 import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 
@@ -805,11 +809,13 @@ function codigoUaActual(aduana) {
 }
 
 // ─── Exportación a Excel ────────────────────────────────────────────────────
-// Reporte formal (membretado institucional vía addExcelLetterhead, igual que
-// el resto del sistema — ver excelLetterhead.js) con una leyenda de colores
-// propia del diagrama (además de la leyenda de generación que ya trae el
-// membrete) y una fila-banda por aduana para conservar, en formato tabular,
-// la misma agrupación "una columna por aduana" que se ve en pantalla.
+// Reporte formal (membrete compacto propio — ver addMembreteCompactoRotacion
+// más abajo, distinto del membrete apilado que usa el resto del sistema en
+// excelLetterhead.js) y una fila-banda por aduana para conservar, en formato
+// tabular, la misma agrupación "una columna por aduana" que se ve en
+// pantalla. La leyenda de colores por tipo de movimiento ya no es una fila
+// aparte — la columna "Tipo de Movimiento" de la tabla trae el color/etiqueta
+// de cada fila directamente (ver EXCEL_TIPO_COLOR).
 
 // Mismos 6 tipos que TIPO_SALIDA + VACANCIA (que en pantalla es su propia
 // tarjeta, sin tipoSalida) — fondo claro + texto oscuro para que se lea bien
@@ -827,19 +833,6 @@ const EXCEL_TIPO_COLOR = {
 // Tinte suave para resaltar la FILA COMPLETA de una insubsistencia (no solo
 // la celda de tipo) — "destacar", a pedido explícito, no solo clasificar.
 const EXCEL_FILA_INSUBSISTENCIA_BG = "FFFEF2F2";
-
-// Etiquetas cortas (caben en la columna angosta del layout 2x3 del Excel
-// sin necesitar dos líneas) + descripción breve — el detalle largo ya no
-// hace falta aquí, la columna "Tipo de Movimiento" de la tabla usa la
-// etiqueta completa de TIPO_SALIDA.
-const EXCEL_LEYENDA = [
-    { tipo: "ACTIVO", label: "Activo", desc: "Sigue activo en la plaza hoy." },
-    { tipo: "TRASLADO_ADUANA", label: "Traslado", desc: "Se fue a otra aduana." },
-    { tipo: "CAMBIO_PLAZA", label: "Cambio plaza", desc: "Cambió de plaza, misma aduana." },
-    { tipo: "SALIDA_PUESTO", label: "Otro puesto", desc: "Dejó el puesto de mando." },
-    { tipo: "BAJA", label: "Baja", desc: "Baja del sistema." },
-    { tipo: "VACANCIA", label: "Vacante", desc: "Sin titular en ese periodo." },
-];
 
 const EXPORT_COLUMNS_ROTACION = [
     { key: "aduana", header: "Aduana", width: 30 },
@@ -972,13 +965,75 @@ function detalleDestinoPuesto(seg) {
     };
 }
 
+const LETTERHEAD_TITLE_LINES = [
+    "AGENCIA NACIONAL DE ADUANAS DE MÉXICO",
+    "UNIDAD DE ADMINISTRACIÓN Y FINANZAS",
+    "DIRECCIÓN DE RECURSOS HUMANOS",
+];
+
+function fmtFechaHoraGeneracionRotacion() {
+    const now = new Date();
+    const fecha = now.toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "numeric" });
+    const hora = now.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return `${hora} horas del ${fecha}`;
+}
+
+/**
+ * Membrete compacto (logo + título institucional + título del reporte, los
+ * tres en la MISMA fila, uno al lado del otro) — layout ajustado a mano por
+ * el usuario sobre el membrete apilado original (logo / título / leyenda en
+ * 3 filas separadas de `addExcelLetterhead`, compartido por el resto del
+ * sistema): aquí se reproduce ese ajuste tal cual, local a este export para
+ * no tocar el membrete de los demás.
+ *
+ * Devuelve el número de filas que ocupó (2: logo+títulos, "reporte
+ * generado") — el caller sigue escribiendo desde la siguiente fila.
+ */
+function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, logoWidth = 560) {
+    const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
+    const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
+    worksheet.addImage(imageId, {
+        tl: { col: 0.1, row: 0.1 },
+        ext: { width: logoWidth, height: logoHeight },
+    });
+    worksheet.getRow(1).height = Math.max(Math.round(logoHeight * 1.05), 34);
+
+    // Título institucional: a la derecha del logo, en la misma fila.
+    const tituloIniCol = 5 + colOffset;
+    const tituloFinCol = 8 + colOffset;
+    worksheet.mergeCells(1, tituloIniCol, 1, tituloFinCol);
+    const tituloInstCell = worksheet.getCell(1, tituloIniCol);
+    tituloInstCell.value = LETTERHEAD_TITLE_LINES.join("\n");
+    tituloInstCell.font = { name: "Calibri", bold: true, size: 16, color: { argb: "FF621F32" } };
+    tituloInstCell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+
+    // Título del reporte: extremo derecho, ocupa esta fila Y la siguiente
+    // (misma altura visual que el bloque logo+título institucional).
+    const reporteIniCol = numCols - 3;
+    worksheet.mergeCells(1, reporteIniCol, 2, numCols);
+    const tituloReporteCell = worksheet.getCell(1, reporteIniCol);
+    tituloReporteCell.value = "ROTACIÓN DE TITULARES DE ADUANAS";
+    tituloReporteCell.font = { name: "Calibri", bold: true, size: 22, color: { argb: "FF621F32" } };
+    tituloReporteCell.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
+
+    // "Reporte generado..." — angosto, a la izquierda, debajo del logo.
+    worksheet.mergeCells(2, 1, 2, 7);
+    const generadoCell = worksheet.getCell(2, 1);
+    generadoCell.value = `Reporte generado por el sistema de control de plazas a las ${fmtFechaHoraGeneracionRotacion()}.`;
+    generadoCell.font = { name: "Calibri", italic: true, size: 9, color: { argb: "FF64748B" } };
+    generadoCell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(2).height = 15;
+
+    return 2;
+}
+
 /**
  * Arma y descarga el Excel formal de rotación de titulares de aduanas:
- * membrete institucional, leyenda de colores del diagrama, y una fila por
- * segmento/vacancia (mismas `entradasPorAduana` que ya alimentan el
- * diagrama en pantalla) agrupadas por aduana con una banda separadora.
- * Exporta exactamente las aduanas visibles (`aduanas`, ya filtradas por
- * búsqueda/chips) para que el archivo coincida con lo que el usuario ve.
+ * membrete institucional, y una fila por segmento/vacancia (mismas
+ * `entradasPorAduana` que ya alimentan el diagrama en pantalla) agrupadas
+ * por aduana con una banda separadora. Exporta exactamente las aduanas
+ * visibles (`aduanas`, ya filtradas por búsqueda/chips) para que el archivo
+ * coincida con lo que el usuario ve.
  */
 async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, filtrosTipo, canViewPhoto }) {
     // Fotos: una por titular ÚNICO (no por fila — el mismo titular puede
@@ -1011,54 +1066,15 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     const numCols = columns.length;
     worksheet.columns = columns.map(({ key, width }) => ({ key, width }));
 
-    // Logo más grande que el estándar (260px) — pedido explícito para este
-    // reporte, no toca el tamaño de los demás exports del sistema (el
-    // parámetro es opcional en addExcelLetterhead, default 260).
-    let row = addExcelLetterhead(workbook, worksheet, numCols, 560) + 1;
+    // Logo + título institucional + título del reporte, los tres en la misma
+    // fila (más "reporte generado" en la fila siguiente) — layout compacto
+    // pedido explícito, ver addMembreteCompactoRotacion.
+    const colOffset = incluirFotos ? 1 : 0;
+    let row = addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, 560) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
-    // Título del reporte, ancho completo.
-    worksheet.mergeCells(`A${row}:${lastCol}${row}`);
-    const tituloCell = worksheet.getCell(`A${row}`);
-    tituloCell.value = "ROTACIÓN DE TITULARES DE ADUANAS";
-    tituloCell.font = { name: "Calibri", bold: true, size: 13, color: { argb: "FFFFFFFF" } };
-    tituloCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF621F32" } };
-    tituloCell.alignment = { vertical: "middle", horizontal: "center" };
-    worksheet.getRow(row).height = 26;
-    row += 1;
-
-    // Leyenda de tipos de movimiento: los 6 tipos en UNA sola fila,
-    // repartidos a lo ancho de A:O (justo debajo del título del reporte) —
-    // cada uno su propia franja de color con "Etiqueta: descripción breve".
-    // Franjas balanceadas por ANCHO real de columna (no por cantidad de
-    // columnas) para que la leyenda siga cubriendo A:{lastCol} completo
-    // aunque la tabla tenga más columnas que antes (ver EXPORT_COLUMNS_ROTACION).
-    // Franjas definidas contra el layout SIN columna "Foto" y desplazadas por
-    // `colOffset` (1 si hay foto, 0 si no) — así la leyenda sigue cuadrando
-    // exacto tenga o no esa columna extra.
-    const colOffset = incluirFotos ? 1 : 0;
-    const LEGEND_SPANS_BASE = [[1, 5], [6, 8], [9, 14], [15, 17], [18, 20], [21, EXPORT_COLUMNS_ROTACION.length]];
-    const LEGEND_SPANS = LEGEND_SPANS_BASE.map(([a, b]) => [a + colOffset, b + colOffset]);
-    const legendRowNum = row;
-    EXCEL_LEYENDA.forEach(({ label, desc, tipo }, i) => {
-        const [colIni, colFin] = LEGEND_SPANS[i];
-        const letraIni = worksheet.getColumn(colIni).letter;
-        const letraFin = worksheet.getColumn(colFin).letter;
-        worksheet.mergeCells(`${letraIni}${legendRowNum}:${letraFin}${legendRowNum}`);
-        const colores = EXCEL_TIPO_COLOR[tipo];
-        const cell = worksheet.getCell(`${letraIni}${legendRowNum}`);
-        cell.value = `${label}: ${desc}`;
-        cell.font = { name: "Calibri", size: 8, color: { argb: colores.text } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: colores.bg } };
-        cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-        const chipBorder = { style: "thin", color: { argb: "FFFFFFFF" } };
-        cell.border = { top: chipBorder, bottom: chipBorder, left: chipBorder, right: chipBorder };
-    });
-    worksheet.getRow(legendRowNum).height = 26;
-    row += 1;
-
-    worksheet.mergeCells(`A${row}:${lastCol}${row}`);
-    const statsCell = worksheet.getCell(`A${row}`);
+    worksheet.mergeCells(row, 1, row, 7);
+    const statsCell = worksheet.getCell(row, 1);
     statsCell.value = `${resumen.aduanas} aduanas · ${resumen.titulares} titulares · ${resumen.gestiones} gestiones · ${resumen.vacancias} vacancias · ${resumen.acefalasHoy} acéfalas hoy`;
     statsCell.font = { name: "Calibri", italic: true, size: 10, color: { argb: "FF621F32" } };
     statsCell.alignment = { vertical: "middle", horizontal: "center" };
@@ -1098,7 +1114,9 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     headerRow.height = 24;
     row += 1;
 
-    const thinGray = { style: "thin", color: { argb: "FFE2E8F0" } };
+    // Gris más oscuro que el gris casi invisible de antes (FFE2E8F0) — a
+    // pedido explícito, para que la cuadrícula se note al abrir el archivo.
+    const thinGray = { style: "thin", color: { argb: "FF94A3B8" } };
 
     // Enlaces "Cambió de plaza" / "Pasó a otra aduana": se resuelven en una
     // segunda pasada, después de escribir TODAS las filas, porque el destino
@@ -1343,7 +1361,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     });
 
     worksheet.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: row - 1, column: numCols } };
-    worksheet.views = [{ showGridLines: false }];
+    worksheet.views = [{ state: "frozen", ySplit: headerRowNum, showGridLines: false }];
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
