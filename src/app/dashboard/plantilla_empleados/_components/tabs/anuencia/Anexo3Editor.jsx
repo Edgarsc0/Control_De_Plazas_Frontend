@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -50,17 +50,59 @@ const finDeAnio = (iso) => `${String(iso || "").slice(0, 4)}-12-31`;
 const CABECERAS_PLAZA = ["Código", "U.R.", "Nivel", "Zona", "Código presupuestal"];
 const CABECERAS_PLAZA_FIN = ["Categoría", "Plazas", "Sueldo"];
 
-// Id fijo de la zona de soltar para crear una hoja nueva — nunca coincide
-// con una `clave` real de grupo (esas siempre son "<algo>||<fecha>").
-const ZONA_NUEVA_HOJA_ID = "__nueva_hoja__";
+// Prefijo de las zonas de soltar "entre dos hojas" que crean una hoja nueva
+// — nunca coincide con una `clave` real de grupo ni con un código de plaza.
+const PREFIJO_GAP = "__gap__";
+const gapId = (claveAnterior, claveSiguiente) => `${PREFIJO_GAP}::${claveAnterior || ""}::${claveSiguiente || ""}`;
 
 const nuevoIdReasignacion = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+// Posición de orden de una `clave` de grupo: el prefijo numérico antes de
+// "||" para una hoja natural del Anexo 2 ("3||2026-07-01" -> 3), o la
+// posición que se le incrustó al crearla para una hoja nueva
+// ("nueva:1.5:<uuid>||2026-07-01" -> 1.5) — así una hoja nueva creada entre
+// dos hojas mantiene ese lugar en las próximas veces que se recalcule,
+// porque la posición viaja dentro de `reasignaciones` (ver handleDragEnd).
+// `null` si no se puede determinar (no debería pasar salvo datos corruptos).
+const posicionDeClave = (clave) => {
+  if (!clave) return null;
+  const prefijo = String(clave).split("||")[0];
+  if (/^-?\d+$/.test(prefijo)) return Number(prefijo);
+  const coincide = /^nueva:(-?[\d.]+):/.exec(prefijo);
+  return coincide ? Number(coincide[1]) : null;
+};
+
+/** Zona angosta para soltar una plaza ENTRE dos hojas (o antes de la
+ * primera / después de la última) — crea una hoja nueva justo ahí, con la
+ * misma fecha de alta solicitada de la plaza que se soltó. Sólo se muestra
+ * mientras hay un arrastre en curso; se ensancha al pasar por encima. */
+function ZonaGapNuevaHoja({ claveAnterior, claveSiguiente, visible }) {
+  const { setNodeRef, isOver } = useDroppable({ id: gapId(claveAnterior, claveSiguiente) });
+  if (!visible) return null;
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed overflow-hidden transition-all duration-150 ${
+        isOver
+          ? "h-11 border-[#621f32] dark:border-[#bc955c] bg-[#621f32]/10 dark:bg-[#bc955c]/10"
+          : "h-2.5 border-slate-200 dark:border-slate-800"
+      }`}
+    >
+      {isOver && (
+        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#621f32] dark:text-[#bc955c]">
+          <Plus className="size-3" />
+          Agregar una hoja aquí
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Fila arrastrable de UNA plaza dentro de una hoja del Anexo 3. */
-function FilaPlazaArrastrable({ plaza }) {
+function FilaPlazaArrastrable({ plaza, onMenuContextual }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: plaza.codigo,
   });
@@ -70,7 +112,15 @@ function FilaPlazaArrastrable({ plaza }) {
     opacity: isDragging ? 0.35 : 1,
   };
   return (
-    <tr ref={setNodeRef} style={style} className="border-b border-slate-50 dark:border-slate-800/50 bg-white dark:bg-slate-950">
+    <tr
+      ref={setNodeRef}
+      style={style}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenuContextual(e, plaza);
+      }}
+      className="border-b border-slate-50 dark:border-slate-800/50 bg-white dark:bg-slate-950"
+    >
       <td className="w-7 px-1 py-1.5 text-slate-300 dark:text-slate-700">
         <button
           type="button"
@@ -110,27 +160,6 @@ function CuerpoHojaDroppable({ clave, children }) {
     <tbody ref={setNodeRef} className="min-h-[2.5rem]">
       {children}
     </tbody>
-  );
-}
-
-/** Zona para soltar una plaza FUERA de cualquier hoja — crea una hoja nueva
- * con esa plaza, con la misma fecha de alta solicitada. Sólo se muestra
- * mientras hay un arrastre en curso. */
-function ZonaNuevaHoja({ visible }) {
-  const { setNodeRef, isOver } = useDroppable({ id: ZONA_NUEVA_HOJA_ID });
-  if (!visible) return null;
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-5 text-[11px] font-black uppercase tracking-wider transition-colors ${
-        isOver
-          ? "border-[#621f32] dark:border-[#bc955c] bg-[#621f32]/10 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]"
-          : "border-slate-300 dark:border-slate-700 text-slate-400 dark:text-slate-600"
-      }`}
-    >
-      <Plus className="size-3.5" />
-      <span>Agregar una hoja</span>
-    </div>
   );
 }
 
@@ -174,8 +203,15 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
   const [guardandoVersion, setGuardandoVersion] = useState(false);
   const [isVersionesOpen, setIsVersionesOpen] = useState(false);
 
-  // Para el "ir a esta hoja" del resumen lateral.
+  // Para el "ir a esta hoja" del resumen lateral: la referencia al DOM de
+  // cada hoja (para el scroll) y cuál está seleccionada (para iluminarla en
+  // ambas columnas).
   const hojaRefs = useRef({});
+  const [hojaSeleccionada, setHojaSeleccionada] = useState(null);
+
+  // Menú contextual (clic derecho sobre una plaza) para la segunda forma de
+  // crear una hoja nueva a partir de una plaza, sin arrastrar.
+  const [menuContextual, setMenuContextual] = useState(null); // { x, y, codigo, claveOrigen }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -228,7 +264,20 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
   }, [grupos]);
 
   const toggleColapso = (clave) => setColapsadas((prev) => ({ ...prev, [clave]: !prev[clave] }));
-  const irAHoja = (clave) => hojaRefs.current[clave]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const irAHoja = (clave) => {
+    setHojaSeleccionada(clave);
+    hojaRefs.current[clave]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const expandirTodo = () => setColapsadas((prev) => {
+    const siguiente = { ...prev };
+    for (const g of grupos) siguiente[g.clave] = false;
+    return siguiente;
+  });
+  const colapsarTodo = () => setColapsadas((prev) => {
+    const siguiente = { ...prev };
+    for (const g of grupos) siguiente[g.clave] = true;
+    return siguiente;
+  });
 
   // --- Resumen del Anexo 2 (columna lateral) --------------------------------
   const resumenAnexo2 = useMemo(() => {
@@ -313,6 +362,26 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     });
   };
 
+  // Crea una hoja nueva a partir de UNA plaza (nombre y UA en blanco, el
+  // usuario los pone a mano) con la misma fecha de alta de esa plaza, en la
+  // posición entre `claveAnterior` y `claveSiguiente` (cualquiera puede ser
+  // `null` si es antes de la primera hoja o después de la última). Usan esto
+  // tanto soltar en un hueco entre hojas como el menú contextual.
+  const crearHojaNuevaEnPosicion = useCallback((codigo, grupoOrigen, claveAnterior, claveSiguiente) => {
+    const posAnterior = posicionDeClave(claveAnterior);
+    const posSiguiente = posicionDeClave(claveSiguiente);
+    let posicion;
+    if (posAnterior != null && posSiguiente != null) posicion = (posAnterior + posSiguiente) / 2;
+    else if (posAnterior != null) posicion = posAnterior + 1;
+    else if (posSiguiente != null) posicion = posSiguiente - 1;
+    else posicion = 0;
+
+    const claveNueva = `nueva:${posicion}:${nuevoIdReasignacion()}||${grupoOrigen.fecha_inicio}`;
+    const siguientesReasignaciones = { ...reasignaciones, [codigo]: claveNueva };
+    setReasignaciones(siguientesReasignaciones);
+    cargar(overrides, siguientesReasignaciones);
+  }, [reasignaciones, overrides, cargar]);
+
   const handleDragEnd = (event) => {
     setActiveId(null);
     const { active, over } = event;
@@ -320,14 +389,12 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     const grupoOrigen = grupos.find((g) => (g.detalle_plazas || []).some((p) => p.codigo === codigo));
     if (!grupoOrigen) return;
 
-    // Se soltó fuera de cualquier hoja: crea una hoja nueva (nombre y UA en
-    // blanco, el usuario los pone a mano) con la misma fecha de alta de la
-    // plaza que se arrastró — cada suelta aquí es una hoja nueva distinta.
-    if (over?.id === ZONA_NUEVA_HOJA_ID) {
-      const claveNueva = `nueva:${nuevoIdReasignacion()}||${grupoOrigen.fecha_inicio}`;
-      const siguientesReasignaciones = { ...reasignaciones, [codigo]: claveNueva };
-      setReasignaciones(siguientesReasignaciones);
-      cargar(overrides, siguientesReasignaciones);
+    // Se soltó en el hueco entre dos hojas (o antes de la primera / después
+    // de la última): crea una hoja nueva justo ahí.
+    const overId = String(over?.id || "");
+    if (overId.startsWith(`${PREFIJO_GAP}::`)) {
+      const [, claveAnterior, claveSiguiente] = overId.split("::");
+      crearHojaNuevaEnPosicion(codigo, grupoOrigen, claveAnterior || null, claveSiguiente || null);
       return;
     }
 
@@ -336,6 +403,30 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     const siguientesReasignaciones = { ...reasignaciones, [codigo]: claveFinal };
     setReasignaciones(siguientesReasignaciones);
     cargar(overrides, siguientesReasignaciones);
+  };
+
+  // --- Menú contextual: "Generar nueva hoja a partir de esta plaza" --------
+  const abrirMenuContextual = (evento, plaza, grupoOrigen) => {
+    setMenuContextual({ x: evento.clientX, y: evento.clientY, codigo: plaza.codigo, claveOrigen: grupoOrigen.clave });
+  };
+  const cerrarMenuContextual = () => setMenuContextual(null);
+
+  useEffect(() => {
+    if (!menuContextual) return undefined;
+    const alPresionarTecla = (e) => { if (e.key === "Escape") cerrarMenuContextual(); };
+    window.addEventListener("keydown", alPresionarTecla);
+    return () => window.removeEventListener("keydown", alPresionarTecla);
+  }, [menuContextual]);
+
+  const handleGenerarHojaDesdeMenu = () => {
+    if (!menuContextual) return;
+    const { codigo, claveOrigen } = menuContextual;
+    const grupoOrigen = grupos.find((g) => g.clave === claveOrigen);
+    cerrarMenuContextual();
+    if (!grupoOrigen) return;
+    const indice = grupos.findIndex((g) => g.clave === claveOrigen);
+    const claveSiguiente = grupos[indice + 1]?.clave || null;
+    crearHojaNuevaEnPosicion(codigo, grupoOrigen, claveOrigen, claveSiguiente);
   };
 
   // --- Descarga y versiones --------------------------------------------------
@@ -486,7 +577,11 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                   type="button"
                   onClick={() => irAHoja(g.clave)}
                   title={g.nombre_hoja}
-                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left hover:bg-white dark:hover:bg-slate-800/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors cursor-pointer"
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left border transition-colors cursor-pointer ${
+                    hojaSeleccionada === g.clave
+                      ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 border-[#621f32]/50 dark:border-[#bc955c]/50"
+                      : "border-transparent hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700"
+                  }`}
                 >
                   <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{g.nombre_hoja}</span>
                   <span className="text-[10px] font-black text-slate-400 shrink-0">{g.total_plazas}</span>
@@ -550,6 +645,26 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                   <p className="text-xs text-slate-400">Revisa los avisos de arriba.</p>
                 </div>
               ) : (
+                <>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={expandirTodo}
+                      disabled={cargando}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      Expandir todo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={colapsarTodo}
+                      disabled={cargando}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      Colapsar todo
+                    </button>
+                  </div>
+
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -558,16 +673,22 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                   onDragEnd={handleDragEnd}
                   onDragCancel={handleDragCancel}
                 >
-                  {grupos.map((g) => {
+                  {grupos.map((g, indice) => {
                     const vista = gruposVista.find((v) => v.clave === g.clave);
                     const detallePlazas = vista?.detalle_plazas || g.detalle_plazas || [];
                     const colapsada = colapsadas[g.clave] ?? true;
+                    const claveAnterior = grupos[indice - 1]?.clave || null;
                     return (
-                      <div
-                        key={g.clave}
-                        ref={(el) => { hojaRefs.current[g.clave] = el; }}
-                        className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-950 overflow-hidden scroll-mt-4"
-                      >
+                      <Fragment key={g.clave}>
+                        <ZonaGapNuevaHoja claveAnterior={claveAnterior} claveSiguiente={g.clave} visible={Boolean(activeId)} />
+                        <div
+                          ref={(el) => { hojaRefs.current[g.clave] = el; }}
+                          className={`rounded-2xl border overflow-hidden scroll-mt-4 transition-colors ${
+                            hojaSeleccionada === g.clave
+                              ? "border-[#621f32] dark:border-[#bc955c] ring-2 ring-[#621f32]/30 dark:ring-[#bc955c]/30"
+                              : "border-slate-200/70 dark:border-slate-800/70"
+                          } bg-white dark:bg-slate-950`}
+                        >
                         <button
                           type="button"
                           onClick={() => toggleColapso(g.clave)}
@@ -653,7 +774,11 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                                   <SortableContext items={detallePlazas.map((p) => p.codigo)} strategy={verticalListSortingStrategy}>
                                     <CuerpoHojaDroppable clave={g.clave}>
                                       {detallePlazas.map((p) => (
-                                        <FilaPlazaArrastrable key={p.codigo} plaza={p} />
+                                        <FilaPlazaArrastrable
+                                          key={p.codigo}
+                                          plaza={p}
+                                          onMenuContextual={(evento, plaza) => abrirMenuContextual(evento, plaza, g)}
+                                        />
                                       ))}
                                     </CuerpoHojaDroppable>
                                   </SortableContext>
@@ -685,11 +810,16 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                             </div>
                           </>
                         )}
-                      </div>
+                        </div>
+                      </Fragment>
                     );
                   })}
 
-                  <ZonaNuevaHoja visible={Boolean(activeId)} />
+                  <ZonaGapNuevaHoja
+                    claveAnterior={grupos[grupos.length - 1]?.clave || null}
+                    claveSiguiente={null}
+                    visible={Boolean(activeId)}
+                  />
 
                   <DragOverlay>
                     {activePlaza && (
@@ -701,6 +831,7 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                     )}
                   </DragOverlay>
                 </DndContext>
+                </>
               )}
             </>
           )}
@@ -727,6 +858,25 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
         anexoId={anexoIdActual}
         onCargar={handleCargarVersion}
       />
+
+      {menuContextual && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={cerrarMenuContextual} onContextMenu={(e) => { e.preventDefault(); cerrarMenuContextual(); }} />
+          <div
+            className="fixed z-[61] min-w-[260px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl py-1"
+            style={{ top: menuContextual.y, left: menuContextual.x }}
+          >
+            <button
+              type="button"
+              onClick={handleGenerarHojaDesdeMenu}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+            >
+              <Plus className="size-3.5 shrink-0" />
+              <span>Generar nueva hoja a partir de esta plaza</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
