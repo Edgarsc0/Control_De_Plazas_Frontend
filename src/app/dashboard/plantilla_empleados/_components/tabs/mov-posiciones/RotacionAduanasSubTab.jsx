@@ -1162,10 +1162,10 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
  * llegó a ejercer.
  *
  * "Tiempo ocupado" suma la duración de cada segmento que NO sea una vacancia
- * ni una insubsistencia (mismo criterio). El "% de ocupación" lo compara
- * contra el periodo total registrado para esa aduana: desde su primer
- * movimiento conocido hasta hoy (o hasta el fin de su último segmento/
- * vacancia si esa aduana ya no está vigente en los datos).
+ * ni una insubsistencia (mismo criterio). "Días de Vacancia" suma la
+ * duración de cada vacancia registrada. El "% de ocupación" compara días
+ * ocupados contra la suma de días ocupados + días de vacancia (el periodo
+ * con dato real para esa aduana).
  */
 function construirResumenPorAduana(aduanas, entradasPorAduana) {
     return aduanas.map((aduana) => {
@@ -1173,11 +1173,16 @@ function construirResumenPorAduana(aduanas, entradasPorAduana) {
 
         let titulares = 0;
         let diasOcupados = 0;
+        let diasVacancia = 0;
         let claveGestionVista = null;
         let gestionVistaEsInsubsistencia = false;
 
         entradas.forEach((entrada) => {
-            if (entrada.tipo !== "segmento") return;
+            if (entrada.tipo === "vacancia") {
+                const dias = diasEntre(entrada.dato.desde, entrada.dato.hasta);
+                if (dias) diasVacancia += dias;
+                return;
+            }
             const seg = entrada.dato;
             if (seg.claveGestion !== claveGestionVista) {
                 claveGestionVista = seg.claveGestion;
@@ -1189,22 +1194,15 @@ function construirResumenPorAduana(aduanas, entradasPorAduana) {
             if (dias) diasOcupados += dias;
         });
 
-        let periodoDias = 0;
-        if (entradas.length > 0) {
-            const primera = entradas[0];
-            const ultima = entradas[entradas.length - 1];
-            const desde = primera.tipo === "segmento" ? primera.dato.fechaDesde : primera.dato.desde;
-            const hasta = ultima.tipo === "segmento" ? ultima.dato.fechaHasta : ultima.dato.hasta;
-            periodoDias = diasEntre(desde, hasta) || 0;
-        }
+        const diasConDato = diasOcupados + diasVacancia;
 
         return {
             aduana: aduana.aduana,
             codigosUa: codigoUaActual(aduana),
             titulares,
             diasOcupados,
-            periodoDias,
-            fraccionOcupada: periodoDias > 0 ? Math.min(diasOcupados / periodoDias, 1) : 0,
+            diasVacancia,
+            fraccionOcupada: diasConDato > 0 ? Math.min(diasOcupados / diasConDato, 1) : 0,
             sinTitularHoy: !aduana.titular_actual,
         };
     });
@@ -1216,8 +1214,8 @@ const RESUMEN_COLUMNS = [
     { key: "titulares", header: "Titulares", width: 12 },
     { key: "diasOcupados", header: "Días Ocupada", width: 14 },
     { key: "tiempoOcupado", header: "Tiempo Ocupado", width: 26 },
-    { key: "periodoDias", header: "Días del Periodo", width: 16 },
-    { key: "porcentajeOcupado", header: "% Tiempo Ocupado", width: 18 },
+    { key: "diasVacancia", header: "Días de Vacancia", width: 16 },
+    { key: "porcentajeOcupado", header: "% Periodo de Ocupación", width: 20 },
 ];
 
 /**
@@ -1296,12 +1294,12 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
     const porcentajeColIdx = RESUMEN_COLUMNS.findIndex((c) => c.key === "porcentajeOcupado") + 1;
     let totalTitulares = 0;
     let totalDiasOcupados = 0;
-    let totalDiasPeriodo = 0;
+    let totalDiasVacancia = 0;
 
     resumenPorAduana.forEach((r, i) => {
         totalTitulares += r.titulares;
         totalDiasOcupados += r.diasOcupados;
-        totalDiasPeriodo += r.periodoDias;
+        totalDiasVacancia += r.diasVacancia;
 
         const dataRow = worksheet.getRow(row);
         const values = {
@@ -1310,7 +1308,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
             titulares: r.titulares,
             diasOcupados: r.diasOcupados,
             tiempoOcupado: duracion(r.diasOcupados) || "0 días",
-            periodoDias: r.periodoDias,
+            diasVacancia: r.diasVacancia,
             porcentajeOcupado: r.fraccionOcupada,
         };
         RESUMEN_COLUMNS.forEach((col, ci) => {
@@ -1331,18 +1329,19 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
         row += 1;
     });
 
-    // Fila de totales: titulares y días ocupados sumados directo; el % es
-    // ponderado por el periodo de cada aduana (días ocupados / días de
-    // periodo totales), no un promedio simple de porcentajes.
+    // Fila de totales: titulares, días ocupados y días de vacancia sumados
+    // directo; el % es ponderado (días ocupados / (ocupados + vacancia)
+    // totales), no un promedio simple de porcentajes por aduana.
     const totalRow = worksheet.getRow(row);
+    const totalDiasConDato = totalDiasOcupados + totalDiasVacancia;
     const totalValues = {
         aduana: "TOTAL",
         codigosUa: "",
         titulares: totalTitulares,
         diasOcupados: totalDiasOcupados,
         tiempoOcupado: duracion(totalDiasOcupados) || "0 días",
-        periodoDias: totalDiasPeriodo,
-        porcentajeOcupado: totalDiasPeriodo > 0 ? totalDiasOcupados / totalDiasPeriodo : 0,
+        diasVacancia: totalDiasVacancia,
+        porcentajeOcupado: totalDiasConDato > 0 ? totalDiasOcupados / totalDiasConDato : 0,
     };
     RESUMEN_COLUMNS.forEach((col, ci) => {
         const cell = totalRow.getCell(ci + 1);
