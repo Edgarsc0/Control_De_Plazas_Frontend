@@ -1311,13 +1311,18 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
             diasVacancia: r.diasVacancia,
             porcentajeOcupado: r.fraccionOcupada,
         };
+        // Aduana sin titular HOY: fondo rosita claro en la fila completa
+        // (mismo tono que usa la hoja de detalle para insubsistencias,
+        // EXCEL_FILA_INSUBSISTENCIA_BG) — anula el zebra a propósito, debe
+        // saltar a la vista sin importar la paridad de la fila.
+        const filaFillColor = r.sinTitularHoy ? EXCEL_FILA_INSUBSISTENCIA_BG : (i % 2 === 1 ? "FFF9FAFB" : null);
         RESUMEN_COLUMNS.forEach((col, ci) => {
             const cell = dataRow.getCell(ci + 1);
             cell.value = values[col.key];
             cell.border = { top: thinGray, left: thinGray, bottom: thinGray, right: thinGray };
             cell.font = { name: "Noto Sans", size: 9 };
             cell.alignment = { vertical: "middle", horizontal: "center" };
-            if (i % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+            if (filaFillColor) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: filaFillColor } };
         });
         const pctCell = dataRow.getCell(porcentajeColIdx);
         pctCell.numFmt = "0.0%";
