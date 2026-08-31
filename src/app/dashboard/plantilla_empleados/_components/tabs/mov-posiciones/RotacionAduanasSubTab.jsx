@@ -150,7 +150,7 @@ const FILTRO_META = {
         desc: "Muestra solo las aduanas con algún nombramiento declarado insubsistente (anulado, nunca llegó a ejercer).",
     },
     SIN_TITULAR: {
-        label: "Acéfalas hoy",
+        label: "Sin titular hoy",
         icon: AlertTriangle,
         accent: "rose",
         desc: "Muestra solo las aduanas que hoy no tienen titular.",
@@ -465,7 +465,7 @@ function TarjetaVacancia({ vacancia }) {
             <div className="flex items-center gap-2.5">
                 <AlertTriangle className="size-3.5 shrink-0 text-slate-500 dark:text-slate-400" />
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                    {vacancia.abierta ? "Acéfala hoy" : "Sin titular"}
+                    {vacancia.abierta ? "Sin titular hoy" : "Sin titular"}
                 </span>
                 <span className="ml-auto font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400">
                     {duracion(vacancia.dias)}
@@ -1168,7 +1168,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
 
     worksheet.mergeCells(row, 1, row, 10);
     const statsCell = worksheet.getCell(row, 1);
-    statsCell.value = `${resumen.aduanas} aduanas · ${resumen.titulares} titulares · ${resumen.gestiones} gestiones · ${resumen.vacancias} vacancias · ${resumen.acefalasHoy} acéfalas hoy`;
+    statsCell.value = `${resumen.aduanas} aduanas · ${resumen.titulares} titulares · ${resumen.gestiones} gestiones · ${resumen.vacancias} vacancias · ${resumen.acefalasHoy} sin titular hoy`;
     statsCell.font = { name: "Noto Sans", italic: true, size: 10, color: { argb: "FF621F32" } };
     statsCell.alignment = { vertical: "middle", horizontal: "center" };
     worksheet.getRow(row).height = 18;
@@ -1259,15 +1259,26 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     aduanas.forEach((aduana) => {
         const entradas = entradasPorAduana.get(aduana.aduana) || [];
 
-        // Banda por aduana: una sola celda ancho completo con el titular
-        // actual (o "Sin titular actualmente") — el nombre de la aduana y el
-        // código UA ya están en las columnas de la tabla de cada fila, no
-        // hace falta repetirlos aquí.
+        // Banda por aduana: DOS celdas, no una — la primera (hasta "Código
+        // UA") con el nombre COMPLETO de la aduana ("Aduana de X con sede en
+        // Y", no el corto que ya usa la columna "Aduana" de cada fila), la
+        // segunda (el resto de las columnas) con el titular actual (o "Sin
+        // titular actualmente").
         const tieneTitular = !!aduana.titular_actual;
         const bandaRow = worksheet.getRow(row);
+        const bandaSplitCol = columns.findIndex((c) => c.key === "codigosUa") + 1;
+        const bandaSplitColLetter = worksheet.getColumn(bandaSplitCol).letter;
 
-        worksheet.mergeCells(`A${row}:${lastCol}${row}`);
-        const estadoCell = worksheet.getCell(`A${row}`);
+        worksheet.mergeCells(`A${row}:${bandaSplitColLetter}${row}`);
+        const nombreCell = worksheet.getCell(`A${row}`);
+        nombreCell.value = aduana.aduana;
+        nombreCell.font = { name: "Noto Sans", bold: true, size: 9.5, color: { argb: "FF621F32" } };
+        nombreCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFE3D0" } };
+        nombreCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+
+        const estadoIniLetter = worksheet.getColumn(bandaSplitCol + 1).letter;
+        worksheet.mergeCells(`${estadoIniLetter}${row}:${lastCol}${row}`);
+        const estadoCell = worksheet.getCell(`${estadoIniLetter}${row}`);
         estadoCell.value = tieneTitular ? `Titular actual: ${aduana.titular_actual}` : "Sin titular actualmente";
         estadoCell.font = { name: "Noto Sans", bold: !tieneTitular, italic: !tieneTitular, size: 9.5, color: { argb: tieneTitular ? "FF3E131F" : "FFBE123C" } };
         estadoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tieneTitular ? "FFF5EBEF" : "FFFFF1F2" } };
@@ -1332,7 +1343,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     salarioSalida: "—",
                     nombrePuestoFuncional: "—",
                     numEmpleado: "—",
-                    titular: seg.abierta ? "— Acéfala hoy —" : "— Vacante —",
+                    titular: seg.abierta ? "— Sin titular hoy —" : "— Vacante —",
                     fechaDesde: fecha(seg.desde),
                     fechaCapturaDesde: "—",
                     fechaHasta: seg.hasta ? fecha(seg.hasta) : "—",
@@ -1346,7 +1357,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                     deptoOrigen: "—",
                     depDirectaOrigen: "—",
                     motivoSalida: "—",
-                    tipoMovimiento: seg.abierta ? "Acéfala hoy" : "Vacante",
+                    tipoMovimiento: seg.abierta ? "Sin titular hoy" : "Vacante",
                     destino: "—",
                     posicionDestino: "—",
                     puestoDestino: "—",
