@@ -24,7 +24,6 @@ import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import NotificacionesPosicionBell from "../../shared/NotificacionesPosicionBell";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
-import CeldaValorModal from "../../shared/CeldaValorModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import PlantillaHistoricaModal from "../../shared/PlantillaHistoricaModal";
 import ModalShell from "@/components/shared/ModalShell";
@@ -1200,7 +1199,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // usuarios con el viejo default ({key:null}) ya guardado también lo reciban.
   const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort_v2", { key: "nj", direction: "asc" });
   const [scrollTop, setScrollTop] = useState(0);
-  const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
+  const { selectedCell, setSelectedCell, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const suscripcionesPosicion = useSuscripcionesPosicion();
   const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] }, storageKey: "plantilla_detalle_filters" });
   const {
@@ -1227,6 +1226,17 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // otra fecha) mientras la consulta anterior (~45-90s) sigue en vuelo, esa
   // respuesta tardía no debe pisar el estado ya vigente.
   const historicoRequestIdRef = useRef(0);
+
+  // Valores reales de "Estado Nómina" presentes en la fecha consultada, salvo
+  // "Vacante" — usado por la tarjeta "Ocupadas" (ver JSX del resumen) para
+  // filtrar por "cualquier estatus de nómina que no sea Vacante" sin tener
+  // que enumerar a mano Activo/Suspendido/Permiso/Permiso Retribuido (un
+  // historic no trae nunca Solicitada/No Disponible: dependen de columnas
+  // quincenal ausentes en la reconstrucción).
+  const historicoEstadosOcupados = useMemo(
+    () => [...new Set(historicoFilas.map((r) => getFilterCellValue(r, "estado_nomina")))].filter((v) => v !== "Vacante"),
+    [historicoFilas]
+  );
 
   const activarHistorico = useCallback(async (fecha) => {
     const requestId = ++historicoRequestIdRef.current;
@@ -3513,17 +3523,26 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
               {[
-                { key: "plazas_totales", label: "Plazas Totales", icon: Briefcase },
-                { key: "plazas_activas", label: "Plazas Activas", icon: UserCheck },
-                { key: "plazas_inactivas", label: "Plazas Inactivas", icon: UserX },
-                { key: "ocupadas", label: "Ocupadas", icon: UserPlus },
-                { key: "vacantes", label: "Vacantes", icon: UserMinus },
-              ].map(({ key, label, icon: Icon }) => (
-                <div key={key} className="flex flex-col gap-1 px-3.5 py-3 bg-white/70 dark:bg-slate-900/60 border border-amber-200/50 dark:border-amber-900/30 rounded-2xl">
-                  <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400"><Icon className="size-3" />{label}</div>
-                  <span className="text-lg font-black text-[#621f32] dark:text-[#bc955c] leading-none">{historicoLoading ? "···" : formatNumber(historicoResumen?.[key])}</span>
-                </div>
-              ))}
+                { key: "plazas_totales", label: "Plazas Totales", icon: Briefcase, filtro: {} },
+                { key: "plazas_activas", label: "Plazas Activas", icon: UserCheck, filtro: { estado_plaza: ["Activa"] } },
+                { key: "plazas_inactivas", label: "Plazas Inactivas", icon: UserX, filtro: { estado_plaza: ["Inactiva"] } },
+                { key: "ocupadas", label: "Ocupadas", icon: UserPlus, filtro: { estado_plaza: ["Activa"], estado_nomina: historicoEstadosOcupados } },
+                { key: "vacantes", label: "Vacantes", icon: UserMinus, filtro: { estado_plaza: ["Activa"], estado_nomina: ["Vacante"] } },
+              ].map(({ key, label, icon: Icon, filtro }) => {
+                const isActive = JSON.stringify(columnFilters) === JSON.stringify(filtro);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => startTransition(() => { setColumnFilters(filtro); setScrollTop(0); })}
+                    title={`Filtrar la tabla por ${label.toLowerCase()}`}
+                    className={`flex flex-col gap-1 px-3.5 py-3 bg-white/70 dark:bg-slate-900/60 border rounded-2xl text-left transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isActive ? "border-[#621f32] dark:border-[#bc955c] ring-2 ring-[#621f32]/30 dark:ring-[#bc955c]/30 shadow-md" : "border-amber-200/50 dark:border-amber-900/30"}`}
+                  >
+                    <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400"><Icon className="size-3" />{label}</div>
+                    <span className="text-lg font-black text-[#621f32] dark:text-[#bc955c] leading-none">{historicoLoading ? "···" : formatNumber(historicoResumen?.[key])}</span>
+                  </button>
+                );
+              })}
             </div>
             {historicoResumen && (historicoResumen.anomalia_ocupante_en_plaza_inactiva > 0 || historicoResumen.anomalia_ocupante_sin_plaza > 0) && (
               <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
@@ -3705,19 +3724,6 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>{STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}<span>{status}</span><X className="size-3" /></button>))}</div>
             </div>
             <div className="flex items-center gap-3">
-              <AnimatePresence>
-                {selectedCell && (
-                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex items-center gap-3 py-2 px-3.5 bg-[#621f32]/5 dark:bg-[#bc955c]/5 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-300 group">
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] flex-shrink-0">{getColumnLetter(selectedCell.col)}{selectedCell.row + 1}</span>
-                      <span className="hidden md:inline whitespace-nowrap">Col: <strong className="text-slate-700 dark:text-slate-200">{tableColumns.filter(c => c.visible)[selectedCell.col]?.label}</strong></span>
-                      <span className="opacity-30 hidden md:inline">|</span>
-                      <span className="max-w-[150px] sm:max-w-[300px] lg:max-w-[450px] truncate">Val: <strong className="text-slate-700 dark:text-slate-200">{(() => { const v = filteredSortedData[selectedCell.row]?.[tableColumns.filter(c => c.visible)[selectedCell.col]?.key]; if (!v) return "-"; if (tableColumns.filter(c => c.visible)[selectedCell.col]?.key === "estado_nomina") return mapEstadoNomina(v); return String(v); })()}</strong></span>
-                      <button onClick={() => setIsCellModalOpen(true)} className="ml-1 p-1 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] rounded-md shadow-sm hover:opacity-90 active:scale-95 transition-all flex-shrink-0" title="Ver detalle completo"><ChevronRightIcon className="size-3" /></button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
               <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
@@ -3815,8 +3821,8 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             isMonoColumn={isMonoColumn}
             isPending={isPending}
             isLoading={isLoading}
-            loadingVariant={historicoActivo ? "spinner" : "skeleton"}
-            loadingMessage={historicoActivo ? `Reconstruyendo la plantilla del ${historicoFecha ? formatDateEsMx(historicoFecha) : ""}... esto puede tardar hasta un minuto.` : "Cargando plantilla (11,955 registros)..."}
+            loadingVariant="skeleton"
+            loadingMessage="Cargando plantilla (11,955 registros)..."
             data={paginatedData}
             startIndex={startIndex}
             endIndex={endIndex}
@@ -4350,22 +4356,6 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         onLoadSavedFilter={loadSavedFilter}
         onSaveFilter={(nombre) => filtrosGuardados.guardar(nombre, getValidAdvancedConditions(advancedConditions))}
         onDeleteSavedFilter={filtrosGuardados.eliminar}
-      />
-
-      <CeldaValorModal
-        open={isCellModalOpen && !!selectedCell}
-        onClose={() => setIsCellModalOpen(false)}
-        columnLabel={selectedCell ? tableColumns.filter(c => c.visible)[selectedCell.col]?.label : ""}
-        cellRef={selectedCell ? `${getColumnLetter(selectedCell.col)}${selectedCell.row + 1}` : ""}
-        value={(() => {
-          if (!selectedCell) return null;
-          const row = filteredSortedData[selectedCell.row];
-          const col = tableColumns.filter(c => c.visible)[selectedCell.col];
-          const v = row?.[col?.key];
-          if (!v) return null;
-          if (col?.key === "estado_nomina") return mapEstadoNomina(v);
-          return v;
-        })()}
       />
 
       <CeldaHistorialModal
