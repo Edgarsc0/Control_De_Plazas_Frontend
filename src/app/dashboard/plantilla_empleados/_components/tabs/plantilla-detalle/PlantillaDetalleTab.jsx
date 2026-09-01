@@ -2897,7 +2897,13 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         width: 15
       }));
 
-      const off = addExcelLetterhead(workbook, worksheet, visibleCols.length);
+      const off = addExcelLetterhead(
+        workbook,
+        worksheet,
+        visibleCols.length,
+        undefined,
+        historicoActivo ? `Plantilla histórica al ${formatDateEsMx(historicoFecha)}` : null
+      );
       const headerRowNum = off + 1;
       const headerRow = worksheet.getRow(headerRowNum);
       visibleCols.forEach((col, i) => { headerRow.getCell(i + 1).value = col.label; });
@@ -2991,7 +2997,9 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Plantilla_Empleados_Activos.xlsx";
+      a.download = historicoActivo
+        ? `Plantilla de Empleados (${historicoFecha}).xlsx`
+        : "Plantilla_Empleados_Activos.xlsx";
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
@@ -3723,7 +3731,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               </div>
               <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>{STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}<span>{status}</span><X className="size-3" /></button>))}</div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0 w-full lg:w-auto overflow-x-auto overflow-y-hidden pb-1 -mb-1">
               <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
@@ -4410,7 +4418,12 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         isExporting={isExportingConFotos}
         onCancelExport={handleCancelExportConFotos}
         rowCount={filteredSortedData.length}
-        canIncluirFotos={canViewFotoDetalle}
+        // La ruta "con fotos" exporta vía backend (ExportarPlantillaDetalleConFotosView),
+        // que re-consulta EMPLEADOS_COMPLETOS_SIG EN VIVO por posición — en modo
+        // histórico eso mostraría el ocupante ACTUAL, no el de la fecha consultada.
+        // Se oculta la opción para forzar la ruta 100% client-side (`handleExportExcel`,
+        // ya usa `filteredSortedData`, que sí es la fila histórica correcta).
+        canIncluirFotos={canViewFotoDetalle && !historicoActivo}
         showDatosPersonalesOption
       />
     </div>
