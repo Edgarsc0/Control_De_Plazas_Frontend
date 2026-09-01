@@ -290,6 +290,63 @@ export default function AnuenciaTab({ cardRef }) {
   // leerlo — sin este guard, montar el componente borraría el borrador.
   const restauradoRef = useRef(false);
 
+  // Rellena "Unidad de Negocio (info)" y "Rango Salarial" en filas que ya
+  // traían Código pero se capturaron ANTES de que esas dos columnas
+  // existieran (ver AnuenciaLookupView) — nunca pisa lo demás (denominación,
+  // nivel, tipo de contratación, fechas), sólo lo que venga vacío/"0". Se
+  // dispara al restaurar el borrador de localStorage o al abrir un Anexo 2
+  // del historial (ver handleCargarDesdeHistorial) — nunca en cada tecla,
+  // sólo cuando `hojas` se reemplaza de golpe con datos que pueden ser
+  // viejos. Si la llamada falla, las columnas simplemente se quedan como
+  // estaban — es una comodidad, no algo que deba romper la carga del anexo.
+  const backfillUnidadNegocioYRango = useCallback(async (hojasIniciales) => {
+    const codigos = new Set();
+    for (const h of hojasIniciales) {
+      for (const f of h.filas || []) {
+        const codigo = String(f.codigo || "").trim();
+        if (!codigo) continue;
+        const faltaUN = !String(f._unidadDeNegocioResuelta || "").trim();
+        const rango = String(f.rango_salarial ?? "").trim();
+        const faltaRango = rango === "" || rango === "0";
+        if (faltaUN || faltaRango) codigos.add(codigo);
+      }
+    }
+    if (codigos.size === 0) return;
+    try {
+      const res = await VacantesService.getAnuenciaLookupBulk(Array.from(codigos));
+      if (!res.ok) return;
+      const data = await res.json();
+      const resultados = data.resultados || {};
+      if (Object.keys(resultados).length === 0) return;
+      setHojas((prev) =>
+        prev.map((h) => {
+          let huboCambios = false;
+          const filas = h.filas.map((f) => {
+            const codigo = String(f.codigo || "").trim();
+            const info = codigo ? resultados[codigo] : null;
+            if (!info) return f;
+            let cambio = false;
+            const siguiente = { ...f };
+            if (!String(f._unidadDeNegocioResuelta || "").trim() && info.unidad_de_negocio) {
+              siguiente._unidadDeNegocioResuelta = info.unidad_de_negocio;
+              cambio = true;
+            }
+            const rangoActual = String(f.rango_salarial ?? "").trim();
+            if ((rangoActual === "" || rangoActual === "0") && info.rango_salarial && info.rango_salarial !== "0") {
+              siguiente.rango_salarial = info.rango_salarial;
+              cambio = true;
+            }
+            if (cambio) huboCambios = true;
+            return cambio ? siguiente : f;
+          });
+          return huboCambios ? { ...h, filas } : h;
+        })
+      );
+    } catch {
+      // silencioso — ver comentario de la función arriba.
+    }
+  }, []);
+
   useEffect(() => {
     try {
       const borrador = leerBorrador();
@@ -298,6 +355,7 @@ export default function AnuenciaTab({ cardRef }) {
 
       if (hayContenido) {
         setHojas(completarOficioEventual(hojasBorrador));
+        backfillUnidadNegocioYRango(hojasBorrador);
         setHojaActivaId(hojasBorrador[0]?._id ?? null);
         setFirmaNombre(borrador.firmaNombre || ANEXO2_FIRMA_DEFAULT.nombre);
         setFirmaPuesto(borrador.firmaPuesto || ANEXO2_FIRMA_DEFAULT.puesto);
@@ -728,7 +786,8 @@ export default function AnuenciaTab({ cardRef }) {
     // va a quedar tras este único re-render agrupado.
     snapshotRevisionRef.current = revision + 1;
     toast.success(`Anexo #${detalle.id} cargado — sigue editando o descárgalo de nuevo.`);
-  }, [toast, revision]);
+    backfillUnidadNegocioYRango(hojasCargadas);
+  }, [toast, revision, backfillUnidadNegocioYRango]);
 
   /**
    * "Agregar" en el catálogo de justificaciones (ver JustificacionCatalogoModal):

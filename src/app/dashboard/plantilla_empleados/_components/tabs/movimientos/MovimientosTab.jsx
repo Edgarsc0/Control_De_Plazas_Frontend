@@ -1605,6 +1605,21 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     }
   }, [codigoColIdx, filteredSortedData, setSelectedCell]);
 
+  const handleQuitarSeleccionCodigos = useCallback(() => {
+    setSelectedCodigos(new Set());
+    shiftAnchorRowRef.current = null;
+  }, []);
+
+  // `filteredSortedData` ya refleja los filtros/búsqueda activos en el
+  // momento del clic (es lo mismo que se está pintando en pantalla) — por
+  // eso basta con tomarlo tal cual para que "Seleccionar todo" respete
+  // cualquier filtro aplicado antes, sin repetir la consulta al backend.
+  const handleSeleccionarTodoCodigos = useCallback(() => {
+    const todos = filteredSortedData.map((r) => String(r.codigo || "").trim()).filter(Boolean);
+    setSelectedCodigos(new Set(todos));
+    shiftAnchorRowRef.current = null;
+  }, [filteredSortedData]);
+
   // Si right-click cae en una celda que YA forma parte de la selección
   // múltiple, se agregan todas; si no, sólo esa celda (misma convención que
   // el explorador de archivos: right-click fuera de la selección la reemplaza).
@@ -2178,6 +2193,36 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                 <span>{isExportingExcel ? "Cargando..." : "Excel"}</span>
               </button>
             </div>
+          </div>
+
+          {/* Botonera de selección de la columna "Código" (para "Agregar a Anexo 2") —
+              siempre visible, no sólo cuando hay algo seleccionado, porque
+              "Seleccionar todo" tiene que poder usarse partiendo de cero. */}
+          <div className="hidden md:flex items-center gap-2 px-1 pb-2 shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Selección de Código:</span>
+            <button
+              type="button"
+              onClick={handleQuitarSeleccionCodigos}
+              disabled={selectedCodigos.size === 0}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            >
+              Quitar selección
+            </button>
+            <button
+              type="button"
+              onClick={handleSeleccionarTodoCodigos}
+              title="Selecciona el Código de todas las filas que cumplan los filtros aplicados ahora mismo"
+              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Seleccionar todo
+            </button>
+            <span
+              title="Plazas seleccionadas en la columna Código"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30"
+            >
+              <ListFilter className="size-3" />
+              {selectedCodigos.size}
+            </span>
           </div>
 
           {/* Tabla densa: sólo desktop */}

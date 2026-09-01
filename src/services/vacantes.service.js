@@ -436,6 +436,22 @@ export const VacantesService = {
     },
 
     /**
+     * Como `getAnuenciaLookup` pero para VARIOS códigos de golpe — usada al
+     * abrir un Anexo 2 ya guardado, para rellenar Unidad de Negocio/Rango
+     * Salarial en filas capturadas antes de que esas columnas existieran
+     * (ver `backfillUnidadNegocioYRango` en AnuenciaTab.jsx).
+     * @param {string[]} codigos - hasta 500 por llamada.
+     * @returns {Promise<Response>} 200 con `{resultados: {"<codigo>": {...}}}`.
+     */
+    getAnuenciaLookupBulk: (codigos, options = {}) => {
+        return apiFetch('/plantilla/anuencia/lookup_bulk/', {
+            method: 'POST',
+            body: JSON.stringify({ codigos }),
+            ...options
+        });
+    },
+
+    /**
      * Sugerencias de autocompletado del Código Federal de Puesto mientras se
      * escribe (sub-tab "Anuencia", ver AnuenciaTab.jsx).
      * @param {string} q - término parcial, mínimo 2 caracteres.
