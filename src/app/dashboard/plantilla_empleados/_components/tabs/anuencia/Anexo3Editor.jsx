@@ -897,6 +897,40 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     cerrarMenuColor();
   };
 
+  // Colores personalizados (además de la paleta fija) — un "+" en el menú
+  // abre el selector nativo del sistema operativo; el color que se elija se
+  // agrega a esta lista para poder reusarlo en cualquier otra hoja después.
+  // Se guarda aparte, sin depender del Anexo 2 en turno — es una paleta
+  // personal que se acumula con el tiempo, como los "colores recientes" de
+  // cualquier selector de color.
+  const COLORES_PERSONALIZADOS_STORAGE_KEY = "anuencia_anexo3_colores_personalizados";
+  const [coloresPersonalizados, setColoresPersonalizados] = useState([]);
+  const colorPickerRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const crudo = localStorage.getItem(COLORES_PERSONALIZADOS_STORAGE_KEY);
+      const lista = crudo ? JSON.parse(crudo) : [];
+      if (Array.isArray(lista)) setColoresPersonalizados(lista);
+    } catch (err) {
+      console.error("No se pudieron leer los colores personalizados:", err);
+    }
+  }, []);
+
+  const handleColorPersonalizado = (e) => {
+    const color = e.target.value;
+    setColoresPersonalizados((prev) => {
+      const siguiente = prev.includes(color) ? prev : [...prev, color];
+      try {
+        localStorage.setItem(COLORES_PERSONALIZADOS_STORAGE_KEY, JSON.stringify(siguiente));
+      } catch (err) {
+        console.error("No se pudo guardar el color personalizado:", err);
+      }
+      return siguiente;
+    });
+    if (menuColorHoja) aplicarColorHoja(menuColorHoja.clave, color);
+  };
+
   // --- Descarga y versiones --------------------------------------------------
   const handleDescargar = async () => {
     setGenerando(true);
@@ -1271,6 +1305,34 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                 );
               })}
             </div>
+
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-0.5 pt-2.5 pb-1.5">Personalizado</p>
+            <div className="grid grid-cols-5 gap-1.5">
+              <button
+                type="button"
+                onClick={() => colorPickerRef.current?.click()}
+                title="Elegir un color personalizado"
+                className="size-7 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:border-[#621f32] hover:text-[#621f32] dark:hover:border-[#bc955c] dark:hover:text-[#bc955c] transition-colors cursor-pointer"
+              >
+                <Plus className="size-3.5" />
+              </button>
+              {coloresPersonalizados.map((valorColor) => {
+                const activo = gruposPorClave.get(menuColorHoja.clave)?.color === valorColor;
+                return (
+                  <button
+                    key={valorColor}
+                    type="button"
+                    onClick={() => aplicarColorHoja(menuColorHoja.clave, valorColor)}
+                    title={valorColor}
+                    className="size-7 rounded-lg flex items-center justify-center transition-transform active:scale-90 cursor-pointer"
+                    style={{ backgroundColor: valorColor, boxShadow: activo ? `0 0 0 2px ${valorColor}` : undefined }}
+                  >
+                    {activo && <Check className="size-3.5 text-white drop-shadow" />}
+                  </button>
+                );
+              })}
+            </div>
+
             {gruposPorClave.get(menuColorHoja.clave)?.color && (
               <button
                 type="button"
@@ -1284,6 +1346,15 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
           </div>
         </>
       )}
+
+      <input
+        ref={colorPickerRef}
+        type="color"
+        onChange={handleColorPersonalizado}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+      />
     </div>
   );
 }

@@ -61,7 +61,7 @@ const TableRow = memo(function TableRow({
         const { isSticky, leftOffset } = stickyMeta[colIdx];
         const value = row[col.key];
         const isSelected = isRowSelected && colIdx === selectedColIdx;
-        const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }); };
+        const onClick = (e) => { e.stopPropagation(); onSelectCell({ row: actualRowIdx, col: colIdx }, e); };
         const onContextMenu = (e) => { e.preventDefault(); e.stopPropagation(); onCellContextMenu(e, value, e.currentTarget.getBoundingClientRect(), row, col.key); };
         const onDoubleClick = onCellDoubleClick
           ? (e) => { e.stopPropagation(); onCellDoubleClick(e, value, row, col.key); }
@@ -91,7 +91,7 @@ const TableRow = memo(function TableRow({
  * @param {?string} props.activeConditionDropdown - Columna con el dropdown de condición abierto.
  * @param {Function} props.setActiveConditionDropdown - Setter del anterior.
  * @param {?{row: number, col: number}} props.selectedCell - Celda seleccionada.
- * @param {(cell: {row: number, col: number}) => void} props.onSelectCell - Selecciona celda.
+ * @param {(cell: {row: number, col: number}, event: ?MouseEvent) => void} props.onSelectCell - Selecciona celda. `event` se reenvía tal cual (shiftKey/ctrlKey) para que el tab pueda armar selección múltiple sobre una columna propia (ver `selectedCodigos` en MovimientosTab.jsx) sin que DataTable conozca ese concepto.
  * @param {(event: MouseEvent, value: *, rect: DOMRect, row: Object, colKey: string) => void} props.onCellContextMenu - Click derecho sobre celda (menú "copiar/pegar valor"); rect posiciona el resaltado punteado. `row`/`colKey` identifican la celda para soportar "pegar".
  * @param {(event: MouseEvent, value: *, row: Object, colKey: string) => void} [props.onCellDoubleClick] - Doble click sobre celda (ej. entrar a edición inline). Opcional: sin este prop no se agrega el listener.
  * @param {(row: Object) => void} props.onShowRecord - Abre el expediente de la fila (botón VER).

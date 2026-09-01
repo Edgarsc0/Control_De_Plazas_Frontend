@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser, Bell, BellOff } from "lucide-react";
+import { Copy, Check, ClipboardPaste, AlertTriangle, Eraser, Bell, BellOff, FilePlus2 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 
@@ -25,8 +25,10 @@ import ConfirmModal from "@/components/shared/ConfirmModal";
  * @param {string} [notifyLabel] - Texto cuando NO hay suscripción activa (ej. "Notificarme cuando la posición quede vacante").
  * @param {boolean} [isSubscribed=false] - Si ya existe una suscripción activa para esta posición+tipo: cambia el botón a "Cancelar aviso".
  * @param {() => Promise<void>} [onCancelNotify] - Cancela la suscripción activa (requerido si `isSubscribed` puede ser `true`).
+ * @param {() => void} [onAgregarAAnexo2] - Si se provee, muestra la opción "Agregar a Anexo 2" (Mov. Posiciones, columna Código) — a diferencia de las demás acciones no es async ni se autocierra sola: abre un modal aparte y es ese modal quien cierra este menú.
+ * @param {string} [agregarAAnexo2Label] - Texto del botón (ej. incluye cuántas plazas trae la selección).
  */
-export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true, onNotify, notifyLabel, isSubscribed = false, onCancelNotify }) {
+export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste = true, onDelete, canDelete = true, onNotify, notifyLabel, isSubscribed = false, onCancelNotify, onAgregarAAnexo2, agregarAAnexo2Label }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [pasteState, setPasteState] = useState("idle"); // idle | pasting | waiting | done | error
@@ -200,7 +202,7 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
   const handleConfirmCancelNotify = () =>
     runNotify(onCancelNotify, "Se canceló el aviso para esta posición", "cancel");
 
-  const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0) + (onNotify ? 40 : 0);
+  const menuHeight = 56 + (onPaste ? 40 : 0) + (onDelete ? 40 : 0) + (onNotify ? 40 : 0) + (onAgregarAAnexo2 ? 40 : 0);
 
   // Portado a `document.body`: si no, un ancestro con `transform` (p.ej. un
   // motion.div de framer-motion en la página o el propio modal) crea un
@@ -291,6 +293,15 @@ export default function CopyCellMenu({ contextMenu, onClose, onPaste, canPaste =
                 : notifyState === "error" ? "No se pudo completar"
                 : isSubscribed ? "Cancelar aviso de esta posición"
                 : notifyLabel}
+            </button>
+          )}
+          {onAgregarAAnexo2 && (
+            <button
+              onClick={onAgregarAAnexo2}
+              className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-[#621f32]/10 hover:text-[#621f32] dark:hover:bg-[#bc955c]/20 dark:hover:text-[#bc955c] flex items-center gap-3 transition-colors cursor-pointer"
+            >
+              <FilePlus2 className="size-4" />
+              {agregarAAnexo2Label || "Agregar a Anexo 2"}
             </button>
           )}
         </motion.div>

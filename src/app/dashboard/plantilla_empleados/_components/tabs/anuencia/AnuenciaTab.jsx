@@ -23,6 +23,7 @@ import {
   ordenarFilasPorNivel,
   sanitizarNombreHoja,
   siguienteNombreHoja,
+  OFICIO_AUTORIZACION_EVENTUAL,
 } from "./anexo2Schema";
 import { exportarAnexo2 } from "./anexo2Excel";
 
@@ -46,11 +47,6 @@ const diasEntreFechas = (fechaInicio, fechaFin) => {
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return null;
   return Math.round((fin - inicio) / 86400000);
 };
-
-// Todas las plazas Eventuales del Anexo 2 se autorizan con este mismo
-// oficio — no varía de una plaza a otra (a diferencia del resto de las
-// columnas autollenado, que sí dependen de cada Código Federal de Puesto).
-const OFICIO_AUTORIZACION_EVENTUAL = "411/UDPCSG/2026/00621";
 
 // Completa el oficio en cualquier plaza Eventual que llegue en blanco —
 // cubre lo que NO pasa por `autollenarDesdeCodigo` en el momento en que se
@@ -603,7 +599,7 @@ export default function AnuenciaTab({ cardRef }) {
                   // Sólo informativa (ver columna junto a "Código Federal de
                   // Puesto"): no forma parte del formato oficial, así que no
                   // está en ANEXO2_COLUMNAS y anexo2Excel.js nunca la toca.
-                  _unidadAdministrativaResuelta: data.unidad_administrativa ?? "",
+                  _unidadDeNegocioResuelta: data.unidad_de_negocio ?? "",
                   _movPosId: data.mov_pos_id ?? null,
                   // Nueva resolución = nueva fecha calculada: vuelve a estar
                   // vinculada al modal hasta que el usuario la edite a mano.
@@ -618,8 +614,11 @@ export default function AnuenciaTab({ cardRef }) {
           // Cada UA nueva y distinta que aparece EN ESTA HOJA se agrega a su
           // encabezado concatenada con " y " — igual que el formato de
           // referencia, que trae "DGOA y DGMEIA" cuando una misma hoja mezcla
-          // plazas de más de una unidad.
-          const ua = data.unidad_administrativa;
+          // plazas de más de una unidad. El campo del encabezado se sigue
+          // llamando `unidad_administrativa` (así se llama en el formato
+          // oficial impreso), pero ahora se llena con la Unidad de Negocio
+          // que resuelve MOV_POS.
+          const ua = data.unidad_de_negocio;
           const detectadas = h._unidades_detectadas || [];
           if (!ua || detectadas.includes(ua)) return { ...h, filas };
 
@@ -793,7 +792,7 @@ export default function AnuenciaTab({ cardRef }) {
   // que se le reserva un porcentaje fijo pequeño y el resto se reparte entre
   // las 12 columnas reales, proporcional a su ancho original.
   const ANCHO_ACCION_PORCENTAJE = 3.5;
-  // Columna informativa "Unidad Administrativa" (ver _unidadAdministrativaResuelta):
+  // Columna informativa "Unidad de Negocio" (ver _unidadDeNegocioResuelta):
   // no es parte del formato oficial, no se exporta, sólo ayuda a leer en
   // pantalla — se le resta su ancho al resto para que la tabla siga sin
   // scroll horizontal.
@@ -1151,7 +1150,7 @@ export default function AnuenciaTab({ cardRef }) {
                             title="Sólo informativa — no forma parte del Anexo 2, no se incluye en el .xlsx"
                             className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-blue-100 dark:bg-blue-950/50 px-2 py-2 align-middle text-center text-[9px] font-black text-blue-700 dark:text-blue-300 leading-tight"
                           >
-                            Unidad Administrativa (info)
+                            Unidad de Negocio (info)
                           </th>
                         )}
                       </Fragment>
@@ -1185,7 +1184,7 @@ export default function AnuenciaTab({ cardRef }) {
                                 className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle bg-blue-50/70 dark:bg-blue-950/20"
                               >
                                 <p className="px-2 py-1.5 text-[10px] text-blue-800 dark:text-blue-300 truncate">
-                                  {fila._unidadAdministrativaResuelta || "—"}
+                                  {fila._unidadDeNegocioResuelta || "—"}
                                 </p>
                               </td>
                             )}

@@ -85,6 +85,14 @@ export const ANEXO2_FIRMA_DEFAULT = {
 // del anexo ("Anuencia - {nombre}") y como nombre del .xlsx descargado.
 export const ANEXO2_NOMBRE_ARCHIVO_DEFAULT = 'Anexo 2 solicitud de ocupación de plazas';
 
+// Todas las plazas Eventuales del Anexo 2 se autorizan con este mismo
+// oficio — no varía de una plaza a otra (a diferencia del resto de las
+// columnas autollenado, que sí dependen de cada Código Federal de Puesto).
+// Usado tanto por AnuenciaTab.jsx (autollenado en pantalla) como por
+// AgregarAAnexo2Modal.jsx (autollenado al agregar plazas desde Mov.
+// Posiciones) — una sola fuente para no desincronizarlos.
+export const OFICIO_AUTORIZACION_EVENTUAL = '411/UDPCSG/2026/00621';
+
 /** Id local, sólo para el `key` de React y para ubicar filas/hojas al
  * editarlas; nunca se exporta al .xlsx (sí se persiste en el JSON del
  * historial, por comodidad al recargar un anexo guardado). */
