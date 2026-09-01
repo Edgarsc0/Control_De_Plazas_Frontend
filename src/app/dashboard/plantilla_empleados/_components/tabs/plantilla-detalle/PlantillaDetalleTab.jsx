@@ -1137,6 +1137,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true, greenHeader: true },
     { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true, greenHeader: true },
     { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true, greenHeader: true },
+    { key: "id_field", label: "Id Campo", width: 90, visible: false, isBasic: false },
     { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
     { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
     { key: "cent", label: "Centro (Código)", width: 80, visible: false, isBasic: false },
@@ -1145,15 +1146,18 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     { key: "jd", label: "Jefatura Depto. (Código)", width: 80, visible: false, isBasic: false },
     { key: "depto", label: "Departamento (Código)", width: 120, visible: false, isBasic: false },
     { key: "aduana", label: "Aduana", width: 200, visible: false, isBasic: false },
+    { key: "id_tipo", label: "Id Tipo (Código)", width: 90, visible: false, isBasic: false },
     { key: "tipo", label: "Tipo", width: 130, visible: false, isBasic: false },
     { key: "estado", label: "Estado", width: 150, visible: false, isBasic: false },
     { key: "municipio", label: "Municipio", width: 180, visible: false, isBasic: false },
+    { key: "latitud", label: "Latitud", width: 110, visible: false, isBasic: false },
+    { key: "longitud", label: "Longitud", width: 110, visible: false, isBasic: false },
     { key: "ua2", label: "UA (Nombre)", width: 200, visible: false, isBasic: false },
-    
     { key: "observaciones", label: "OBSERVACIONES", width: 200, visible: false, isBasic: false },
     { key: "posicion_civil_sedena_semar", label: "Posición _Civil / SEDENA / SEMAR", width: 250, visible: false, isBasic: false },
     { key: "personal_militar_o_civil", label: "Personal Militar o Civil", width: 180, visible: false, isBasic: false },
     { key: "val_estat", label: "Val_estat", width: 100, visible: false, isBasic: false },
+    { key: "val_estatx", label: "Val_estatx", width: 100, visible: false, isBasic: false },
     { key: "status_jefe_inm_posicion", label: "Status Jefe Inm Posición", width: 180, visible: false, isBasic: false },
     { key: "numempleado", label: "Numempleado", width: 120, visible: false, isBasic: false },
     { key: "sindicato", label: "Sindicato", width: 150, visible: false, isBasic: false },
@@ -1165,6 +1169,8 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     { key: "columna", label: "Columna", width: 150, visible: false, isBasic: false },
     { key: "nombre_nj", label: "Nombre NJ", width: 150, visible: false, isBasic: false },
     { key: "nj_operativo_comb", label: "NJ Operativo Combinado", width: 150, visible: false, isBasic: false },
+    { key: "proyecto_2024_reduccion_plazas_eventuales", label: "Proyecto 2024 Reducción de plazas Eventuales", width: 260, visible: false, isBasic: false },
+    { key: "salario_base_mov", label: "Salario Base (Movimiento)", width: 160, visible: false, isBasic: false },
   ], "plantilla_detalle_columns");
 
   // `columns` es el estado persistido completo; para lo demás se usan dos vistas:
@@ -1176,22 +1182,60 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // - `dataColumns`: sólo columnas que corresponden a un campo real de la fila
   //   (sin la de foto) — exportaciones, filtros avanzados, historial y tarjetas
   //   móviles, donde una columna de presentación no tiene ningún valor que dar.
-  // Ambas también quitan "estado_plaza" fuera del modo histórico — no basta
-  // con dejarla en `visible: false` al salir (ver `salirHistorico`): al ser
-  // una columna persistida normal, el usuario podría reactivarla a mano desde
-  // "Columnas" y quedarse viendo una columna siempre vacía en la plantilla en
-  // vivo. Filtrarla aquí la saca también del propio selector de columnas
-  // (que recibe `tableColumns`), así no es ni siquiera una opción posible.
+  // Ambas también quitan "estado_plaza" fuera del modo histórico (no basta
+  // con dejarla en `visible: false` al salir — ver `salirHistorico` — porque
+  // el usuario podría reactivarla a mano desde "Columnas" y quedarse viendo
+  // una columna siempre vacía en la plantilla en vivo), y en sentido inverso
+  // filtran estas 15 fuera del modo histórico: son columnas de EDICIÓN
+  // manual quincenal (solicitud de candidato, oficios/plazas eventuales,
+  // CAP, observaciones DO, año de vacancia) o derivadas en vivo (código
+  // federal, fecha de anuencia con su override, fecha de vacancia calculada
+  // por el SP de ocupación) — ninguna existe en la reconstrucción histórica
+  // (`sp_plantilla_historica` no las trae ni tiene de dónde derivarlas para
+  // una fecha pasada), así que en modo histórico sólo saldrían vacías.
+  const LIVE_ONLY_COLUMN_KEYS = useMemo(() => new Set([
+    "solicitante", "nombre_candidato", "motivo_solicitud",
+    "codigo", "fecha_anuencia_detalle",
+    "oficios_autorizacion_shcp", "plazas_eventuales_autorizacion_2026",
+    "candidato", "reportada", "fecha_genera_vacante",
+    "cap_anual", "cap_mensual",
+    "observaciones_plantillas_do", "observaciones_proyectos_alineaciones",
+    "anno_vacancia",
+  ]), []);
+  // No basta con que la columna venga del SP: a una fecha dada, muchas de
+  // las 71 salen completamente vacías en TODAS las filas (campos que sólo se
+  // llenaron a partir de cierta fecha, o que nunca se usaron para esa
+  // aduana/posición). Se calcula una sola vez por fecha consultada (no en
+  // cada render: recorre las ~11 mil filas por columna candidata) y se usa
+  // para sacarlas también del selector "Columnas" — no tiene caso ofrecer
+  // una columna que, actívese o no, siempre se va a ver en blanco.
+  const historicoColumnasVacias = useMemo(() => {
+    if (!historicoActivo || historicoFilas.length === 0) return new Set();
+    const vacias = new Set();
+    columns.forEach((col) => {
+      if (col.key === FOTO_COLUMN_KEY || col.key === "estado_plaza" || LIVE_ONLY_COLUMN_KEYS.has(col.key)) return;
+      const tieneDato = historicoFilas.some((row) => {
+        const v = row[col.key];
+        return v !== null && v !== undefined && String(v).trim() !== "";
+      });
+      if (!tieneDato) vacias.add(col.key);
+    });
+    return vacias;
+  }, [historicoActivo, historicoFilas, columns, LIVE_ONLY_COLUMN_KEYS]);
   const tableColumns = useMemo(() => {
     let cols = canViewFotoDetalle ? columns : columns.filter(c => c.key !== FOTO_COLUMN_KEY);
-    if (!historicoActivo) cols = cols.filter(c => c.key !== "estado_plaza");
+    cols = historicoActivo
+      ? cols.filter(c => !LIVE_ONLY_COLUMN_KEYS.has(c.key) && !historicoColumnasVacias.has(c.key))
+      : cols.filter(c => c.key !== "estado_plaza");
     return cols;
-  }, [columns, canViewFotoDetalle, historicoActivo]);
+  }, [columns, canViewFotoDetalle, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias]);
   const dataColumns = useMemo(() => {
     let cols = columns.filter(c => c.key !== FOTO_COLUMN_KEY);
-    if (!historicoActivo) cols = cols.filter(c => c.key !== "estado_plaza");
+    cols = historicoActivo
+      ? cols.filter(c => !LIVE_ONLY_COLUMN_KEYS.has(c.key) && !historicoColumnasVacias.has(c.key))
+      : cols.filter(c => c.key !== "estado_plaza");
     return cols;
-  }, [columns, historicoActivo]);
+  }, [columns, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias]);
 
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
