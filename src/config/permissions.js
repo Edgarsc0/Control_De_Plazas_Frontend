@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   VIEW_PLANTILLA_CATALOGOS: 'authentication.view_plantilla_catalogos',
   EDIT_PLANTILLA_DETALLE: 'authentication.edit_plantilla_detalle',
   EDIT_DATOS_PERSONALES: 'authentication.edit_datos_personales',
+  VIEW_PLANTILLA_HISTORICO: 'authentication.view_plantilla_historico',
   EDIT_PLANTILLA_MOV_POSICIONES: 'authentication.edit_plantilla_mov_posiciones',
 
   // Plantilla de Empleados — fotografía: permiso independiente por tab, para
