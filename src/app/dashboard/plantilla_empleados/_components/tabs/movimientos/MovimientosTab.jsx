@@ -23,6 +23,7 @@ import CopyCellMenu from "../../shared/CopyCellMenu";
 import NotificacionesPosicionBell from "../../shared/NotificacionesPosicionBell";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
+import AgregarAAnexo2Modal from "../anuencia/AgregarAAnexo2Modal";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
 import MobileSortDrawer from "@/components/ui/MobileSortDrawer";
@@ -148,6 +149,16 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
     { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: true, isBasic: true },
     { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
+    // Las siguientes 4 son las mismas que autollena el Anexo 2 a partir del
+    // Código Federal de Puesto (ver AnuenciaLookupView) — cruzando cd_puesto/
+    // puesto_ptal+esc/partida_ptal contra sus catálogos, no columnas crudas
+    // de MOV_POS. `anuencia_anexo_nombre` marca si esta posición ya está
+    // incluida en algún Anexo 2 guardado (ver handleAgregarAAnexo2).
+    { key: "denominacion_puesto", label: "Puesto", width: 260, visible: true, isBasic: true },
+    { key: "nivel_salarial", label: "Nivel Salarial", width: 130, visible: true, isBasic: true },
+    { key: "salario_mensual_neto", label: "Salario Mensual Neto", width: 170, visible: true, isBasic: true },
+    { key: "tipo_contratacion", label: "Tipo de Contratación", width: 170, visible: true, isBasic: true },
+    { key: "anuencia_anexo_nombre", label: "En Anuencia", width: 200, visible: true, isBasic: true },
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
@@ -215,6 +226,20 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const { selectedCell, setSelectedCell, isCellModalOpen, setIsCellModalOpen, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const suscripcionesPosicion = useSuscripcionesPosicion();
   const arrowRepeatRef = useRef(0);
+
+  // Selección múltiple SOLO sobre la columna "Código", para "Agregar a
+  // Anexo 2" (clic normal = selecciona sólo ésa; shift+clic = rango desde la
+  // última clicada; ctrl/cmd+clic = agrega/quita una suelta) — independiente
+  // de `selectedCell` (que sigue marcando la última celda clicada de
+  // CUALQUIER columna, sin tocar ese comportamiento existente).
+  const [selectedCodigos, setSelectedCodigos] = useState(() => new Set());
+  const shiftAnchorRowRef = useRef(null);
+  const [isAgregarAnexo2Open, setIsAgregarAnexo2Open] = useState(false);
+  // Copia congelada de `codigosParaAgregarAnexo2` al momento del clic — ese
+  // memo depende de `contextMenu`, que se pone en `null` para cerrar el menú
+  // ANTES de que el modal alcance a leerlo; sin esta copia, el modal se abre
+  // con la lista ya vacía.
+  const [codigosParaModal, setCodigosParaModal] = useState([]);
 
   const isDateColumn = useCallback((colKey) => {
     return DATE_KEYS_MOV.includes(colKey);
@@ -1512,12 +1537,105 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         </Tooltip>
       );
     }
+    if (col.key === "codigo") {
+      const codigo = String(value || "").trim();
+      const enAnuencia = String(row.anuencia_anexo_nombre || "").trim();
+      const enSeleccion = codigo && selectedCodigos.has(codigo);
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle font-mono font-bold ${
+        isSelected
+          ? "ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]"
+          : enSeleccion
+          ? "bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300"
+          : enAnuencia
+          ? "bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400"
+          : isSticky
+          ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"
+          : "bg-white/10 text-slate-700 dark:text-slate-300"
+      } ${codigo ? "cursor-pointer" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = codigo ? String(value) : <span className="text-slate-300 font-sans font-normal">-</span>;
+      if (!enAnuencia) {
+        return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>);
+      }
+      return (
+        <Tooltip key={col.key}>
+          <TooltipTrigger asChild>
+            <td style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>
+          </TooltipTrigger>
+          <TooltipContent side="top">{`La posición se encuentra actualmente en anuencia en el ${enAnuencia}`}</TooltipContent>
+        </Tooltip>
+      );
+    }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
-  }, [isMonoColumn, isDateColumn, openVacanciaModal, openOcupacionModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur]);
+  }, [isMonoColumn, isDateColumn, openVacanciaModal, openOcupacionModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur, selectedCodigos]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
   }, []);
+
+  // Índice (entre columnas VISIBLES) de "codigo" — así se sabe si la celda
+  // clicada es esa columna sin comparar por posición fija.
+  const visibleColumns = useMemo(() => columns.filter((c) => c.visible), [columns]);
+  const codigoColIdx = useMemo(() => visibleColumns.findIndex((c) => c.key === "codigo"), [visibleColumns]);
+
+  const handleSelectCell = useCallback((cell, e) => {
+    setSelectedCell(cell);
+    if (cell.col !== codigoColIdx) return;
+    const codigo = String(filteredSortedData[cell.row]?.codigo || "").trim();
+    if (!codigo) return;
+    if (e?.shiftKey && shiftAnchorRowRef.current !== null) {
+      const desde = Math.min(shiftAnchorRowRef.current, cell.row);
+      const hasta = Math.max(shiftAnchorRowRef.current, cell.row);
+      const siguiente = new Set();
+      for (let i = desde; i <= hasta; i += 1) {
+        const c = String(filteredSortedData[i]?.codigo || "").trim();
+        if (c) siguiente.add(c);
+      }
+      setSelectedCodigos(siguiente);
+    } else if (e?.ctrlKey || e?.metaKey) {
+      setSelectedCodigos((prev) => {
+        const siguiente = new Set(prev);
+        if (siguiente.has(codigo)) siguiente.delete(codigo);
+        else siguiente.add(codigo);
+        return siguiente;
+      });
+      shiftAnchorRowRef.current = cell.row;
+    } else {
+      setSelectedCodigos(new Set([codigo]));
+      shiftAnchorRowRef.current = cell.row;
+    }
+  }, [codigoColIdx, filteredSortedData, setSelectedCell]);
+
+  const handleQuitarSeleccionCodigos = useCallback(() => {
+    setSelectedCodigos(new Set());
+    shiftAnchorRowRef.current = null;
+  }, []);
+
+  // `filteredSortedData` ya refleja los filtros/búsqueda activos en el
+  // momento del clic (es lo mismo que se está pintando en pantalla) — por
+  // eso basta con tomarlo tal cual para que "Seleccionar todo" respete
+  // cualquier filtro aplicado antes, sin repetir la consulta al backend.
+  const handleSeleccionarTodoCodigos = useCallback(() => {
+    const todos = filteredSortedData.map((r) => String(r.codigo || "").trim()).filter(Boolean);
+    setSelectedCodigos(new Set(todos));
+    shiftAnchorRowRef.current = null;
+  }, [filteredSortedData]);
+
+  // Si right-click cae en una celda que YA forma parte de la selección
+  // múltiple, se agregan todas; si no, sólo esa celda (misma convención que
+  // el explorador de archivos: right-click fuera de la selección la reemplaza).
+  // Cada entrada trae también `anuenciaAnexoNombre` (ya viene en la fila,
+  // resuelto por el backend — ver `enriquecer_mov_pos_rows`) para que el
+  // modal pueda avisar/excluir plazas ya en anuencia SIN otra llamada.
+  const codigosParaAgregarAnexo2 = useMemo(() => {
+    if (contextMenu?.colKey !== "codigo") return null;
+    const codigoClic = String(contextMenu.row?.codigo || "").trim();
+    if (!codigoClic) return null;
+    const codigos = selectedCodigos.has(codigoClic) ? Array.from(selectedCodigos) : [codigoClic];
+    return codigos.map((codigo) => {
+      const fila = codigo === codigoClic ? contextMenu.row : filteredSortedData.find((r) => r.codigo === codigo);
+      return { codigo, anuenciaAnexoNombre: String(fila?.anuencia_anexo_nombre || "").trim() };
+    });
+  }, [contextMenu, selectedCodigos, filteredSortedData]);
 
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
@@ -2077,6 +2195,36 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             </div>
           </div>
 
+          {/* Botonera de selección de la columna "Código" (para "Agregar a Anexo 2") —
+              siempre visible, no sólo cuando hay algo seleccionado, porque
+              "Seleccionar todo" tiene que poder usarse partiendo de cero. */}
+          <div className="hidden md:flex items-center gap-2 px-1 pb-2 shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Selección de Código:</span>
+            <button
+              type="button"
+              onClick={handleQuitarSeleccionCodigos}
+              disabled={selectedCodigos.size === 0}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            >
+              Quitar selección
+            </button>
+            <button
+              type="button"
+              onClick={handleSeleccionarTodoCodigos}
+              title="Selecciona el Código de todas las filas que cumplan los filtros aplicados ahora mismo"
+              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Seleccionar todo
+            </button>
+            <span
+              title="Plazas seleccionadas en la columna Código"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30"
+            >
+              <ListFilter className="size-3" />
+              {selectedCodigos.size}
+            </span>
+          </div>
+
           {/* Tabla densa: sólo desktop */}
           <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
           <DataTable
@@ -2090,7 +2238,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             activeConditionDropdown={activeConditionDropdown}
             setActiveConditionDropdown={setActiveConditionDropdown}
             selectedCell={selectedCell}
-            onSelectCell={setSelectedCell}
+            onSelectCell={handleSelectCell}
             onCellContextMenu={handleCellContextMenu}
             onShowRecord={setSelectedRowData}
             sortConfig={sortConfig}
@@ -2529,6 +2677,27 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         notifyLabel={notifyOcupada ? "Notificarme cuando la posición quede vacante" : "Notificarme cuando la posición se ocupe"}
         isSubscribed={!!notifySub}
         onCancelNotify={notifySub ? () => suscripcionesPosicion.cancelar(notifySub.id) : undefined}
+        onAgregarAAnexo2={
+          codigosParaAgregarAnexo2
+            ? () => { setCodigosParaModal(codigosParaAgregarAnexo2); setIsAgregarAnexo2Open(true); setContextMenu(null); }
+            : undefined
+        }
+        agregarAAnexo2Label={
+          codigosParaAgregarAnexo2
+            ? `Agregar a Anexo 2 (${codigosParaAgregarAnexo2.length} ${codigosParaAgregarAnexo2.length === 1 ? "plaza" : "plazas"})`
+            : undefined
+        }
+      />
+
+      <AgregarAAnexo2Modal
+        open={isAgregarAnexo2Open}
+        onClose={() => setIsAgregarAnexo2Open(false)}
+        plazas={codigosParaModal}
+        onAgregado={() => {
+          setSelectedCodigos(new Set());
+          shiftAnchorRowRef.current = null;
+          setLoading(true); // fuerza recargar la página actual: repinta "En Anuencia" ya marcado
+        }}
       />
       
       {selectedRowData && (() => {

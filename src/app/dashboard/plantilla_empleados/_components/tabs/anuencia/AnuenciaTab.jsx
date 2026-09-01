@@ -23,6 +23,7 @@ import {
   ordenarFilasPorNivel,
   sanitizarNombreHoja,
   siguienteNombreHoja,
+  OFICIO_AUTORIZACION_EVENTUAL,
 } from "./anexo2Schema";
 import { exportarAnexo2 } from "./anexo2Excel";
 
@@ -46,11 +47,6 @@ const diasEntreFechas = (fechaInicio, fechaFin) => {
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return null;
   return Math.round((fin - inicio) / 86400000);
 };
-
-// Todas las plazas Eventuales del Anexo 2 se autorizan con este mismo
-// oficio — no varía de una plaza a otra (a diferencia del resto de las
-// columnas autollenado, que sí dependen de cada Código Federal de Puesto).
-const OFICIO_AUTORIZACION_EVENTUAL = "411/UDPCSG/2026/00621";
 
 // Completa el oficio en cualquier plaza Eventual que llegue en blanco —
 // cubre lo que NO pasa por `autollenarDesdeCodigo` en el momento en que se
@@ -294,6 +290,63 @@ export default function AnuenciaTab({ cardRef }) {
   // leerlo — sin este guard, montar el componente borraría el borrador.
   const restauradoRef = useRef(false);
 
+  // Rellena "Unidad de Negocio (info)" y "Rango Salarial" en filas que ya
+  // traían Código pero se capturaron ANTES de que esas dos columnas
+  // existieran (ver AnuenciaLookupView) — nunca pisa lo demás (denominación,
+  // nivel, tipo de contratación, fechas), sólo lo que venga vacío/"0". Se
+  // dispara al restaurar el borrador de localStorage o al abrir un Anexo 2
+  // del historial (ver handleCargarDesdeHistorial) — nunca en cada tecla,
+  // sólo cuando `hojas` se reemplaza de golpe con datos que pueden ser
+  // viejos. Si la llamada falla, las columnas simplemente se quedan como
+  // estaban — es una comodidad, no algo que deba romper la carga del anexo.
+  const backfillUnidadNegocioYRango = useCallback(async (hojasIniciales) => {
+    const codigos = new Set();
+    for (const h of hojasIniciales) {
+      for (const f of h.filas || []) {
+        const codigo = String(f.codigo || "").trim();
+        if (!codigo) continue;
+        const faltaUN = !String(f._unidadDeNegocioResuelta || "").trim();
+        const rango = String(f.rango_salarial ?? "").trim();
+        const faltaRango = rango === "" || rango === "0";
+        if (faltaUN || faltaRango) codigos.add(codigo);
+      }
+    }
+    if (codigos.size === 0) return;
+    try {
+      const res = await VacantesService.getAnuenciaLookupBulk(Array.from(codigos));
+      if (!res.ok) return;
+      const data = await res.json();
+      const resultados = data.resultados || {};
+      if (Object.keys(resultados).length === 0) return;
+      setHojas((prev) =>
+        prev.map((h) => {
+          let huboCambios = false;
+          const filas = h.filas.map((f) => {
+            const codigo = String(f.codigo || "").trim();
+            const info = codigo ? resultados[codigo] : null;
+            if (!info) return f;
+            let cambio = false;
+            const siguiente = { ...f };
+            if (!String(f._unidadDeNegocioResuelta || "").trim() && info.unidad_de_negocio) {
+              siguiente._unidadDeNegocioResuelta = info.unidad_de_negocio;
+              cambio = true;
+            }
+            const rangoActual = String(f.rango_salarial ?? "").trim();
+            if ((rangoActual === "" || rangoActual === "0") && info.rango_salarial && info.rango_salarial !== "0") {
+              siguiente.rango_salarial = info.rango_salarial;
+              cambio = true;
+            }
+            if (cambio) huboCambios = true;
+            return cambio ? siguiente : f;
+          });
+          return huboCambios ? { ...h, filas } : h;
+        })
+      );
+    } catch {
+      // silencioso — ver comentario de la función arriba.
+    }
+  }, []);
+
   useEffect(() => {
     try {
       const borrador = leerBorrador();
@@ -302,6 +355,7 @@ export default function AnuenciaTab({ cardRef }) {
 
       if (hayContenido) {
         setHojas(completarOficioEventual(hojasBorrador));
+        backfillUnidadNegocioYRango(hojasBorrador);
         setHojaActivaId(hojasBorrador[0]?._id ?? null);
         setFirmaNombre(borrador.firmaNombre || ANEXO2_FIRMA_DEFAULT.nombre);
         setFirmaPuesto(borrador.firmaPuesto || ANEXO2_FIRMA_DEFAULT.puesto);
@@ -603,7 +657,7 @@ export default function AnuenciaTab({ cardRef }) {
                   // Sólo informativa (ver columna junto a "Código Federal de
                   // Puesto"): no forma parte del formato oficial, así que no
                   // está en ANEXO2_COLUMNAS y anexo2Excel.js nunca la toca.
-                  _unidadAdministrativaResuelta: data.unidad_administrativa ?? "",
+                  _unidadDeNegocioResuelta: data.unidad_de_negocio ?? "",
                   _movPosId: data.mov_pos_id ?? null,
                   // Nueva resolución = nueva fecha calculada: vuelve a estar
                   // vinculada al modal hasta que el usuario la edite a mano.
@@ -618,8 +672,11 @@ export default function AnuenciaTab({ cardRef }) {
           // Cada UA nueva y distinta que aparece EN ESTA HOJA se agrega a su
           // encabezado concatenada con " y " — igual que el formato de
           // referencia, que trae "DGOA y DGMEIA" cuando una misma hoja mezcla
-          // plazas de más de una unidad.
-          const ua = data.unidad_administrativa;
+          // plazas de más de una unidad. El campo del encabezado se sigue
+          // llamando `unidad_administrativa` (así se llama en el formato
+          // oficial impreso), pero ahora se llena con la Unidad de Negocio
+          // que resuelve MOV_POS.
+          const ua = data.unidad_de_negocio;
           const detectadas = h._unidades_detectadas || [];
           if (!ua || detectadas.includes(ua)) return { ...h, filas };
 
@@ -729,7 +786,8 @@ export default function AnuenciaTab({ cardRef }) {
     // va a quedar tras este único re-render agrupado.
     snapshotRevisionRef.current = revision + 1;
     toast.success(`Anexo #${detalle.id} cargado — sigue editando o descárgalo de nuevo.`);
-  }, [toast, revision]);
+    backfillUnidadNegocioYRango(hojasCargadas);
+  }, [toast, revision, backfillUnidadNegocioYRango]);
 
   /**
    * "Agregar" en el catálogo de justificaciones (ver JustificacionCatalogoModal):
@@ -793,7 +851,7 @@ export default function AnuenciaTab({ cardRef }) {
   // que se le reserva un porcentaje fijo pequeño y el resto se reparte entre
   // las 12 columnas reales, proporcional a su ancho original.
   const ANCHO_ACCION_PORCENTAJE = 3.5;
-  // Columna informativa "Unidad Administrativa" (ver _unidadAdministrativaResuelta):
+  // Columna informativa "Unidad de Negocio" (ver _unidadDeNegocioResuelta):
   // no es parte del formato oficial, no se exporta, sólo ayuda a leer en
   // pantalla — se le resta su ancho al resto para que la tabla siga sin
   // scroll horizontal.
@@ -1151,7 +1209,7 @@ export default function AnuenciaTab({ cardRef }) {
                             title="Sólo informativa — no forma parte del Anexo 2, no se incluye en el .xlsx"
                             className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-blue-100 dark:bg-blue-950/50 px-2 py-2 align-middle text-center text-[9px] font-black text-blue-700 dark:text-blue-300 leading-tight"
                           >
-                            Unidad Administrativa (info)
+                            Unidad de Negocio (info)
                           </th>
                         )}
                       </Fragment>
@@ -1185,7 +1243,7 @@ export default function AnuenciaTab({ cardRef }) {
                                 className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle bg-blue-50/70 dark:bg-blue-950/20"
                               >
                                 <p className="px-2 py-1.5 text-[10px] text-blue-800 dark:text-blue-300 truncate">
-                                  {fila._unidadAdministrativaResuelta || "—"}
+                                  {fila._unidadDeNegocioResuelta || "—"}
                                 </p>
                               </td>
                             )}

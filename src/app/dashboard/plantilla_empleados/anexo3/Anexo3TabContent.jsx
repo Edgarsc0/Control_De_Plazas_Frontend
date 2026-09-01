@@ -23,24 +23,32 @@ export default function Anexo3TabContent() {
         setDatos(idParam ? leerDatosAnexo3(idParam) : null);
     }, []);
 
+    // Sólo avisa (desbloquea el Anexo 2) — `pagehide` se dispara TANTO al
+    // cerrar la pestaña como al recargarla (F5), y no hay forma confiable de
+    // distinguir ambos casos. Por eso esta función NUNCA borra la captura de
+    // localStorage: si de verdad se cerró, un poco de basura ahí no importa;
+    // si sólo se recargó, borrarla dejaba esta misma pestaña sin datos al
+    // volver a montar ("No se encontró la captura del Anexo 2").
     const avisarCierre = useCallback(() => {
         if (!id) return;
         const canal = new BroadcastChannel(CANAL_ANEXO3);
         canal.postMessage({ id, tipo: "cerrado" });
         canal.close();
-        borrarDatosAnexo3(id);
     }, [id]);
 
     // Cubre tanto el botón "Cerrar" del editor como que cierren la pestaña
-    // directamente (botón X del navegador, Ctrl+W, etc.).
+    // directamente (botón X del navegador, Ctrl+W, etc.) — o la recarguen.
     useEffect(() => {
         if (!id) return undefined;
         window.addEventListener("pagehide", avisarCierre);
         return () => window.removeEventListener("pagehide", avisarCierre);
     }, [id, avisarCierre]);
 
+    // El borrado de la captura sólo pasa aquí — en el cierre EXPLÍCITO por
+    // botón, donde sí se sabe con certeza que no hace falta conservarla.
     const handleCerrar = () => {
         avisarCierre();
+        if (id) borrarDatosAnexo3(id);
         window.close();
     };
 

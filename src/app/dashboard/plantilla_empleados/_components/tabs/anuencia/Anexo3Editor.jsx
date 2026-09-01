@@ -25,6 +25,9 @@ import {
   Save,
   History,
   Plus,
+  Palette,
+  Check,
+  Ban,
 } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import { VacantesService } from "@/services/vacantes.service";
@@ -50,6 +53,22 @@ const finDeAnio = (iso) => `${String(iso || "").slice(0, 4)}-12-31`;
 const CABECERAS_PLAZA = ["Código", "U.R.", "Nivel", "Zona", "Código presupuestal"];
 const CABECERAS_PLAZA_FIN = ["Categoría", "Plazas", "Sueldo"];
 
+// Paleta fija para identificar hojas de distintas Unidades Administrativas
+// de un vistazo — clic derecho sobre el encabezado de una hoja (tarjeta o
+// resumen lateral) para asignar una.
+const PALETA_COLORES_HOJA = [
+  { nombre: "Rojo", valor: "#ef4444" },
+  { nombre: "Naranja", valor: "#f97316" },
+  { nombre: "Ámbar", valor: "#f59e0b" },
+  { nombre: "Verde", valor: "#22c55e" },
+  { nombre: "Turquesa", valor: "#14b8a6" },
+  { nombre: "Azul", valor: "#3b82f6" },
+  { nombre: "Índigo", valor: "#6366f1" },
+  { nombre: "Morado", valor: "#a855f7" },
+  { nombre: "Rosa", valor: "#ec4899" },
+  { nombre: "Gris", valor: "#64748b" },
+];
+
 // Prefijo de las zonas de soltar "entre dos hojas" que crean una hoja nueva
 // — nunca coincide con una `clave` real de grupo ni con un código de plaza.
 const PREFIJO_GAP = "__gap__";
@@ -59,6 +78,24 @@ const nuevoIdReasignacion = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+// Borrador del TRABAJO del editor (overrides/reasignaciones/versión) en
+// localStorage — igual que el borrador del Anexo 2, sobrevive a perder la
+// conexión, cerrar esta pestaña sin querer o dejarla abierta. A diferencia
+// del borrador del Anexo 2 (una sola captura a la vez), aquí la `hojas` base
+// SÍ puede volver a generarse con un clic en "Generar Anexo 3" desde el
+// Anexo 2 — lo único que se perdería sin este borrador es el acomodo manual
+// (arrastres, fechas, nombres de hoja, versión en curso). No se limpia al
+// cerrar la pestaña a propósito: las versiones guardadas son el "checkpoint"
+// real, esto es sólo una red de seguridad para lo que no se alcanzó a guardar.
+const ANEXO3_BORRADOR_STORAGE_KEY = "anuencia_anexo3_borrador_v1";
+const ANEXO3_BORRADOR_DEBOUNCE_MS = 500;
+
+// Identifica a qué Anexo 2 pertenece el borrador — el id real si ya se
+// guardó en el servidor, o el nombre de archivo si todavía no (evita
+// restaurar por error el acomodo de un Anexo 3 distinto).
+const identidadTrabajoAnexo3 = (anexoIdActual, nombreArchivo) =>
+  anexoIdActual != null ? `id:${anexoIdActual}` : `nombre:${nombreArchivo || ""}`;
 
 // Posición de orden de una `clave` de grupo: el prefijo numérico antes de
 // "||" para una hoja natural del Anexo 2 ("3||2026-07-01" -> 3), o la
@@ -172,7 +209,7 @@ function CuerpoHojaDroppable({ clave, children }) {
  * `CuerpoHojaDroppable` ya usa para la MISMA `clave` (arrastrar una plaza
  * hasta el cuerpo de la tabla).
  */
-function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColapso, onAplicarOverride, onMenuContextual, registrarRef }) {
+function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColapso, onAplicarOverride, onMenuContextual, onMenuColor, hojaRefs }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `hoja:${g.clave}`,
     data: { type: "hoja", clave: g.clave },
@@ -182,13 +219,21 @@ function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColaps
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+  // Ref estable (memoizada con la clave) — pasar una función nueva en cada
+  // render como `ref` hace que React la vuelva a invocar con `null` y luego
+  // con el nodo en CADA render, y dnd-kit vuelve a medir el elemento cada
+  // vez que eso pasa. Con esto sólo se re-crea si cambia de hoja de verdad.
+  const setRef = useCallback(
+    (el) => {
+      setNodeRef(el);
+      hojaRefs.current[g.clave] = el;
+    },
+    [setNodeRef, hojaRefs, g.clave]
+  );
 
   return (
     <div
-      ref={(el) => {
-        setNodeRef(el);
-        registrarRef(el);
-      }}
+      ref={setRef}
       style={style}
       className={`rounded-2xl border overflow-hidden scroll-mt-4 transition-colors ${
         seleccionada
@@ -196,7 +241,11 @@ function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColaps
           : "border-slate-200/70 dark:border-slate-800/70"
       } bg-white dark:bg-slate-950`}
     >
-      <div className="w-full flex items-center gap-2 px-4 py-3 bg-slate-50/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors">
+      <div
+        onContextMenu={(e) => onMenuColor(e, g.clave)}
+        title="Clic derecho para asignarle un color"
+        className="w-full flex items-center gap-2 px-4 py-3 bg-slate-50/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors"
+      >
         <button
           type="button"
           {...attributes}
@@ -212,6 +261,7 @@ function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColaps
           className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
         >
           <ChevronDown className={`size-4 text-slate-400 shrink-0 transition-transform ${colapsada ? "-rotate-90" : ""}`} />
+          {g.color && <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />}
           <span className="text-[12px] font-black text-slate-800 dark:text-slate-100 truncate">{g.nombre_hoja}</span>
           <span className="text-[11px] font-semibold text-slate-400 shrink-0">
             {fmtFecha(g.fecha_inicio)} — {fmtFecha(g.fecha_fin)}
@@ -331,6 +381,61 @@ function TarjetaHoja({ g, detallePlazas, colapsada, seleccionada, onToggleColaps
 }
 
 /**
+ * Fila de UNA hoja en el resumen lateral — misma mecánica de arrastre que
+ * `TarjetaHoja` (id con prefijo propio, "resumen:", para no chocar con el
+ * "hoja:" de la tarjeta grande ni con los códigos de plaza) pero comparte el
+ * mismo `data.current.type === "hoja"` y la misma `clave`, así que arrastrar
+ * desde aquí o desde la tarjeta grande dispara exactamente el mismo
+ * `handleDragOverHoja`/`handleDragEndHoja` y ambas vistas quedan sincronizadas.
+ */
+function FilaResumenHoja({ g, seleccionada, onIrAHoja, onMenuColor }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `resumen:${g.clave}`,
+    data: { type: "hoja", clave: g.clave },
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onContextMenu={(e) => onMenuColor(e, g.clave)}
+      title="Clic derecho para asignarle un color"
+      className={`w-full flex items-center gap-1 rounded-lg border transition-colors ${
+        seleccionada
+          ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 border-[#621f32]/50 dark:border-[#bc955c]/50"
+          : "border-transparent hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700"
+      }`}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        title="Arrastrar para reordenar esta hoja"
+        className="cursor-grab active:cursor-grabbing p-1 -m-0.5 ml-0.5 rounded text-slate-300 dark:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 touch-none shrink-0"
+      >
+        <GripVertical className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => onIrAHoja(g.clave)}
+        title={g.nombre_hoja}
+        className="flex-1 min-w-0 flex items-center justify-between gap-2 py-2 pr-2.5 text-left cursor-pointer"
+      >
+        <span className="flex items-center gap-1.5 min-w-0">
+          {g.color && <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: g.color }} />}
+          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{g.nombre_hoja}</span>
+        </span>
+        <span className="text-[10px] font-black text-slate-400 shrink-0">{g.total_plazas}</span>
+      </button>
+    </div>
+  );
+}
+
+/**
  * Editor del Anexo 3 antes de descargarlo — a diferencia de una previa de
  * sólo lectura, aquí se puede corregir a mano el acomodo de plazas entre
  * hojas (arrastrando filas, sólo entre hojas del MISMO período/fecha de
@@ -379,9 +484,18 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
 
   // Para el "ir a esta hoja" del resumen lateral: la referencia al DOM de
   // cada hoja (para el scroll) y cuál está seleccionada (para iluminarla en
-  // ambas columnas).
+  // ambas columnas — funciona en los dos sentidos: clic en el resumen marca
+  // y hace scroll a la tarjeta grande, clic en la tarjeta grande sólo marca
+  // su fila en el resumen, sin moverse — ya se está viendo esa hoja).
   const hojaRefs = useRef({});
   const [hojaSeleccionada, setHojaSeleccionada] = useState(null);
+
+  // Contenedores con scroll propio — se le pasan a dnd-kit para que el
+  // auto-scroll durante un arrastre SOLO mueva estos dos (nunca `window` ni
+  // el `<html>` de la página, que no deberían ni estar en juego dentro de
+  // este editor a pantalla completa).
+  const asideScrollRef = useRef(null);
+  const contenidoScrollRef = useRef(null);
 
   // Menú contextual (clic derecho sobre una plaza) para la segunda forma de
   // crear una hoja nueva a partir de una plaza, sin arrastrar.
@@ -396,7 +510,15 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
       const res = await VacantesService.prepararAnexo3(hojas, ovr, reas);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "No se pudo preparar el Anexo 3.");
-      setGrupos(data.grupos || []);
+      // El backend no conoce ni devuelve el color (es cosmético, sólo del
+      // front) — cada `grupos` que llega de aquí hay que reteñirlo con el
+      // color que tenga guardado en los overrides que se acaban de mandar.
+      setGrupos(
+        (data.grupos || []).map((g) => {
+          const color = (ovr?.[g.clave] || {}).color;
+          return color ? { ...g, color } : g;
+        })
+      );
       setAvisos(data.avisos || []);
     } catch (err) {
       setError(err.message || "Error al preparar el Anexo 3.");
@@ -407,10 +529,63 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     }
   }, [hojas]);
 
+  // `restauradoRef` evita que el efecto de guardado (más abajo) pise el
+  // borrador con el estado inicial vacío antes de que la restauración
+  // (que corre primero, en el mismo montaje) alcance a leerlo — mismo guard
+  // que usa el borrador del Anexo 2.
+  const restauradoRef = useRef(false);
+
   useEffect(() => {
-    cargar({}, {});
+    let restaurado = false;
+    try {
+      const crudo = localStorage.getItem(ANEXO3_BORRADOR_STORAGE_KEY);
+      if (crudo) {
+        const borrador = JSON.parse(crudo);
+        const mismaIdentidad = borrador?.identidad === identidadTrabajoAnexo3(anexoIdActual, nombreArchivo);
+        const hayContenido =
+          Object.keys(borrador?.overrides || {}).length > 0 || Object.keys(borrador?.reasignaciones || {}).length > 0;
+        if (mismaIdentidad && hayContenido) {
+          setOverrides(borrador.overrides || {});
+          setReasignaciones(borrador.reasignaciones || {});
+          if (borrador.versionIdActual) setVersionIdActual(borrador.versionIdActual);
+          if (borrador.versionNombre) setVersionNombre(borrador.versionNombre);
+          cargar(borrador.overrides || {}, borrador.reasignaciones || {});
+          toast.info("Se restauró tu acomodo sin guardar de este Anexo 3.");
+          restaurado = true;
+        }
+      }
+    } catch (err) {
+      console.error("No se pudo leer el borrador del Anexo 3:", err);
+    } finally {
+      restauradoRef.current = true;
+    }
+    if (!restaurado) cargar({}, {});
+    // Sólo al montar: es una restauración única.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!restauradoRef.current) return;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          ANEXO3_BORRADOR_STORAGE_KEY,
+          JSON.stringify({
+            identidad: identidadTrabajoAnexo3(anexoIdActual, nombreArchivo),
+            overrides,
+            reasignaciones,
+            versionIdActual,
+            versionNombre,
+          })
+        );
+      } catch (err) {
+        // Cuota llena u otro error de localStorage: la edición en pantalla
+        // sigue funcionando, sólo no queda respaldada — no es fatal.
+        console.error("No se pudo guardar el borrador del Anexo 3:", err);
+      }
+    }, ANEXO3_BORRADOR_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [overrides, reasignaciones, versionIdActual, versionNombre, anexoIdActual, nombreArchivo]);
 
   useEffect(() => {
     setGruposVista(
@@ -438,7 +613,13 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     });
   }, [grupos]);
 
-  const toggleColapso = (clave) => setColapsadas((prev) => ({ ...prev, [clave]: !prev[clave] }));
+  const toggleColapso = (clave) => {
+    setColapsadas((prev) => ({ ...prev, [clave]: !prev[clave] }));
+    // Al expandir/colapsar una tarjeta ya se está viendo esa hoja — sólo se
+    // marca en el resumen lateral, sin hacer scroll (a diferencia de
+    // `irAHoja`, que sí mueve la pantalla porque viene del resumen).
+    setHojaSeleccionada(clave);
+  };
   const irAHoja = (clave) => {
     setHojaSeleccionada(clave);
     hojaRefs.current[clave]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -682,6 +863,74 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
     crearHojaNuevaEnPosicion(codigo, grupoOrigen, claveOrigen, claveSiguiente);
   };
 
+  // --- Menú "Agregar color" — clic derecho sobre el encabezado de una hoja,
+  // tanto en la tarjeta grande como en su fila del resumen lateral. Es
+  // puramente visual (para distinguir hojas de distintas UA a simple vista):
+  // se guarda como `overrides[clave].color` para aprovechar la MISMA
+  // persistencia que ya tienen los demás overrides (borrador en localStorage
+  // y versiones guardadas) sin tocar el backend — se manda en cada `cargar()`
+  // pero el backend no lo lee ni lo devuelve, así que sólo vive en el front.
+  const [menuColorHoja, setMenuColorHoja] = useState(null); // { x, y, clave }
+  const abrirMenuColor = (evento, clave) => {
+    evento.preventDefault();
+    setMenuColorHoja({ x: evento.clientX, y: evento.clientY, clave });
+  };
+  const cerrarMenuColor = () => setMenuColorHoja(null);
+
+  useEffect(() => {
+    if (!menuColorHoja) return undefined;
+    const alPresionarTecla = (e) => { if (e.key === "Escape") cerrarMenuColor(); };
+    window.addEventListener("keydown", alPresionarTecla);
+    return () => window.removeEventListener("keydown", alPresionarTecla);
+  }, [menuColorHoja]);
+
+  const aplicarColorHoja = (clave, color) => {
+    setOverrides((prev) => {
+      const overrideHoja = { ...(prev[clave] || {}) };
+      if (color) overrideHoja.color = color;
+      else delete overrideHoja.color;
+      return { ...prev, [clave]: overrideHoja };
+    });
+    // Igual que el nombre de hoja: es cosmético, no cambia la valuación —
+    // se pinta de una vez sobre `grupos` sin volver a llamar a `cargar()`.
+    setGrupos((prev) => prev.map((g) => (g.clave === clave ? { ...g, color: color || undefined } : g)));
+    cerrarMenuColor();
+  };
+
+  // Colores personalizados (además de la paleta fija) — un "+" en el menú
+  // abre el selector nativo del sistema operativo; el color que se elija se
+  // agrega a esta lista para poder reusarlo en cualquier otra hoja después.
+  // Se guarda aparte, sin depender del Anexo 2 en turno — es una paleta
+  // personal que se acumula con el tiempo, como los "colores recientes" de
+  // cualquier selector de color.
+  const COLORES_PERSONALIZADOS_STORAGE_KEY = "anuencia_anexo3_colores_personalizados";
+  const [coloresPersonalizados, setColoresPersonalizados] = useState([]);
+  const colorPickerRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const crudo = localStorage.getItem(COLORES_PERSONALIZADOS_STORAGE_KEY);
+      const lista = crudo ? JSON.parse(crudo) : [];
+      if (Array.isArray(lista)) setColoresPersonalizados(lista);
+    } catch (err) {
+      console.error("No se pudieron leer los colores personalizados:", err);
+    }
+  }, []);
+
+  const handleColorPersonalizado = (e) => {
+    const color = e.target.value;
+    setColoresPersonalizados((prev) => {
+      const siguiente = prev.includes(color) ? prev : [...prev, color];
+      try {
+        localStorage.setItem(COLORES_PERSONALIZADOS_STORAGE_KEY, JSON.stringify(siguiente));
+      } catch (err) {
+        console.error("No se pudo guardar el color personalizado:", err);
+      }
+      return siguiente;
+    });
+    if (menuColorHoja) aplicarColorHoja(menuColorHoja.clave, color);
+  };
+
   // --- Descarga y versiones --------------------------------------------------
   const handleDescargar = async () => {
     setGenerando(true);
@@ -748,7 +997,7 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
           <div className="min-w-0">
             <h3 className="text-base font-black text-slate-800 dark:text-slate-100 leading-tight">Generar Anexo 3 (FUMP)</h3>
             <p className="text-[11px] font-semibold text-slate-400 mt-0.5 truncate">
-              Una hoja por Unidad Administrativa y período · arrastra una plaza a otra hoja del MISMO período para moverla, o arrastra el ícono ⠿ de una hoja para reordenarla
+              Una hoja por Unidad Administrativa y período · arrastra una plaza a otra hoja del MISMO período para moverla, arrastra el ícono ⠿ de una hoja (aquí o en el resumen de la izquierda) para reordenarla, o clic derecho sobre su encabezado para ponerle un color
               {versionIdActual && <span className="text-[#621f32] dark:text-[#bc955c]"> · editando versión &quot;{versionNombre}&quot;</span>}
             </p>
           </div>
@@ -789,6 +1038,23 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
             <History className="size-3.5" />
             <span>Versiones</span>
           </button>
+          <div className="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-0.5" />
+          <button
+            type="button"
+            onClick={expandirTodo}
+            disabled={cargando || grupos.length === 0}
+            className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          >
+            Expandir todo
+          </button>
+          <button
+            type="button"
+            onClick={colapsarTodo}
+            disabled={cargando || grupos.length === 0}
+            className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+          >
+            Colapsar todo
+          </button>
           <button
             onClick={onCerrar}
             title="Cerrar esta pestaña y volver a poder editar el Anexo 2"
@@ -799,133 +1065,118 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
-        <aside className="w-72 shrink-0 border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 overflow-y-auto custom-scrollbar p-4 space-y-5">
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Resumen del Anexo 2</p>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500 dark:text-slate-400">Total de plazas</span>
-                <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.total}</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500 dark:text-slate-400">Permanentes</span>
-                <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.permanentes}</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500 dark:text-slate-400">Eventuales</span>
-                <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.eventuales}</span>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+        // Sin esto, dnd-kit auto-detecta CUALQUIER ancestro con scroll —
+        // como ahora este DndContext envuelve el resumen lateral Y el
+        // contenido (dos contenedores con scroll independientes uno junto al
+        // otro), puede confundirse sobre cuál desplazar cerca del borde
+        // inferior. Restringirlo a estos dos contenedores conocidos evita
+        // que intente mover `window`/`<html>` o cualquier otro ancestro.
+        autoScroll={{ canScroll: (el) => el === asideScrollRef.current || el === contenidoScrollRef.current }}
+      >
+        <div className="flex-1 flex min-h-0">
+          <aside
+            ref={asideScrollRef}
+            className="w-72 shrink-0 border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 overflow-y-auto custom-scrollbar p-4 space-y-5"
+          >
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Resumen del Anexo 2</p>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Total de plazas</span>
+                  <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.total}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Permanentes</span>
+                  <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.permanentes}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Eventuales</span>
+                  <span className="font-black text-slate-700 dark:text-slate-200">{resumenAnexo2.eventuales}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-              Hojas a generar{grupos.length > 0 && ` (${grupos.length})`}
-            </p>
-            <div className="space-y-1">
-              {grupos.map((g) => (
-                <button
-                  key={g.clave}
-                  type="button"
-                  onClick={() => irAHoja(g.clave)}
-                  title={g.nombre_hoja}
-                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left border transition-colors cursor-pointer ${
-                    hojaSeleccionada === g.clave
-                      ? "bg-[#621f32]/10 dark:bg-[#bc955c]/10 border-[#621f32]/50 dark:border-[#bc955c]/50"
-                      : "border-transparent hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700"
-                  }`}
-                >
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{g.nombre_hoja}</span>
-                  <span className="text-[10px] font-black text-slate-400 shrink-0">{g.total_plazas}</span>
-                </button>
-              ))}
-              {grupos.length === 0 && (
-                <p className="text-[11px] text-slate-400 italic">
-                  {cargando ? "Calculando..." : "Sin hojas todavía."}
-                </p>
-              )}
-            </div>
-          </div>
-        </aside>
-
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
-          {cargando ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <Loader2 className="size-8 animate-spin text-[#621f32] dark:text-[#bc955c]" />
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Agrupando y valuando plazas...</p>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
-              <AlertTriangle className="size-8 text-amber-500" />
-              <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{error}</p>
-            </div>
-          ) : (
-            <>
-              {avisos.length > 0 && (
-                <div className="rounded-2xl border border-amber-300/60 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/20 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setAvisosAbiertos((v) => !v)}
-                    className="w-full flex items-center gap-2 p-4 cursor-pointer"
-                  >
-                    <AlertTriangle className="size-4 text-amber-600 dark:text-amber-500 shrink-0" />
-                    <p className="text-[11px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-wider flex-1 text-left">
-                      {avisos.length} {avisos.length === 1 ? "plaza no se incluyó" : "plazas no se incluyeron"}
-                    </p>
-                    <ChevronDown
-                      className={`size-4 text-amber-600 dark:text-amber-500 shrink-0 transition-transform ${avisosAbiertos ? "rotate-180" : ""}`}
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                Hojas a generar{grupos.length > 0 && ` (${grupos.length})`}
+              </p>
+              <SortableContext items={gruposEnOrdenVisual.map((g) => `resumen:${g.clave}`)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1">
+                  {gruposEnOrdenVisual.map((g) => (
+                    <FilaResumenHoja
+                      key={g.clave}
+                      g={g}
+                      seleccionada={hojaSeleccionada === g.clave}
+                      onIrAHoja={irAHoja}
+                      onMenuColor={abrirMenuColor}
                     />
-                  </button>
-                  {avisosAbiertos && (
-                    <ul className="space-y-1 max-h-56 overflow-y-auto custom-scrollbar px-4 pb-4">
-                      {avisos.map((a, i) => (
-                        <li key={i} className="text-[11px] text-amber-900/90 dark:text-amber-300/90">
-                          <span className="font-black">{a.codigo || "—"}</span>
-                          {a.codigo_presupuestal ? <span className="opacity-70"> ({a.codigo_presupuestal})</span> : null}
-                          {" — "}{a.motivo}
-                        </li>
-                      ))}
-                    </ul>
+                  ))}
+                  {grupos.length === 0 && (
+                    <p className="text-[11px] text-slate-400 italic">
+                      {cargando ? "Calculando..." : "Sin hojas todavía."}
+                    </p>
                   )}
                 </div>
-              )}
+              </SortableContext>
+            </div>
+          </aside>
 
-              {grupos.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
-                  <Layers className="size-8 text-slate-300 dark:text-slate-700" />
-                  <p className="text-sm font-bold text-slate-500">No hay ninguna plaza que se pueda valuar.</p>
-                  <p className="text-xs text-slate-400">Revisa los avisos de arriba.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-end gap-2">
+          <div ref={contenidoScrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+            {cargando ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <Loader2 className="size-8 animate-spin text-[#621f32] dark:text-[#bc955c]" />
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Agrupando y valuando plazas...</p>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
+                <AlertTriangle className="size-8 text-amber-500" />
+                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{error}</p>
+              </div>
+            ) : (
+              <>
+                {avisos.length > 0 && (
+                  <div className="rounded-2xl border border-amber-300/60 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/20 overflow-hidden">
                     <button
                       type="button"
-                      onClick={expandirTodo}
-                      disabled={cargando}
-                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                      onClick={() => setAvisosAbiertos((v) => !v)}
+                      className="w-full flex items-center gap-2 p-4 cursor-pointer"
                     >
-                      Expandir todo
+                      <AlertTriangle className="size-4 text-amber-600 dark:text-amber-500 shrink-0" />
+                      <p className="text-[11px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-wider flex-1 text-left">
+                        {avisos.length} {avisos.length === 1 ? "plaza no se incluyó" : "plazas no se incluyeron"}
+                      </p>
+                      <ChevronDown
+                        className={`size-4 text-amber-600 dark:text-amber-500 shrink-0 transition-transform ${avisosAbiertos ? "rotate-180" : ""}`}
+                      />
                     </button>
-                    <button
-                      type="button"
-                      onClick={colapsarTodo}
-                      disabled={cargando}
-                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                    >
-                      Colapsar todo
-                    </button>
+                    {avisosAbiertos && (
+                      <ul className="space-y-1 max-h-56 overflow-y-auto custom-scrollbar px-4 pb-4">
+                        {avisos.map((a, i) => (
+                          <li key={i} className="text-[11px] text-amber-900/90 dark:text-amber-300/90">
+                            <span className="font-black">{a.codigo || "—"}</span>
+                            {a.codigo_presupuestal ? <span className="opacity-70"> ({a.codigo_presupuestal})</span> : null}
+                            {" — "}{a.motivo}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
+                )}
 
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnd={handleDragEnd}
-                  onDragCancel={handleDragCancel}
-                >
+                {grupos.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
+                    <Layers className="size-8 text-slate-300 dark:text-slate-700" />
+                    <p className="text-sm font-bold text-slate-500">No hay ninguna plaza que se pueda valuar.</p>
+                    <p className="text-xs text-slate-400">Revisa los avisos de arriba.</p>
+                  </div>
+                ) : (
                   <SortableContext items={gruposEnOrdenVisual.map((g) => `hoja:${g.clave}`)} strategy={verticalListSortingStrategy}>
                     {gruposEnOrdenVisual.map((g, indice) => {
                       const vista = gruposVista.find((v) => v.clave === g.clave);
@@ -943,43 +1194,48 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
                             onToggleColapso={() => toggleColapso(g.clave)}
                             onAplicarOverride={aplicarOverride}
                             onMenuContextual={abrirMenuContextual}
-                            registrarRef={(el) => { hojaRefs.current[g.clave] = el; }}
+                            onMenuColor={abrirMenuColor}
+                            hojaRefs={hojaRefs}
                           />
                         </Fragment>
                       );
                     })}
+
+                    <ZonaGapNuevaHoja
+                      claveAnterior={gruposEnOrdenVisual[gruposEnOrdenVisual.length - 1]?.clave || null}
+                      claveSiguiente={null}
+                      visible={Boolean(activeId)}
+                    />
                   </SortableContext>
-
-                  <ZonaGapNuevaHoja
-                    claveAnterior={gruposEnOrdenVisual[gruposEnOrdenVisual.length - 1]?.clave || null}
-                    claveSiguiente={null}
-                    visible={Boolean(activeId)}
-                  />
-
-                  <DragOverlay>
-                    {activePlaza && (
-                      <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-3 py-2 flex items-center gap-3 text-[11px]">
-                        <GripVertical className="size-3.5 text-slate-400 shrink-0" />
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{activePlaza.codigo}</span>
-                        <span className="text-slate-500 dark:text-slate-400 truncate max-w-[220px]">{activePlaza.denominacion}</span>
-                      </div>
-                    )}
-                    {activeHoja && (
-                      <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-4 py-3 flex items-center gap-3 text-[11px] opacity-95">
-                        <GripVertical className="size-4 text-slate-400 shrink-0" />
-                        <span className="font-black text-slate-800 dark:text-slate-100">{activeHoja.nombre_hoja}</span>
-                        <span className="text-slate-400">·</span>
-                        <span className="text-slate-500 dark:text-slate-400">{activeHoja.total_plazas} plazas</span>
-                      </div>
-                    )}
-                  </DragOverlay>
-                </DndContext>
-                </>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+
+        {/* Sin animación de "caída": dnd-kit intenta centrar en pantalla el
+            elemento que se soltó como parte de esa animación por defecto —
+            si se suelta hasta el fondo (p. ej. crear una hoja nueva al final
+            de la lista), eso se sentía como un salto de scroll forzado que
+            no se podía controlar. */}
+        <DragOverlay dropAnimation={null}>
+          {activePlaza && (
+            <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-3 py-2 flex items-center gap-3 text-[11px]">
+              <GripVertical className="size-3.5 text-slate-400 shrink-0" />
+              <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{activePlaza.codigo}</span>
+              <span className="text-slate-500 dark:text-slate-400 truncate max-w-[220px]">{activePlaza.denominacion}</span>
+            </div>
+          )}
+          {activeHoja && (
+            <div className="rounded-xl border border-[#621f32]/40 dark:border-[#bc955c]/40 bg-white dark:bg-slate-900 shadow-2xl px-4 py-3 flex items-center gap-3 text-[11px] opacity-95">
+              <GripVertical className="size-4 text-slate-400 shrink-0" />
+              <span className="font-black text-slate-800 dark:text-slate-100">{activeHoja.nombre_hoja}</span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-500 dark:text-slate-400">{activeHoja.total_plazas} plazas</span>
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
       <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/10 flex items-center justify-between gap-3 shrink-0">
         <p className="text-[11px] font-bold text-slate-400">
@@ -1020,6 +1276,85 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
           </div>
         </>
       )}
+
+      {menuColorHoja && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={cerrarMenuColor} onContextMenu={(e) => { e.preventDefault(); cerrarMenuColor(); }} />
+          <div
+            className="fixed z-[61] min-w-[220px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl py-2 px-3"
+            style={{ top: menuColorHoja.y, left: menuColorHoja.x }}
+          >
+            <p className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest px-0.5 pb-2">
+              <Palette className="size-3" />
+              Color de la hoja
+            </p>
+            <div className="grid grid-cols-5 gap-1.5">
+              {PALETA_COLORES_HOJA.map((c) => {
+                const activo = gruposPorClave.get(menuColorHoja.clave)?.color === c.valor;
+                return (
+                  <button
+                    key={c.valor}
+                    type="button"
+                    onClick={() => aplicarColorHoja(menuColorHoja.clave, c.valor)}
+                    title={c.nombre}
+                    className="size-7 rounded-lg flex items-center justify-center transition-transform active:scale-90 cursor-pointer ring-offset-2 ring-offset-white dark:ring-offset-slate-900"
+                    style={{ backgroundColor: c.valor, boxShadow: activo ? `0 0 0 2px ${c.valor}` : undefined }}
+                  >
+                    {activo && <Check className="size-3.5 text-white drop-shadow" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-0.5 pt-2.5 pb-1.5">Personalizado</p>
+            <div className="grid grid-cols-5 gap-1.5">
+              <button
+                type="button"
+                onClick={() => colorPickerRef.current?.click()}
+                title="Elegir un color personalizado"
+                className="size-7 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 hover:border-[#621f32] hover:text-[#621f32] dark:hover:border-[#bc955c] dark:hover:text-[#bc955c] transition-colors cursor-pointer"
+              >
+                <Plus className="size-3.5" />
+              </button>
+              {coloresPersonalizados.map((valorColor) => {
+                const activo = gruposPorClave.get(menuColorHoja.clave)?.color === valorColor;
+                return (
+                  <button
+                    key={valorColor}
+                    type="button"
+                    onClick={() => aplicarColorHoja(menuColorHoja.clave, valorColor)}
+                    title={valorColor}
+                    className="size-7 rounded-lg flex items-center justify-center transition-transform active:scale-90 cursor-pointer"
+                    style={{ backgroundColor: valorColor, boxShadow: activo ? `0 0 0 2px ${valorColor}` : undefined }}
+                  >
+                    {activo && <Check className="size-3.5 text-white drop-shadow" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {gruposPorClave.get(menuColorHoja.clave)?.color && (
+              <button
+                type="button"
+                onClick={() => aplicarColorHoja(menuColorHoja.clave, null)}
+                className="w-full flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 px-0.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer text-left"
+              >
+                <Ban className="size-3.5 shrink-0" />
+                <span>Quitar color</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      <input
+        ref={colorPickerRef}
+        type="color"
+        onChange={handleColorPersonalizado}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+      />
     </div>
   );
 }
