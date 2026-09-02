@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { X, History, FolderOpen, Download, Loader2, FileWarning, Search } from "lucide-react";
+import { X, History, FolderOpen, Download, Loader2, FileWarning, Search, Trash2, Check } from "lucide-react";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useToast } from "@/hooks/useToast";
 import { VacantesService } from "@/services/vacantes.service";
@@ -21,8 +21,12 @@ const formatFecha = (iso) => (iso ? formatDateEsMx(iso, { withTime: true }) : "�
  *    (bubblea el detalle a `onCargar`, AnuenciaTab.jsx aplica el estado).
  *  - "Descargar": re-generar su .xlsx tal cual quedó guardado, sin tocar lo
  *    que el usuario tenga abierto ahora mismo en el editor.
- * Ambas acciones quedan auditadas (ver `generado_por`/`generado_en`/
- * `veces_generado` en el modelo).
+ *  - "Eliminar" (ícono de bote de basura, con confirmación inline): soft
+ *    delete — el registro nunca se borra de la base de datos (auditoría),
+ *    sólo deja de aparecer aquí y sus plazas dejan de marcarse como "en
+ *    anuencia" en Mov. Posiciones (ver `AnuenciaAnexoViewSet.eliminar`).
+ * Todas quedan auditadas (ver `generado_por`/`generado_en`/`veces_generado`/
+ * `eliminado_por`/`eliminado_en` en el modelo).
  */
 export default function AnuenciaHistorialModal({ open, onClose, onCargar }) {
   const { toast } = useToast();
@@ -31,6 +35,7 @@ export default function AnuenciaHistorialModal({ open, onClose, onCargar }) {
   const [error, setError] = useState(null);
   const [idEnProceso, setIdEnProceso] = useState(null); // fila con una acción (abrir/descargar) en curso
   const [busqueda, setBusqueda] = useState("");
+  const [idAConfirmar, setIdAConfirmar] = useState(null); // fila mostrando "¿Seguro que quieres eliminarlo?"
 
   useBodyScrollLock(open);
 
@@ -102,6 +107,23 @@ export default function AnuenciaHistorialModal({ open, onClose, onCargar }) {
       toast.error(err.message || "No se pudo generar el .xlsx.");
     } finally {
       setIdEnProceso(null);
+    }
+  };
+
+  /** Soft delete — nunca borra la fila (ver `AnuenciaAnexoViewSet.eliminar`):
+   * sólo la saca del historial y libera sus plazas en Mov. Posiciones. */
+  const handleEliminar = async (id) => {
+    setIdEnProceso(id);
+    try {
+      const res = await VacantesService.eliminarAnuenciaAnexo(id);
+      if (!res.ok) throw new Error("No se pudo eliminar el anexo.");
+      setAnexos((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Anexo 2 eliminado — sus plazas ya no cuentan como \"en anuencia\".");
+    } catch (err) {
+      toast.error(err.message || "No se pudo eliminar el anexo.");
+    } finally {
+      setIdEnProceso(null);
+      setIdAConfirmar(null);
     }
   };
 
@@ -200,26 +222,57 @@ export default function AnuenciaHistorialModal({ open, onClose, onCargar }) {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => handleAbrir(a.id)}
-                          disabled={idEnProceso === a.id}
-                          title="Abrir en el editor"
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                        >
-                          {idEnProceso === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <FolderOpen className="size-3.5" />}
-                          <span>Abrir</span>
-                        </button>
-                        <button
-                          onClick={() => handleDescargar(a.id)}
-                          disabled={idEnProceso === a.id}
-                          title="Volver a generar el .xlsx"
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                        >
-                          {idEnProceso === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-                          <span>Descargar</span>
-                        </button>
-                      </div>
+                      {idAConfirmar === a.id ? (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mr-1">¿Eliminar?</span>
+                          <button
+                            onClick={() => handleEliminar(a.id)}
+                            disabled={idEnProceso === a.id}
+                            title="Sí, eliminar (el registro se conserva para auditoría, sólo deja de aparecer aquí)"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            {idEnProceso === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                            <span>Sí</span>
+                          </button>
+                          <button
+                            onClick={() => setIdAConfirmar(null)}
+                            disabled={idEnProceso === a.id}
+                            title="Cancelar"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleAbrir(a.id)}
+                            disabled={idEnProceso === a.id}
+                            title="Abrir en el editor"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            {idEnProceso === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <FolderOpen className="size-3.5" />}
+                            <span>Abrir</span>
+                          </button>
+                          <button
+                            onClick={() => handleDescargar(a.id)}
+                            disabled={idEnProceso === a.id}
+                            title="Volver a generar el .xlsx"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            {idEnProceso === a.id ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                            <span>Descargar</span>
+                          </button>
+                          <button
+                            onClick={() => setIdAConfirmar(a.id)}
+                            disabled={idEnProceso === a.id}
+                            title="Eliminar (no se pierde el historial: sólo deja de aparecer aquí y sus plazas quedan libres)"
+                            className="flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

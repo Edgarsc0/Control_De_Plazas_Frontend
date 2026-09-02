@@ -1556,12 +1556,21 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       if (!enAnuencia) {
         return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>);
       }
+      // El backend une con ", " los nombres de TODOS los Anexo 2 donde
+      // aparece la plaza (puede estar en más de uno a la vez — ya no hay
+      // bloqueo, ver AgregarAAnexo2Modal.jsx) — se separan sólo para decidir
+      // singular/plural del tooltip, el texto ya viene armado.
+      const nombresAnuencia = enAnuencia.split(", ").filter(Boolean);
       return (
         <Tooltip key={col.key}>
           <TooltipTrigger asChild>
             <td style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>
           </TooltipTrigger>
-          <TooltipContent side="top">{`La posición se encuentra actualmente en anuencia en el ${enAnuencia}`}</TooltipContent>
+          <TooltipContent side="top">
+            {nombresAnuencia.length > 1
+              ? `La posición se encuentra actualmente en anuencia en ${nombresAnuencia.length} Anexo 2: ${enAnuencia}`
+              : `La posición se encuentra actualmente en anuencia en el ${enAnuencia}`}
+          </TooltipContent>
         </Tooltip>
       );
     }

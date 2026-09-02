@@ -45,15 +45,22 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
   const [detalleAnexo, setDetalleAnexo] = useState(null); // detalle completo (con `hojas`)
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [nombreHojaNueva, setNombreHojaNueva] = useState("");
+  const [nombreAnexoNuevo, setNombreAnexoNuevo] = useState("");
+  const [creandoAnexo, setCreandoAnexo] = useState(false);
 
   const [agregando, setAgregando] = useState(false);
   const [resultado, setResultado] = useState(null); // { agregadas, omitidas, errores } | null
 
   useBodyScrollLock(open);
 
+  // Ya no se excluye a las plazas que están en otro(s) Anexo 2: una plaza
+  // puede legítimamente pasar por varias solicitudes a lo largo de su vida
+  // (se pide, se ocupa, vuelve a quedar vacante, se vuelve a pedir) — ver
+  // `_get_mapa_codigos_en_anuencia` en el backend. `yaEnAnuencia` sólo
+  // alimenta el aviso informativo de abajo, ya no decide qué se agrega.
   const plazasValidas = (plazas || []).filter((p) => p.codigo);
   const yaEnAnuencia = plazasValidas.filter((p) => p.anuenciaAnexoNombre);
-  const disponibles = plazasValidas.filter((p) => !p.anuenciaAnexoNombre);
+  const disponibles = plazasValidas;
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +69,7 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
     setAnexoSeleccionado(null);
     setDetalleAnexo(null);
     setNombreHojaNueva("");
+    setNombreAnexoNuevo("");
     setResultado(null);
     let active = true;
     setCargandoAnexos(true);
@@ -125,13 +133,20 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
     };
   };
 
+  /** Resuelve todas las plazas `disponibles` en paralelo — compartido por
+   * "agregar a hoja/anexo existente" y "crear Anexo 2 nuevo". */
+  const resolverFilasDisponibles = async () => {
+    const resueltas = await Promise.all(disponibles.map((p) => resolverFila(p.codigo)));
+    const filasNuevas = resueltas.filter(Boolean);
+    const codigosConError = disponibles.filter((_, i) => !resueltas[i]).map((p) => p.codigo);
+    return { filasNuevas, codigosConError };
+  };
+
   const handleConfirmarHoja = async (hojaObjetivo) => {
     if (disponibles.length === 0) return;
     setAgregando(true);
     try {
-      const resueltas = await Promise.all(disponibles.map((p) => resolverFila(p.codigo)));
-      const filasNuevas = resueltas.filter(Boolean);
-      const codigosConError = disponibles.filter((_, i) => !resueltas[i]).map((p) => p.codigo);
+      const { filasNuevas, codigosConError } = await resolverFilasDisponibles();
 
       if (filasNuevas.length === 0) {
         toast.error("Ninguna de las plazas se pudo resolver — puede que ya no existan en MOV_POS.");
@@ -153,13 +168,48 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
       const res = await VacantesService.actualizarAnuenciaAnexo(anexoSeleccionado.id, { hojas: hojasActualizadas });
       if (!res.ok) throw new Error("No se pudo guardar el Anexo 2 con las plazas nuevas.");
 
-      setResultado({ agregadas: filasNuevas.length, omitidas: yaEnAnuencia.length, errores: codigosConError });
+      setResultado({ agregadas: filasNuevas.length, yaEnOtroAnexo: yaEnAnuencia.length, errores: codigosConError });
       toast.success(`${filasNuevas.length} ${filasNuevas.length === 1 ? "plaza agregada" : "plazas agregadas"} a "${anexoSeleccionado.nombre_archivo}".`);
       onAgregado?.();
     } catch (err) {
       toast.error(err.message || "No se pudo completar la operación.");
     } finally {
       setAgregando(false);
+    }
+  };
+
+  /** Crea un Anexo 2 desde cero con una sola hoja (mismo nombre que el
+   * Anexo 2, siguiendo el patrón de "un anexo, una hoja" con el que arranca
+   * cualquier Anexo 2 capturado a mano en AnuenciaTab.jsx) y las plazas
+   * seleccionadas ya resueltas. */
+  const handleCrearAnexoNuevo = async () => {
+    const nombre = nombreAnexoNuevo.trim();
+    if (!nombre || disponibles.length === 0) return;
+    setCreandoAnexo(true);
+    try {
+      const { filasNuevas, codigosConError } = await resolverFilasDisponibles();
+
+      if (filasNuevas.length === 0) {
+        toast.error("Ninguna de las plazas se pudo resolver — puede que ya no existan en MOV_POS.");
+        setCreandoAnexo(false);
+        return;
+      }
+
+      const hojaNueva = { ...crearHojaVacia(nombre), filas: ordenarFilasPorNivel(filasNuevas) };
+      const res = await VacantesService.crearAnuenciaAnexo({ nombre_archivo: nombre, hojas: [hojaNueva] });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.nombre_archivo?.[0] || data?.detail || "No se pudo crear el Anexo 2.");
+      }
+
+      setAnexoSeleccionado(data);
+      setResultado({ agregadas: filasNuevas.length, yaEnOtroAnexo: yaEnAnuencia.length, errores: codigosConError });
+      toast.success(`Anexo 2 "${nombre}" creado con ${filasNuevas.length} ${filasNuevas.length === 1 ? "plaza" : "plazas"}.`);
+      onAgregado?.();
+    } catch (err) {
+      toast.error(err.message || "No se pudo crear el Anexo 2.");
+    } finally {
+      setCreandoAnexo(false);
     }
   };
 
@@ -212,7 +262,7 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
               <div className="mx-4 mt-4 shrink-0 flex items-start gap-2 rounded-xl border border-amber-300/60 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/20 p-3">
                 <AlertTriangle className="size-4 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-amber-900/90 dark:text-amber-300/90">
-                  {yaEnAnuencia.length} {yaEnAnuencia.length === 1 ? "de las plazas seleccionadas ya está" : "de las plazas seleccionadas ya están"} en anuencia y no se {yaEnAnuencia.length === 1 ? "va a agregar" : "van a agregar"} de nuevo: {yaEnAnuencia.map((p) => p.codigo).join(", ")}.
+                  {yaEnAnuencia.length} {yaEnAnuencia.length === 1 ? "de las plazas seleccionadas ya está" : "de las plazas seleccionadas ya están"} en anuencia en otro Anexo 2 — se {yaEnAnuencia.length === 1 ? "va a agregar" : "van a agregar"} de todas formas, la plaza quedará marcada en ambos: {yaEnAnuencia.map((p) => p.codigo).join(", ")}.
                 </p>
               </div>
             )}
@@ -224,8 +274,10 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
                   <p className="text-sm font-black text-slate-800 dark:text-slate-100">
                     {resultado.agregadas} {resultado.agregadas === 1 ? "plaza agregada" : "plazas agregadas"} a &quot;{anexoSeleccionado?.nombre_archivo}&quot;
                   </p>
-                  {resultado.omitidas > 0 && (
-                    <p className="text-xs text-slate-500">{resultado.omitidas} se omitieron por ya estar en anuencia.</p>
+                  {resultado.yaEnOtroAnexo > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {resultado.yaEnOtroAnexo} {resultado.yaEnOtroAnexo === 1 ? "ya estaba" : "ya estaban"} en otro Anexo 2 y {resultado.yaEnOtroAnexo === 1 ? "quedó" : "quedaron"} marcadas en ambos.
+                    </p>
                   )}
                   {resultado.errores.length > 0 && (
                     <p className="text-xs text-red-600 dark:text-red-400">No se pudieron resolver: {resultado.errores.join(", ")}.</p>
@@ -239,6 +291,27 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
                 </div>
               ) : paso === "anexo" ? (
                 <>
+                  <div className="flex items-center gap-2 p-3.5 mb-4 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                    <Plus className="size-4 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={nombreAnexoNuevo}
+                      onChange={(e) => setNombreAnexoNuevo(e.target.value)}
+                      placeholder="Nombre de un Anexo 2 nuevo..."
+                      maxLength={255}
+                      disabled={creandoAnexo}
+                      className="flex-1 min-w-0 text-[12px] font-bold text-slate-800 dark:text-slate-100 bg-transparent outline-none disabled:opacity-50"
+                    />
+                    <button
+                      onClick={handleCrearAnexoNuevo}
+                      disabled={creandoAnexo || disponibles.length === 0 || !nombreAnexoNuevo.trim()}
+                      title={disponibles.length === 0 ? "No hay plazas disponibles para crear un Anexo 2" : undefined}
+                      className="shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      {creandoAnexo ? <Loader2 className="size-3.5 animate-spin" /> : "Crear y agregar"}
+                    </button>
+                  </div>
+
                   {!cargandoAnexos && !errorAnexos && anexos.length > 0 && (
                     <div className="pb-4">
                       <div className="relative">
@@ -268,7 +341,7 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
                       <FilePlus2 className="size-8 text-slate-300 dark:text-slate-700" />
                       <p className="text-sm font-bold text-slate-500">Aún no se ha guardado ningún Anexo 2.</p>
-                      <p className="text-xs text-slate-400">Guarda uno desde el sub-tab Anuencia primero.</p>
+                      <p className="text-xs text-slate-400">Crea uno nuevo arriba, o guarda uno desde el sub-tab Anuencia.</p>
                     </div>
                   ) : anexosFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">

@@ -2,14 +2,17 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput } from "lucide-react";
+import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput, Archive } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useToast } from "@/hooks/useToast";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import CodigoFederalCell from "./CodigoFederalCell";
 import NumeroStepper from "./NumeroStepper";
 import AnuenciaHistorialModal from "./AnuenciaHistorialModal";
+import AnexosEliminadosModal from "./AnexosEliminadosModal";
 import JustificacionCatalogoModal from "./JustificacionCatalogoModal";
 import { CANAL_ANEXO3, guardarDatosAnexo3, borrarDatosAnexo3 } from "./anexo3TabChannel";
 import {
@@ -192,7 +195,10 @@ export default function AnuenciaTab({ cardRef }) {
   const [exportando, setExportando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [isHistorialOpen, setIsHistorialOpen] = useState(false);
+  const [isEliminadosOpen, setIsEliminadosOpen] = useState(false);
   const [isCatalogoOpen, setIsCatalogoOpen] = useState(false);
+  const { hasPermission } = useAuth();
+  const puedeVerEliminados = hasPermission(PERMISSIONS.VIEW_ANUENCIA_ELIMINADOS);
   // El editor de Anexo 3 ahora vive en su propia pestaña del navegador (ver
   // anexo3TabChannel.js) — mientras esa pestaña sigue abierta, esta se
   // bloquea para no editar sobre una captura que ya se le pasó (ver el aviso
@@ -1013,6 +1019,17 @@ export default function AnuenciaTab({ cardRef }) {
               <History className="size-3.5" />
               <span>Historial</span>
             </button>
+            {puedeVerEliminados && (
+              <button
+                onClick={() => setIsEliminadosOpen(true)}
+                disabled={anexo3Bloqueado}
+                title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : "Ver y reactivar Anexo 2 eliminados"}
+                className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Archive className="size-3.5" />
+                <span>Anexos eliminados</span>
+              </button>
+            )}
             <button
               onClick={solicitarNuevoAnexo}
               disabled={anexo3Bloqueado}
@@ -1384,6 +1401,13 @@ export default function AnuenciaTab({ cardRef }) {
         onClose={() => setIsHistorialOpen(false)}
         onCargar={handleCargarDesdeHistorial}
       />
+
+      {puedeVerEliminados && (
+        <AnexosEliminadosModal
+          open={isEliminadosOpen}
+          onClose={() => setIsEliminadosOpen(false)}
+        />
+      )}
 
       <JustificacionCatalogoModal
         open={isCatalogoOpen}

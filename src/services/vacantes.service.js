@@ -496,6 +496,30 @@ export const VacantesService = {
     generarAnuenciaAnexo: (id, options = {}) => {
         return apiFetch(`/plantilla/anuencia/anexos/${id}/generar/`, { method: 'POST', ...options });
     },
+    /**
+     * Elimina (soft delete) un anexo guardado — nunca borra la fila, sólo la
+     * marca como eliminada: deja de aparecer en el historial y sus plazas
+     * dejan de contar como "en anuencia" en Mov. Posiciones, quedando libres
+     * para volver a solicitarse en un Anexo 2 nuevo.
+     */
+    eliminarAnuenciaAnexo: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/eliminar/`, { method: 'POST', ...options });
+    },
+    /**
+     * Anexos 2 eliminados (soft delete) — botón "Anexos eliminados" del
+     * sub-tab Anuencia, requiere el permiso `view_anuencia_eliminados`.
+     */
+    getAnuenciaAnexosEliminados: (options = {}) => {
+        return apiFetch('/plantilla/anuencia/anexos/eliminados/', { method: 'GET', ...options });
+    },
+    /** Detalle completo de un eliminado (con `hojas`) — sólo consulta, no reactiva. */
+    getAnuenciaAnexoEliminadoDetalle: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/eliminado-detalle/`, { method: 'GET', ...options });
+    },
+    /** Deshace el soft delete: vuelve al historial normal y sus plazas vuelven a marcarse "en anuencia". */
+    reactivarAnuenciaAnexo: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/reactivar/`, { method: 'POST', ...options });
+    },
 
     /**
      * Agrupa y valúa las plazas del Anexo 2 para generar el Anexo 3 (FUMP).
