@@ -2072,8 +2072,17 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             onSort={setSortConfig}
           />
 
-          <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
-            <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto items-stretch sm:items-center">
+          {/* `overflow-x-auto` + `flex-nowrap` en `lg:` (donde este toolbar deja de
+              apilarse verticalmente): a 100% de zoom en pantallas no muy anchas, la
+              búsqueda + chips de la izquierda y los botones de la derecha no caben
+              en una sola fila, y como el `cardRef` ancestro tiene `overflow-hidden`
+              (necesario para las esquinas redondeadas + la tabla sticky de abajo),
+              lo que no cabía se recortaba en silencio en vez de poder alcanzarse —
+              los botones "Columnas"/"Historial de Cambios" desaparecían sin aviso.
+              Este contenedor scrollea por su cuenta, así que nunca depende de que
+              el ancestro deje ver el desborde. */}
+          <div className="hidden md:flex p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex-col lg:flex-row lg:flex-nowrap lg:overflow-x-auto lg:overscroll-x-contain custom-scrollbar gap-4 items-center lg:justify-between bg-slate-50/30 dark:bg-slate-900/10">
+            <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto lg:shrink-0 items-stretch sm:items-center">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 sm:w-80 flex items-center pr-3 pl-4 py-3 bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl transition-all shadow-sm">
                   <Search className="text-slate-400 size-4 mr-2.5" />
@@ -2087,7 +2096,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               </div>
               <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}><span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" /></button>))}</div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 lg:shrink-0">
               {/* Pagination controls */}
               {!isLatestFilter && (
                 <div className="flex items-center gap-4 shrink-0 mr-2">
