@@ -1282,7 +1282,19 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     [historicoFilas]
   );
 
+  // Refs de la navegación día a día (< >, definida más abajo) — declaradas
+  // aquí porque `activarHistorico` necesita limpiarlas en cada llamada,
+  // venga o no de esos botones (ver comentario junto a `navegarHistoricoDia`).
+  const historicoNavRef = useRef(null); // última fecha acumulada por < >, aún no disparada (o en vuelo)
+  const historicoNavTimeoutRef = useRef(null);
+
   const activarHistorico = useCallback(async (fecha) => {
+    // Cualquier activación "de golpe" (picker, tarjeta de resumen, etc.)
+    // cancela un salto de < > pendiente en debounce y resincroniza la base
+    // desde la que sigue contando — si no, un click viejo podría disparar
+    // 300ms después y pisar la fecha que se acaba de elegir a mano.
+    clearTimeout(historicoNavTimeoutRef.current);
+    historicoNavRef.current = fecha;
     const requestId = ++historicoRequestIdRef.current;
     setHistoricoLoading(true);
     setHistoricoActivo(true);
@@ -1326,19 +1338,33 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // en cada fecha. Reusa `activarHistorico` (mismo fetch/caché de 24h que
   // "Consultar otra fecha"). Rango válido: 2022-01-01 (inicio de MOV_POS/ANAM,
   // ver sp_plantilla_historica) a hoy.
+  //
+  // Con debounce: la primera consulta a una fecha nueva tarda ~45-90s (ver
+  // `activarHistorico`), así que clickear varias veces seguido para saltar
+  // varios días NO debe disparar un fetch por click ni bloquearse mientras
+  // el anterior sigue en vuelo — se acumulan los días en `historicoNavRef`
+  // (con feedback visual inmediato en el label de fecha) y solo se dispara
+  // `activarHistorico` cuando el usuario deja de clickear (300ms de calma).
   const HISTORICO_FECHA_MIN = "2022-01-01";
   const historicoFechaMax = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  useEffect(() => () => clearTimeout(historicoNavTimeoutRef.current), []);
   const navegarHistoricoDia = useCallback((delta) => {
-    if (!historicoFecha || historicoLoading) return;
-    const d = new Date(`${historicoFecha}T00:00:00`);
+    const base = historicoNavRef.current || historicoFecha;
+    if (!base) return;
+    const d = new Date(`${base}T00:00:00`);
     d.setDate(d.getDate() + delta);
     const nuevaFecha = d.toISOString().slice(0, 10);
     if (nuevaFecha < HISTORICO_FECHA_MIN || nuevaFecha > historicoFechaMax) return;
-    activarHistorico(nuevaFecha);
-  }, [historicoFecha, historicoLoading, historicoFechaMax, activarHistorico]);
+    historicoNavRef.current = nuevaFecha;
+    setHistoricoFecha(nuevaFecha); // feedback inmediato del label, aunque el fetch todavía no se dispare
+    clearTimeout(historicoNavTimeoutRef.current);
+    historicoNavTimeoutRef.current = setTimeout(() => activarHistorico(nuevaFecha), 300);
+  }, [historicoFecha, historicoFechaMax, activarHistorico]);
 
   const salirHistorico = useCallback(() => {
     historicoRequestIdRef.current++; // invalida cualquier fetch en vuelo
+    clearTimeout(historicoNavTimeoutRef.current);
+    historicoNavRef.current = null;
     setHistoricoActivo(false);
     setHistoricoFecha(null);
     setHistoricoResumen(null);
@@ -3612,7 +3638,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 <button
                   type="button"
                   onClick={() => navegarHistoricoDia(-1)}
-                  disabled={historicoLoading || !historicoFecha || historicoFecha <= HISTORICO_FECHA_MIN}
+                  disabled={!historicoFecha || historicoFecha <= HISTORICO_FECHA_MIN}
                   title="Día anterior"
                   className="flex items-center justify-center size-5 rounded-lg border border-amber-300/70 dark:border-amber-800/60 bg-white dark:bg-slate-900 cursor-pointer hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
@@ -3624,7 +3650,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 <button
                   type="button"
                   onClick={() => navegarHistoricoDia(1)}
-                  disabled={historicoLoading || !historicoFecha || historicoFecha >= historicoFechaMax}
+                  disabled={!historicoFecha || historicoFecha >= historicoFechaMax}
                   title="Día siguiente"
                   className="flex items-center justify-center size-5 rounded-lg border border-amber-300/70 dark:border-amber-800/60 bg-white dark:bg-slate-900 cursor-pointer hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
