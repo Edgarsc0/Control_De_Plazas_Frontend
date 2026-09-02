@@ -220,7 +220,18 @@ const diaVirtual = (iso) => {
  * Verificado contra un Anexo 3 oficial real (Excel de referencia UDPCSG):
  * 16 feb – 31 dic 2026 → 10.5 meses exactos (no 319 días / 30 = 10.63, que
  * era el cálculo — incorrecto — de la versión anterior de esta función).
+ *
+ * El resultado se redondea a 4 decimales (p. ej. 6.0333, no
+ * 6.033333333333333) — es el número que viaja tal cual a
+ * `PresupuestoService.calcularValuacion` y se multiplica ahí contra sueldos
+ * y compensaciones, así que la precisión se fija AQUÍ, en el origen, y no en
+ * el texto que se muestra después (`formatMeses`); si no, el monto que
+ * arrastra el float de 15+ decimales y el texto que el usuario lee
+ * divergirían. Espejo exacto en el backend: `calcular_meses_periodo` en
+ * `presupuesto/valuacion.py` — si se toca una, hay que tocar la otra.
  */
+const redondear4 = (n) => Math.round(n * 10000) / 10000;
+
 const calcularMeses = (fechaInicioISO, fechaFinISO) => {
     const ini = partesFecha(fechaInicioISO);
     const fin = partesFecha(fechaFinISO);
@@ -229,21 +240,24 @@ const calcularMeses = (fechaInicioISO, fechaFinISO) => {
 
     if (ini.anio === fin.anio && ini.mes === fin.mes) {
         // Mismo mes calendario: un único tramo dentro del mismo mes virtual.
-        return Math.max(0, diaVirtualFin - diaVirtualIni + 1) / 30;
+        return redondear4(Math.max(0, diaVirtualFin - diaVirtualIni + 1) / 30);
     }
 
     const fraccionInicio = (31 - diaVirtualIni) / 30; // días virtuales que quedan del mes de arranque
     const fraccionFin = diaVirtualFin / 30;             // días virtuales transcurridos del mes de cierre
     const mesesCompletosEntre = Math.max(0, (fin.anio * 12 + fin.mes) - (ini.anio * 12 + ini.mes) - 1);
 
-    return fraccionInicio + mesesCompletosEntre + fraccionFin;
+    return redondear4(fraccionInicio + mesesCompletosEntre + fraccionFin);
 };
 
-// Redondea a 2 decimales y quita ceros sobrantes (12 en vez de "12.00", 4.47
-// en vez de "4.4666666666666668") — sólo para texto, nunca para el monto.
+// Muestra los mismos 4 decimales con los que ya se redondeó `calcularMeses`
+// (nunca menos: mostrar "6.03" para un valor que en realidad vale y se
+// calculó como 6.0333 fue justo la confusión que llevó a fijar esta
+// precisión) y quita ceros sobrantes (12 en vez de "12.0000", 10.5 en vez de
+// "10.5000").
 const formatMeses = (n) => {
-    const r = Math.round(n * 100) / 100;
-    return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/, '');
+    const r = redondear4(n);
+    return Number.isInteger(r) ? String(r) : String(r.toFixed(4)).replace(/0+$/, '').replace(/\.$/, '');
 };
 
 // `timeZone: 'UTC'` es obligatorio aquí: el timestamp que se formatea ya es

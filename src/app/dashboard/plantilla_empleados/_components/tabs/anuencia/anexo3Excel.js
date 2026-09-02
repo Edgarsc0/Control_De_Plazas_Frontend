@@ -409,6 +409,18 @@ function escribirHojaAnexo3(ws, grupo, logoId) {
 }
 
 /**
+ * '#rrggbb' (el que entrega tanto la paleta fija como el `<input
+ * type="color">` de Anexo3Editor.jsx) → ARGB de ExcelJS ('FFrrggbb'). El
+ * canal alfa siempre es opaco (FF); Excel no usa transparencia en el color
+ * de pestaña.
+ */
+function argbDesdeHex(hex) {
+    const limpio = String(hex || '').replace('#', '').trim();
+    if (!/^[0-9a-fA-F]{6}$/.test(limpio)) return null;
+    return `FF${limpio.toUpperCase()}`;
+}
+
+/**
  * Nombre de pestaña válido para Excel: sin caracteres prohibidos, máximo 31
  * caracteres y único dentro del libro.
  */
@@ -447,6 +459,12 @@ export async function construirWorkbookAnexo3(grupos, ExcelJSModule) {
             views: [{ showGridLines: false }],
             pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
         });
+        // Mismo color que el usuario le puso a la hoja en Anexo3Editor.jsx
+        // (clic derecho sobre su encabezado) — se pinta también la pestaña
+        // del Excel para que la identificación visual sobreviva a la
+        // descarga.
+        const tabColor = argbDesdeHex(grupo.color);
+        if (tabColor) ws.properties.tabColor = { argb: tabColor };
         escribirHojaAnexo3(ws, grupo, logoId);
     });
 
