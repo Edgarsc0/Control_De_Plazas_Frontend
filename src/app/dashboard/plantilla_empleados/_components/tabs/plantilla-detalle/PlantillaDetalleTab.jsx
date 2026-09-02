@@ -606,13 +606,17 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const [historicoFilas, setHistoricoFilas] = useState([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
   // Switch "Plantilla oficial": excluye Laudos/1039/PASEM (ver
-  // esPosicionPlantillaOficial) para que esta tabla y sus tarjetas puedan
-  // mostrar el mismo universo de 11,430 plazas que "Cuadros de Vacancia" —
-  // apagado por defecto para no cambiar el conteo que ya se veía antes de
-  // este switch. Se aplica en el mismo punto de sustitución que
-  // `historicoActivo` (ver comentario de arriba): el resto del componente ya
-  // lee `detalle` por closure, así que no hace falta tocar ningún otro sitio.
-  const [soloPlantillaOficial, setSoloPlantillaOficial] = useState(false);
+  // esPosicionPlantillaOficial) para que esta tabla y sus tarjetas muestren
+  // por defecto el mismo universo de 11,430 plazas que "Cuadros de Vacancia"
+  // — ENCENDIDO por defecto (a diferencia de otros filtros, éste es la vista
+  // "oficial" que se espera ver de entrada; apagarlo es la excepción para
+  // quien necesite ver también Laudos/1039/PASEM). Se aplica en el mismo
+  // punto de sustitución que `historicoActivo` (ver comentario de arriba):
+  // el resto del componente ya lee `detalle` por closure — dropdowns de
+  // filtro de columna, búsqueda, filtros avanzados, orden, exportación,
+  // etc. — así que todos respetan este universo automáticamente, sin tocar
+  // ningún otro sitio.
+  const [soloPlantillaOficial, setSoloPlantillaOficial] = useState(true);
   const detalleSinFiltroOficial = historicoActivo ? historicoFilas : detalleLive;
   const detalle = useMemo(
     () => (soloPlantillaOficial ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial) : detalleSinFiltroOficial),
