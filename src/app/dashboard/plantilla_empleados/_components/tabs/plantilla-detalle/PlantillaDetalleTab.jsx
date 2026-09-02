@@ -1321,6 +1321,22 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     }
   }, [setColumns, setSelectedCell, setColumnFilters, setTextFilters, toast]);
 
+  // Navegación día a día en modo histórico (< >) — a pedido del usuario para
+  // recorrer plantillas secuenciales en un análisis, sin reabrir el picker
+  // en cada fecha. Reusa `activarHistorico` (mismo fetch/caché de 24h que
+  // "Consultar otra fecha"). Rango válido: 2022-01-01 (inicio de MOV_POS/ANAM,
+  // ver sp_plantilla_historica) a hoy.
+  const HISTORICO_FECHA_MIN = "2022-01-01";
+  const historicoFechaMax = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const navegarHistoricoDia = useCallback((delta) => {
+    if (!historicoFecha || historicoLoading) return;
+    const d = new Date(`${historicoFecha}T00:00:00`);
+    d.setDate(d.getDate() + delta);
+    const nuevaFecha = d.toISOString().slice(0, 10);
+    if (nuevaFecha < HISTORICO_FECHA_MIN || nuevaFecha > historicoFechaMax) return;
+    activarHistorico(nuevaFecha);
+  }, [historicoFecha, historicoLoading, historicoFechaMax, activarHistorico]);
+
   const salirHistorico = useCallback(() => {
     historicoRequestIdRef.current++; // invalida cualquier fetch en vuelo
     setHistoricoActivo(false);
@@ -3593,9 +3609,27 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
                 <CalendarDays className="size-4" />
+                <button
+                  type="button"
+                  onClick={() => navegarHistoricoDia(-1)}
+                  disabled={historicoLoading || !historicoFecha || historicoFecha <= HISTORICO_FECHA_MIN}
+                  title="Día anterior"
+                  className="flex items-center justify-center size-5 rounded-lg border border-amber-300/70 dark:border-amber-800/60 bg-white dark:bg-slate-900 cursor-pointer hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="size-3.5" />
+                </button>
                 <span className="text-xs font-black uppercase tracking-wide">
                   Viendo la plantilla histórica del {historicoFecha ? formatDateEsMx(historicoFecha) : "..."}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => navegarHistoricoDia(1)}
+                  disabled={historicoLoading || !historicoFecha || historicoFecha >= historicoFechaMax}
+                  title="Día siguiente"
+                  className="flex items-center justify-center size-5 rounded-lg border border-amber-300/70 dark:border-amber-800/60 bg-white dark:bg-slate-900 cursor-pointer hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRightIcon className="size-3.5" />
+                </button>
                 {historicoLoading && <Loader2 className="size-3.5 animate-spin" />}
               </div>
               <div className="flex items-center gap-2">
