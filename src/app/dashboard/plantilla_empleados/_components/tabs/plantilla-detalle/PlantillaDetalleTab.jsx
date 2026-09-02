@@ -3073,16 +3073,48 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     setIsExportingConFotos(true);
     try {
       const visibleCols = dataColumns.filter(c => c.visible);
-      const posiciones = filteredSortedData.map(row => row.posicion);
-      const res = await VacantesService.exportarPlantillaDetalleConFotos(
-        {
-          posiciones,
-          columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
-          incluirFotos: true,
-          incluirDatosPersonales,
-        },
-        { signal: controller.signal }
-      );
+      let res;
+      if (historicoActivo) {
+        // El backend NO debe re-derivar el ocupante por posición (mostraría
+        // al de HOY, no al de la fecha consultada) — se le mandan las filas
+        // ya resueltas por PlantillaHistoricaView, mapeadas a valores de
+        // pantalla igual que handleExportExcel (mismo mapeo, sin backend).
+        const rows = filteredSortedData.map((row) => {
+          const mapped = {};
+          visibleCols.forEach((col) => {
+            if (col.key === "estado_nomina") mapped[col.key] = getEstadoNominaDisplay(row);
+            else if (col.key === "partida") mapped[col.key] = mapPartida(row[col.key], row.posicion);
+            else if (col.key === "tipo_de_contratacion") mapped[col.key] = mapTipoContratacion(row[col.key]);
+            else if (col.key === "rango") mapped[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
+            else mapped[col.key] = row[col.key];
+          });
+          // Necesario para la foto (busca por numempleado) aunque esa
+          // columna no esté entre las visibles/seleccionadas.
+          mapped.numempleado = row.numempleado || row.id_empleado || "";
+          return mapped;
+        });
+        res = await VacantesService.exportarPlantillaHistoricaConFotos(
+          {
+            fecha: historicoFecha,
+            rows,
+            columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
+            incluirFotos: true,
+            incluirDatosPersonales,
+          },
+          { signal: controller.signal }
+        );
+      } else {
+        const posiciones = filteredSortedData.map(row => row.posicion);
+        res = await VacantesService.exportarPlantillaDetalleConFotos(
+          {
+            posiciones,
+            columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
+            incluirFotos: true,
+            incluirDatosPersonales,
+          },
+          { signal: controller.signal }
+        );
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || "Error al generar el Excel con fotografías.");
@@ -3096,7 +3128,9 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Plantilla_Empleados_ConFotos.${extension}`;
+      a.download = historicoActivo
+        ? `Plantilla de Empleados (${historicoFecha})_ConFotos.${extension}`
+        : `Plantilla_Empleados_ConFotos.${extension}`;
       a.click();
       window.URL.revokeObjectURL(url);
       setIsExportFotosModalOpen(false);
@@ -4462,12 +4496,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         isExporting={isExportingConFotos}
         onCancelExport={handleCancelExportConFotos}
         rowCount={filteredSortedData.length}
-        // La ruta "con fotos" exporta vía backend (ExportarPlantillaDetalleConFotosView),
-        // que re-consulta EMPLEADOS_COMPLETOS_SIG EN VIVO por posición — en modo
-        // histórico eso mostraría el ocupante ACTUAL, no el de la fecha consultada.
-        // Se oculta la opción para forzar la ruta 100% client-side (`handleExportExcel`,
-        // ya usa `filteredSortedData`, que sí es la fila histórica correcta).
-        canIncluirFotos={canViewFotoDetalle && !historicoActivo}
+        // En modo histórico, "con fotos" pasa por ExportarPlantillaHistoricaConFotosView
+        // (manda las filas YA resueltas por PlantillaHistoricaView, no re-consulta
+        // por posición) en vez de ExportarPlantillaDetalleConFotosView — ver
+        // handleConfirmExportConFotos.
+        canIncluirFotos={canViewFotoDetalle}
         showDatosPersonalesOption
       />
     </div>

@@ -49,14 +49,18 @@ const fieldLabel = (key) => FIELD_LABELS[key] || key.toUpperCase();
  * aporta nada al expediente).
  * @param {object} current
  * @param {object|null|undefined} previous - null/undefined si `current` es el primer movimiento (sin anterior que comparar).
+ * @param {string[]} [extraIgnoredFields=[]] - campos adicionales a excluir, propios de la
+ *   forma del objeto que se está comparando (p.ej. el historial de posición sobre MOV_POS
+ *   trae sus propios campos "cabecera" que no representan un cambio en sí — ver
+ *   HistorialMovimientosTab.jsx, VARIANT_CONFIG.posicion.extraIgnoredDiffFields).
  * @returns {{differences: Array<{key:string,label:string,oldValue:string,newValue:string}>, unchanged: Array<{key:string,label:string,value:string}>}}
  */
-export const getMovimientoDiff = (current, previous) => {
+export const getMovimientoDiff = (current, previous, extraIgnoredFields = []) => {
   if (!previous) return { differences: [], unchanged: [] };
   const differences = [];
   const unchanged = [];
   for (const key in current) {
-    if (IGNORED_DIFF_FIELDS.includes(key)) continue;
+    if (IGNORED_DIFF_FIELDS.includes(key) || extraIgnoredFields.includes(key)) continue;
     const curVal = String(current[key] ?? "").trim();
     const prevVal = String(previous[key] ?? "").trim();
     if (curVal !== prevVal) {
@@ -75,3 +79,24 @@ export const getMovimientoDiff = (current, previous) => {
 
 // Compat: firma original usada por EmpleadoTimelineModal.jsx (solo differences).
 export const getDifferences = (current, previous) => getMovimientoDiff(current, previous).differences;
+
+/**
+ * Todos los campos con dato de un movimiento, en el mismo formato que
+ * `unchanged` de `getMovimientoDiff` (`{key,label,value}`) — usado para el
+ * registro INICIAL de un historial (no hay anterior con el cual comparar),
+ * a pedido del usuario (2026-09-02): en vez de solo un texto "movimiento
+ * inicial", desplegar el registro completo con el mismo estilo de chips que
+ * "Sin cambios".
+ * @param {object} current
+ * @param {string[]} [extraIgnoredFields=[]]
+ * @returns {Array<{key:string,label:string,value:string}>}
+ */
+export const getAllFields = (current, extraIgnoredFields = []) => {
+  const fields = [];
+  for (const key in current) {
+    if (IGNORED_DIFF_FIELDS.includes(key) || extraIgnoredFields.includes(key)) continue;
+    const val = String(current[key] ?? "").trim();
+    if (val) fields.push({ key, label: fieldLabel(key), value: val });
+  }
+  return fields;
+};

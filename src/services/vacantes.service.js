@@ -321,6 +321,26 @@ export const VacantesService = {
     },
 
     /**
+     * Genera el Excel con fotos de la reconstrucción HISTÓRICA de Plantilla
+     * Detalle (botón "Consultar plantillas pasadas"). A diferencia de
+     * `exportarPlantillaDetalleConFotos` (que manda `posiciones` y el backend
+     * re-consulta EMPLEADOS_COMPLETOS_SIG EN VIVO), aquí se mandan las filas
+     * YA resueltas por `PlantillaHistoricaView` — el backend sólo arma el
+     * Excel (membretado + fotos por `numempleado`), sin volver a tocar la DB
+     * salvo el cruce opcional de Datos Personales.
+     * @param {{fecha: string, rows: object[], columnas: {key:string,label:string}[], incluirFotos: boolean, incluirDatosPersonales?: boolean}} payload
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.blob()` para el archivo.
+     */
+    exportarPlantillaHistoricaConFotos: ({ fecha, rows, columnas, incluirFotos, incluirDatosPersonales = false }, options = {}) => {
+        return apiFetch('/plantilla/exportar_plantilla_historica_con_fotos/', {
+            method: 'POST',
+            body: JSON.stringify({ fecha, rows, columnas, incluir_fotos: incluirFotos, incluir_datos_personales: incluirDatosPersonales }),
+            ...options
+        });
+    },
+
+    /**
      * Genera el Excel de Movimientos (tab "Movimientos", MovimientosPersonalTab)
      * en el backend, opcionalmente con fotografías embebidas. Reenvía los
      * MISMOS filtros que ya usa `getMovimientosPersonal` (no_pagination
@@ -878,6 +898,22 @@ export const VacantesService = {
         return apiFetch(`/plantilla/movimientos-personal/historial/`, {
             method: 'POST',
             body: JSON.stringify({ num_empleado: numEmpleadoList }),
+            ...options
+        });
+    },
+
+    /**
+     * Historial completo de MOV_POS para las posiciones indicadas, ordenado
+     * por posición y fecha efectiva DESCENDENTE (más reciente primero) — ver
+     * MovimientosPosicionHistorialView (backend). Alimenta el tab "Historial
+     * de posición" del expediente de plaza (EmployeesModal.jsx).
+     * @param {Array<string>} [posicionList=[]]
+     * @param {RequestInit} [options={}]
+     */
+    getMovimientosPosicionHistorial: (posicionList = [], options = {}) => {
+        return apiFetch(`/plantilla/movimientos-posicion/historial/`, {
+            method: 'POST',
+            body: JSON.stringify({ posicion: posicionList }),
             ...options
         });
     },
