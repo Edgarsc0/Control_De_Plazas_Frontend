@@ -193,6 +193,20 @@ const getEstadoNominaDisplay = (row) => {
   return hasSolicitudData(row) ? "Solicitada" : base;
 };
 
+// Mismo criterio que "Cuadros de Vacancia" (management command
+// generar_cuadro_vacancia.py: `Nº Pos Actual NOT LIKE '103L%' AND NOT LIKE
+// '1039%' AND Partida Ptal <> '11401'`), para que el switch "Plantilla
+// oficial" de esta tabla pueda mostrar exactamente el mismo universo de
+// 11,430 plazas que ese cuadro — laudos ("103L..."), el rango "1039..." y las
+// plazas PASEM (partida 11401) quedan fuera.
+const esPosicionPlantillaOficial = (row) => {
+  const posicion = String(row.posicion || "").trim();
+  if (posicion.startsWith("103L")) return false;
+  if (posicion.startsWith("1039")) return false;
+  if (String(row.partida || "").trim() === "11401") return false;
+  return true;
+};
+
 // Códigos de partida confirmados con el usuario: 11301=Permanente,
 // 12201=Eventual (Eventual N.C. si además la posición inicia con "2026"),
 // 11401=PASEM (solo 2 posiciones). El código 12101 (119 posiciones, todas
@@ -591,7 +605,19 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const [historicoResumen, setHistoricoResumen] = useState(null);
   const [historicoFilas, setHistoricoFilas] = useState([]);
   const [historicoLoading, setHistoricoLoading] = useState(false);
-  const detalle = historicoActivo ? historicoFilas : detalleLive;
+  // Switch "Plantilla oficial": excluye Laudos/1039/PASEM (ver
+  // esPosicionPlantillaOficial) para que esta tabla y sus tarjetas puedan
+  // mostrar el mismo universo de 11,430 plazas que "Cuadros de Vacancia" —
+  // apagado por defecto para no cambiar el conteo que ya se veía antes de
+  // este switch. Se aplica en el mismo punto de sustitución que
+  // `historicoActivo` (ver comentario de arriba): el resto del componente ya
+  // lee `detalle` por closure, así que no hace falta tocar ningún otro sitio.
+  const [soloPlantillaOficial, setSoloPlantillaOficial] = useState(false);
+  const detalleSinFiltroOficial = historicoActivo ? historicoFilas : detalleLive;
+  const detalle = useMemo(
+    () => (soloPlantillaOficial ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial) : detalleSinFiltroOficial),
+    [detalleSinFiltroOficial, soloPlantillaOficial]
+  );
   const isLoading = historicoActivo ? historicoLoading : isLoadingLive;
   // El donut de arriba (Activo/Vacante/Suspendido...) no se reutiliza en modo
   // histórico: su vocabulario de estatus depende de columnas quincenal
@@ -2093,18 +2119,21 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
 
   // La tarjeta/arco "Vacante" muestra `resumen.Vacante`, que en el backend
   // (EmpleadosCompletosEstatusNominaResumenView) incluye TODAS las plazas sin
-  // ocupante — también las que ya tienen candidato capturado ("Solicitada",
-  // sub-estatus que sólo existe en el front, ver getEstadoNominaDisplay). Si
-  // este clic sólo activara "Vacante", el conteo de la tabla filtrada
-  // quedaría corto contra ese número (excluiría las Solicitada) — se activan
-  // ambas etiquetas juntas para que la tabla sí cuadre con lo que dice la
-  // tarjeta. El acceso rápido "Solicitada" de al lado sigue permitiendo
-  // filtrar solo esas, por separado.
+  // ocupante — también las que el front desdobla en dos sub-estatus que el
+  // backend no distingue (ver getEstadoNominaDisplay): "Solicitada" (ya tiene
+  // candidato capturado) y "No Disponible" (RFC="No Disponible" en el Excel,
+  // ej. plazas PASEM que no se pueden usar — sólo 2 hoy, pero cuentan dentro
+  // del total de la tarjeta igual). Si este clic sólo activara "Vacante", el
+  // conteo de la tabla filtrada quedaría corto contra ese número — se
+  // activan las 3 etiquetas juntas para que la tabla sí cuadre con lo que
+  // dice la tarjeta. El acceso rápido "Solicitada" de al lado sigue
+  // permitiendo filtrar solo esas, por separado.
+  const ETIQUETAS_VACANTE_TARJETA = ["Vacante", "Solicitada", "No Disponible"];
   const handleVacanteCardClick = () => {
     const current = columnFilters["estado_nomina"] || [];
-    const yaCombinado = current.includes("Vacante") && current.includes("Solicitada");
-    const sinAmbas = current.filter((s) => s !== "Vacante" && s !== "Solicitada");
-    const next = yaCombinado ? sinAmbas : [...sinAmbas, "Vacante", "Solicitada"];
+    const yaCombinado = ETIQUETAS_VACANTE_TARJETA.every((e) => current.includes(e));
+    const sinEsas = current.filter((s) => !ETIQUETAS_VACANTE_TARJETA.includes(s));
+    const next = yaCombinado ? sinEsas : [...sinEsas, ...ETIQUETAS_VACANTE_TARJETA];
     const newFilters = { ...columnFilters };
     if (next.length === 0 || next.length === Object.keys(STATUS_COLORS).length) delete newFilters["estado_nomina"];
     else newFilters["estado_nomina"] = next;
@@ -3226,14 +3255,35 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     exportConFotosAbortRef.current?.abort();
   };
 
+  // El resumen del backend (`resumen`) no sabe nada del switch "Plantilla
+  // oficial" (agrega TODAS las plazas activas, sin excluir Laudos/1039/
+  // PASEM) — mientras el switch está prendido, las tarjetas/dona se calculan
+  // aquí mismo sobre `detalle` (que ya viene filtrado, ver arriba), con la
+  // misma lógica de estatus que usa la tabla (mapEstadoNomina), para que
+  // tarjeta y tabla cuenten exactamente lo mismo. Apagado, se sigue usando el
+  // agregado del backend tal cual, sin cambios.
+  const resumenEfectivo = useMemo(() => {
+    if (!soloPlantillaOficial) return resumen;
+    const conteo = { total_registros: detalle.length, Activo: 0, Vacante: 0, Suspendido: 0, Licencia: 0, Licencia_Medica: 0 };
+    for (const row of detalle) {
+      const estado = mapEstadoNomina(row.estado_nomina, row.val_estat);
+      if (estado === "Activo") conteo.Activo += 1;
+      else if (estado === "Suspendido") conteo.Suspendido += 1;
+      else if (estado === "Permiso") conteo.Licencia += 1;
+      else if (estado === "Permiso Retribuido") conteo.Licencia_Medica += 1;
+      else conteo.Vacante += 1;
+    }
+    return conteo;
+  }, [soloPlantillaOficial, resumen, detalle]);
+
   const donutData = useMemo(() => {
-    const total = resumen?.total_registros || 11957;
+    const total = resumenEfectivo?.total_registros || 11957;
     const slices = [
-      { label: "Activo", count: resumen?.Activo || 9421, color: STATUS_COLORS["Activo"] },
-      { label: "Vacante", count: resumen?.Vacante || 2482, color: STATUS_COLORS["Vacante"] },
-      { label: "Suspendido", count: resumen?.Suspendido || 23, color: STATUS_COLORS["Suspendido"] },
-      { label: "Permiso Retribuido", count: resumen?.Licencia_Medica || 27, color: STATUS_COLORS["Permiso Retribuido"] },
-      { label: "Permiso", count: resumen?.Licencia || 4, color: STATUS_COLORS["Permiso"] }
+      { label: "Activo", count: resumenEfectivo?.Activo || 9421, color: STATUS_COLORS["Activo"] },
+      { label: "Vacante", count: resumenEfectivo?.Vacante || 2482, color: STATUS_COLORS["Vacante"] },
+      { label: "Suspendido", count: resumenEfectivo?.Suspendido || 23, color: STATUS_COLORS["Suspendido"] },
+      { label: "Permiso Retribuido", count: resumenEfectivo?.Licencia_Medica || 27, color: STATUS_COLORS["Permiso Retribuido"] },
+      { label: "Permiso", count: resumenEfectivo?.Licencia || 4, color: STATUS_COLORS["Permiso"] }
     ];
     let cumulativePercent = 0;
     return slices.map(slice => {
@@ -3245,7 +3295,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       const largeArc = percent > 0.5 ? 1 : 0;
       return { ...slice, percent, pathData: `M ${startX.toFixed(8)} ${startY.toFixed(8)} A 1 1 0 ${largeArc} 1 ${endX.toFixed(8)} ${endY.toFixed(8)} L 0 0 Z` };
     });
-  }, [resumen]);
+  }, [resumenEfectivo]);
 
   const activeHoverData = hoveredSlice !== null ? donutData[hoveredSlice] : null;
   const activeStatusFilter = columnFilters["estado_nomina"] || [];
@@ -3742,6 +3792,24 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           banner de arriba, que lo reemplaza). */}
       {!historicoActivo && (
       <div className="w-full md:hidden mb-6">
+        <div className="px-4 mb-3">
+          <label
+            title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia."
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none"
+          >
+            <span className="relative inline-flex items-center shrink-0">
+              <input
+                type="checkbox"
+                checked={soloPlantillaOficial}
+                onChange={(e) => startTransition(() => setSoloPlantillaOficial(e.target.checked))}
+                className="peer sr-only"
+              />
+              <span className="w-8 h-4.5 rounded-full bg-slate-300 dark:bg-slate-700 peer-checked:bg-[#621f32] dark:peer-checked:bg-[#bc955c] transition-colors" />
+              <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3.5" />
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
+          </label>
+        </div>
         <Zoom triggerOnce>
           <div className="flex gap-3 overflow-x-auto px-4 pb-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
             <button
@@ -3754,7 +3822,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 <Briefcase className="size-3.5 text-white" />
               </div>
               <span className="text-[8px] font-black uppercase tracking-wider text-white/70 text-left leading-tight mb-1">Posiciones Totales</span>
-              <span className="text-lg font-black text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</span>
+              <span className="text-lg font-black text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</span>
             </button>
             {donutData.flatMap((slice) => {
               const IconComponent = STATUS_ICONS[slice.label] || Users;
@@ -3805,10 +3873,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
               <div className="relative size-28 flex items-center justify-center">
                 <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none"><defs><mask id="donut-mask-detalle"><circle cx="0" cy="0" r="1" fill="white" /><circle cx="0" cy="0" r="0.65" fill="black" /></mask></defs><g mask="url(#donut-mask-detalle)">{donutData.map((slice, i) => (<path key={slice.label} d={slice.pathData} fill={slice.color} className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90" style={{ transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)", opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.label) ? 0.35 : 1 }} onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} />))}</g></svg>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1"><AnimatePresence mode="wait">{activeHoverData ? (<motion.div key={activeHoverData.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{activeHoverData.label}</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(activeHoverData.count)}</span><br /><span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current" style={{ color: activeHoverData.color, backgroundColor: `${activeHoverData.color}15` }}>{(activeHoverData.percent * 100).toFixed(1)}%</span></motion.div>) : (<motion.div key="total" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(resumen?.total_registros || 11957)}</span><br /><span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">100%</span></motion.div>)}</AnimatePresence></div>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1"><AnimatePresence mode="wait">{activeHoverData ? (<motion.div key={activeHoverData.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{activeHoverData.label}</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(activeHoverData.count)}</span><br /><span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current" style={{ color: activeHoverData.color, backgroundColor: `${activeHoverData.color}15` }}>{(activeHoverData.percent * 100).toFixed(1)}%</span></motion.div>) : (<motion.div key="total" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(resumenEfectivo?.total_registros || 11957)}</span><br /><span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">100%</span></motion.div>)}</AnimatePresence></div>
               </div>
             </div>
-            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-7 gap-3">{donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante") return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumen?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumen?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
+            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-7 gap-3">{donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante") return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumenEfectivo?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
           </div>
         </Zoom>
       </div>
@@ -3902,6 +3970,22 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                   <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
                 </div>
+                <label
+                  title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia. Apagado, se ve la relación completa."
+                  className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none shrink-0"
+                >
+                  <span className="relative inline-flex items-center shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={soloPlantillaOficial}
+                      onChange={(e) => startTransition(() => setSoloPlantillaOficial(e.target.checked))}
+                      className="peer sr-only"
+                    />
+                    <span className="w-8 h-4.5 rounded-full bg-slate-300 dark:bg-slate-700 peer-checked:bg-[#621f32] dark:peer-checked:bg-[#bc955c] transition-colors" />
+                    <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3.5" />
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
+                </label>
               </div>
               <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>{STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}<span>{status}</span><X className="size-3" /></button>))}</div>
             </div>
