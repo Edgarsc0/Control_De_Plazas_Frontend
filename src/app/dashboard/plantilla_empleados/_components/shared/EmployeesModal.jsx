@@ -13,7 +13,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2, History } from "lucide-react";
+import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2, History, Landmark } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -225,6 +225,15 @@ const isDateField = (key) => typeof key === 'string' && key.startsWith('fecha_')
 const CURRENCY_KEYS = new Set(["smb", "smn"]);
 const isCurrencyField = (key) => CURRENCY_KEYS.has(key);
 const formatCurrency = (value) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value));
+
+// Campos con dato SÓLO cuando el expediente se abre en el modo local de
+// CuadrosVacanciaTab (click en la franja de la gráfica "Plazas Totales vs
+// Activas vs Inactivas" — ver comentario junto a `fecha_efectiva_mov_pos` en
+// ALL_AVAILABLE_COLUMNS). Fuera de ese flujo siempre salen vacíos, así que se
+// excluyen del set por defecto para no ensuciar el expediente con "Sin dato"
+// en un lugar donde nunca se van a llenar; CuadrosVacanciaTab los sigue
+// pidiendo explícito vía `restrictColumnsTo`.
+const CUADROS_VACANCIA_ONLY_KEYS = new Set(["fecha_efectiva_mov_pos", "capturado_por"]);
 
 const COLUMN_LABEL_BY_KEY = ALL_AVAILABLE_COLUMNS.reduce((acc, col) => {
     acc[col.key] = col.label;
@@ -671,21 +680,18 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
             {groups.map((group) => {
                 const GroupIcon = group.icon;
                 return (
-                    <section key={group.title} className="dp-group flex flex-col gap-2.5">
-                        <div className="flex items-center gap-2.5">
-                            <span className="shrink-0 size-6 rounded-md bg-[#621f32] dark:bg-[#3e131f] text-[#bc955c] flex items-center justify-center">
-                                <GroupIcon className="size-3.5" />
-                            </span>
-                            <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em] text-[#621f32] dark:text-[#e3c793] whitespace-nowrap">
+                    <section key={group.title} className="dp-group rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3.5 py-2 bg-[#621f32]/[0.06] dark:bg-[#bc955c]/[0.08] border-l-[3px] border-[#621f32] dark:border-[#bc955c]">
+                            <GroupIcon className="size-3.5 text-[#621f32] dark:text-[#e3c793] shrink-0" />
+                            <h4 className="text-[11px] font-black uppercase tracking-[0.12em] text-[#621f32] dark:text-[#e3c793] whitespace-nowrap">
                                 {group.title}
                             </h4>
-                            <span className="flex-1 h-px bg-gradient-to-r from-[#bc955c]/50 to-transparent" />
-                            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                            <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                 {group.filled}/{group.fields.length} con dato
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-7 rounded-xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/40 px-2.5 py-1.5 sm:px-3.5 sm:py-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-100 dark:bg-slate-800/80">
                             {group.fields.map((field) => {
                                 const isEditing = editingKey === field.key;
                                 const isSaving = savingKey === field.key;
@@ -699,8 +705,8 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
 
                                     if (isEditing) {
                                         return (
-                                            <div key={field.key} className="flex flex-col gap-2 py-2 px-1.5 rounded-md bg-[#621f32]/[0.04] dark:bg-slate-900/60 sm:col-span-2">
-                                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                            <div key={field.key} className="flex flex-col gap-2 py-2.5 px-3 bg-[#621f32]/[0.03] dark:bg-slate-900/60 sm:col-span-2 lg:col-span-3">
+                                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
                                                     {field.label}
                                                 </span>
                                                 <div className="flex flex-col gap-1.5">
@@ -777,13 +783,13 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
                                     return (
                                         <div
                                             key={field.key}
-                                            className="group flex flex-col gap-1 py-1.5 px-1.5 rounded-md transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 sm:col-span-2"
+                                            className="group flex flex-col gap-1 py-2 px-3 bg-white dark:bg-slate-950/60 transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 sm:col-span-2 lg:col-span-3"
                                         >
                                             <div className="flex items-center gap-2">
-                                                <span className="shrink-0 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                                <span className="shrink-0 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300" title={field.label}>
                                                     {field.label}
                                                 </span>
-                                                <span className="flex-1 h-px bg-gradient-to-r from-[#bc955c]/50 to-transparent" />
+                                                <span className="flex-1" />
                                                 {hasRows && (
                                                     <CopyValueButton
                                                         label={field.label}
@@ -826,12 +832,13 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
                                 }
 
                                 const hasValue = field.value !== null;
-                                const isLong = (field.value?.length || 0) > 34;
+                                const fieldLen = field.value?.length || 0;
+                                const spanClass = fieldLen > 70 ? "sm:col-span-2 lg:col-span-3" : fieldLen > 34 ? "sm:col-span-2 lg:col-span-2" : "";
 
                                 if (isEditing) {
                                     return (
-                                        <div key={field.key} className="flex items-center gap-2 py-1.5 px-1.5 rounded-md bg-[#621f32]/[0.04] dark:bg-slate-900/60 sm:col-span-2">
-                                            <span className="shrink-0 max-w-[35%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                        <div key={field.key} className="flex items-center gap-2 py-2 px-3 bg-[#621f32]/[0.03] dark:bg-slate-900/60 sm:col-span-2 lg:col-span-3">
+                                            <span className="shrink-0 max-w-[35%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300" title={field.label}>
                                                 {field.label}
                                             </span>
                                             <input
@@ -873,13 +880,12 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
                                 return (
                                     <div
                                         key={field.key}
-                                        className={`group flex items-baseline gap-2 py-1.5 px-1.5 rounded-md transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 ${isLong ? "sm:col-span-2" : ""}`}
+                                        className={`group flex items-baseline gap-2 py-2 px-3 bg-white dark:bg-slate-950/60 transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 ${spanClass}`}
                                     >
-                                        <span className="shrink-0 max-w-[52%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                        <span className="shrink-0 max-w-[46%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300" title={field.label}>
                                             {field.label}
                                         </span>
-                                        <span className="flex-1 min-w-[10px] self-end mb-[5px] border-b border-dotted border-slate-200 dark:border-slate-800" />
-                                        <span className={`text-right text-[12px] sm:text-[13px] font-semibold break-words ${isLong ? "max-w-[75%]" : "max-w-[60%]"} ${field.mono ? "font-mono font-bold text-slate-700 dark:text-slate-300" : "text-slate-800 dark:text-slate-200"}`}>
+                                        <span title={hasValue ? field.value : undefined} className={`flex-1 min-w-0 text-[12px] sm:text-[13px] font-medium break-words ${field.mono ? "font-mono font-semibold text-slate-700 dark:text-slate-300" : "text-slate-700 dark:text-slate-300"}`}>
                                             {hasValue ? field.value : <span className="text-slate-300 dark:text-slate-700 italic font-normal">Sin dato</span>}
                                         </span>
                                         {hasValue && (
@@ -887,7 +893,7 @@ const DatosPersonalesTab = ({ estado, copiedKey, onCopy, canEdit, noEmpleado, on
                                                 label={field.label}
                                                 copied={copiedKey === field.key}
                                                 onCopy={() => onCopy(field.key, field.value)}
-                                                className="self-center"
+                                                className="self-center shrink-0"
                                             />
                                         )}
                                         {group.editable && (
@@ -949,6 +955,14 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const [historial, setHistorial] = useState({ status: "idle", data: null });
     const historialFetchedRef = useRef(false);
 
+    // Historial de posición (tab "Historial de posición", mismo diagrama de
+    // carriles que "Historial de movimientos" pero sobre MOV_POS — cada
+    // carril es una unidad administrativa por la que pasó la plaza, ver
+    // HistorialMovimientosTab.jsx VARIANT_CONFIG.posicion) — mismo patrón de
+    // fetch bajo demanda + ref-guard que datosPersonales/historial arriba.
+    const [historialPosicion, setHistorialPosicion] = useState({ status: "idle", data: null });
+    const historialPosicionFetchedRef = useRef(false);
+
     useEffect(() => {
         if (isOpen) {
             setFieldSearch("");
@@ -960,6 +974,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             datosPersonalesFetchedRef.current = false;
             setHistorial({ status: "idle", data: null });
             historialFetchedRef.current = false;
+            setHistorialPosicion({ status: "idle", data: null });
+            historialPosicionFetchedRef.current = false;
         }
     }, [isOpen]);
 
@@ -1075,16 +1091,46 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         return () => { cancelado = true; };
     }, [isOpen, activeTab, numempleadoFoto]);
 
+    // Historial de posición (MovimientosPosicionHistorialView, raw SQL sobre
+    // MOV_POS) — mismo patrón bajo demanda que el historial de movimientos
+    // de arriba, filtrado por la posición de esta plaza en vez del número de
+    // empleado.
+    const posicionFoto = record?.posicion;
+    useEffect(() => {
+        if (!isOpen || activeTab !== "historial_posicion" || !posicionFoto) return;
+        if (historialPosicionFetchedRef.current) return;
+        historialPosicionFetchedRef.current = true;
+        let cancelado = false;
+        setHistorialPosicion({ status: "loading", data: null });
+        VacantesService.getMovimientosPosicionHistorial([posicionFoto])
+            .then(async (res) => {
+                if (!res.ok) throw new Error("request failed");
+                const json = await res.json();
+                if (cancelado) return;
+                // El backend (MovimientosPosicionHistorialView) devuelve DESC
+                // (más reciente primero); el diagrama de carriles se lee
+                // igual que el de empleado — más viejo primero, vigente al
+                // final — así que se invierte aquí antes de entrar al tab.
+                const asc = [...json].reverse();
+                setHistorialPosicion(asc.length > 0 ? { status: "success", data: asc } : { status: "empty", data: [] });
+            })
+            .catch(() => { if (!cancelado) setHistorialPosicion({ status: "error", data: null }); });
+        return () => { cancelado = true; };
+    }, [isOpen, activeTab, posicionFoto]);
+
     // Apartados del expediente: mismo filtrado de siempre (label / valor /
     // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
     const sections = useMemo(() => {
         if (!record) return [];
         // Sin `columns` explícito, el expediente cae a ALL_AVAILABLE_COLUMNS —
         // se excluye la categoría "Movimiento de Posición" (registro MOV_POS
-        // crudo, ver comentario junto a esa categoría) porque no aporta al
-        // expediente de plaza; sigue disponible vía `restrictColumnsTo` para
-        // quien la necesite explícitamente (ej. CuadrosVacanciaTab).
-        const fieldsSource = columns || ALL_AVAILABLE_COLUMNS.filter(f => f.category !== "Movimiento de Posición");
+        // crudo, ver comentario junto a esa categoría) y los campos exclusivos
+        // de CuadrosVacanciaTab (CUADROS_VACANCIA_ONLY_KEYS) porque no aportan
+        // al expediente de plaza abierto desde cualquier otro lado; cada
+        // consumidor que sí los necesita los pide explícito vía `columns`/
+        // `restrictColumnsTo` (ver EmployeesModal más abajo y MovimientosTab,
+        // que pasa su propio `columns` de la tabla MOV_POS).
+        const fieldsSource = columns || ALL_AVAILABLE_COLUMNS.filter(f => f.category !== "Movimiento de Posición" && !CUADROS_VACANCIA_ONLY_KEYS.has(f.key));
         const query = normalizeForSearch(fieldSearch.trim());
         const groups = new Map();
 
@@ -1168,6 +1214,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const puestoPlaza = cleanFieldValue(record.nombre_puesto_funcional);
     const uaPlaza = cleanFieldValue(record.unidad_administrativa) || cleanFieldValue(record.unidad_de_negocio);
     const fechaVacancia = cleanFieldValue(record.fecha_vacancia);
+    const fechaOcupacion = cleanFieldValue(record.fecha_ocupacion);
     const estatusNomina = cleanFieldValue(record.estado_nomina) || cleanFieldValue(record.estado_en_nomina);
     const identificadores = [
         { label: "No. Empleado", value: cleanFieldValue(record.id_empleado) || cleanFieldValue(record.numempleado) },
@@ -1257,11 +1304,15 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                                             {[puestoPlaza, uaPlaza].filter(Boolean).join(" · ")}
                                         </p>
                                     )}
-                                    {fechaVacancia && (
+                                    {fechaVacancia ? (
                                         <p className="text-[10px] sm:text-[11px] font-bold text-rose-600/90 dark:text-rose-400/90 mt-1.5 uppercase tracking-wide">
                                             Vacante desde {formatDateEsMx(fechaVacancia)}
                                         </p>
-                                    )}
+                                    ) : fechaOcupacion ? (
+                                        <p className="text-[10px] sm:text-[11px] font-bold text-emerald-600/90 dark:text-emerald-400/90 mt-1.5 uppercase tracking-wide">
+                                            Ocupada desde {formatDateEsMx(fechaOcupacion)}
+                                        </p>
+                                    ) : null}
                                 </div>
                                 <div className="group shrink-0 text-right border-l border-dashed border-[#621f32]/20 dark:border-slate-800 pl-3 sm:pl-4">
                                     <span className="block text-[8px] font-black uppercase tracking-[0.2em] text-[#bc955c]">Posición</span>
@@ -1335,6 +1386,15 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                         <History className="size-3.5" />
                         Historial de movimientos
                     </button>
+                    <button
+                        onClick={() => setActiveTab("historial_posicion")}
+                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "historial_posicion"
+                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
+                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
+                    >
+                        <Landmark className="size-3.5" />
+                        Historial de posición
+                    </button>
                 </div>
 
                 {activeTab === "personales" ? (
@@ -1348,6 +1408,8 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                     />
                 ) : activeTab === "historial" ? (
                     <HistorialMovimientosTab estado={historial} numEmpleado={numempleadoFoto} canViewPhoto={canViewPhoto} />
+                ) : activeTab === "historial_posicion" ? (
+                    <HistorialMovimientosTab estado={historialPosicion} variant="posicion" posicion={posicionFoto} canViewPhoto={canViewPhoto} />
                 ) : (
                 <>
                 {/* ── Barra de consulta: buscador de campos + depuración de vacíos ── */}
@@ -1426,31 +1488,32 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                             </nav>
                         )}
 
-                        <div className="flex-1 min-w-0 flex flex-col gap-6 sm:gap-7 mb-2">
+                        <div className="flex-1 min-w-0 flex flex-col gap-4 sm:gap-5 mb-2">
                             {sections.map((section, sectionIdx) => (
                                 <section
                                     key={section.category}
                                     data-category={section.category}
                                     ref={(el) => { sectionRefs.current[section.category] = el; }}
-                                    className="scroll-mt-1 flex flex-col gap-2.5"
+                                    className="scroll-mt-1 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
                                 >
-                                    {/* Separador de apartado — el "índice" impreso del expediente */}
-                                    <div className="flex items-center gap-3">
-                                        <span className="shrink-0 size-6 rounded-md bg-[#621f32] dark:bg-[#3e131f] text-[#bc955c] text-[9px] font-black font-mono flex items-center justify-center">
-                                            {ROMAN_NUMERALS[sectionIdx] || sectionIdx + 1}
-                                        </span>
-                                        <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-[0.18em] text-[#621f32] dark:text-[#e3c793] whitespace-nowrap">
+                                    {/* Barra de apartado — plana con acento a la izquierda (no numeral
+                                        romano ni línea punteada: se busca lectura de sistema de RR. HH.,
+                                        no de certificado impreso) */}
+                                    <div className="flex items-center gap-2 px-3.5 py-2 bg-[#621f32]/[0.06] dark:bg-[#bc955c]/[0.08] border-l-[3px] border-[#621f32] dark:border-[#bc955c]">
+                                        <h4 className="text-[11px] font-black uppercase tracking-[0.12em] text-[#621f32] dark:text-[#e3c793] whitespace-nowrap">
                                             {section.category}
                                         </h4>
-                                        <span className="flex-1 h-px bg-gradient-to-r from-[#bc955c]/50 to-transparent" />
-                                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                                        <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                                             {section.filled}/{section.fields.length} con dato
                                         </span>
                                     </div>
 
-                                    {/* Hoja de datos: renglones con guía punteada (label ··· valor),
-                                        los valores largos ocupan el renglón completo */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-7 rounded-xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/40 px-2.5 py-1.5 sm:px-3.5 sm:py-2">
+                                    {/* Hoja de datos: rejilla uniforme (todas las celdas del mismo
+                                        tamaño). Los valores largos combinan celdas (colSpan) según su
+                                        longitud y, si aun así no caben, hacen wrap — nunca se recorta
+                                        texto sin dejarlo accesible; el `title` además ofrece el valor
+                                        completo al hacer hover. */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-100 dark:bg-slate-800/80">
                                         {section.fields.map((field) => {
                                             const hasValue = field.value !== null;
                                             const clickHandler = fieldClickHandlers[field.key];
@@ -1460,19 +1523,20 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                                                     ? formatDateEsMx(field.value)
                                                     : (isCurrencyField(field.key) && !isNaN(Number(field.value)) ? formatCurrency(field.value) : field.value))
                                                 : null;
-                                            const isLong = (displayValue?.length || 0) > 34;
+                                            const len = displayValue?.length || 0;
+                                            const spanClass = len > 70 ? "sm:col-span-2 lg:col-span-3" : len > 34 ? "sm:col-span-2 lg:col-span-2" : "";
                                             return (
                                                 <div
                                                     key={field.key}
-                                                    className={`group flex items-baseline gap-2 py-1.5 px-1.5 rounded-md transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 ${isLong ? "sm:col-span-2" : ""}`}
+                                                    className={`group flex items-baseline gap-2 py-2 px-3 bg-white dark:bg-slate-950/60 transition-colors hover:bg-[#621f32]/[0.04] dark:hover:bg-slate-900/60 ${spanClass}`}
                                                 >
-                                                    <span className="shrink-0 max-w-[52%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500" title={field.label}>
+                                                    <span className="shrink-0 max-w-[46%] truncate text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300" title={field.label}>
                                                         <HighlightText text={field.label} highlight={fieldSearch} />
                                                     </span>
-                                                    <span className="flex-1 min-w-[10px] self-end mb-[5px] border-b border-dotted border-slate-200 dark:border-slate-800" />
                                                     <span
                                                         onClick={isClickable ? () => clickHandler(record) : undefined}
-                                                        className={`text-right text-[12px] sm:text-[13px] font-semibold break-words ${isLong ? "max-w-[75%]" : "max-w-[60%]"} ${isMonoColumn(field.key) ? "font-mono font-bold text-slate-700 dark:text-slate-300" : "text-slate-800 dark:text-slate-200"} ${isClickable ? "cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid" : ""}`}
+                                                        title={hasValue ? displayValue : undefined}
+                                                        className={`flex-1 min-w-0 text-[12px] sm:text-[13px] font-medium break-words ${isMonoColumn(field.key) ? "font-mono font-semibold text-slate-700 dark:text-slate-300" : "text-slate-700 dark:text-slate-300"} ${isClickable ? "cursor-pointer text-[#621f32] dark:text-[#bc955c] underline decoration-dotted underline-offset-2 hover:decoration-solid" : ""}`}
                                                     >
                                                         {hasValue ? (
                                                             <HighlightText text={displayValue} highlight={fieldSearch} />
@@ -1486,7 +1550,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                                                             label={field.label}
                                                             copied={copiedKey === field.key}
                                                             onCopy={() => handleCopyField(field.key, displayValue)}
-                                                            className="self-center"
+                                                            className="self-center shrink-0"
                                                         />
                                                     )}
                                                 </div>

@@ -7,7 +7,7 @@ import { useGSAP } from "@gsap/react";
 import jsPDF from "jspdf";
 import ExcelJS from "exceljs";
 import { formatDateEsMx } from "@/utils/columnFilters";
-import { getMovimientoDiff } from "../../_utils/movimientosDiff";
+import { getMovimientoDiff, getAllFields } from "../../_utils/movimientosDiff";
 import { PlantillaService } from "@/services/plantilla.service";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
@@ -81,22 +81,132 @@ const EXPORT_COLUMNS = [
     ["fecha_posicion", "Fecha de Posición", true],
 ];
 
-// Fecha efectiva descendente (más reciente primero); empate -> secuencia
-// ascendente, a pedido del usuario (2026-08-14).
-const buildExportRows = (movimientos) => {
+// Encabezados de export para el historial de POSICIÓN (MOV_POS vía
+// MovimientosPosicionHistorialView, ver VARIANT_CONFIG.posicion abajo) —
+// mismo criterio que EXPORT_COLUMNS: nombres legibles, sin `id` (llave
+// técnica interna).
+const EXPORT_COLUMNS_POSICION = [
+    ["posicion", "Posición"],
+    ["fecha_efectiva", "Fecha Efectiva", true],
+    ["motivo", "Motivo"],
+    ["cd_motivo", "Código de Motivo"],
+    ["estado_posicion", "Estado Posición"],
+    ["fecha_captura", "Fecha de Captura", true],
+    ["por", "Capturado Por"],
+    ["unidad_administrativa", "Unidad Administrativa"],
+    ["unidad_adva", "Código Unidad Administrativa"],
+    ["cd_un", "Código Unidad de Negocio"],
+    ["cd_departamento", "Código Departamento"],
+    ["estado_ptal", "Estado Presupuestal"],
+    ["fecha_establecimiento", "Fecha Establecimiento", true],
+    ["maximo", "Máximo"],
+    ["dependencia_directa", "Dependencia Directa"],
+    ["dependencia_indirecta", "Dependencia Indirecta"],
+    ["ubicacion", "Ubicación"],
+    ["nivel_direccion", "Nivel Dirección"],
+    ["plan_salarial", "Plan Salarial"],
+    ["grado", "Grado"],
+    ["escala", "Escala"],
+    ["puesto_presupuestal", "Puesto Presupuestal"],
+    ["partida_presupuestal", "Partida Presupuestal"],
+    ["grupo_pago", "Grupo de Pago"],
+    ["programa_beneficios", "Programa de Beneficios"],
+    ["fecha_ultima_actualizacion", "Última Actualización", true],
+    ["horas_estandar_semana", "Hrs. Estándar/Semana"],
+    ["descripcion", "Descripción"],
+    ["grupo_trabajo", "Grupo de Trabajo"],
+    ["codigo_organizacional", "Código Organizacional"],
+    ["grupo_codigo_salarial", "Grupo Código Salarial"],
+    ["descripcion_formal", "Descripción Formal"],
+    ["puesto_compartido", "Puesto Compartido"],
+    ["posicion_clave", "Posición Clave"],
+    ["presupuesto", "Presupuesto"],
+    ["nombre_puesto_funcional", "Puesto"],
+    ["cd_puesto", "Código de Puesto"],
+    ["fecha_vacancia", "Fecha Vacancia", true],
+    ["categoria_vacancia", "Categoría Vacancia"],
+    ["tuvo_insubsistencia", "Tuvo Insubsistencia"],
+    ["fecha_ocupacion", "Fecha Ocupación", true],
+];
+
+// Fecha efectiva descendente (más reciente primero); empate -> `tiebreakKey`
+// ascendente (secuencia en el historial de empleado, id interno en el de
+// posición — MOV_POS no tiene "sec"), a pedido del usuario (2026-08-14).
+const buildExportRows = (movimientos, exportColumns, tiebreakKey = "sec") => {
     const ordenados = [...movimientos].sort((a, b) => {
         const fechaCmp = String(b.fecha_efectiva ?? "").localeCompare(String(a.fecha_efectiva ?? ""));
         if (fechaCmp !== 0) return fechaCmp;
-        return (Number(a.sec) || 0) - (Number(b.sec) || 0);
+        return (Number(a[tiebreakKey]) || 0) - (Number(b[tiebreakKey]) || 0);
     });
     return ordenados.map((mov) => {
         const row = {};
-        EXPORT_COLUMNS.forEach(([key, label, isDate]) => {
+        exportColumns.forEach(([key, label, isDate]) => {
             const raw = mov[key];
             row[label] = isDate ? formatDate(raw) : (raw ?? "");
         });
         return row;
     });
+};
+
+// ─── Configuración por variante: "empleado" (cp_tbl_mov_completo_29_05_26,
+// carril = posición del empleado) vs "posicion" (MOV_POS, carril = unidad
+// administrativa de la plaza) — todo lo que difiere entre ambos historiales
+// (agrupación de carriles, campos de la tarjeta, columnas de export, textos)
+// vive aquí; el resto del componente (layout, animaciones, export PDF/Excel,
+// diff) es el mismo para las dos, ver comentario en HistorialMovimientosTab.
+const VARIANT_CONFIG = {
+    empleado: {
+        laneKey: "posicion",
+        laneLabel: (mov) => mov.posicion,
+        laneSubLabel: (mov) => mov.puesto_ptal,
+        laneBadge: (mov) => (mov.nivel_tabular ? `Nivel ${mov.nivel_tabular}` : null),
+        cardTitle: (mov) => mov.accion_nombre,
+        cardChip: (mov) => mov.motivo_nombre,
+        cardGrid: [
+            { label: "F. Efectiva", key: "fecha_efectiva", date: true },
+            { label: "F. Captura", key: "fecha_captura", date: true },
+            { label: "Sec", key: "sec" },
+            { label: "Por", key: "por" },
+        ],
+        changeBadgeLabel: "Cambio de posición",
+        extraIgnoredDiffFields: [],
+        exportColumns: EXPORT_COLUMNS,
+        sortTiebreakKey: "sec",
+        canIncluirFotos: true,
+        filenamePrefix: "Historial_Movimientos",
+        laneNounSingular: "posición",
+        laneNounPlural: "posiciones",
+        emptyMessage: (subject) => `No hay historial en cp_tbl_mov_completo_29_05_26 para el número de empleado ${subject}`,
+        pdfSubtitle: (movimientos, subject) => {
+            const nombreCompleto = [movimientos[0]?.nombre, movimientos[0]?.ap_pat, movimientos[0]?.ap_mat]
+                .map((s) => (s || "").trim()).filter(Boolean).join(" ") || "—";
+            return `Historial de Movimientos — ${nombreCompleto} (No. Empleado ${subject})`;
+        },
+    },
+    posicion: {
+        laneKey: "unidad_adva",
+        laneLabel: (mov) => mov.unidad_adva,
+        laneSubLabel: (mov) => mov.unidad_administrativa,
+        laneBadge: () => null,
+        cardTitle: (mov) => mov.motivo || "—",
+        cardChip: (mov) => (mov.estado_posicion === "A" ? "Activa" : mov.estado_posicion === "I" ? "Inactiva" : (mov.estado_posicion || "—")),
+        cardGrid: [
+            { label: "F. Efectiva", key: "fecha_efectiva", date: true },
+            { label: "F. Captura", key: "fecha_captura", date: true },
+            { label: "Cód. Motivo", key: "cd_motivo" },
+            { label: "Por", key: "por" },
+        ],
+        changeBadgeLabel: "Cambio de unidad administrativa",
+        extraIgnoredDiffFields: ["unidad_adva", "unidad_administrativa", "motivo", "estado_posicion", "cd_motivo"],
+        exportColumns: EXPORT_COLUMNS_POSICION,
+        sortTiebreakKey: "id",
+        canIncluirFotos: false,
+        filenamePrefix: "Historial_Posicion",
+        laneNounSingular: "unidad administrativa",
+        laneNounPlural: "unidades administrativas",
+        emptyMessage: (subject) => `No hay historial en MOV_POS para la posición ${subject}`,
+        pdfSubtitle: (_movimientos, subject) => `Historial de Movimientos de Posición — Posición ${subject}`,
+    },
 };
 
 const downloadBlobAsFile = (blob, filename) => {
@@ -334,10 +444,10 @@ const computeHistorialCardHeight = (isFirst, diff, cambioDePosicion) => {
 // Layout analítico completo: X de cada carril, Y acumulada de cada fila
 // (una fila = un movimiento, mismo orden cronológico que en pantalla) y
 // dimensiones totales del lienzo — todo en "px" CSS, sin tocar el DOM.
-const computeHistorialLayout = (movimientos, lanes) => {
+const computeHistorialLayout = (movimientos, lanes, config) => {
     const laneX = lanes.map((_, i) => i * (PDF_CARD_W + PDF_LANE_GAP_X));
     const contentWidth = lanes.length * PDF_CARD_W + (lanes.length - 1) * PDF_LANE_GAP_X;
-    const laneIndexByPosicion = new Map(lanes.map((l) => [l.posicion, l.index]));
+    const laneIndexByKey = new Map(lanes.map((l) => [l.key, l.index]));
 
     const rowsTop = PDF_TITLE_H + PDF_TITLE_GAP + PDF_LANE_HEADER_H + PDF_LANE_HEADER_GAP;
     const rowHeights = [];
@@ -345,16 +455,16 @@ const computeHistorialLayout = (movimientos, lanes) => {
     let cursor = rowsTop;
     movimientos.forEach((mov, i) => {
         const isFirst = i === 0;
-        const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1]);
-        const cambioDePosicion = !isFirst && mov.posicion !== movimientos[i - 1].posicion;
-        const h = computeHistorialCardHeight(isFirst, diff, cambioDePosicion);
+        const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1], config.extraIgnoredDiffFields);
+        const cambioDeCarril = !isFirst && mov[config.laneKey] !== movimientos[i - 1][config.laneKey];
+        const h = computeHistorialCardHeight(isFirst, diff, cambioDeCarril);
         rowHeights.push(h);
         rowY.push(cursor);
         cursor += h + PDF_ROW_GAP_Y;
     });
     const contentHeight = movimientos.length > 0 ? cursor - PDF_ROW_GAP_Y : rowsTop;
 
-    return { laneX, laneIndexByPosicion, rowsTop, rowHeights, rowY, contentWidth, contentHeight };
+    return { laneX, laneIndexByKey, rowsTop, rowHeights, rowY, contentWidth, contentHeight };
 };
 
 // Padding horizontal interno de la tarjeta — antes el texto arrancaba
@@ -362,7 +472,7 @@ const computeHistorialLayout = (movimientos, lanes) => {
 // a `xIn` (x + padX) y se mide contra `innerW` (w - padX*2).
 const PDF_CARD_PAD_X = 10;
 
-const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePosicion, X, Y, T) => {
+const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePosicion, X, Y, T, config) => {
     const padX = PDF_CARD_PAD_X;
     const xIn = x + padX;
     const innerW = w - padX * 2;
@@ -383,7 +493,7 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
     if (cambioDePosicion) {
         pdf.setFillColor(...PDF_AMBER_BG);
         pdf.setDrawColor(...PDF_AMBER_BORDER);
-        const label = "CAMBIO DE POSICIÓN";
+        const label = config.changeBadgeLabel.toUpperCase();
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(7));
         const labelW = pdf.getTextWidth(label); // ya en pt (fuente/tamaño seteados arriba)
@@ -396,12 +506,12 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(T(9.5));
     pdf.setTextColor(...PDF_MAROON);
-    pdf.text(fitPdfText(pdf, (mov.accion_nombre || "—").toUpperCase(), T(innerW)), X(xIn), Y(cursorY + 9), { baseline: "middle" });
+    pdf.text(fitPdfText(pdf, (config.cardTitle(mov) || "—").toUpperCase(), T(innerW)), X(xIn), Y(cursorY + 9), { baseline: "middle" });
     cursorY += 16;
 
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(T(7.5));
-    const motivo = fitPdfText(pdf, mov.motivo_nombre || "—", T(innerW - 8));
+    const motivo = fitPdfText(pdf, config.cardChip(mov) || "—", T(innerW - 8));
     const motivoW = pdf.getTextWidth(motivo); // pt
     pdf.setFillColor(...PDF_SLATE_100);
     pdf.roundedRect(X(xIn), Y(cursorY), Math.min(T(innerW), motivoW + T(8)), T(14), T(3), T(3), "F");
@@ -422,10 +532,10 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
         pdf.setTextColor(...PDF_SLATE_700);
         pdf.text(fitPdfText(pdf, value, T(gridColW - 4)), X(gx), Y(gy + 11), { baseline: "middle" });
     };
-    gridCell("F. EFECTIVA", formatDate(mov.fecha_efectiva), 0, 0);
-    gridCell("F. CAPTURA", formatDate(mov.fecha_captura), 1, 0);
-    gridCell("SEC", mov.sec ?? "-", 0, 1);
-    gridCell("POR", mov.por || "-", 1, 1);
+    config.cardGrid.forEach((item, idx) => {
+        const value = item.date ? formatDate(mov[item.key]) : (mov[item.key] ?? "-");
+        gridCell(item.label.toUpperCase(), value, idx % 2, Math.floor(idx / 2));
+    });
     cursorY += 24 * 2 + 8;
 
     // Divisor + bloque de detalle ("Cambios detectados"), siempre desplegado.
@@ -512,8 +622,8 @@ const drawHistorialCardPdf = (pdf, mov, x, yTop, w, h, isFirst, diff, cambioDePo
 // generación, más largos que eso) desbordándose fuera de la página.
 const PDF_MIN_CONTENT_WIDTH = 480;
 
-const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
-    const layout = computeHistorialLayout(movimientos, lanes);
+const buildHistorialPdf = (movimientos, lanes, subject, config) => {
+    const layout = computeHistorialLayout(movimientos, lanes, config);
     // Diagrama angosto -> se centra dentro de PDF_MIN_CONTENT_WIDTH en vez de
     // dejar la página al ancho justo de las columnas.
     const contentWidth = Math.max(layout.contentWidth, PDF_MIN_CONTENT_WIDTH);
@@ -573,13 +683,11 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
     pdf.line(X(0), Y(hy), X(contentWidth), Y(hy));
     hy += PDF_HEADER_RULE_GAP;
 
-    const nombreCompleto = [movimientos[0]?.nombre, movimientos[0]?.ap_pat, movimientos[0]?.ap_mat]
-        .map((s) => (s || "").trim()).filter(Boolean).join(" ") || "—";
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(T(15));
     pdf.setTextColor(...PDF_MAROON);
     pdf.text(
-        fitPdfText(pdf, `Historial de Movimientos — ${nombreCompleto} (No. Empleado ${numEmpleado})`, T(contentWidth)),
+        fitPdfText(pdf, config.pdfSubtitle(movimientos, subject), T(contentWidth)),
         X(0), Y(hy + PDF_HEADER_SUBTITLE_H / 2), { baseline: "middle" },
     );
 
@@ -606,7 +714,7 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
         pdf.setFont("courier", "bold");
         pdf.setFontSize(T(10));
         pdf.setTextColor(...PDF_MAROON);
-        pdf.text(fitPdfText(pdf, lane.posicion || "—", T(w - 60)), X(x + 10), Y(yTop + 16), { baseline: "middle" });
+        pdf.text(fitPdfText(pdf, lane.key || "—", T(w - 60)), X(x + 10), Y(yTop + 16), { baseline: "middle" });
 
         if (lane.esActual) {
             const label = "ACTUAL";
@@ -621,32 +729,34 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
             pdf.text(label, badgeX + badgeW / 2, Y(yTop + 16.5), { align: "center", baseline: "middle" });
         }
 
-        // Badge "NIVEL N" — dato que el usuario pidió destacar en la cabecera
-        // de carril (antes solo vivía en pantalla, ausente del PDF). Empuja
-        // el texto de puesto a su derecha, igual que el layout inline en
-        // pantalla (span badge + <p> puesto).
-        let puestoTextX = X(x + 10);
-        const puestoRightEdge = X(x + w - 10);
-        if (lane.nivel) {
-            const nivelLabel = `NIVEL ${lane.nivel}`;
+        // Badge de carril (p.ej. "NIVEL N" en el historial de empleado; el de
+        // posición no trae badge, ver VARIANT_CONFIG.posicion.laneBadge) —
+        // dato que el usuario pidió destacar en la cabecera de carril (antes
+        // solo vivía en pantalla, ausente del PDF). Empuja el texto
+        // descriptivo (subLabel) a su derecha, igual que el layout inline en
+        // pantalla (span badge + <p> descriptivo).
+        let subLabelTextX = X(x + 10);
+        const subLabelRightEdge = X(x + w - 10);
+        if (lane.badge) {
+            const badgeLabel = lane.badge.toUpperCase();
             pdf.setFont("helvetica", "bold");
             pdf.setFontSize(T(6.5));
-            const nivelW = pdf.getTextWidth(nivelLabel); // pt
-            const badgeW = nivelW + T(8);
+            const badgeLabelW = pdf.getTextWidth(badgeLabel); // pt
+            const badgeW = badgeLabelW + T(8);
             const badgeX = X(x + 10);
             pdf.setFillColor(...PDF_GOLD_BG);
             pdf.setDrawColor(...PDF_GOLD_BORDER);
             pdf.setLineWidth(Math.max(T(0.75), 0.3));
             pdf.roundedRect(badgeX, Y(yTop + 25), badgeW, T(13), T(6.5), T(6.5), "FD");
             pdf.setTextColor(...PDF_GOLD_TEXT);
-            pdf.text(nivelLabel, badgeX + badgeW / 2, Y(yTop + 31.5), { align: "center", baseline: "middle" });
-            puestoTextX = badgeX + badgeW + T(6);
+            pdf.text(badgeLabel, badgeX + badgeW / 2, Y(yTop + 31.5), { align: "center", baseline: "middle" });
+            subLabelTextX = badgeX + badgeW + T(6);
         }
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(7.5));
         pdf.setTextColor(...PDF_SLATE_500);
-        pdf.text(fitPdfText(pdf, lane.puestoPtal || "Sin puesto", Math.max(puestoRightEdge - puestoTextX, T(20))), puestoTextX, Y(yTop + 32), { baseline: "middle" });
+        pdf.text(fitPdfText(pdf, lane.subLabel || "Sin dato", Math.max(subLabelRightEdge - subLabelTextX, T(20))), subLabelTextX, Y(yTop + 32), { baseline: "middle" });
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(T(6.5));
@@ -668,13 +778,13 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
 
     // Conectores entre movimientos consecutivos (misma forma en L que en pantalla)
     for (let i = 0; i < movimientos.length - 1; i++) {
-        const laneA = layout.laneIndexByPosicion.get(movimientos[i].posicion) ?? 0;
-        const laneB = layout.laneIndexByPosicion.get(movimientos[i + 1].posicion) ?? 0;
+        const laneA = layout.laneIndexByKey.get(movimientos[i][config.laneKey]) ?? 0;
+        const laneB = layout.laneIndexByKey.get(movimientos[i + 1][config.laneKey]) ?? 0;
         const xA = layout.laneX[laneA] + PDF_CARD_W / 2;
         const yA = layout.rowY[i] + layout.rowHeights[i];
         const xB = layout.laneX[laneB] + PDF_CARD_W / 2;
         const yB = layout.rowY[i + 1];
-        const cambio = movimientos[i].posicion !== movimientos[i + 1].posicion;
+        const cambio = movimientos[i][config.laneKey] !== movimientos[i + 1][config.laneKey];
 
         pdf.setDrawColor(...(cambio ? PDF_AMBER : PDF_GOLD));
         pdf.setLineWidth(Math.max(T(cambio ? 1.75 : 1.4), 0.5));
@@ -693,51 +803,58 @@ const buildHistorialPdf = (movimientos, lanes, numEmpleado) => {
 
     // Tarjetas de movimiento
     movimientos.forEach((mov, i) => {
-        const laneIdx = layout.laneIndexByPosicion.get(mov.posicion) ?? 0;
+        const laneIdx = layout.laneIndexByKey.get(mov[config.laneKey]) ?? 0;
         const isFirst = i === 0;
-        const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1]);
-        const cambioDePosicion = !isFirst && mov.posicion !== movimientos[i - 1].posicion;
-        drawHistorialCardPdf(pdf, mov, layout.laneX[laneIdx], layout.rowY[i], PDF_CARD_W, layout.rowHeights[i], isFirst, diff, cambioDePosicion, X, Y, T);
+        const diff = isFirst ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1], config.extraIgnoredDiffFields);
+        const cambioDePosicion = !isFirst && mov[config.laneKey] !== movimientos[i - 1][config.laneKey];
+        drawHistorialCardPdf(pdf, mov, layout.laneX[laneIdx], layout.rowY[i], PDF_CARD_W, layout.rowHeights[i], isFirst, diff, cambioDePosicion, X, Y, T, config);
     });
 
     return pdf;
 };
 
-// Carriles = posiciones distintas que tuvo el empleado, en orden de PRIMERA
-// aparición cronológica (movimientos ya vienen ASC por fecha_efectiva/sec
-// desde el backend, ver MovimientosPersonalHistorialView) — la posición más
-// antigua queda a la izquierda, la vigente al final (derecha).
-const useLanes = (movimientos) => {
+// Carriles = valores distintos del campo de agrupación de la variante
+// (`config.laneKey`: la posición del empleado en el historial de empleado,
+// la unidad administrativa de la plaza en el de posición — ver
+// VARIANT_CONFIG), en orden de PRIMERA aparición cronológica — `movimientos`
+// siempre llega ASC (más viejo primero, ver EmployeesModal.jsx: el fetch del
+// historial de posición invierte la respuesta DESC del backend antes de
+// entrar aquí) — el más antiguo queda a la izquierda, el vigente (último
+// elemento del arreglo) al final (derecha).
+const useLanes = (movimientos, config) => {
     return useMemo(() => {
-        const byPosicion = new Map();
+        const byKey = new Map();
         movimientos.forEach((mov) => {
-            const existente = byPosicion.get(mov.posicion);
+            const key = mov[config.laneKey];
+            const existente = byKey.get(key);
             if (!existente) {
-                byPosicion.set(mov.posicion, {
-                    posicion: mov.posicion,
-                    puestoPtal: mov.puesto_ptal,
-                    nivel: mov.nivel_tabular,
+                byKey.set(key, {
+                    key,
+                    label: config.laneLabel(mov),
+                    subLabel: config.laneSubLabel(mov),
+                    badge: config.laneBadge(mov),
                     primeraFecha: mov.fecha_efectiva,
                     ultimaFecha: mov.fecha_efectiva,
                 });
             } else {
-                existente.puestoPtal = mov.puesto_ptal || existente.puestoPtal;
-                existente.nivel = mov.nivel_tabular || existente.nivel;
+                existente.label = config.laneLabel(mov) || existente.label;
+                existente.subLabel = config.laneSubLabel(mov) || existente.subLabel;
+                existente.badge = config.laneBadge(mov) || existente.badge;
                 existente.ultimaFecha = mov.fecha_efectiva;
             }
         });
-        const ultimaPosicion = movimientos[movimientos.length - 1]?.posicion;
-        return [...byPosicion.values()].map((lane, index) => ({
+        const laneVigente = movimientos[movimientos.length - 1]?.[config.laneKey];
+        return [...byKey.values()].map((lane, index) => ({
             ...lane,
             index,
-            esActual: lane.posicion === ultimaPosicion,
+            esActual: lane.key === laneVigente,
         }));
-    }, [movimientos]);
+    }, [movimientos, config]);
 };
 
 // Un movimiento por tarjeta, colapsada por defecto. Al expandir muestra el
 // diff contra su inmediato anterior cronológico (cualquiera sea su carril).
-const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrimero, expanded, onToggle, cardRef }) => {
+const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrimero, expanded, onToggle, cardRef, config }) => {
     // Colapsado por defecto: al abrir el detalle del movimiento solo se ve
     // "Cambios detectados" — "Sin cambios" es secundario y se despliega aparte.
     const [showUnchanged, setShowUnchanged] = useState(false);
@@ -751,7 +868,13 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
         if (!expanded || !detailRef.current) return;
         const el = detailRef.current;
         const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
-        tl.from(el, { autoAlpha: 0, height: 0, y: -6, duration: 0.28 });
+        // `clearProps: "height"` — sin esto GSAP deja el `height` inline
+        // fijo en el px capturado al abrir; si el usuario después despliega
+        // "Sin cambios" (o es el registro inicial con el registro completo)
+        // el contenido crece pero el `overflow-hidden` del panel lo sigue
+        // recortando contra esa altura vieja. Al limpiarlo, el panel vuelve
+        // a alto automático y puede crecer con contenido posterior.
+        tl.from(el, { autoAlpha: 0, height: 0, y: -6, duration: 0.28, clearProps: "height" });
         const rows = el.querySelectorAll(".hist-diff-row");
         if (rows.length) tl.from(rows, { autoAlpha: 0, x: -8, stagger: 0.04, duration: 0.22, ease: "power1.out" }, "-=0.12");
     }, { dependencies: [expanded] });
@@ -780,47 +903,51 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
                 {cambioDePosicion && (
                     <span className="mb-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-500">
                         <ArrowRightLeft className="size-2.5" />
-                        Cambio de posición
+                        {config.changeBadgeLabel}
                     </span>
                 )}
                 <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                        <h5 className="text-[12px] font-black uppercase text-[#621f32] dark:text-[#e3c793] leading-tight truncate" title={mov.accion_nombre}>
-                            {mov.accion_nombre || "—"}
+                        <h5 className="text-[12px] font-black uppercase text-[#621f32] dark:text-[#e3c793] leading-tight truncate" title={config.cardTitle(mov)}>
+                            {config.cardTitle(mov) || "—"}
                         </h5>
                         <span className="mt-1 inline-block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate max-w-full">
-                            {mov.motivo_nombre || "—"}
+                            {config.cardChip(mov) || "—"}
                         </span>
                     </div>
                     <ChevronDown className={`size-4 shrink-0 mt-0.5 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
                 </div>
 
                 <div className="mt-2.5 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
-                    <div>
-                        <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">F. Efectiva</span>
-                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formatDate(mov.fecha_efectiva)}</span>
-                    </div>
-                    <div>
-                        <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">F. Captura</span>
-                        <span className="font-mono font-bold text-slate-600 dark:text-slate-400">{formatDate(mov.fecha_captura)}</span>
-                    </div>
-                    <div>
-                        <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">Sec</span>
-                        <span className="font-mono font-bold text-slate-600 dark:text-slate-400">{mov.sec ?? "-"}</span>
-                    </div>
-                    <div className="min-w-0">
-                        <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">Por</span>
-                        <span className="font-mono font-bold text-slate-600 dark:text-slate-400 truncate block" title={mov.por || undefined}>{mov.por || "-"}</span>
-                    </div>
+                    {config.cardGrid.map((item) => {
+                        const value = item.date ? formatDate(mov[item.key]) : (mov[item.key] ?? "-");
+                        return (
+                            <div key={item.key} className="min-w-0">
+                                <span className="block text-slate-400 dark:text-slate-600 font-bold uppercase tracking-wide">{item.label}</span>
+                                <span className="font-mono font-bold text-slate-600 dark:text-slate-400 truncate block" title={String(value)}>{value}</span>
+                            </div>
+                        );
+                    })}
                 </div>
             </button>
 
             {expanded && (
                 <div ref={detailRef} className="mt-1.5 overflow-hidden rounded-xl border border-dashed border-[#621f32]/20 dark:border-slate-800 bg-[#621f32]/[0.03] dark:bg-slate-900/40 px-3.5 py-3">
                     {esPrimero ? (
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                            Movimiento inicial de este historial — no hay un registro anterior con el cual comparar.
-                        </p>
+                        <div>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 italic mb-2">
+                                Movimiento inicial de este historial — no hay un registro anterior con el cual comparar. Registro completo:
+                            </p>
+                            {diff.unchanged.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                    {diff.unchanged.map((u) => (
+                                        <span key={u.key} title={u.value} className="hist-unchanged-chip text-[9px] font-semibold text-slate-500 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/60 px-1.5 py-0.5 rounded-md break-all">
+                                            {u.label}: {u.value}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <>
                             <div className="mb-2.5">
@@ -856,7 +983,7 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
                                     {showUnchanged && (
                                         <div className="flex flex-wrap gap-1">
                                             {diff.unchanged.map((u) => (
-                                                <span key={u.key} title={u.value} className="hist-unchanged-chip text-[9px] font-semibold text-slate-500 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/60 px-1.5 py-0.5 rounded-md truncate max-w-[160px]">
+                                                <span key={u.key} title={u.value} className="hist-unchanged-chip text-[9px] font-semibold text-slate-500 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/60 px-1.5 py-0.5 rounded-md break-all">
                                                     {u.label}: {u.value}
                                                 </span>
                                             ))}
@@ -872,7 +999,12 @@ const MovementCard = ({ mov, laneIndex, rowIndex, diff, cambioDePosicion, esPrim
     );
 };
 
-export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPhoto = true }) {
+export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPhoto = true, variant = "empleado", posicion }) {
+    const config = VARIANT_CONFIG[variant];
+    // Identificador del "sujeto" del historial en textos/nombres de archivo:
+    // el número de empleado en la variante "empleado", la posición en
+    // "posicion" (ver EmployeesModal.jsx, tab "Historial de posición").
+    const subject = variant === "posicion" ? posicion : numEmpleado;
     const { toast } = useToast();
     const [downloading, setDownloading] = useState(false);
     const [showExportExcelModal, setShowExportExcelModal] = useState(false);
@@ -891,23 +1023,25 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
     const movimientos = estado.data || [];
-    const lanes = useLanes(movimientos);
-    const laneIndexByPosicion = useMemo(() => new Map(lanes.map((l) => [l.posicion, l.index])), [lanes]);
+    const lanes = useLanes(movimientos, config);
+    const laneIndexByKey = useMemo(() => new Map(lanes.map((l) => [l.key, l.index])), [lanes]);
+    // El historial de posición (MOV_POS) no tiene un empleado/titular al que
+    // asociarle una fotografía — ver VARIANT_CONFIG.posicion.canIncluirFotos.
+    const offersFotoOption = canViewPhoto && config.canIncluirFotos;
 
-    // Descarga el mismo dataset ya cargado en este tab (SELECT * FROM
-    // cp_tbl_mov_completo_29_05_26 WHERE num_empleado = numEmpleado, ver
-    // MovimientosPersonalHistorialView) hacia un .xlsx real. Sin foto: pasa
-    // por el generador genérico del backend (ExportExcelView), sin volver a
-    // pedir los datos. Con foto: se arma client-side (ver downloadExcelConFoto)
-    // porque ese endpoint compartido no soporta imágenes.
+    // Descarga el mismo dataset ya cargado en este tab hacia un .xlsx real.
+    // Sin foto: pasa por el generador genérico del backend (ExportExcelView),
+    // sin volver a pedir los datos. Con foto (solo variante "empleado"): se
+    // arma client-side (ver downloadExcelConFoto) porque ese endpoint
+    // compartido no soporta imágenes.
     const runExportExcel = useCallback(async (incluirFoto) => {
         if (movimientos.length === 0 || downloading) return;
         setDownloading(true);
         const controller = new AbortController();
         exportExcelAbortRef.current = controller;
         try {
-            const filename = `Historial_Movimientos_${numEmpleado}.xlsx`;
-            const rows = buildExportRows(movimientos);
+            const filename = `${config.filenamePrefix}_${subject}.xlsx`;
+            const rows = buildExportRows(movimientos, config.exportColumns, config.sortTiebreakKey);
             if (incluirFoto) {
                 const fotoEncontrada = await downloadExcelConFoto(rows, filename, numEmpleado, controller.signal);
                 if (!fotoEncontrada) toast.info("El empleado no tiene fotografía registrada — se generó el Excel sin ella.");
@@ -923,18 +1057,19 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
             setDownloading(false);
             exportExcelAbortRef.current = null;
         }
-    }, [movimientos, numEmpleado, downloading, toast]);
+    }, [movimientos, numEmpleado, subject, config, downloading, toast]);
 
     // Botón "Descargar excel": si el usuario puede ver fotografías en este
-    // expediente, se le pregunta antes (mismo patrón que MovimientosPersonalTab
-    // y BajasTab, ver ExportConFotosModal); si no tiene ese permiso, descarga
-    // directo sin preguntar — nunca ofrecer una opción que de todos modos
-    // fallaría al pedir la foto.
+    // expediente Y la variante las ofrece, se le pregunta antes (mismo
+    // patrón que MovimientosPersonalTab y BajasTab, ver ExportConFotosModal);
+    // si no, descarga directo sin preguntar — nunca ofrecer una opción que de
+    // todos modos fallaría al pedir la foto (o que no aplica, como en el
+    // historial de posición).
     const handleDownloadExcel = useCallback(() => {
         if (movimientos.length === 0 || downloading) return;
-        if (canViewPhoto) setShowExportExcelModal(true);
+        if (offersFotoOption) setShowExportExcelModal(true);
         else void runExportExcel(false);
-    }, [movimientos, downloading, canViewPhoto, runExportExcel]);
+    }, [movimientos, downloading, offersFotoOption, runExportExcel]);
 
     const toggleExpanded = useCallback((id) => {
         setExpandedIds((prev) => {
@@ -961,7 +1096,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
             const yA = rectA.bottom - canvasRect.top;
             const xB = rectB.left - canvasRect.left + rectB.width / 2;
             const yB = rectB.top - canvasRect.top;
-            const cambio = movimientos[i].posicion !== movimientos[i + 1].posicion;
+            const cambio = movimientos[i][config.laneKey] !== movimientos[i + 1][config.laneKey];
             const d = Math.abs(xA - xB) < 1
                 ? `M ${xA} ${yA} L ${xB} ${yB}`
                 : `M ${xA} ${yA} V ${(yA + yB) / 2} H ${xB} V ${yB}`;
@@ -975,24 +1110,24 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
         // se reutilizan como límites de las bandas de sombreado intercalado.
         const dividerXs = [];
         for (let i = 0; i < lanes.length - 1; i++) {
-            const elA = laneRefs.current.get(lanes[i].posicion);
-            const elB = laneRefs.current.get(lanes[i + 1].posicion);
+            const elA = laneRefs.current.get(lanes[i].key);
+            const elB = laneRefs.current.get(lanes[i + 1].key);
             if (!elA || !elB) continue;
             const rectA = elA.getBoundingClientRect();
             const rectB = elB.getBoundingClientRect();
             dividerXs.push(((rectA.right - canvasRect.left) + (rectB.left - canvasRect.left)) / 2);
         }
-        setDividers(dividerXs.map((x, i) => ({ posicion: lanes[i].posicion, x })));
+        setDividers(dividerXs.map((x, i) => ({ key: lanes[i].key, x })));
 
         if (dividerXs.length === lanes.length - 1) {
             const boundaries = [0, ...dividerXs, canvas.scrollWidth];
             setLaneBands(
                 lanes
-                    .map((lane, i) => ({ posicion: lane.posicion, left: boundaries[i], width: boundaries[i + 1] - boundaries[i], shaded: i % 2 === 1 }))
+                    .map((lane, i) => ({ key: lane.key, left: boundaries[i], width: boundaries[i + 1] - boundaries[i], shaded: i % 2 === 1 }))
                     .filter((band) => band.shaded)
             );
         }
-    }, [movimientos, lanes]);
+    }, [movimientos, lanes, config]);
 
     useLayoutEffect(() => {
         recomputeLayout();
@@ -1015,14 +1150,14 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
         if (movimientos.length === 0 || exportingImage) return;
         setExportingImage(true);
         try {
-            const pdf = buildHistorialPdf(movimientos, lanes, numEmpleado);
-            pdf.save(`Historial_Movimientos_${numEmpleado}.pdf`);
+            const pdf = buildHistorialPdf(movimientos, lanes, subject, config);
+            pdf.save(`${config.filenamePrefix}_${subject}.pdf`);
         } catch (err) {
             toast.error("No se pudo generar la imagen.");
         } finally {
             setExportingImage(false);
         }
-    }, [movimientos, lanes, exportingImage, numEmpleado, toast]);
+    }, [movimientos, lanes, exportingImage, subject, config, toast]);
 
     // "Construcción" animada del diagrama — una sola vez por dataset cargado
     // (identificado por `estado.data`, referencia estable mientras solo se
@@ -1036,7 +1171,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
         if (introKeyRef.current === estado.data) return; // este dataset ya se animó
         introKeyRef.current = estado.data;
 
-        const laneEls = lanes.map((l) => laneRefs.current.get(l.posicion)).filter(Boolean);
+        const laneEls = lanes.map((l) => laneRefs.current.get(l.key)).filter(Boolean);
         const cardEls = movimientos.map((m) => cardRefs.current.get(m.id)).filter(Boolean);
         const pathEls = paths.map((p) => pathRefs.current.get(p.id)).filter(Boolean);
 
@@ -1097,7 +1232,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                     <FileQuestion className="size-6 text-[#621f32]/40 dark:text-slate-500" />
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-450 uppercase tracking-widest">Sin movimientos registrados</p>
-                <p className="text-xs text-slate-400 mt-1">No hay historial en cp_tbl_mov_completo_29_05_26 para el número de empleado {numEmpleado}</p>
+                <p className="text-xs text-slate-400 mt-1">{config.emptyMessage(subject)}</p>
             </div>
         );
     }
@@ -1107,7 +1242,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
             <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                     <GitCommitHorizontal className="size-3.5 text-[#bc955c]" />
-                    {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"} · {lanes.length} {lanes.length === 1 ? "posición" : "posiciones"}
+                    {movimientos.length} {movimientos.length === 1 ? "movimiento" : "movimientos"} · {lanes.length} {lanes.length === 1 ? config.laneNounSingular : config.laneNounPlural}
                     <span className="hidden sm:inline text-slate-300 dark:text-slate-700">— desplaza horizontalmente para ver todos los carriles</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1144,7 +1279,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                             cabecera y las tarjetas de ese carril, ver laneBands arriba. */}
                         {laneBands.map((band) => (
                             <div
-                                key={band.posicion}
+                                key={band.key}
                                 className="absolute top-0 bottom-0 bg-slate-100/70 dark:bg-slate-900/50"
                                 style={{ left: band.left, width: band.width }}
                             />
@@ -1185,7 +1320,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                             de cada columna de posición a lo largo de todo el diagrama */}
                         {dividers.map((d) => (
                             <div
-                                key={d.posicion}
+                                key={d.key}
                                 className="absolute top-0 bottom-0 border-l border-dashed border-slate-300 dark:border-slate-700"
                                 style={{ left: d.x }}
                             />
@@ -1197,29 +1332,29 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                         <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${lanes.length}, minmax(${LANE_MIN_WIDTH - 20}px, 1fr))` }}>
                             {lanes.map((lane) => (
                                 <div
-                                    key={lane.posicion}
+                                    key={lane.key}
                                     ref={(el) => {
-                                        if (el) laneRefs.current.set(lane.posicion, el);
-                                        else laneRefs.current.delete(lane.posicion);
+                                        if (el) laneRefs.current.set(lane.key, el);
+                                        else laneRefs.current.delete(lane.key);
                                     }}
                                     className={`rounded-xl border px-3 py-2.5 ${lane.esActual
                                         ? "border-[#621f32] dark:border-[#bc955c] bg-[#621f32]/[0.06] dark:bg-slate-900"
                                         : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40"}`}
                                 >
                                     <div className="flex items-center justify-between gap-1.5">
-                                        <span className="font-mono text-[13px] font-black text-[#621f32] dark:text-[#e3c793] truncate">{lane.posicion || "—"}</span>
+                                        <span className="font-mono text-[13px] font-black text-[#621f32] dark:text-[#e3c793] truncate">{lane.key || "—"}</span>
                                         {lane.esActual && (
                                             <span className="shrink-0 text-[8px] font-black uppercase tracking-wider text-white bg-[#621f32] dark:bg-[#bc955c] dark:text-slate-950 px-1.5 py-0.5 rounded-full">Actual</span>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
-                                        {lane.nivel && (
+                                        {lane.badge && (
                                             <span className="shrink-0 font-mono text-[9px] font-black uppercase text-[#7a5a30] dark:text-[#e3c793] bg-[#bc955c]/15 dark:bg-[#bc955c]/15 border border-[#bc955c]/30 px-1.5 py-0.5 rounded">
-                                                Nivel {lane.nivel}
+                                                {lane.badge}
                                             </span>
                                         )}
-                                        <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate" title={lane.puestoPtal || undefined}>
-                                            {lane.puestoPtal || "Sin puesto"}
+                                        <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate" title={lane.subLabel || undefined}>
+                                            {lane.subLabel || "Sin dato"}
                                         </p>
                                     </div>
                                     <p className="text-[9px] font-bold text-slate-400 dark:text-slate-600 mt-1">
@@ -1233,10 +1368,12 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                     {/* Tarjetas de movimiento, una por fila cronológica global */}
                     <div className="relative z-10 grid gap-3" style={{ gridTemplateColumns: `repeat(${lanes.length}, minmax(${LANE_MIN_WIDTH - 20}px, 1fr))`, gridAutoRows: "min-content" }}>
                         {movimientos.map((mov, i) => {
-                            const laneIndex = laneIndexByPosicion.get(mov.posicion) ?? 0;
+                            const laneIndex = laneIndexByKey.get(mov[config.laneKey]) ?? 0;
                             const esPrimero = i === 0;
-                            const diff = esPrimero ? { differences: [], unchanged: [] } : getMovimientoDiff(mov, movimientos[i - 1]);
-                            const cambioDePosicion = !esPrimero && mov.posicion !== movimientos[i - 1].posicion;
+                            const diff = esPrimero
+                                ? { differences: [], unchanged: getAllFields(mov, config.extraIgnoredDiffFields) }
+                                : getMovimientoDiff(mov, movimientos[i - 1], config.extraIgnoredDiffFields);
+                            const cambioDePosicion = !esPrimero && mov[config.laneKey] !== movimientos[i - 1][config.laneKey];
                             return (
                                 <MovementCard
                                     key={mov.id}
@@ -1252,6 +1389,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                                         if (el) cardRefs.current.set(mov.id, el);
                                         else cardRefs.current.delete(mov.id);
                                     }}
+                                    config={config}
                                 />
                             );
                         })}

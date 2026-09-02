@@ -1282,7 +1282,19 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     [historicoFilas]
   );
 
-  const activarHistorico = useCallback(async (fecha) => {
+  // Refs de la navegación día a día (< >, definida más abajo) — declaradas
+  // aquí porque `activarHistorico` necesita limpiarlas en cada llamada,
+  // venga o no de esos botones (ver comentario junto a `navegarHistoricoDia`).
+  const historicoNavRef = useRef(null); // última fecha acumulada por < >, aún no disparada (o en vuelo)
+  const historicoNavTimeoutRef = useRef(null);
+
+  const activarHistorico = useCallback(async (fecha, { preserveFilters = false } = {}) => {
+    // Cualquier activación "de golpe" (picker, tarjeta de resumen, etc.)
+    // cancela un salto de < > pendiente en debounce y resincroniza la base
+    // desde la que sigue contando — si no, un click viejo podría disparar
+    // 300ms después y pisar la fecha que se acaba de elegir a mano.
+    clearTimeout(historicoNavTimeoutRef.current);
+    historicoNavRef.current = fecha;
     const requestId = ++historicoRequestIdRef.current;
     setHistoricoLoading(true);
     setHistoricoActivo(true);
@@ -1294,9 +1306,14 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     // paso TODAS las vacantes (activas incluidas), no sólo las inactivas. El
     // default histórico filtra por la propia columna nueva: excluye sólo las
     // Inactivas, deja ver ocupadas y vacantes (mientras sigan Activas). Se
-    // restaura el default en vivo al salir (ver salirHistorico).
-    setColumnFilters({ estado_plaza: ["Activa"] });
-    setTextFilters({});
+    // restaura el default en vivo al salir (ver salirHistorico). `preserveFilters`
+    // (navegación < >, ver más abajo) se salta este reseteo — el usuario está
+    // recorriendo fechas con un filtro/análisis propio activo y esperando
+    // seguir viendo el mismo recorte en cada fecha, no el default de vuelta.
+    if (!preserveFilters) {
+      setColumnFilters({ estado_plaza: ["Activa"] });
+      setTextFilters({});
+    }
     try {
       const res = await VacantesService.getPlantillaHistorica(fecha);
       const data = await res.json();
@@ -1321,8 +1338,38 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     }
   }, [setColumns, setSelectedCell, setColumnFilters, setTextFilters, toast]);
 
+  // Navegación día a día en modo histórico (< >) — a pedido del usuario para
+  // recorrer plantillas secuenciales en un análisis, sin reabrir el picker
+  // en cada fecha. Reusa `activarHistorico` (mismo fetch/caché de 24h que
+  // "Consultar otra fecha"). Rango válido: 2022-01-01 (inicio de MOV_POS/ANAM,
+  // ver sp_plantilla_historica) a hoy.
+  //
+  // Con debounce: la primera consulta a una fecha nueva tarda ~45-90s (ver
+  // `activarHistorico`), así que clickear varias veces seguido para saltar
+  // varios días NO debe disparar un fetch por click ni bloquearse mientras
+  // el anterior sigue en vuelo — se acumulan los días en `historicoNavRef`
+  // (con feedback visual inmediato en el label de fecha) y solo se dispara
+  // `activarHistorico` cuando el usuario deja de clickear (300ms de calma).
+  const HISTORICO_FECHA_MIN = "2022-01-01";
+  const historicoFechaMax = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  useEffect(() => () => clearTimeout(historicoNavTimeoutRef.current), []);
+  const navegarHistoricoDia = useCallback((delta) => {
+    const base = historicoNavRef.current || historicoFecha;
+    if (!base) return;
+    const d = new Date(`${base}T00:00:00`);
+    d.setDate(d.getDate() + delta);
+    const nuevaFecha = d.toISOString().slice(0, 10);
+    if (nuevaFecha < HISTORICO_FECHA_MIN || nuevaFecha > historicoFechaMax) return;
+    historicoNavRef.current = nuevaFecha;
+    setHistoricoFecha(nuevaFecha); // feedback inmediato del label, aunque el fetch todavía no se dispare
+    clearTimeout(historicoNavTimeoutRef.current);
+    historicoNavTimeoutRef.current = setTimeout(() => activarHistorico(nuevaFecha, { preserveFilters: true }), 300);
+  }, [historicoFecha, historicoFechaMax, activarHistorico]);
+
   const salirHistorico = useCallback(() => {
     historicoRequestIdRef.current++; // invalida cualquier fetch en vuelo
+    clearTimeout(historicoNavTimeoutRef.current);
+    historicoNavRef.current = null;
     setHistoricoActivo(false);
     setHistoricoFecha(null);
     setHistoricoResumen(null);
@@ -3073,16 +3120,48 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     setIsExportingConFotos(true);
     try {
       const visibleCols = dataColumns.filter(c => c.visible);
-      const posiciones = filteredSortedData.map(row => row.posicion);
-      const res = await VacantesService.exportarPlantillaDetalleConFotos(
-        {
-          posiciones,
-          columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
-          incluirFotos: true,
-          incluirDatosPersonales,
-        },
-        { signal: controller.signal }
-      );
+      let res;
+      if (historicoActivo) {
+        // El backend NO debe re-derivar el ocupante por posición (mostraría
+        // al de HOY, no al de la fecha consultada) — se le mandan las filas
+        // ya resueltas por PlantillaHistoricaView, mapeadas a valores de
+        // pantalla igual que handleExportExcel (mismo mapeo, sin backend).
+        const rows = filteredSortedData.map((row) => {
+          const mapped = {};
+          visibleCols.forEach((col) => {
+            if (col.key === "estado_nomina") mapped[col.key] = getEstadoNominaDisplay(row);
+            else if (col.key === "partida") mapped[col.key] = mapPartida(row[col.key], row.posicion);
+            else if (col.key === "tipo_de_contratacion") mapped[col.key] = mapTipoContratacion(row[col.key]);
+            else if (col.key === "rango") mapped[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
+            else mapped[col.key] = row[col.key];
+          });
+          // Necesario para la foto (busca por numempleado) aunque esa
+          // columna no esté entre las visibles/seleccionadas.
+          mapped.numempleado = row.numempleado || row.id_empleado || "";
+          return mapped;
+        });
+        res = await VacantesService.exportarPlantillaHistoricaConFotos(
+          {
+            fecha: historicoFecha,
+            rows,
+            columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
+            incluirFotos: true,
+            incluirDatosPersonales,
+          },
+          { signal: controller.signal }
+        );
+      } else {
+        const posiciones = filteredSortedData.map(row => row.posicion);
+        res = await VacantesService.exportarPlantillaDetalleConFotos(
+          {
+            posiciones,
+            columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
+            incluirFotos: true,
+            incluirDatosPersonales,
+          },
+          { signal: controller.signal }
+        );
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || "Error al generar el Excel con fotografías.");
@@ -3096,7 +3175,9 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Plantilla_Empleados_ConFotos.${extension}`;
+      a.download = historicoActivo
+        ? `Plantilla de Empleados (${historicoFecha})_ConFotos.${extension}`
+        : `Plantilla_Empleados_ConFotos.${extension}`;
       a.click();
       window.URL.revokeObjectURL(url);
       setIsExportFotosModalOpen(false);
@@ -3559,9 +3640,27 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
                 <CalendarDays className="size-4" />
+                <button
+                  type="button"
+                  onClick={() => navegarHistoricoDia(-1)}
+                  disabled={!historicoFecha || historicoFecha <= HISTORICO_FECHA_MIN}
+                  title="Día anterior"
+                  className="flex items-center justify-center size-5 rounded-lg border border-amber-300/70 dark:border-amber-800/60 bg-white dark:bg-slate-900 cursor-pointer hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="size-3.5" />
+                </button>
                 <span className="text-xs font-black uppercase tracking-wide">
                   Viendo la plantilla histórica del {historicoFecha ? formatDateEsMx(historicoFecha) : "..."}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => navegarHistoricoDia(1)}
+                  disabled={!historicoFecha || historicoFecha >= historicoFechaMax}
+                  title="Día siguiente"
+                  className="flex items-center justify-center size-5 rounded-lg border border-amber-300/70 dark:border-amber-800/60 bg-white dark:bg-slate-900 cursor-pointer hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRightIcon className="size-3.5" />
+                </button>
                 {historicoLoading && <Loader2 className="size-3.5 animate-spin" />}
               </div>
               <div className="flex items-center gap-2">
@@ -4462,12 +4561,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         isExporting={isExportingConFotos}
         onCancelExport={handleCancelExportConFotos}
         rowCount={filteredSortedData.length}
-        // La ruta "con fotos" exporta vía backend (ExportarPlantillaDetalleConFotosView),
-        // que re-consulta EMPLEADOS_COMPLETOS_SIG EN VIVO por posición — en modo
-        // histórico eso mostraría el ocupante ACTUAL, no el de la fecha consultada.
-        // Se oculta la opción para forzar la ruta 100% client-side (`handleExportExcel`,
-        // ya usa `filteredSortedData`, que sí es la fila histórica correcta).
-        canIncluirFotos={canViewFotoDetalle && !historicoActivo}
+        // En modo histórico, "con fotos" pasa por ExportarPlantillaHistoricaConFotosView
+        // (manda las filas YA resueltas por PlantillaHistoricaView, no re-consulta
+        // por posición) en vez de ExportarPlantillaDetalleConFotosView — ver
+        // handleConfirmExportConFotos.
+        canIncluirFotos={canViewFotoDetalle}
         showDatosPersonalesOption
       />
     </div>
