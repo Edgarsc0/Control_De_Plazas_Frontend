@@ -155,14 +155,25 @@ const STATUS_BADGE_STYLES = {
 // Códigos crudos (A/S/L/P) tal como llegan de EmpleadosCompletosSig; las
 // etiquetas usan la nomenclatura de la plantilla de Excel (Permiso/Permiso
 // Retribuido), no los nombres históricos Licencia/Licencia Médica.
-const mapEstadoNomina = (val) => {
-  if (!val || val.trim() === "") return "Vacante";
+//
+// `valEstat` (columna `val_estat`, "Ocupada"/"Vacante") es un respaldo para
+// cuando `Estado Nómina` llega vacío pese a que la plaza sí tiene ocupante
+// real: detectado en datos reales (2026-09-02) 181 posiciones con
+// Val_estat="Ocupada" (nombres/RFC/CURP capturados, Motivo Ingreso/Promoción/
+// etc. con fecha efectiva reciente o incluso futura) pero Estado Nómina vacío
+// — la nómina aún no le asigna código A/S/L/P a la acción de personal, pero la
+// posición ya está asignada. Sin este respaldo, mapEstadoNomina devolvía
+// "Vacante" y esas filas se mostraban/filtraban como vacantes mostrando al
+// mismo tiempo los datos del ocupante real (bug reportado por el usuario).
+const mapEstadoNomina = (val, valEstat) => {
+  const vacanteFallback = valEstat === "Ocupada" ? "Activo" : "Vacante";
+  if (!val || val.trim() === "") return vacanteFallback;
   switch (val.trim().toUpperCase()) {
     case "A": return "Activo";
     case "S": return "Suspendido";
     case "L": return "Permiso";
     case "P": return "Permiso Retribuido";
-    default: return "Vacante";
+    default: return vacanteFallback;
   }
 };
 
@@ -176,7 +187,7 @@ const mapEstadoNomina = (val) => {
 //    mutuamente excluyentes en el Excel de origen.
 //  - "Solicitada": tiene datos de candidato capturados (ver SOLICITUD_COLS).
 const getEstadoNominaDisplay = (row) => {
-  const base = mapEstadoNomina(row.estado_nomina);
+  const base = mapEstadoNomina(row.estado_nomina, row.val_estat);
   if (base !== "Vacante") return base;
   if (String(row.marca_no_disponible || "").trim() !== "") return "No Disponible";
   return hasSolicitudData(row) ? "Solicitada" : base;
@@ -1853,7 +1864,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   }, []);
 
   const getAdvCellValue = useCallback((row, key) =>
-    key === "estado_nomina" ? mapEstadoNomina(row[key]) : (row[key] === null || row[key] === undefined ? "" : String(row[key])), []);
+    key === "estado_nomina" ? mapEstadoNomina(row[key], row.val_estat) : (row[key] === null || row[key] === undefined ? "" : String(row[key])), []);
 
   // Sin lista hardcodeada: si los valores de la columna en el dataset actual
   // parsean como número, se habilitan las condiciones >, <, >=, <= en el modal.
@@ -1886,7 +1897,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // que el queryset del dropdown sea EMPLEADOS_COMPLETOS_SIG INNER JOIN MOV_POS
   // (última) WHERE Estado Psn='A' AND Estado Nómina IN ('A','P','L','S').
   const detalleParaFiltros = useMemo(
-    () => detalle.filter(row => mapEstadoNomina(row.estado_nomina) !== "Vacante"),
+    () => detalle.filter(row => mapEstadoNomina(row.estado_nomina, row.val_estat) !== "Vacante"),
     [detalle]
   );
 
@@ -2158,7 +2169,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     detalle.forEach((row) => {
       const blob = normalizeForSearch(
         Object.entries(row)
-          .map(([key, val]) => (key === "estado_nomina" ? mapEstadoNomina(val) : String(val || "")))
+          .map(([key, val]) => (key === "estado_nomina" ? mapEstadoNomina(val, row.val_estat) : String(val || "")))
           .join(" ")
       );
       map.set(row, blob);
@@ -2183,7 +2194,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         // replica aquí la misma exclusión, el filtro aplicado "encuentra" filas
         // vacantes que el usuario nunca vio ni pudo excluir en el dropdown.
         const esColumnaVacancia = isVacancyScopedColumn(colKey);
-        if (!esColumnaVacancia && !filtroIncluyeVacantes && mapEstadoNomina(row.estado_nomina) === "Vacante") return false;
+        if (!esColumnaVacancia && !filtroIncluyeVacantes && mapEstadoNomina(row.estado_nomina, row.val_estat) === "Vacante") return false;
         if (!selectedVals.includes(getFilterCellValue(row, colKey))) return false;
       }
       for (const [colKey, filterObj] of Object.entries(deferredTextFilters)) {
@@ -2234,8 +2245,8 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     const { key, direction } = sortConfig;
     const result = [...filteredData];
     result.sort((a, b) => {
-      let valA = key === "estado_nomina" ? mapEstadoNomina(a[key]) : String(a[key] || "").trim();
-      let valB = key === "estado_nomina" ? mapEstadoNomina(b[key]) : String(b[key] || "").trim();
+      let valA = key === "estado_nomina" ? mapEstadoNomina(a[key], a.val_estat) : String(a[key] || "").trim();
+      let valB = key === "estado_nomina" ? mapEstadoNomina(b[key], b.val_estat) : String(b[key] || "").trim();
       // Posiciones sin nivel jerárquico (laudos "103L...", etc.) van siempre al
       // final, sin importar la dirección — no tienen un nj real para comparar.
       if (key === "nj") {
@@ -3370,7 +3381,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // usa el resto del tab (mapEstadoNomina !== "Vacante"), no una heurística
   // nueva — así el menú nunca contradice lo que la tabla ya muestra.
   const notifyPosicion = contextMenu?.colKey === "posicion" ? contextMenu.row?.posicion : null;
-  const notifyOcupada = notifyPosicion ? mapEstadoNomina(contextMenu.row?.estado_nomina) !== "Vacante" : null;
+  const notifyOcupada = notifyPosicion ? mapEstadoNomina(contextMenu.row?.estado_nomina, contextMenu.row?.val_estat) !== "Vacante" : null;
   const notifyTipo = notifyOcupada ? "VACANTE" : "OCUPACION";
   const notifySub = notifyPosicion ? suscripcionesPosicion.find(notifyPosicion, notifyTipo) : null;
 
