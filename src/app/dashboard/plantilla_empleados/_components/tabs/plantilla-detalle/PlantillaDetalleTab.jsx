@@ -1288,7 +1288,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const historicoNavRef = useRef(null); // última fecha acumulada por < >, aún no disparada (o en vuelo)
   const historicoNavTimeoutRef = useRef(null);
 
-  const activarHistorico = useCallback(async (fecha) => {
+  const activarHistorico = useCallback(async (fecha, { preserveFilters = false } = {}) => {
     // Cualquier activación "de golpe" (picker, tarjeta de resumen, etc.)
     // cancela un salto de < > pendiente en debounce y resincroniza la base
     // desde la que sigue contando — si no, un click viejo podría disparar
@@ -1306,9 +1306,14 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     // paso TODAS las vacantes (activas incluidas), no sólo las inactivas. El
     // default histórico filtra por la propia columna nueva: excluye sólo las
     // Inactivas, deja ver ocupadas y vacantes (mientras sigan Activas). Se
-    // restaura el default en vivo al salir (ver salirHistorico).
-    setColumnFilters({ estado_plaza: ["Activa"] });
-    setTextFilters({});
+    // restaura el default en vivo al salir (ver salirHistorico). `preserveFilters`
+    // (navegación < >, ver más abajo) se salta este reseteo — el usuario está
+    // recorriendo fechas con un filtro/análisis propio activo y esperando
+    // seguir viendo el mismo recorte en cada fecha, no el default de vuelta.
+    if (!preserveFilters) {
+      setColumnFilters({ estado_plaza: ["Activa"] });
+      setTextFilters({});
+    }
     try {
       const res = await VacantesService.getPlantillaHistorica(fecha);
       const data = await res.json();
@@ -1358,7 +1363,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     historicoNavRef.current = nuevaFecha;
     setHistoricoFecha(nuevaFecha); // feedback inmediato del label, aunque el fetch todavía no se dispare
     clearTimeout(historicoNavTimeoutRef.current);
-    historicoNavTimeoutRef.current = setTimeout(() => activarHistorico(nuevaFecha), 300);
+    historicoNavTimeoutRef.current = setTimeout(() => activarHistorico(nuevaFecha, { preserveFilters: true }), 300);
   }, [historicoFecha, historicoFechaMax, activarHistorico]);
 
   const salirHistorico = useCallback(() => {
