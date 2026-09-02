@@ -2,11 +2,12 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput, Archive } from "lucide-react";
+import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput, Archive, Search } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
+import { normalizeForSearch } from "@/utils/columnFilters";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import CodigoFederalCell from "./CodigoFederalCell";
@@ -236,14 +237,93 @@ export default function AnuenciaTab({ cardRef }) {
     overscan: 12,
   });
 
+  // Índice pendiente de desplazamiento tras un salto de la búsqueda global
+  // (ver irAResultadoBusqueda) — cuando el salto cambia de hoja, el efecto de
+  // abajo no puede hacer scrollToIndex en el mismo tick porque el
+  // virtualizador todavía cuenta las filas de la hoja ANTERIOR; se deja aquí
+  // para que ese efecto lo consuma en cuanto `hojaActivaId` ya refleje la
+  // hoja nueva (y el virtualizador, sus filas).
+  const scrollPendienteRef = useRef(null);
+
   // Al cambiar de hoja, el contenedor conserva el scroll de la hoja anterior
   // (es el mismo <div>, sólo cambian los datos) — sin esto, una hoja corta
-  // podría abrir "a la mitad" si la anterior estaba muy desplazada.
+  // podría abrir "a la mitad" si la anterior estaba muy desplazada. Si hay un
+  // índice pendiente (salto desde la búsqueda global), se desplaza ahí en vez
+  // de resetear a 0.
   useEffect(() => {
-    scrollCuadroRef.current?.scrollTo({ top: 0 });
-    virtualizadorFilas.scrollToOffset(0);
+    const indicePendiente = scrollPendienteRef.current;
+    scrollPendienteRef.current = null;
+    if (indicePendiente != null) {
+      virtualizadorFilas.scrollToIndex(indicePendiente, { align: "center" });
+    } else {
+      scrollCuadroRef.current?.scrollTo({ top: 0 });
+      virtualizadorFilas.scrollToOffset(0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hojaActivaId]);
+
+  // --- Búsqueda global de plazas (cualquier hoja del libro) -----------------
+  // El usuario captura un Anexo 2 con varias hojas (una por Unidad
+  // Administrativa) y necesita ubicar una plaza concreta sin recordar en cuál
+  // quedó — se busca sobre todas las hojas a la vez y, al elegir un
+  // resultado, se cambia de hoja (si hace falta) y se desplaza+resalta la fila.
+  const [busquedaGlobal, setBusquedaGlobal] = useState("");
+  const [busquedaAbierta, setBusquedaAbierta] = useState(false);
+  const [filaResaltadaId, setFilaResaltadaId] = useState(null);
+  const busquedaContenedorRef = useRef(null);
+
+  const CAMPOS_BUSCABLES_FILA = ["ramo", "unidad_responsable", "codigo", "denominacion_puesto", "nivel_salarial", "rango_salarial", "numero_plazas", "numero_horas", "tipo_contratacion", "fecha_alta_solicitada", "oficio_autorizacion", "_unidadDeNegocioResuelta"];
+
+  const resultadosBusquedaGlobal = useMemo(() => {
+    const termino = normalizeForSearch(busquedaGlobal).trim();
+    if (!termino) return [];
+    const resultados = [];
+    for (const h of hojas) {
+      h.filas.forEach((f, indice) => {
+        const blob = normalizeForSearch(CAMPOS_BUSCABLES_FILA.map((k) => f[k]).join(" "));
+        if (blob.includes(termino)) {
+          resultados.push({ hojaId: h._id, hojaNombre: h.nombre, filaId: f._id, indice, fila: f });
+        }
+      });
+    }
+    return resultados.slice(0, 40);
+  }, [busquedaGlobal, hojas]);
+
+  // Cierra el desplegable al hacer clic fuera (mismo criterio que el resto de
+  // dropdowns del módulo, ver ColumnFilterDropdown en Plantilla Detalle).
+  useEffect(() => {
+    if (!busquedaAbierta) return;
+    const alHacerClicFuera = (e) => {
+      if (busquedaContenedorRef.current && !busquedaContenedorRef.current.contains(e.target)) setBusquedaAbierta(false);
+    };
+    document.addEventListener("mousedown", alHacerClicFuera);
+    return () => document.removeEventListener("mousedown", alHacerClicFuera);
+  }, [busquedaAbierta]);
+
+  // El resaltado de la fila encontrada se apaga solo, no hace falta que el
+  // usuario lo cierre.
+  useEffect(() => {
+    if (!filaResaltadaId) return;
+    const t = setTimeout(() => setFilaResaltadaId(null), 2500);
+    return () => clearTimeout(t);
+  }, [filaResaltadaId]);
+
+  const irAResultadoBusqueda = useCallback(
+    (resultado) => {
+      setFilaResaltadaId(resultado.filaId);
+      if (resultado.hojaId === hojaActiva._id) {
+        // Misma hoja: no dispara el efecto de cambio de hoja, hay que
+        // desplazar aquí mismo.
+        virtualizadorFilas.scrollToIndex(resultado.indice, { align: "center" });
+      } else {
+        scrollPendienteRef.current = resultado.indice;
+        setHojaActivaId(resultado.hojaId);
+      }
+      setBusquedaGlobal("");
+      setBusquedaAbierta(false);
+    },
+    [hojaActiva._id, virtualizadorFilas]
+  );
 
   // Total de columnas reales del cuadro (para los colSpan de las filas
   // espaciadoras y la de mensajes) — 12 columnas del formato + la de Unidad
@@ -1083,6 +1163,69 @@ export default function AnuenciaTab({ cardRef }) {
           </div>
         </div>
 
+        {/* Búsqueda global: cualquier plaza capturada en CUALQUIER hoja del
+            libro, no sólo la que está abierta — al elegir un resultado salta
+            a su hoja y la resalta (ver irAResultadoBusqueda). */}
+        <div ref={busquedaContenedorRef} className="relative mb-4">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={busquedaGlobal}
+              onChange={(e) => {
+                setBusquedaGlobal(e.target.value);
+                setBusquedaAbierta(true);
+              }}
+              onFocus={() => setBusquedaAbierta(true)}
+              placeholder="Buscar plaza en todo el Anexo 2 (código, puesto, unidad...)"
+              className="w-full pl-9 pr-8 py-2 text-[11px] font-medium bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-xl outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+            />
+            {busquedaGlobal && (
+              <button
+                onClick={() => {
+                  setBusquedaGlobal("");
+                  setBusquedaAbierta(false);
+                }}
+                title="Limpiar búsqueda"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+
+          {busquedaAbierta && busquedaGlobal.trim() !== "" && (
+            <div className="absolute z-20 top-full left-0 mt-1 w-full max-w-sm max-h-80 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl shadow-slate-900/10 dark:shadow-black/40 py-1.5">
+              {resultadosBusquedaGlobal.length === 0 ? (
+                <p className="px-3 py-2.5 text-[11px] font-medium text-slate-400">Sin resultados en ninguna hoja.</p>
+              ) : (
+                resultadosBusquedaGlobal.map((r) => (
+                  <button
+                    key={r.filaId}
+                    onClick={() => irAResultadoBusqueda(r)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  >
+                    <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider text-[#10243e] dark:text-[#bc955c] bg-[#10243e]/10 dark:bg-[#bc955c]/10">
+                      {r.hojaNombre || "(sin nombre)"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">
+                        {r.fila.codigo || "(sin código)"} — {r.fila.denominacion_puesto || "(sin denominación)"}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 truncate">
+                        {r.fila._unidadDeNegocioResuelta || r.fila.unidad_responsable || "—"}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+              {resultadosBusquedaGlobal.length === 40 && (
+                <p className="px-3 pt-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Mostrando los primeros 40 · afina la búsqueda</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* ---- Pestañas del libro ----
             Van ARRIBA de la hoja y no abajo como en Excel: el formato es muy
             alto (cuadro + justificación + firma), así que unas pestañas al pie
@@ -1248,7 +1391,12 @@ export default function AnuenciaTab({ cardRef }) {
                     const fila = hojaActiva.filas[filaVirtual.index];
                     if (!fila) return null;
                     return (
-                      <tr key={fila._id} className="group">
+                      <tr
+                        key={fila._id}
+                        className={`group transition-colors duration-500 ${
+                          fila._id === filaResaltadaId ? "bg-amber-100 dark:bg-amber-900/40" : ""
+                        }`}
+                      >
                         {ANEXO2_COLUMNAS.map((col) => (
                           <Fragment key={col.key}>
                             <td className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle">
