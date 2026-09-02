@@ -583,6 +583,24 @@ export const VacantesService = {
     },
 
     /**
+     * Reconstruye la plantilla completa (una fila por plaza, con su estado
+     * Activa/Inactiva y su ocupante si aplica) a una fecha pasada arbitraria,
+     * más el desglose totales/activas/inactivas/ocupadas/vacantes a esa
+     * misma fecha. Tarda ~1 minuto la primera vez que se consulta una fecha
+     * (recorre MOV_POS/cp_tbl_mov_completo_29_05_26 completos); el backend
+     * cachea 24h por fecha.
+     * @param {string} fecha - YYYY-MM-DD, entre 2022-01-01 y hoy.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getPlantillaHistorica: (fecha, options = {}) => {
+        return apiFetch(`/plantilla/plantilla_historica/${buildQuery({ fecha })}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene el detalle de posiciones que se crearon (activas) o
      * desactivaron (inactivas) entre dos cortes mensuales consecutivos.
      * @param {{tipo: 'creacion'|'desactivacion', fechaActual: string, fechaAnterior: string}} params

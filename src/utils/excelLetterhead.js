@@ -39,8 +39,16 @@ function fmtFechaHoraGeneracion() {
  * @param {import('exceljs').Worksheet} worksheet
  * @param {number} numCols - número de columnas de la hoja, para saber hasta dónde fusionar.
  * @param {number} [logoWidth] - ancho del logo en px; por defecto 260 (el tamaño estándar del resto del sistema).
+ * @param {?string} [extraLegend] - Leyenda adicional (ej. "Plantilla histórica al DD/MM/AAAA")
+ *   insertada como una fila extra bajo la leyenda de generación — usada por
+ *   exportaciones "no en vivo" (ej. Plantilla Detalle en modo histórico) para
+ *   dejar constancia de qué representan los datos sin tocar el resto de
+ *   generadores de Excel del sistema (por defecto `null`, sin fila extra).
+ * @returns {number} Número de filas que ocupó el membretado — el llamador
+ *   debe empezar su contenido en la fila `return + 1` (no asumir 4 fijo:
+ *   cambia si se pasa `extraLegend`).
  */
-export function addExcelLetterhead(workbook, worksheet, numCols, logoWidth = LOGO_DISPLAY_WIDTH) {
+export function addExcelLetterhead(workbook, worksheet, numCols, logoWidth = LOGO_DISPLAY_WIDTH, extraLegend = null) {
   const cols = Math.max(numCols, 1);
   const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
 
@@ -69,7 +77,18 @@ export function addExcelLetterhead(workbook, worksheet, numCols, logoWidth = LOG
   legendCell.alignment = { vertical: 'middle', horizontal: 'center' };
   worksheet.getRow(3).height = 18;
 
-  worksheet.getRow(4).height = 8;
+  let nextRow = 4;
+  if (extraLegend) {
+    worksheet.mergeCells(nextRow, 1, nextRow, cols);
+    const extraCell = worksheet.getCell(nextRow, 1);
+    extraCell.value = extraLegend;
+    extraCell.font = { bold: true, italic: true, size: 9, color: { argb: 'FF621F32' }, name: 'Calibri' };
+    extraCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    worksheet.getRow(nextRow).height = 18;
+    nextRow += 1;
+  }
 
-  return LETTERHEAD_ROWS;
+  worksheet.getRow(nextRow).height = 8;
+
+  return extraLegend ? nextRow : LETTERHEAD_ROWS;
 }
