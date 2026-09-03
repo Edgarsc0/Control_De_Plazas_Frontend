@@ -21,6 +21,13 @@ const OVERSCAN = 6;
 // únicos: renderizar el checkbox-list ahí no sirve como filtro categórico,
 // nadie escanea miles de opciones. Se oculta la lista hasta que el usuario
 // busque, dejando el buscador con condición como único camino práctico.
+//
+// Aun así, no mostrar NADA antes de escribir se sentía como que el filtro
+// estaba roto (reportado por el usuario) — se muestra una muestra de las
+// primeras SAMPLE_SIZE, sólo para que quede claro que sí hay datos y cómo se
+// ven; el buscador sigue siendo el único camino para llegar a un valor que no
+// esté en esa muestra.
+const SAMPLE_SIZE = 100;
 
 /** Envuelve en `<mark>` la subcadena de `text` que matchea `needle` (sin distinguir acentos/mayúsculas). */
 function highlightMatch(text, needle) {
@@ -614,8 +621,33 @@ export default function ColumnFilterDropdown({
                             </div>
                           </button>
                         )}
-                        <div className="text-center py-8 px-4 text-[10px] font-black uppercase text-slate-400">
-                          Escribe para buscar entre {dropdownValues.allVals.length.toLocaleString("es-MX")} valores
+                        {sliced
+                          .filter((v) => v.value !== "")
+                          .slice(0, SAMPLE_SIZE)
+                          .map((item) => {
+                            const { value, count, reachable } = item;
+                            const isChecked = reachable && tempSelectedSet.has(value);
+                            return (
+                              <button
+                                key={value}
+                                type="button"
+                                disabled={!reachable}
+                                title={reachable ? undefined : "No disponible con los filtros actuales"}
+                                onClick={reachable ? () => setTempSelectedValues((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value])) : undefined}
+                                className={`w-full flex items-center gap-3 px-3 h-9 rounded-xl transition-colors text-left ${!reachable ? "opacity-40 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                              >
+                                <div className={`size-4 rounded-md border flex items-center justify-center transition-all shrink-0 ${isChecked ? "bg-[#621f32] border-[#621f32] dark:bg-[#bc955c] dark:border-[#bc955c]" : "border-slate-300 dark:border-slate-600"}`}>
+                                  {isChecked && <Check className="size-2.5 text-white dark:text-[#3e131f]" strokeWidth={4} />}
+                                </div>
+                                <div className="flex flex-1 items-center justify-between min-w-0 gap-2">
+                                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">{value}</span>
+                                  <span className="text-[9px] font-black text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-lg shrink-0">{count}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        <div className="text-center py-3 px-4 text-[10px] font-black uppercase text-slate-400">
+                          Mostrando {Math.min(SAMPLE_SIZE, dropdownValues.allVals.length).toLocaleString("es-MX")} de {dropdownValues.allVals.length.toLocaleString("es-MX")} — escribe para buscar el resto
                         </div>
                       </>
                     ) : sliced.length === 0 ? (

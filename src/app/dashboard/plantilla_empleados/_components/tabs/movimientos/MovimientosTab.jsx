@@ -2037,7 +2037,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
               { icon: History, label: "Historial de Cambios", onClick: openHistorialModal },
             ]}
-            chips={activeStatusFilter.map(status => (
+            chips={activeOcupacionFilter ? (
+              <button key="ocupacion" onClick={(e) => handleOcupacionFilter(e, activeOcupacionFilter)} className="shrink-0 flex items-center gap-1.5 px-3 min-h-11 py-2 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: activeOcupacionFilter === "Ocupada" ? "#10b98112" : "#bc955c12", color: activeOcupacionFilter === "Ocupada" ? "#059669" : "#8d6a3d", borderColor: activeOcupacionFilter === "Ocupada" ? "#10b98130" : "#bc955c30" }}>
+                <span>{activeOcupacionFilter === "Ocupada" ? "Ocupadas" : "Vacantes"}</span><X className="size-3" />
+              </button>
+            ) : activeStatusFilter.map(status => (
               <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 min-h-11 py-2 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}>
                 <span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" />
               </button>
@@ -2103,7 +2107,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}><span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" /></button>))}</div>
+              <div className="flex flex-wrap items-center gap-2">{activeOcupacionFilter ? (<button key="ocupacion" onClick={(e) => handleOcupacionFilter(e, activeOcupacionFilter)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: activeOcupacionFilter === "Ocupada" ? "#10b98112" : "#bc955c12", color: activeOcupacionFilter === "Ocupada" ? "#059669" : "#8d6a3d", borderColor: activeOcupacionFilter === "Ocupada" ? "#10b98130" : "#bc955c30" }}><span>{activeOcupacionFilter === "Ocupada" ? "Ocupadas" : "Vacantes"}</span><X className="size-3" /></button>) : activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}><span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" /></button>))}</div>
             </div>
             <div className="flex items-center gap-3 lg:shrink-0">
               {/* Pagination controls */}
