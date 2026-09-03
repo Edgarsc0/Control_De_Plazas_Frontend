@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { X, FilePlus2, FolderOpen, Loader2, FileWarning, Search, ChevronLeft, Plus, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { useToast } from "@/hooks/useToast";
 import { VacantesService } from "@/services/vacantes.service";
 import { crearFilaVacia, crearHojaVacia, ordenarFilasPorNivel, OFICIO_AUTORIZACION_EVENTUAL } from "./anexo2Schema";
+import { useAnuenciaAnexoUpdatesRealtime } from "../../../_hooks/useAnuenciaAnexoUpdatesRealtime";
 
 /**
  * Agrega plazas seleccionadas en Mov. Posiciones (clic derecho sobre la
@@ -110,6 +111,46 @@ export default function AgregarAAnexo2Modal({ open, onClose, plazas, onAgregado 
     setDetalleAnexo(null);
     setNombreHojaNueva("");
   };
+
+  // Aviso en vivo (SSE, ver useAnuenciaAnexoUpdatesRealtime.js) de que algún
+  // Anexo 2 cambió en el servidor — típicamente porque alguien creó uno
+  // nuevo, le agregó/quitó una hoja, o lo eliminó desde AnuenciaTab.jsx /
+  // AnuenciaHistorialModal.jsx mientras este modal estaba abierto. Sin esto,
+  // el paso "anexo" (la lista) y el paso "hoja" (las hojas del Anexo 2
+  // elegido) sólo se cargaban una vez al abrir el modal y nunca se enteraban
+  // de cambios de otra sesión. El evento solo trae el id (ver docstring de
+  // `_notificar_actualizacion_anuencia_anexo` en el backend), así que aquí
+  // siempre se refresca con un fetch fresco, nunca con el payload del SSE.
+  const handleAnexoActualizadoRemoto = useCallback((anexoId, usuarioNombre) => {
+    if (!open) return;
+    if (paso === "anexo") {
+      VacantesService.getAnuenciaAnexos()
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => { if (data) setAnexos(Array.isArray(data) ? data : []); })
+        .catch(() => {
+          // No crítico: la lista ya cargada sigue siendo utilizable.
+        });
+      return;
+    }
+    if (paso === "hoja" && anexoSeleccionado && String(anexoId) === String(anexoSeleccionado.id)) {
+      VacantesService.getAnuenciaAnexo(anexoSeleccionado.id)
+        .then((res) => {
+          if (res.status === 404) {
+            toast.warning(`${usuarioNombre || "Alguien"} eliminó "${anexoSeleccionado.nombre_archivo}" desde otra sesión.`);
+            handleVolver();
+            return null;
+          }
+          if (!res.ok) throw new Error();
+          return res.json();
+        })
+        .then((detalle) => { if (detalle) setDetalleAnexo(detalle); })
+        .catch(() => {
+          // No crítico: la copia local sigue siendo utilizable.
+        });
+    }
+  }, [open, paso, anexoSeleccionado, toast]);
+
+  useAnuenciaAnexoUpdatesRealtime(handleAnexoActualizadoRemoto);
 
   /** Resuelve una plaza vía el mismo autollenado que usa la captura manual
    * del Anexo 2 y arma su `fila` — null si el código ya no existe. */
