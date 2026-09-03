@@ -28,7 +28,7 @@ const formatFecha = (iso) => (iso ? formatDateEsMx(iso, { withTime: true }) : "�
  * Todas quedan auditadas (ver `generado_por`/`generado_en`/`veces_generado`/
  * `eliminado_por`/`eliminado_en` en el modelo).
  */
-export default function AnuenciaHistorialModal({ open, onClose, onCargar }) {
+export default function AnuenciaHistorialModal({ open, onClose, onCargar, anexoIdActual, onEliminadoAnexoActual }) {
   const { toast } = useToast();
   const [anexos, setAnexos] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -118,7 +118,15 @@ export default function AnuenciaHistorialModal({ open, onClose, onCargar }) {
       const res = await VacantesService.eliminarAnuenciaAnexo(id);
       if (!res.ok) throw new Error("No se pudo eliminar el anexo.");
       setAnexos((prev) => prev.filter((a) => a.id !== id));
-      toast.success("Anexo 2 eliminado — sus plazas ya no cuentan como \"en anuencia\".");
+      // Si el anexo que se acaba de eliminar es justo el que está abierto en
+      // el editor detrás de este modal, seguir mostrándolo/dejando editarlo
+      // no tiene sentido — ya no existe como anexo activo. AnuenciaTab.jsx
+      // resuelve esto cargando una plantilla en blanco de inmediato.
+      if (String(id) === String(anexoIdActual)) {
+        onEliminadoAnexoActual?.();
+      } else {
+        toast.success("Anexo 2 eliminado — sus plazas ya no cuentan como \"en anuencia\".");
+      }
     } catch (err) {
       toast.error(err.message || "No se pudo eliminar el anexo.");
     } finally {

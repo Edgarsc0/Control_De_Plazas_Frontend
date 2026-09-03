@@ -605,7 +605,7 @@ export default function AnuenciaTab({ cardRef }) {
     setHojaAEliminar(hoja);
   }, [eliminarHoja]);
 
-  const ejecutarNuevoAnexo = useCallback(() => {
+  const ejecutarNuevoAnexo = useCallback((opts = {}) => {
     peticiones.current = {};
     const hoja = crearHojaVacia("Hoja 1");
     setHojas([hoja]);
@@ -629,8 +629,25 @@ export default function AnuenciaTab({ cardRef }) {
     } catch (err) {
       console.error("No se pudo borrar el borrador de Anuencia:", err);
     }
-    toast.success("Anexo nuevo — plantilla en blanco lista para capturar.");
+    toast.success(opts.mensaje || "Anexo nuevo — plantilla en blanco lista para capturar.");
   }, [toast, revision]);
+
+  /** El Anexo 2 que se tenía abierto se eliminó (aquí mismo, ver
+   * AnuenciaHistorialModal, o desde otra sesión, ver
+   * handleAnexoActualizadoRemoto) — seguir editándolo no tiene sentido,
+   * pasa a una plantilla en blanco de inmediato en vez de dejarlo ahí
+   * "vivo" apuntando a un anexo que ya no existe como activo. Nunca pide
+   * confirmar aunque haya cambios sin guardar: borrarlo YA es una decisión
+   * explícita (local) o un hecho consumado (remoto) — insistir con un
+   * modal encima sólo estorbaría.
+   */
+  const manejarAnexoEliminado = useCallback((usuarioNombre) => {
+    ejecutarNuevoAnexo({
+      mensaje: usuarioNombre
+        ? `${usuarioNombre} eliminó este Anexo 2 desde otra sesión — se cargó una plantilla en blanco.`
+        : "El Anexo 2 que tenías abierto se eliminó — se cargó una plantilla en blanco.",
+    });
+  }, [ejecutarNuevoAnexo]);
 
   /** Botón "Nuevo anexo": si hay algo sin guardar, pide confirmar primero
    * (ver ConfirmModal más abajo) — nunca se descarta captura en silencio. */
@@ -905,12 +922,14 @@ export default function AnuenciaTab({ cardRef }) {
   // Aviso en vivo (SSE, ver useAnuenciaAnexoUpdatesRealtime.js) de que ESTE
   // Anexo 2 cambió en el servidor — típicamente porque alguien le agregó
   // plazas desde el menú contextual de Mov. Posiciones (ver
-  // AgregarAAnexo2Modal.jsx) mientras esta pestaña lo tenía abierto. Si no
-  // hay nada sin guardar aquí, se trae el detalle fresco y se recarga solo
-  // (silencioso: sin saltar de hoja ni con el toast de "cargado" manual). Si
-  // SÍ hay captura sin guardar en curso, pisarla perdería trabajo del
-  // usuario — se avisa en su lugar, sin tocar nada, para que guarde y vuelva
-  // a abrir el anexo cuando pueda.
+  // AgregarAAnexo2Modal.jsx), o porque alguien lo eliminó (ver
+  // AnuenciaHistorialModal.jsx), mientras esta pestaña lo tenía abierto. Si
+  // no hay nada sin guardar aquí, se trae el detalle fresco y se recarga
+  // solo (silencioso: sin saltar de hoja ni con el toast de "cargado"
+  // manual) — o, si ya no existe (eliminado), se pasa a una plantilla en
+  // blanco (ver `manejarAnexoEliminado`), igual que al eliminarlo desde
+  // aquí mismo. Si SÍ hay captura sin guardar en curso, pisarla perdería
+  // trabajo del usuario — se avisa en su lugar, sin tocar nada.
   const handleAnexoActualizadoRemoto = useCallback((anexoId, usuarioNombre) => {
     if (!anexoIdActual || String(anexoId) !== String(anexoIdActual)) return;
     // Eco del guardado/descarga que ESTA misma pestaña acaba de hacer (ver
@@ -919,18 +938,22 @@ export default function AnuenciaTab({ cardRef }) {
     if (Date.now() - ultimoGuardadoLocalRef.current < 4000) return;
     if (hayCambiosSinGuardar) {
       toast.warning(
-        `${usuarioNombre || "Alguien"} agregó plazas a este Anexo 2 desde otra sesión. Guarda tu captura y vuelve a abrirlo para verlas.`
+        `${usuarioNombre || "Alguien"} cambió este Anexo 2 desde otra sesión (le agregó plazas o lo eliminó). Guarda tu captura y vuelve a abrirlo para ver el estado más reciente.`
       );
       return;
     }
     VacantesService.getAnuenciaAnexo(anexoIdActual)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo traer el anexo actualizado."))))
-      .then((detalle) => handleCargarDesdeHistorial(detalle, { silencioso: true }))
+      .then((res) => {
+        if (res.status === 404) { manejarAnexoEliminado(usuarioNombre); return null; }
+        if (!res.ok) throw new Error("No se pudo traer el anexo actualizado.");
+        return res.json();
+      })
+      .then((detalle) => { if (detalle) handleCargarDesdeHistorial(detalle, { silencioso: true }); })
       .catch(() => {
         // No crítico: la copia local sigue siendo válida, el usuario puede
         // recargar a mano (Historial) cuando quiera.
       });
-  }, [anexoIdActual, hayCambiosSinGuardar, handleCargarDesdeHistorial, toast]);
+  }, [anexoIdActual, hayCambiosSinGuardar, handleCargarDesdeHistorial, manejarAnexoEliminado, toast]);
 
   useAnuenciaAnexoUpdatesRealtime(handleAnexoActualizadoRemoto);
 
@@ -1607,6 +1630,8 @@ export default function AnuenciaTab({ cardRef }) {
         open={isHistorialOpen}
         onClose={() => setIsHistorialOpen(false)}
         onCargar={handleCargarDesdeHistorial}
+        anexoIdActual={anexoIdActual}
+        onEliminadoAnexoActual={() => { manejarAnexoEliminado(); setIsHistorialOpen(false); }}
       />
 
       {puedeVerEliminados && (

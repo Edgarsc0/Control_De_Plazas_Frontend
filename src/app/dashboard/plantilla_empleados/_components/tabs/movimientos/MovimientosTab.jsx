@@ -43,6 +43,7 @@ import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
 import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
 import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
+import { useAnuenciaAnexoUpdatesRealtime } from "../../../_hooks/useAnuenciaAnexoUpdatesRealtime";
 import { getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -489,6 +490,22 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     movPosDataCacheRef.current = {};
     setRefreshTick((t) => t + 1);
   }, [initialMovPosData]);
+
+  // Aviso en vivo (SSE) de que un Anexo 2 cambió en el servidor —
+  // típicamente, alguien le agregó o le quitó plazas (soft delete) desde
+  // OTRA sesión mientras esta tabla mostraba esas mismas posiciones. Sin
+  // esto, la columna "En Anuencia" sólo se refrescaba al reestablecer y
+  // volver a aplicar los filtros a mano (bug reportado: quedaba
+  // desactualizada aunque el backend ya tuviera el dato correcto, por el
+  // mismo motivo que `onAgregado` más abajo — cache por firma de filtros
+  // sin invalidar). No importa CUÁL anexo cambió: cualquier cambio puede
+  // afectar qué plazas cuentan como "en anuencia" en esta tabla, así que
+  // siempre se refresca — mismo patrón exacto que el efecto de arriba.
+  useAnuenciaAnexoUpdatesRealtime(useCallback(() => {
+    fullLatestDataRef.current = null;
+    movPosDataCacheRef.current = {};
+    setRefreshTick((t) => t + 1);
+  }, []));
 
   useEffect(() => {
     // Solo toggle de estado (Activas/Inactivas/Todas) + is_latest=true, sin
