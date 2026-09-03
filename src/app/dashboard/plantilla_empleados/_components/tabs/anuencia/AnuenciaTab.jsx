@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { normalizeForSearch } from "@/utils/columnFilters";
+import { useAnuenciaAnexoUpdatesRealtime } from "../../../_hooks/useAnuenciaAnexoUpdatesRealtime";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import CodigoFederalCell from "./CodigoFederalCell";
@@ -366,6 +367,14 @@ export default function AnuenciaTab({ cardRef }) {
   const marcarComoGuardado = useCallback(() => {
     snapshotRevisionRef.current = revision;
   }, [revision]);
+
+  // Marca de tiempo del último guardado/descarga iniciado por ESTA pestaña
+  // (handleGuardar/handleExportar) — permite a
+  // useAnuenciaAnexoUpdatesRealtime (más abajo) distinguir un aviso de "otra
+  // sesión cambió este anexo" de un simple eco del propio guardado de esta
+  // misma pestaña, que si no se filtrara, dispararía su propio toast/refetch
+  // como si alguien más hubiera hecho el cambio.
+  const ultimoGuardadoLocalRef = useRef(0);
   const hayCambiosSinGuardar =
     snapshotRevisionRef.current === null ? hojas.some(hojaTieneContenido) : revision !== snapshotRevisionRef.current;
 
@@ -643,6 +652,7 @@ export default function AnuenciaTab({ cardRef }) {
    */
   const handleGuardar = useCallback(async () => {
     setGuardando(true);
+    ultimoGuardadoLocalRef.current = Date.now();
     try {
       const payload = {
         hojas,
@@ -791,6 +801,7 @@ export default function AnuenciaTab({ cardRef }) {
 
   const handleExportar = useCallback(async () => {
     setExportando(true);
+    ultimoGuardadoLocalRef.current = Date.now();
     try {
       // Se exporta sólo lo capturado: una fila totalmente en blanco no debe
       // llegar al formato oficial como renglón vacío. Las HOJAS sí se
@@ -848,7 +859,7 @@ export default function AnuenciaTab({ cardRef }) {
     }
   }, [hojas, firmaNombre, firmaPuesto, nombreArchivo, anexoIdActual, marcarComoGuardado, toast]);
 
-  const handleCargarDesdeHistorial = useCallback((detalle) => {
+  const handleCargarDesdeHistorial = useCallback((detalle, { silencioso = false } = {}) => {
     const hojasCargadas = completarOficioEventual(
       Array.isArray(detalle.hojas) && detalle.hojas.length
         ? detalle.hojas.map(normalizarHoja)
@@ -859,7 +870,19 @@ export default function AnuenciaTab({ cardRef }) {
     const nombreArchivoCargado = detalle.nombre_archivo || ANEXO2_NOMBRE_ARCHIVO_DEFAULT;
 
     setHojas(hojasCargadas);
-    setHojaActivaId(hojasCargadas[0]?._id ?? null);
+    // Al recargar en vivo (`silencioso`, ver useAnuenciaAnexoUpdatesRealtime
+    // más abajo) el usuario puede seguir viendo cualquier hoja que no sea la
+    // primera — saltarlo de vuelta a "Hoja 1" en medio de su navegación sería
+    // justo la interrupción que se quería evitar. Los `_id` son locales
+    // (UUID generado en el navegador, ver anexo2Schema.js) y nunca van a
+    // coincidir entre esta copia y la que se acaba de traer del servidor, así
+    // que se empareja por nombre de hoja en su lugar.
+    setHojaActivaId((idPrevio) => {
+      if (!silencioso) return hojasCargadas[0]?._id ?? null;
+      const hojaPreviaNombre = hojas.find((h) => h._id === idPrevio)?.nombre;
+      const misma = hojasCargadas.find((h) => h.nombre === hojaPreviaNombre);
+      return misma?._id ?? hojasCargadas[0]?._id ?? null;
+    });
     setFirmaNombre(firmaNombreCargado);
     setFirmaPuesto(firmaPuestoCargado);
     setNombreArchivo(nombreArchivoCargado);
@@ -871,9 +894,45 @@ export default function AnuenciaTab({ cardRef }) {
     // tick — igual que en `ejecutarNuevoAnexo`, se anticipa la revisión que
     // va a quedar tras este único re-render agrupado.
     snapshotRevisionRef.current = revision + 1;
-    toast.success(`Anexo #${detalle.id} cargado — sigue editando o descárgalo de nuevo.`);
+    if (silencioso) {
+      toast.info(`Este Anexo 2 se actualizó: se agregaron plazas nuevas desde otra sesión.`);
+    } else {
+      toast.success(`Anexo #${detalle.id} cargado — sigue editando o descárgalo de nuevo.`);
+    }
     backfillUnidadNegocioYRango(hojasCargadas);
-  }, [toast, revision, backfillUnidadNegocioYRango]);
+  }, [toast, revision, backfillUnidadNegocioYRango, hojas]);
+
+  // Aviso en vivo (SSE, ver useAnuenciaAnexoUpdatesRealtime.js) de que ESTE
+  // Anexo 2 cambió en el servidor — típicamente porque alguien le agregó
+  // plazas desde el menú contextual de Mov. Posiciones (ver
+  // AgregarAAnexo2Modal.jsx) mientras esta pestaña lo tenía abierto. Si no
+  // hay nada sin guardar aquí, se trae el detalle fresco y se recarga solo
+  // (silencioso: sin saltar de hoja ni con el toast de "cargado" manual). Si
+  // SÍ hay captura sin guardar en curso, pisarla perdería trabajo del
+  // usuario — se avisa en su lugar, sin tocar nada, para que guarde y vuelva
+  // a abrir el anexo cuando pueda.
+  const handleAnexoActualizadoRemoto = useCallback((anexoId, usuarioNombre) => {
+    if (!anexoIdActual || String(anexoId) !== String(anexoIdActual)) return;
+    // Eco del guardado/descarga que ESTA misma pestaña acaba de hacer (ver
+    // ultimoGuardadoLocalRef en handleGuardar/handleExportar) — nada que
+    // avisar, ya está reflejado localmente.
+    if (Date.now() - ultimoGuardadoLocalRef.current < 4000) return;
+    if (hayCambiosSinGuardar) {
+      toast.warning(
+        `${usuarioNombre || "Alguien"} agregó plazas a este Anexo 2 desde otra sesión. Guarda tu captura y vuelve a abrirlo para verlas.`
+      );
+      return;
+    }
+    VacantesService.getAnuenciaAnexo(anexoIdActual)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo traer el anexo actualizado."))))
+      .then((detalle) => handleCargarDesdeHistorial(detalle, { silencioso: true }))
+      .catch(() => {
+        // No crítico: la copia local sigue siendo válida, el usuario puede
+        // recargar a mano (Historial) cuando quiera.
+      });
+  }, [anexoIdActual, hayCambiosSinGuardar, handleCargarDesdeHistorial, toast]);
+
+  useAnuenciaAnexoUpdatesRealtime(handleAnexoActualizadoRemoto);
 
   /**
    * "Agregar" en el catálogo de justificaciones (ver JustificacionCatalogoModal):

@@ -2718,7 +2718,20 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         onAgregado={() => {
           setSelectedCodigos(new Set());
           shiftAnchorRowRef.current = null;
-          setLoading(true); // fuerza recargar la página actual: repinta "En Anuencia" ya marcado
+          // Fuerza recargar la página actual para repintar "En Anuencia" ya
+          // marcado. `setLoading(true)` solo (como estaba antes) dejaba la
+          // tabla trabada cargando para siempre: el efecto de arriba que
+          // apaga `loading` en su `.finally()` sólo vuelve a correr si
+          // cambia una de sus dependencias reales, y esto no tocaba ninguna
+          // — `refreshTick` existe justo para este caso (ver el efecto
+          // de `initialMovPosData` unas líneas arriba, mismo patrón). Se
+          // limpian también los caches por firma de filtros: si no, el
+          // efecto podría servir la respuesta vieja (sin el anexo recién
+          // agregado) desde `movPosDataCacheRef`/`fullLatestDataRef` en vez
+          // de pedirla de nuevo al backend.
+          fullLatestDataRef.current = null;
+          movPosDataCacheRef.current = {};
+          setRefreshTick((t) => t + 1);
         }}
       />
       
