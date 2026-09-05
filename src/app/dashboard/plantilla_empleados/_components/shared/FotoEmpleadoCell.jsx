@@ -107,8 +107,18 @@ const VISIBILITY_DELAY_MS = 150;
  * @param {boolean} [props.enabled=true] - `false` (sin permiso de ver fotografía) no dispara ninguna petición.
  * @param {number} [props.size=28] - Lado del avatar en px.
  * @param {string} [props.caption] - Pie de la vista ampliada (ej. nombre y posición del empleado).
+ * @param {string} [props.fallbackClassName] - Clases del círculo cuando no hay foto (sin foto/404); por defecto gris neutro.
+ * @param {string} [props.fallbackIconClassName] - Clases del ícono de silueta dentro del fallback.
  */
-const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, enabled = true, size = 28, caption }) {
+const FotoEmpleadoCell = memo(function FotoEmpleadoCell({
+  numempleado,
+  rootRef,
+  enabled = true,
+  size = 28,
+  caption,
+  fallbackClassName = "bg-slate-100 dark:bg-slate-800/80",
+  fallbackIconClassName = "text-slate-300 dark:text-slate-600",
+}) {
   const holderRef = useRef(null);
   const key = numempleado === null || numempleado === undefined ? "" : String(numempleado).trim();
   const [fotoUrl, setFotoUrl] = useState(() => (key ? fotoCache.get(key) ?? null : null));
@@ -196,9 +206,9 @@ const FotoEmpleadoCell = memo(function FotoEmpleadoCell({ numempleado, rootRef, 
       ) : (
         <div
           style={dimension}
-          className={`rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800/80 ${isLoading ? "animate-pulse" : ""}`}
+          className={`rounded-full flex items-center justify-center ${fallbackClassName} ${isLoading ? "animate-pulse" : ""}`}
         >
-          <User className="size-3.5 text-slate-300 dark:text-slate-600" />
+          <User className={`size-3.5 ${fallbackIconClassName}`} />
         </div>
       )}
 

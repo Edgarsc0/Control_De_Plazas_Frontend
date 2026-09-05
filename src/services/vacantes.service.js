@@ -857,6 +857,50 @@ export const VacantesService = {
     },
 
     /**
+     * Sugerencias de autocompletado del número de plaza mientras se escribe
+     * (input de "Árbol de movimientos", ver ArbolMovimientosSubTab.jsx).
+     * @param {string} q - prefijo de la plaza, mínimo 2 caracteres.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} 200 con un arreglo `{posicion, puesto, ocupada, ocupante}` (puede venir vacío; `ocupante` sólo si `ocupada`).
+     */
+    getPlazaSugerencias: (q, options = {}) => {
+        return apiFetch(`/plantilla/plazas/sugerencias/${buildQuery({ q })}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Pila cronológica de una plaza (tronco del "Árbol de movimientos"):
+     * creación, ocupaciones, vacancias, insubsistencias y tránsitos, continua
+     * y sin huecos.
+     * @param {string} posicion - Número de plaza.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getHistoriaPlaza: (posicion, options = {}) => {
+        return apiFetch(`/plantilla/historia-plaza/${encodeURIComponent(posicion)}/`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Tramos de un empleado en todas sus plazas (rama del "Árbol de
+     * movimientos"). Se pide SÓLO al expandir un nodo: el árbol se carga bajo
+     * demanda porque cargarlo completo crecería de forma explosiva.
+     * @param {string} numEmpleado - Número de empleado.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getHistoriaEmpleado: (numEmpleado, options = {}) => {
+        return apiFetch(`/plantilla/historia-empleado/${encodeURIComponent(numEmpleado)}/`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene las estadísticas de movimientos de personal según filtros.
      * @param {Object<string, (string|number)>} [params={}] - Filtros a aplicar (se omiten vacíos).
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
