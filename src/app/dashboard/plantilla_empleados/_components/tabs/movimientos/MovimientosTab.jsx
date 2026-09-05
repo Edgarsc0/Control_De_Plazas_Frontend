@@ -93,7 +93,7 @@ const ALL_MOV_KEYS = [
   "categoria_vacancia", "tuvo_insubsistencia", "fecha_ocupacion",
 ];
 
-const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia", "fecha_anuencia", "fecha_ocupacion"];
+const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "fecha_vacancia", "fecha_alta_solicitada", "fecha_anuencia", "fecha_ocupacion"];
 
 // El dropdown de filtro por columna agrupa las fechas en un árbol año>mes>día
 // (ver dateHierarchies) — pero "fecha_anuencia" puede traer texto (categorías
@@ -144,6 +144,12 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   // independiente de MOV_POS (que se trunca/recarga cada 30 min).
   const [editingAnuencia, setEditingAnuencia] = useState(null); // { noPosActual, value, originalValue, saving, error } | null
   const editAnuenciaCancelledRef = useRef(false);
+  // Edición inline de "Fecha de alta solicitada" — mismo patrón que
+  // editingAnuencia, pero la llave es `codigo` (no `no_pos_actual`): el
+  // valor vive en el Anexo 2, que sólo indexa sus filas por Código Federal
+  // de Puesto (ver MovPosFechaAltaSolicitadaOverrideView).
+  const [editingAltaSolicitada, setEditingAltaSolicitada] = useState(null); // { codigo, value, originalValue, saving, error } | null
+  const editAltaSolicitadaCancelledRef = useRef(false);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
@@ -163,6 +169,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
+    // Vive dentro de `hojas` del Anexo 2 al que pertenezca esta posición, no
+    // en MOV_POS — sólo editable si el código ya está en alguno guardado
+    // (ver MovPosFechaAltaSolicitadaOverrideView / fecha_alta_solicitada_editable).
+    { key: "fecha_alta_solicitada", label: "Fecha de alta solicitada", width: 170, visible: true, isBasic: true },
     { key: "fecha_anuencia", label: "Fecha de Anuencia", width: 140, visible: true, isBasic: true },
     { key: "categoria_vacancia", label: "Categoría Vacancia", width: 180, visible: true, isBasic: true },
     { key: "tuvo_insubsistencia", label: "Tuvo Insubsistencia", width: 160, visible: true, isBasic: true },
@@ -887,6 +897,47 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     commitEditAnuencia();
   }, [commitEditAnuencia]);
 
+  // ── Edición inline de "Fecha de alta solicitada" (doble clic) ──────────
+  const startEditAltaSolicitada = useCallback((row) => {
+    if (!canEditFechaAnuencia || !row.fecha_alta_solicitada_editable) return;
+    const current = row.fecha_alta_solicitada && String(row.fecha_alta_solicitada).trim() !== "" ? String(row.fecha_alta_solicitada) : "";
+    setEditingAltaSolicitada({ codigo: row.codigo, value: current, originalValue: current, saving: false, error: null });
+  }, [canEditFechaAnuencia]);
+
+  const commitEditAltaSolicitada = useCallback(async () => {
+    if (!editingAltaSolicitada || editingAltaSolicitada.saving) return;
+    const { codigo, value, originalValue } = editingAltaSolicitada;
+    if (value === originalValue) { setEditingAltaSolicitada(null); return; }
+    setEditingAltaSolicitada((c) => (c ? { ...c, saving: true, error: null } : c));
+    try {
+      const res = value
+        ? await VacantesService.patchFechaAltaSolicitadaOverride(codigo, value)
+        : await VacantesService.deleteFechaAltaSolicitadaOverride(codigo);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "No se pudo guardar la fecha.");
+      }
+      const body = await res.json();
+      setMovPosData((prev) => prev.map((r) => (r.codigo === codigo ? { ...r, fecha_alta_solicitada: body.fecha_alta_solicitada ?? "" } : r)));
+      // Ídem fecha_anuencia: sin esto, volver a la misma firma de filtros/
+      // orden/página mostraría la fecha de antes del cambio.
+      movPosDataCacheRef.current = {};
+      setEditingAltaSolicitada(null);
+    } catch (err) {
+      setEditingAltaSolicitada((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
+    }
+  }, [editingAltaSolicitada]);
+
+  const handleAltaSolicitadaKeyDown = useCallback((e) => {
+    if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+    else if (e.key === "Escape") { e.preventDefault(); editAltaSolicitadaCancelledRef.current = true; setEditingAltaSolicitada(null); }
+  }, []);
+
+  const handleAltaSolicitadaBlur = useCallback(() => {
+    if (editAltaSolicitadaCancelledRef.current) { editAltaSolicitadaCancelledRef.current = false; return; }
+    commitEditAltaSolicitada();
+  }, [commitEditAltaSolicitada]);
+
   const timelineData = useMemo(() => {
     if (!modalHistoryData || modalHistoryData.length === 0) return [];
     
@@ -1348,6 +1399,41 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-emerald-500" title="Clic para ver detalle de ocupación" /></div>) : <span className="text-slate-300">-</span>;
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleOcupacionClick} className={tdClassName}>{content}</td>);
     }
+    if (col.key === "fecha_alta_solicitada") {
+      const isEditingThis = editingAltaSolicitada?.codigo === row.codigo;
+      if (isEditingThis) {
+        const tdClassNameEdit = `px-2 text-xs border-r h-[37px] align-middle relative ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10"} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+        return (
+          <td key={col.key} style={stickyStyle} className={tdClassNameEdit}>
+            <input
+              type="date"
+              autoFocus
+              value={editingAltaSolicitada.value}
+              disabled={editingAltaSolicitada.saving}
+              onChange={(e) => setEditingAltaSolicitada((c) => (c ? { ...c, value: e.target.value } : c))}
+              onKeyDown={handleAltaSolicitadaKeyDown}
+              onBlur={handleAltaSolicitadaBlur}
+              className="w-full h-full px-1 text-xs font-semibold bg-white dark:bg-slate-900 border border-[#621f32] rounded outline-none disabled:opacity-50"
+            />
+            {editingAltaSolicitada.error && (
+              <span className="absolute left-1 top-full mt-0.5 z-20 text-[9px] font-bold text-red-600 bg-white dark:bg-slate-950 px-1.5 py-0.5 rounded shadow-md whitespace-nowrap">{editingAltaSolicitada.error}</span>
+            )}
+          </td>
+        );
+      }
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const esEditable = !!row.fecha_alta_solicitada_editable;
+      const puedeEditar = canEditFechaAnuencia && esEditable;
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle font-semibold ${
+        hasValue ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")
+      } ${isSelected ? "ring-2 ring-[#621f32] z-10 shadow-md" : ""} ${puedeEditar ? "cursor-pointer" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = hasValue ? formatDateEsMx(value) : <span className="text-slate-300">-</span>;
+      const handleAltaSolicitadaDoubleClick = (e) => { e.stopPropagation(); startEditAltaSolicitada(row); };
+      const title = !esEditable
+        ? "Sólo editable si esta posición ya está en un Anexo 2 guardado"
+        : (canEditFechaAnuencia ? "Doble clic para editar — se guarda directo en el Anexo 2" : undefined);
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} onDoubleClick={puedeEditar ? handleAltaSolicitadaDoubleClick : undefined} className={tdClassName} title={title}>{content}</td>);
+    }
     if (col.key === "fecha_anuencia") {
       const isEditingThis = editingAnuencia?.noPosActual === row.no_pos_actual;
       if (isEditingThis) {
@@ -1592,7 +1678,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       );
     }
     return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleCellClick} className={`px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} ${isMonoColumn(col.key) ? "font-mono font-bold" : "font-semibold"} ${isPosicionCol || isHistoricoCol ? "cursor-pointer hover:bg-[#621f32]/10 hover:text-[#621f32] hover:underline" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}>{col.key === "total_movimientos" ? (<div className="flex justify-center items-center gap-1">{value !== undefined && value !== null ? (<><span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30 text-[10px] font-black leading-none shadow-sm">{value}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></>) : <span className="text-slate-300">-</span>}</div>) : value === undefined || value === null || String(value).trim() === "" ? (<span className="text-slate-300">-</span>) : isPosicionCol ? (<div className="flex items-center justify-between gap-2"><span>{String(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver histórico de la posición" /></div>) : (isDateColumn(col.key) ? formatDateEsMx(value) : String(value))}</td>);
-  }, [isMonoColumn, isDateColumn, openVacanciaModal, openOcupacionModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur, selectedCodigos]);
+  }, [isMonoColumn, isDateColumn, openVacanciaModal, openOcupacionModal, setActiveModalTab, setComparingIndex, setTimelineSearch, setIsHistoryModalOpen, deptoCatalog, motivosCatalog, editingAnuencia, canEditFechaAnuencia, startEditAnuencia, handleAnuenciaKeyDown, handleAnuenciaBlur, selectedCodigos, editingAltaSolicitada, startEditAltaSolicitada, handleAltaSolicitadaKeyDown, handleAltaSolicitadaBlur]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });

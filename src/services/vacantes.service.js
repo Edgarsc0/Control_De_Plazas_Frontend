@@ -429,6 +429,40 @@ export const VacantesService = {
         });
     },
 
+    /**
+     * Edita "Fecha de alta solicitada" de una posición desde Mov. Posiciones
+     * — este campo vive dentro de `hojas` del Anexo 2 al que pertenezca esa
+     * posición (no en MOV_POS), así que sólo funciona si el código ya está
+     * en algún Anexo 2 guardado; el backend escribe ahí directo y notifica
+     * por SSE a AnuenciaTab.jsx si lo tiene abierto en otra pestaña.
+     * @param {string} codigo - Código Federal de Puesto de la posición.
+     * @param {string} valorNuevo - Fecha 'YYYY-MM-DD'.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    patchFechaAltaSolicitadaOverride: (codigo, valorNuevo, options = {}) => {
+        return apiFetch('/plantilla/mov_pos_detalle/fecha_alta_solicitada_override/', {
+            method: 'POST',
+            body: JSON.stringify({ codigo, valor_nuevo: valorNuevo }),
+            ...options
+        });
+    },
+
+    /**
+     * Borra la "Fecha de alta solicitada" capturada en el Anexo 2 para esa
+     * posición (la deja vacía ahí también).
+     * @param {string} codigo - Código Federal de Puesto de la posición.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    deleteFechaAltaSolicitadaOverride: (codigo, options = {}) => {
+        return apiFetch('/plantilla/mov_pos_detalle/fecha_alta_solicitada_override/', {
+            method: 'DELETE',
+            body: JSON.stringify({ codigo }),
+            ...options
+        });
+    },
+
     exportMovPosExcel: (query = {}, options = {}) => {
         return apiFetch(`/plantilla/mov_pos_detalle/export_excel/${buildQuery(query)}`, {
             method: 'GET',
@@ -539,6 +573,16 @@ export const VacantesService = {
     /** Deshace el soft delete: vuelve al historial normal y sus plazas vuelven a marcarse "en anuencia". */
     reactivarAnuenciaAnexo: (id, options = {}) => {
         return apiFetch(`/plantilla/anuencia/anexos/${id}/reactivar/`, { method: 'POST', ...options });
+    },
+    /**
+     * Historial de cambios de UN Anexo 2 (botón "Historial de cambios" de
+     * AnuenciaTab.jsx) — cada guardado, con quién y cuándo, y un resumen
+     * legible de qué cambió (hojas/plazas agregadas o eliminadas, campos
+     * editados a mano). No confundir con `getAnuenciaAnexos` (el listado de
+     * anexos guardados, botón "Abrir").
+     */
+    getAnuenciaAnexoHistorialCambios: (id, options = {}) => {
+        return apiFetch(`/plantilla/anuencia/anexos/${id}/historial/`, { method: 'GET', ...options });
     },
 
     /**
