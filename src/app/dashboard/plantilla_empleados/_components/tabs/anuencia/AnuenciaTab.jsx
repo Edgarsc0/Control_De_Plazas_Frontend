@@ -2,7 +2,8 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput, Archive, Search } from "lucide-react";
+import { Plus, Trash2, Download, Save, BookMarked, AlertTriangle, CheckCircle2, FileSpreadsheet, FilePlus2, MousePointerClick, History, X, FileOutput, Archive, Search, ClipboardList, Layers, Building2, FolderOpen } from "lucide-react";
+import ModalShell, { SectionLabel } from "@/components/shared/ModalShell";
 import { VacantesService } from "@/services/vacantes.service";
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import CodigoFederalCell from "./CodigoFederalCell";
 import NumeroStepper from "./NumeroStepper";
 import AnuenciaHistorialModal from "./AnuenciaHistorialModal";
+import AnuenciaHistorialCambiosModal from "./AnuenciaHistorialCambiosModal";
 import AnexosEliminadosModal from "./AnexosEliminadosModal";
 import JustificacionCatalogoModal from "./JustificacionCatalogoModal";
 import { CANAL_ANEXO3, guardarDatosAnexo3, borrarDatosAnexo3 } from "./anexo3TabChannel";
@@ -28,6 +30,7 @@ import {
   ordenarFilasPorNivel,
   sanitizarNombreHoja,
   siguienteNombreHoja,
+  clasificarNivel,
   OFICIO_AUTORIZACION_EVENTUAL,
 } from "./anexo2Schema";
 import { exportarAnexo2 } from "./anexo2Excel";
@@ -197,6 +200,7 @@ export default function AnuenciaTab({ cardRef }) {
   const [exportando, setExportando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [isHistorialOpen, setIsHistorialOpen] = useState(false);
+  const [isHistorialCambiosOpen, setIsHistorialCambiosOpen] = useState(false);
   const [isEliminadosOpen, setIsEliminadosOpen] = useState(false);
   const [isCatalogoOpen, setIsCatalogoOpen] = useState(false);
   const { hasPermission } = useAuth();
@@ -328,11 +332,91 @@ export default function AnuenciaTab({ cardRef }) {
 
   // Total de columnas reales del cuadro (para los colSpan de las filas
   // espaciadoras y la de mensajes) — 12 columnas del formato + la de Unidad
-  // Administrativa informativa (sólo tras "codigo") + la de acciones.
+  // Administrativa informativa (sólo tras "codigo") + la de "No." (consecutivo,
+  // sólo informativa) + la de acciones.
   const totalColumnasCuadro = useMemo(
-    () => ANEXO2_COLUMNAS.length + ANEXO2_COLUMNAS.filter((c) => c.esLlave).length + 1,
+    () => ANEXO2_COLUMNAS.length + ANEXO2_COLUMNAS.filter((c) => c.esLlave).length + 2,
     []
   );
+
+  // --- Resumen del Anexo 2 (botón "Resumen" junto a la búsqueda global) ---
+  // Cuenta plazas por hoja y junta, sin duplicados, las Unidades de Negocio
+  // y los Niveles Salariales que aparecen en TODO el libro — para que se
+  // pueda ver de un vistazo qué tan repartidas están las plazas sin tener
+  // que ir hoja por hoja contando a mano. Se cuenta por filas capturadas
+  // (mismo criterio que "N plazas actualmente" en AgregarAAnexo2Modal.jsx),
+  // no por "número de plazas" de cada fila — cada fila del cuadro es una
+  // solicitud, no un conteo de personas.
+  const [resumenAbierto, setResumenAbierto] = useState(false);
+  const resumenAnexo = useMemo(() => {
+    const porHoja = hojas.map((h) => ({ id: h._id, nombre: h.nombre || "(sin nombre)", plazas: (h.filas || []).length }));
+    const totalPlazas = porHoja.reduce((sum, h) => sum + h.plazas, 0);
+
+    const unidadesSet = new Set();
+    const nivelesSet = new Set();
+    for (const h of hojas) {
+      for (const f of h.filas || []) {
+        const unidad = String(f._unidadDeNegocioResuelta || "").trim();
+        if (unidad) unidadesSet.add(unidad);
+        const nivel = String(f.nivel_salarial || "").trim();
+        if (nivel) nivelesSet.add(nivel);
+      }
+    }
+
+    const unidades = Array.from(unidadesSet).sort((a, b) => a.localeCompare(b, "es"));
+    // Mismo orden jerárquico que `ordenarFilasPorNivel` (H, K, A, S, D, P y
+    // luego los operativos, de mayor a menor número) — los niveles que no
+    // encajan en esa clasificación se van al final, ordenados alfabéticamente.
+    const niveles = Array.from(nivelesSet).sort((a, b) => {
+      const ca = clasificarNivel(a);
+      const cb = clasificarNivel(b);
+      if (ca && cb) return ca.grupo !== cb.grupo ? ca.grupo - cb.grupo : cb.numero - ca.numero;
+      if (ca) return -1;
+      if (cb) return 1;
+      return a.localeCompare(b, "es");
+    });
+
+    return { porHoja, totalPlazas, unidades, niveles };
+  }, [hojas]);
+
+  // Sub-modal del Resumen: clic en un nivel o una Unidad de Negocio del
+  // modal de arriba — lista los registros de ESE valor en todas las hojas
+  // (mismo shape {hojaId, hojaNombre, filaId, indice, fila} que ya usa
+  // resultadosBusquedaGlobal, para poder reutilizar irAResultadoBusqueda al
+  // hacer clic en una fila).
+  const [filtroResumen, setFiltroResumen] = useState(null); // { tipo: "nivel" | "unidad", valor } | null
+  const registrosFiltroResumen = useMemo(() => {
+    if (!filtroResumen) return [];
+    const campo = filtroResumen.tipo === "nivel" ? "nivel_salarial" : "_unidadDeNegocioResuelta";
+    const resultados = [];
+    for (const h of hojas) {
+      h.filas.forEach((f, indice) => {
+        if (String(f[campo] || "").trim() === filtroResumen.valor) {
+          resultados.push({ hojaId: h._id, hojaNombre: h.nombre, filaId: f._id, indice, fila: f });
+        }
+      });
+    }
+    return resultados;
+  }, [filtroResumen, hojas]);
+
+  // Buscador dentro del sub-modal — filtra la lista ya acotada (a un nivel o
+  // una Unidad de Negocio) por código, puesto o nombre de hoja, para no
+  // tener que hacer scroll a mano cuando ese nivel/unidad tiene cientos de
+  // plazas. Se limpia solo cada vez que se abre un nivel/unidad distinto.
+  const [busquedaFiltroResumen, setBusquedaFiltroResumen] = useState("");
+  useEffect(() => {
+    setBusquedaFiltroResumen("");
+  }, [filtroResumen]);
+  const registrosFiltroResumenFiltrados = useMemo(() => {
+    const termino = normalizeForSearch(busquedaFiltroResumen).trim();
+    if (!termino) return registrosFiltroResumen;
+    return registrosFiltroResumen.filter((r) => {
+      const blob = normalizeForSearch(
+        [r.hojaNombre, r.fila.codigo, r.fila.denominacion_puesto, r.fila.unidad_responsable].join(" ")
+      );
+      return blob.includes(termino);
+    });
+  }, [busquedaFiltroResumen, registrosFiltroResumen]);
 
   // Un AbortController por fila: si el capturista sigue escribiendo el código,
   // la búsqueda anterior de ESA fila se cancela (no las de las demás).
@@ -353,9 +437,6 @@ export default function AnuenciaTab({ cardRef }) {
   // (en un efecto, O(1)) cada vez que `hojas`/firma*/nombreArchivo cambian, y
   // "sin guardar" es sólo comparar dos números.
   const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    setRevision((r) => r + 1);
-  }, [hojas, firmaNombre, firmaPuesto, nombreArchivo]);
 
   // `snapshotRevisionRef` es la revisión que se sabe reflejada en el servidor
   // (guardado, descargado, o recién cargado del historial) — `null` significa
@@ -366,7 +447,32 @@ export default function AnuenciaTab({ cardRef }) {
   const snapshotRevisionRef = useRef(null);
   const marcarComoGuardado = useCallback(() => {
     snapshotRevisionRef.current = revision;
+    conflictoRemotoRef.current = false;
   }, [revision]);
+
+  // `backfillEnCursoRef` distingue el `setHojas` silencioso de
+  // `backfillUnidadNegocioYRango` (completa "Unidad de Negocio"/"Rango
+  // Salarial" en filas viejas, ver más abajo) de una edición real del
+  // usuario: sin esto, cada vez que el backfill encontraba algo que rellenar
+  // — típicamente al abrir un Anexo 2 con filas agregadas desde
+  // AgregarAAnexo2Modal.jsx, que nunca resuelve `_unidadDeNegocioResuelta` —
+  // `revision` avanzaba por su cuenta justo después de tomar el snapshot de
+  // "guardado", dejando `hayCambiosSinGuardar` atorado en `true` sin que el
+  // usuario hubiera tocado nada. Eso silenciaba en seco la actualización en
+  // vivo por SSE (ver handleAnexoActualizadoRemoto más abajo): en vez de
+  // refrescar solo, se quedaba esperando a que el usuario guardara o
+  // recargara a mano.
+  const backfillEnCursoRef = useRef(false);
+  useEffect(() => {
+    setRevision((r) => {
+      const siguiente = r + 1;
+      if (backfillEnCursoRef.current) {
+        backfillEnCursoRef.current = false;
+        snapshotRevisionRef.current = siguiente;
+      }
+      return siguiente;
+    });
+  }, [hojas, firmaNombre, firmaPuesto, nombreArchivo]);
 
   // Marca de tiempo del último guardado/descarga iniciado por ESTA pestaña
   // (handleGuardar/handleExportar) — permite a
@@ -377,6 +483,16 @@ export default function AnuenciaTab({ cardRef }) {
   const ultimoGuardadoLocalRef = useRef(0);
   const hayCambiosSinGuardar =
     snapshotRevisionRef.current === null ? hojas.some(hojaTieneContenido) : revision !== snapshotRevisionRef.current;
+
+  // Se prende cuando llega un aviso remoto (SSE) mientras hay captura sin
+  // guardar aquí (ver handleAnexoActualizadoRemoto más abajo) — mientras
+  // esté prendido, el auto-guardado se detiene: guardar automáticamente en
+  // ese momento pisaría en silencio lo que acaba de cambiar del otro lado.
+  // El usuario decide qué hacer (Guardar de todas formas, o recargar) igual
+  // que antes; se apaga en cuanto se vuelve a quedar sincronizado con el
+  // servidor (guardado propio o carga fresca — ver marcarComoGuardado /
+  // handleCargarDesdeHistorial / ejecutarNuevoAnexo).
+  const conflictoRemotoRef = useRef(false);
 
   // --- Borrador en localStorage ---
   // `restauradoRef` evita que el efecto de guardado (más abajo) pise el
@@ -413,6 +529,7 @@ export default function AnuenciaTab({ cardRef }) {
       const data = await res.json();
       const resultados = data.resultados || {};
       if (Object.keys(resultados).length === 0) return;
+      backfillEnCursoRef.current = true;
       setHojas((prev) =>
         prev.map((h) => {
           let huboCambios = false;
@@ -624,6 +741,7 @@ export default function AnuenciaTab({ cardRef }) {
     // re-render, así que la revisión sólo sube en +1 por este cambio — se
     // anticipa aquí porque el efecto que la incrementa todavía no corrió.
     snapshotRevisionRef.current = revision + 1;
+    conflictoRemotoRef.current = false;
     try {
       localStorage.removeItem(BORRADOR_STORAGE_KEY);
     } catch (err) {
@@ -666,8 +784,14 @@ export default function AnuenciaTab({ cardRef }) {
    * cada paso intermedio. No toca `generado_por`/`generado_en`/
    * `veces_generado`: esos sólo se estampan al descargar (ver `generar/` en
    * AnuenciaAnexoViewSet).
+   *
+   * `silencioso` lo usa el auto-guardado (ver más abajo) para no mostrar el
+   * toast de éxito en cada guardado automático — el clic explícito en
+   * "Guardar" sí lo muestra siempre. Los errores se avisan en ambos casos:
+   * un auto-guardado fallido en silencio total dejaría al usuario pensando
+   * que su captura está a salvo cuando no lo está.
    */
-  const handleGuardar = useCallback(async () => {
+  const handleGuardar = useCallback(async ({ silencioso = false } = {}) => {
     setGuardando(true);
     ultimoGuardadoLocalRef.current = Date.now();
     try {
@@ -687,13 +811,31 @@ export default function AnuenciaTab({ cardRef }) {
         setAnexoIdActual(creado.id);
       }
       marcarComoGuardado();
-      toast.success("Anexo guardado en el historial.");
+      if (!silencioso) toast.success("Anexo guardado en el historial.");
     } catch (err) {
       toast.error(err.message || "No se pudo guardar el anexo. Intenta de nuevo.");
     } finally {
       setGuardando(false);
     }
   }, [hojas, firmaNombre, firmaPuesto, nombreArchivo, anexoIdActual, marcarComoGuardado, toast]);
+
+  // --- Auto-guardado (debounced) ---
+  // Antes, un Anexo 2 solo llegaba al servidor cuando alguien hacía clic en
+  // "Guardar" — así que crear/quitar una hoja, o agregar una plaza, y no
+  // acordarse de guardar dejaba a otras pestañas/sesiones sin enterarse
+  // nunca (el SSE sólo avisa de cambios que YA están en el servidor, no
+  // puede inventarse uno). Se guarda solo ~2.5s después de la última
+  // edición — el timer se reinicia en cada cambio (`revision`), así que no
+  // interrumpe mientras se sigue escribiendo — salvo que: no haya nada que
+  // guardar todavía, ya haya un guardado en curso, o haya un conflicto
+  // remoto sin resolver (ver conflictoRemotoRef / handleAnexoActualizadoRemoto
+  // más abajo) — ahí se prioriza no pisar en silencio lo que llegó de otra
+  // sesión, igual que ya hacía el aviso manual.
+  useEffect(() => {
+    if (!hayCambiosSinGuardar || guardando || conflictoRemotoRef.current) return;
+    const timer = setTimeout(() => { handleGuardar({ silencioso: true }); }, 2500);
+    return () => clearTimeout(timer);
+  }, [revision, hayCambiosSinGuardar, guardando, handleGuardar]);
 
   /**
    * Resuelve el resto de la fila a partir del Código Federal de Puesto.
@@ -911,6 +1053,7 @@ export default function AnuenciaTab({ cardRef }) {
     // tick — igual que en `ejecutarNuevoAnexo`, se anticipa la revisión que
     // va a quedar tras este único re-render agrupado.
     snapshotRevisionRef.current = revision + 1;
+    conflictoRemotoRef.current = false;
     if (silencioso) {
       toast.info(`Este Anexo 2 se actualizó: se agregaron plazas nuevas desde otra sesión.`);
     } else {
@@ -937,6 +1080,10 @@ export default function AnuenciaTab({ cardRef }) {
     // avisar, ya está reflejado localmente.
     if (Date.now() - ultimoGuardadoLocalRef.current < 4000) return;
     if (hayCambiosSinGuardar) {
+      // Detiene el auto-guardado hasta que el usuario resuelva esto a mano
+      // (Guardar de todas formas, o recargar) — ver el efecto de
+      // auto-guardado más arriba.
+      conflictoRemotoRef.current = true;
       toast.warning(
         `${usuarioNombre || "Alguien"} cambió este Anexo 2 desde otra sesión (le agregó plazas o lo eliminó). Guarda tu captura y vuelve a abrirlo para ver el estado más reciente.`
       );
@@ -1024,9 +1171,13 @@ export default function AnuenciaTab({ cardRef }) {
   // pantalla — se le resta su ancho al resto para que la tabla siga sin
   // scroll horizontal.
   const ANCHO_INFO_UA_PORCENTAJE = 11;
+  // Columna "No." (consecutivo de fila dentro de la hoja): igual que la de
+  // Unidad de Negocio, sólo informativa — no forma parte del formato ni del
+  // .xlsx exportado (ver anexo2Excel.js, que sólo lee ANEXO2_COLUMNAS).
+  const ANCHO_NO_PORCENTAJE = 3.5;
   const anchoExcelTotal = ANEXO2_COLUMNAS.reduce((t, c) => t + c.anchoExcel, 0);
   const anchoColumnaPorcentaje = (col) =>
-    (col.anchoExcel / anchoExcelTotal) * (100 - ANCHO_ACCION_PORCENTAJE - ANCHO_INFO_UA_PORCENTAJE);
+    (col.anchoExcel / anchoExcelTotal) * (100 - ANCHO_ACCION_PORCENTAJE - ANCHO_INFO_UA_PORCENTAJE - ANCHO_NO_PORCENTAJE);
 
   const renderCelda = (hoja, fila, col) => {
     const valor = fila[col.key] ?? "";
@@ -1175,11 +1326,26 @@ export default function AnuenciaTab({ cardRef }) {
             <button
               onClick={() => setIsHistorialOpen(true)}
               disabled={anexo3Bloqueado}
-              title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : undefined}
+              title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : "Abrir un Anexo 2 guardado"}
+              className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <FolderOpen className="size-3.5" />
+              <span>Abrir</span>
+            </button>
+            <button
+              onClick={() => setIsHistorialCambiosOpen(true)}
+              disabled={anexo3Bloqueado || !anexoIdActual}
+              title={
+                anexo3Bloqueado
+                  ? "Cierra la pestaña del editor de Anexo 3 para continuar"
+                  : !anexoIdActual
+                  ? "Guarda este Anexo 2 primero"
+                  : "Ver quién cambió qué y cuándo en este Anexo 2"
+              }
               className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <History className="size-3.5" />
-              <span>Historial</span>
+              <span>Historial de cambios</span>
             </button>
             {puedeVerEliminados && (
               <button
@@ -1202,7 +1368,7 @@ export default function AnuenciaTab({ cardRef }) {
               <span>Nuevo anexo</span>
             </button>
             <button
-              onClick={handleGuardar}
+              onClick={() => handleGuardar()}
               disabled={guardando || !hayCambiosSinGuardar || anexo3Bloqueado}
               title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : "Guarda el anexo en el historial sin descargar el .xlsx"}
               className="flex items-center justify-center gap-2 bg-white hover:bg-slate-100 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 min-h-11 rounded-xl font-bold uppercase tracking-wider text-[10px] border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
@@ -1245,67 +1411,94 @@ export default function AnuenciaTab({ cardRef }) {
           </div>
         </div>
 
-        {/* Búsqueda global: cualquier plaza capturada en CUALQUIER hoja del
-            libro, no sólo la que está abierta — al elegir un resultado salta
-            a su hoja y la resalta (ver irAResultadoBusqueda). */}
-        <div ref={busquedaContenedorRef} className="relative mb-4">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={busquedaGlobal}
-              onChange={(e) => {
-                setBusquedaGlobal(e.target.value);
-                setBusquedaAbierta(true);
-              }}
-              onFocus={() => setBusquedaAbierta(true)}
-              placeholder="Buscar plaza en todo el Anexo 2 (código, puesto, unidad...)"
-              className="w-full pl-9 pr-8 py-2 text-[11px] font-medium bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-xl outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-            />
-            {busquedaGlobal && (
-              <button
-                onClick={() => {
-                  setBusquedaGlobal("");
-                  setBusquedaAbierta(false);
+        {/* Búsqueda global (izquierda) + contadores de plazas y botón
+            "Resumen" (derecha) — ambos en la misma fila. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          {/* Búsqueda global: cualquier plaza capturada en CUALQUIER hoja del
+              libro, no sólo la que está abierta — al elegir un resultado
+              salta a su hoja y la resalta (ver irAResultadoBusqueda). */}
+          <div ref={busquedaContenedorRef} className="relative">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={busquedaGlobal}
+                onChange={(e) => {
+                  setBusquedaGlobal(e.target.value);
+                  setBusquedaAbierta(true);
                 }}
-                title="Limpiar búsqueda"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
-              >
-                <X className="size-3" />
-              </button>
+                onFocus={() => setBusquedaAbierta(true)}
+                placeholder="Buscar plaza en todo el Anexo 2 (código, puesto, unidad...)"
+                className="w-full pl-9 pr-8 py-2 text-[11px] font-medium bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-xl outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+              />
+              {busquedaGlobal && (
+                <button
+                  onClick={() => {
+                    setBusquedaGlobal("");
+                    setBusquedaAbierta(false);
+                  }}
+                  title="Limpiar búsqueda"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+
+            {busquedaAbierta && busquedaGlobal.trim() !== "" && (
+              <div className="absolute z-20 top-full left-0 mt-1 w-full max-w-sm max-h-80 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl shadow-slate-900/10 dark:shadow-black/40 py-1.5">
+                {resultadosBusquedaGlobal.length === 0 ? (
+                  <p className="px-3 py-2.5 text-[11px] font-medium text-slate-400">Sin resultados en ninguna hoja.</p>
+                ) : (
+                  resultadosBusquedaGlobal.map((r) => (
+                    <button
+                      key={r.filaId}
+                      onClick={() => irAResultadoBusqueda(r)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                    >
+                      <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider text-[#10243e] dark:text-[#bc955c] bg-[#10243e]/10 dark:bg-[#bc955c]/10">
+                        {r.hojaNombre || "(sin nombre)"}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">
+                          {r.fila.codigo || "(sin código)"} — {r.fila.denominacion_puesto || "(sin denominación)"}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 truncate">
+                          {r.fila._unidadDeNegocioResuelta || r.fila.unidad_responsable || "—"}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                )}
+                {resultadosBusquedaGlobal.length === 40 && (
+                  <p className="px-3 pt-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Mostrando los primeros 40 · afina la búsqueda</p>
+                )}
+              </div>
             )}
           </div>
 
-          {busquedaAbierta && busquedaGlobal.trim() !== "" && (
-            <div className="absolute z-20 top-full left-0 mt-1 w-full max-w-sm max-h-80 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl shadow-slate-900/10 dark:shadow-black/40 py-1.5">
-              {resultadosBusquedaGlobal.length === 0 ? (
-                <p className="px-3 py-2.5 text-[11px] font-medium text-slate-400">Sin resultados en ninguna hoja.</p>
-              ) : (
-                resultadosBusquedaGlobal.map((r) => (
-                  <button
-                    key={r.filaId}
-                    onClick={() => irAResultadoBusqueda(r)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-                  >
-                    <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider text-[#10243e] dark:text-[#bc955c] bg-[#10243e]/10 dark:bg-[#bc955c]/10">
-                      {r.hojaNombre || "(sin nombre)"}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">
-                        {r.fila.codigo || "(sin código)"} — {r.fila.denominacion_puesto || "(sin denominación)"}
-                      </span>
-                      <span className="block text-[10px] text-slate-400 truncate">
-                        {r.fila._unidadDeNegocioResuelta || r.fila.unidad_responsable || "—"}
-                      </span>
-                    </span>
-                  </button>
-                ))
-              )}
-              {resultadosBusquedaGlobal.length === 40 && (
-                <p className="px-3 pt-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Mostrando los primeros 40 · afina la búsqueda</p>
-              )}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-4 px-4 py-2 rounded-xl border border-slate-200/70 dark:border-slate-800/70 bg-slate-50 dark:bg-slate-900/40 whitespace-nowrap">
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-lg font-black text-[#621f32] dark:text-[#e8c793] leading-none">{resumenAnexo.totalPlazas}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  {resumenAnexo.totalPlazas === 1 ? "plaza en total" : "plazas en total"}
+                </span>
+              </span>
+              <span className="w-px h-5 bg-slate-200 dark:bg-slate-700" />
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-lg font-black text-[#621f32] dark:text-[#e8c793] leading-none">{(hojaActiva.filas || []).length}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">en esta hoja</span>
+              </span>
             </div>
-          )}
+            <button
+              onClick={() => setResumenAbierto(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-[#10243e] dark:text-[#bc955c] border border-[#10243e]/20 dark:border-[#bc955c]/30 hover:bg-[#10243e]/5 dark:hover:bg-[#bc955c]/10 transition-colors cursor-pointer"
+            >
+              <ClipboardList className="size-3.5" />
+              <span>Resumen</span>
+            </button>
+          </div>
         </div>
 
         {/* ---- Pestañas del libro ----
@@ -1431,6 +1624,7 @@ export default function AnuenciaTab({ cardRef }) {
             <div ref={scrollCuadroRef} className="max-h-[65vh] min-h-[240px] overflow-y-auto custom-scrollbar rounded-lg">
               <table className="border-collapse w-full table-fixed">
                 <colgroup>
+                  <col style={{ width: `${ANCHO_NO_PORCENTAJE}%` }} />
                   {ANEXO2_COLUMNAS.map((col) => (
                     <Fragment key={col.key}>
                       <col style={{ width: `${anchoColumnaPorcentaje(col)}%` }} />
@@ -1441,6 +1635,12 @@ export default function AnuenciaTab({ cardRef }) {
                 </colgroup>
                 <thead>
                   <tr>
+                    <th
+                      title="Consecutivo de la fila dentro de la hoja — sólo informativa, no forma parte del Anexo 2, no se incluye en el .xlsx"
+                      className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-blue-100 dark:bg-blue-950/50 px-2 py-2 align-middle text-center text-[9px] font-black text-blue-700 dark:text-blue-300 leading-tight"
+                    >
+                      No.
+                    </th>
                     {ANEXO2_COLUMNAS.map((col) => (
                       <Fragment key={col.key}>
                         <th className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-2 align-middle text-center text-[9px] font-black text-slate-700 dark:text-slate-200 leading-tight">
@@ -1479,6 +1679,14 @@ export default function AnuenciaTab({ cardRef }) {
                           fila._id === filaResaltadaId ? "bg-amber-100 dark:bg-amber-900/40" : ""
                         }`}
                       >
+                        <td
+                          title="Consecutivo de la fila dentro de la hoja — sólo informativa, no forma parte del Anexo 2, no se incluye en el .xlsx"
+                          className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle bg-blue-50/70 dark:bg-blue-950/20"
+                        >
+                          <p className="px-2 py-1.5 text-[10px] font-bold text-blue-800 dark:text-blue-300 text-center">
+                            {filaVirtual.index + 1}
+                          </p>
+                        </td>
                         {ANEXO2_COLUMNAS.map((col) => (
                           <Fragment key={col.key}>
                             <td className="border border-slate-400 dark:border-slate-600 p-0 h-9 align-middle">
@@ -1634,6 +1842,13 @@ export default function AnuenciaTab({ cardRef }) {
         onEliminadoAnexoActual={() => { manejarAnexoEliminado(); setIsHistorialOpen(false); }}
       />
 
+      <AnuenciaHistorialCambiosModal
+        open={isHistorialCambiosOpen}
+        onClose={() => setIsHistorialCambiosOpen(false)}
+        anexoId={anexoIdActual}
+        nombreArchivo={nombreArchivo}
+      />
+
       {puedeVerEliminados && (
         <AnexosEliminadosModal
           open={isEliminadosOpen}
@@ -1664,6 +1879,161 @@ export default function AnuenciaTab({ cardRef }) {
         message="Tienes cambios sin guardar en este anexo — se perderán. Si quieres conservarlos, cierra esto y usa Guardar primero."
         confirmLabel="Descartar y empezar nuevo"
       />
+
+      <ModalShell
+        open={resumenAbierto}
+        onClose={() => setResumenAbierto(false)}
+        size="lg"
+        icon={ClipboardList}
+        eyebrow="Anuencia"
+        title="Resumen del Anexo 2"
+        subtitle={nombreArchivo}
+      >
+        <div className="space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-4 text-center">
+              <p className="text-3xl font-black text-[#621f32] dark:text-[#e8c793]">{resumenAnexo.totalPlazas}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mt-1">
+                {resumenAnexo.totalPlazas === 1 ? "Plaza en total" : "Plazas en total"}
+              </p>
+            </div>
+            <div className="flex-1 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-4 text-center">
+              <p className="text-3xl font-black text-[#621f32] dark:text-[#e8c793]">{resumenAnexo.porHoja.length}</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mt-1">
+                {resumenAnexo.porHoja.length === 1 ? "Hoja" : "Hojas"}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel>Plazas por hoja</SectionLabel>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {resumenAnexo.porHoja.map((h) => (
+                <div
+                  key={h.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/40"
+                >
+                  <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200 truncate">{h.nombre}</span>
+                  <span className="shrink-0 text-[12px] font-black text-[#621f32] dark:text-[#e8c793]">
+                    {h.plazas} {h.plazas === 1 ? "plaza" : "plazas"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel>Unidades de Negocio incluidas ({resumenAnexo.unidades.length})</SectionLabel>
+            {resumenAnexo.unidades.length === 0 ? (
+              <p className="text-[11px] text-slate-400">Sin datos de Unidad de Negocio todavía.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {resumenAnexo.unidades.map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    title={`Ver plazas de "${u}"`}
+                    onClick={() => setFiltroResumen({ tipo: "unidad", valor: u })}
+                    className="px-3 py-2 rounded-xl border border-[#bc955c]/30 dark:border-[#bc955c]/30 bg-[#bc955c]/10 dark:bg-[#bc955c]/15 text-[11px] font-bold text-[#7a5a30] dark:text-[#e3c793] truncate text-left cursor-pointer hover:bg-[#bc955c]/20 dark:hover:bg-[#bc955c]/25 transition-colors"
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            {/* Mismo orden jerárquico que la tabla del cuadro (ver
+                resumenAnexo/ordenarFilasPorNivel): el grid en 3 columnas se
+                llena por filas, así que de un vistazo se lee de mayor a
+                menor por renglón, no por columna. */}
+            <SectionLabel>Niveles Salariales incluidos ({resumenAnexo.niveles.length})</SectionLabel>
+            {resumenAnexo.niveles.length === 0 ? (
+              <p className="text-[11px] text-slate-400">Sin niveles capturados todavía.</p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                {resumenAnexo.niveles.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    title={`Ver plazas de nivel ${n}`}
+                    onClick={() => setFiltroResumen({ tipo: "nivel", valor: n })}
+                    className="px-2 py-1.5 rounded-lg border border-[#621f32]/15 dark:border-[#621f32]/40 bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[11px] font-bold text-center text-[#621f32] dark:text-[#f0d9b8] cursor-pointer hover:bg-[#621f32]/15 dark:hover:bg-[#621f32]/30 transition-colors"
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </ModalShell>
+
+      <ModalShell
+        open={filtroResumen !== null}
+        onClose={() => setFiltroResumen(null)}
+        size="md"
+        icon={filtroResumen?.tipo === "nivel" ? Layers : Building2}
+        eyebrow={filtroResumen?.tipo === "nivel" ? "Nivel Salarial" : "Unidad de Negocio"}
+        title={filtroResumen?.valor || ""}
+        subtitle={`${registrosFiltroResumen.length} ${registrosFiltroResumen.length === 1 ? "plaza" : "plazas"}`}
+      >
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={busquedaFiltroResumen}
+            onChange={(e) => setBusquedaFiltroResumen(e.target.value)}
+            placeholder="Buscar por código, puesto u hoja..."
+            className="w-full pl-9 pr-8 py-2 text-[11px] font-medium bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-xl outline-none focus:border-[#621f32] dark:focus:border-[#bc955c] transition-colors text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+          />
+          {busquedaFiltroResumen && (
+            <button
+              onClick={() => setBusquedaFiltroResumen("")}
+              title="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 cursor-pointer"
+            >
+              <X className="size-3" />
+            </button>
+          )}
+        </div>
+
+        {registrosFiltroResumenFiltrados.length === 0 && (
+          <p className="text-center text-[11px] font-medium text-slate-400 py-6">
+            Sin resultados para &quot;{busquedaFiltroResumen.trim()}&quot;.
+          </p>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          {registrosFiltroResumenFiltrados.map((r) => (
+            <button
+              key={r.filaId}
+              type="button"
+              onClick={() => {
+                setFiltroResumen(null);
+                setResumenAbierto(false);
+                irAResultadoBusqueda(r);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-950 hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors text-left cursor-pointer"
+            >
+              <span className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider text-[#10243e] dark:text-[#bc955c] bg-[#10243e]/10 dark:bg-[#bc955c]/10">
+                {r.hojaNombre || "(sin nombre)"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">
+                  {r.fila.codigo || "(sin código)"} — {r.fila.denominacion_puesto || "(sin denominación)"}
+                </span>
+                <span className="block text-[10px] text-slate-400 truncate">
+                  {filtroResumen?.tipo === "nivel"
+                    ? r.fila._unidadDeNegocioResuelta || r.fila.unidad_responsable || "—"
+                    : r.fila.nivel_salarial || "—"}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </ModalShell>
     </div>
   );
 }

@@ -47,7 +47,7 @@ export const ANEXO2_COLUMNAS = [
     {
         key: 'fecha_inicio_vacancia',
         label: 'Fecha de inicio de la vacancia',
-        anchoExcel: 16.14,
+        anchoExcel: 20.0,
         // Se autollena con la MISMA fecha calculada que muestra Mov.
         // Posiciones > Tabla Principal (ver AnuenciaLookupView,
         // _get_fecha_vacancia_bulk_map) y mientras no se edite a mano ofrece
@@ -56,7 +56,7 @@ export const ANEXO2_COLUMNAS = [
         tipo: 'fecha_vacancia',
         autollenado: true,
     },
-    { key: 'fecha_alta_solicitada', label: 'Fecha de alta solicitada', anchoExcel: 18.0, tipo: 'fecha' },
+    { key: 'fecha_alta_solicitada', label: 'Fecha de alta solicitada', anchoExcel: 22.0, tipo: 'fecha' },
     { key: 'oficio_autorizacion', label: 'Oficio de autorización presupuestaria', anchoExcel: 34.0, tipo: 'texto' },
 ];
 
@@ -115,7 +115,7 @@ const GRUPOS_NIVEL_ORDEN = ['H', 'K', 'A', 'S', 'D', 'P'];
  * esas filas "no se consideran" para el ordenamiento y se dejan al final,
  * en el orden en que ya estaban entre sí.
  */
-const clasificarNivel = (nivelCrudo) => {
+export const clasificarNivel = (nivelCrudo) => {
     const nivel = String(nivelCrudo || '').trim().toUpperCase();
     if (!nivel) return null;
 
