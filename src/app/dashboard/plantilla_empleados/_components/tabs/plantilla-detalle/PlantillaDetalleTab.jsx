@@ -4095,6 +4095,30 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               {canViewHistorico && (
                 historicoActivo ? (
                   <>
+                    {/* Nav rápida día a día en la misma barra de controles —
+                        antes solo vivía en el banner ámbar de arriba. */}
+                    <div className="flex items-center gap-1 px-3 py-3.5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase shadow-sm flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => navegarHistoricoDia(-1)}
+                        disabled={!historicoFecha || historicoFecha <= HISTORICO_FECHA_MIN}
+                        title="Día anterior"
+                        className="flex items-center justify-center size-6 rounded-lg hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronLeft className="size-3.5" />
+                      </button>
+                      <span className="whitespace-nowrap px-1 tabular-nums normal-case">{historicoFecha ? formatDateEsMx(historicoFecha) : "..."}</span>
+                      <button
+                        type="button"
+                        onClick={() => navegarHistoricoDia(1)}
+                        disabled={!historicoFecha || historicoFecha >= historicoFechaMax}
+                        title="Día siguiente"
+                        className="flex items-center justify-center size-6 rounded-lg hover:bg-amber-100/60 dark:hover:bg-amber-950/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronRightIcon className="size-3.5" />
+                      </button>
+                      {historicoLoading && <Loader2 className="size-3.5 animate-spin" />}
+                    </div>
                     <button onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a otra fecha pasada" className="flex items-center gap-2 px-5 py-3.5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
                       <CalendarDays className="size-3.5" /><span>Consultar otra fecha</span>
                     </button>
