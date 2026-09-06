@@ -10,10 +10,12 @@
  * de arriba (más viejo) hacia abajo (hoy).
  *
  * Viene de ArbolMovimientosSubTab (el antiguo subtab "Árbol de movimientos",
- * eliminado), pero SIN su expansión recursiva: aquí no se puede desplegar la
- * trayectoria de un empleado ni la historia de otra plaza — un solo nodo raíz
- * por consulta, sin ramas. En su lugar, cada nodo de ocupación muestra hacia
- * dónde/de dónde se movió el empleado (ver `origenMap`/`destinoPlaza` abajo).
+ * eliminado). Cada nodo de ocupación muestra hacia dónde/de dónde se movió
+ * el empleado (ver `origenMap`/`destinoPlaza` abajo); al hacer clic en esa
+ * plaza entrante/saliente el canvas ENTERO se reemplaza por el tronco de esa
+ * otra plaza — no se abren ramas ni se dibujan dos troncos a la vez. La
+ * navegación se acumula en una pila (`pila`) para poder volver con "<" (un
+ * paso) o "<<" (hasta la plaza con la que se abrió el modal).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +28,9 @@ import {
     Ban,
     Briefcase,
     Building2,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
     Clock,
     Layers,
     Loader2,
@@ -68,6 +73,22 @@ const fmtDias = (n) => {
     const meses = Math.floor((n % 365) / 30);
     return meses > 0 ? `${años}a ${meses}m` : `${años} año${años > 1 ? "s" : ""}`;
 };
+// Para el resumen de tiempo vacante vs. ocupada: siempre "años", "meses" y
+// "días" completos (nunca abreviados), y 0 nunca se lee "mismo día".
+const fmtDuracion = (n) => {
+    if (n == null) return "";
+    if (n === 0) return "0 días";
+    if (n === 1) return "1 día";
+    const años = Math.floor(n / 365);
+    const meses = Math.floor((n % 365) / 30);
+    const dias = n - años * 365 - meses * 30;
+    const partes = [];
+    if (años > 0) partes.push(`${años} año${años > 1 ? "s" : ""}`);
+    if (meses > 0) partes.push(`${meses} mes${meses > 1 ? "es" : ""}`);
+    if (dias > 0) partes.push(`${dias} día${dias > 1 ? "s" : ""}`);
+    if (partes.length <= 1) return partes[0] ?? "0 días";
+    return `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+};
 
 /* ------------------------------------------------------------------ */
 /* Un nodo del tronco: círculo + etiqueta debajo. Sin botón de          */
@@ -75,7 +96,7 @@ const fmtDias = (n) => {
 /* plaza. Si el empleado llegó de otra plaza o salió hacia otra, un      */
 /* badge con flecha a cada lado del círculo lo indica.                   */
 /* ------------------------------------------------------------------ */
-function Nodo({ node, origin, seleccionado, onSelect, canViewPhoto }) {
+function Nodo({ node, origin, seleccionado, onSelect, onAbrirPlaza, canViewPhoto }) {
     const { periodo, origenPlaza, destinoPlaza } = node;
     const tipo = periodo.tipo_periodo || "ocupacion";
     const estilo = ESTILO_NODO[tipo] || ESTILO_NODO.ocupacion;
@@ -123,25 +144,39 @@ function Nodo({ node, origin, seleccionado, onSelect, canViewPhoto }) {
                     {/* Llegó de otra plaza: badge a la izquierda, flecha apuntando
                         hacia el nodo (simula su llegada). */}
                     {origenPlaza && (
-                        <div
-                            title={`Llegó desde la plaza ${origenPlaza}`}
-                            className="absolute right-full top-1/2 mr-2.5 flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700 shadow-sm dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onAbrirPlaza?.(origenPlaza);
+                            }}
+                            title={`Empleado viene desde la plaza ${origenPlaza} · clic para ver su historia`}
+                            className="absolute right-full top-1/2 mr-2.5 flex w-[176px] -translate-y-1/2 cursor-pointer items-start gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-left text-[10px] font-bold leading-snug text-indigo-700 shadow-sm transition-transform hover:scale-105 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
                         >
-                            <span className="font-mono">{origenPlaza}</span>
-                            <ArrowRight className="size-3" />
-                        </div>
+                            <ArrowRight className="mt-0.5 size-3 shrink-0" />
+                            <span>
+                                Empleado viene desde la plaza <span className="font-mono">{origenPlaza}</span>
+                            </span>
+                        </button>
                     )}
 
                     {/* Salió hacia otra plaza: badge a la derecha, flecha emanando
                         del nodo hacia afuera. */}
                     {destinoPlaza && (
-                        <div
-                            title={`Se trasladó a la plaza ${destinoPlaza}`}
-                            className="absolute left-full top-1/2 ml-2.5 flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2 py-1 text-[10px] font-bold text-orange-700 shadow-sm dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onAbrirPlaza?.(destinoPlaza);
+                            }}
+                            title={`Empleado se desplazó a la plaza ${destinoPlaza} · clic para ver su historia`}
+                            className="absolute left-full top-1/2 ml-2.5 flex w-[176px] -translate-y-1/2 cursor-pointer items-start gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-left text-[10px] font-bold leading-snug text-orange-700 shadow-sm transition-transform hover:scale-105 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
                         >
-                            <ArrowRight className="size-3" />
-                            <span className="font-mono">{destinoPlaza}</span>
-                        </div>
+                            <ArrowRight className="mt-0.5 size-3 shrink-0" />
+                            <span>
+                                Empleado se desplazó a la plaza <span className="font-mono">{destinoPlaza}</span>
+                            </span>
+                        </button>
                     )}
                 </div>
 
@@ -288,14 +323,29 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
     // clave del nodo (mov:<id_registro_inicio>) -> plaza de la que vino ese
     // ocupante, resuelta cruzando la historia de CADA empleado del tronco.
     const [origenMap, setOrigenMap] = useState({});
+    // Pila de navegación: [0] es la plaza con la que se abrió el modal, el
+    // último elemento es la que se está mostrando ahora. Clic en un badge de
+    // plaza entrante/saliente empuja una nueva; "<" saca la última, "<<"
+    // vuelve de un salto hasta [0].
+    const [pila, setPila] = useState([]);
 
     const contenedorRef = useRef(null);
     const viewportRef = useRef(null);
     const worldRef = useRef(null);
     const draggableRef = useRef(null);
 
+    const posActual = pila.length ? pila[pila.length - 1] : posicion;
+
     useEffect(() => {
         if (!open || !posicion) {
+            setPila([]);
+            return;
+        }
+        setPila([posicion]);
+    }, [open, posicion]);
+
+    useEffect(() => {
+        if (!open || !posActual) {
             setPlaza(null);
             setError(null);
             setSeleccionado(null);
@@ -306,11 +356,11 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
         setCargando(true);
         setError(null);
         setSeleccionado(null);
-        VacantesService.getHistoriaPlaza(posicion, { signal: ctrl.signal })
+        VacantesService.getHistoriaPlaza(posActual, { signal: ctrl.signal })
             .then(async (res) => {
                 if (!res.ok) {
                     const cuerpo = await res.json().catch(() => ({}));
-                    throw new Error(cuerpo.detail || `No se encontró la plaza ${posicion}.`);
+                    throw new Error(cuerpo.detail || `No se encontró la plaza ${posActual}.`);
                 }
                 return res.json();
             })
@@ -324,7 +374,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
                 if (!ctrl.signal.aborted) setCargando(false);
             });
         return () => ctrl.abort();
-    }, [open, posicion]);
+    }, [open, posActual]);
 
     // Origen de cada ocupante: se cruza la historia COMPLETA de cada empleado
     // que pasó por esta plaza (mismo endpoint que alimentaba la rama de
@@ -367,6 +417,24 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
         return () => ctrl.abort();
     }, [open, plaza]);
 
+    // Clic en un badge de plaza entrante/saliente: reemplaza el tronco
+    // completo por la historia de esa otra plaza, acumulando en la pila.
+    const abrirPlaza = useCallback(
+        (pos) => {
+            if (!pos || pos === posActual) return;
+            setPila((p) => [...p, pos]);
+        },
+        [posActual]
+    );
+
+    const retroceder = useCallback(() => {
+        setPila((p) => (p.length > 1 ? p.slice(0, -1) : p));
+    }, []);
+
+    const irAlInicio = useCallback(() => {
+        setPila((p) => (p.length > 1 ? [p[0]] : p));
+    }, []);
+
     /* ---------------- Layout: sólo el tronco, sin ramas -------------- */
     const { nodes, edges } = useMemo(() => {
         if (!plaza) return { nodes: [], edges: [] };
@@ -399,7 +467,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
 
     const bbox = useMemo(() => {
         const PAD_Y = 110; // etiqueta multilínea de hasta 150px de ancho
-        const PAD_X = 230; // + hueco para los badges de origen/destino a los lados
+        const PAD_X = 260; // + hueco para los badges de origen/destino a los lados
         if (nodes.length === 0) return { minX: -PAD_X, maxX: PAD_X, minY: -PAD_Y, maxY: PAD_Y };
         const ys = nodes.map((n) => n.y);
         return { minX: -PAD_X, maxX: PAD_X, minY: Math.min(...ys) - PAD_Y, maxY: Math.max(...ys) + PAD_Y + 40 };
@@ -557,7 +625,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             fixedHeight
             icon={Building2}
             eyebrow="Árbol de movimientos"
-            title={`Posición ${posicion || ""}`}
+            title={`Posición ${posActual || ""}`}
             subtitle="Tronco de la plaza: creación, ocupaciones, vacancias e insubsistencias"
             bodyClassName="p-0 flex flex-col"
             headerExtra={
@@ -576,29 +644,69 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
                 )
             }
         >
+            {/* Navegación entre plazas: sólo aparece tras seguir al menos un
+                badge de plaza entrante/saliente. "<<" salta hasta la plaza con
+                la que se abrió el modal; "<" retrocede un solo paso. */}
+            {pila.length > 1 && (
+                <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-2 dark:border-slate-800/60 dark:bg-slate-900/30 sm:px-7">
+                    <button
+                        type="button"
+                        onClick={irAlInicio}
+                        title="Volver a la plaza con la que se abrió el árbol"
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        <ChevronsLeft className="size-3.5" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={retroceder}
+                        title="Volver a la plaza anterior"
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-600 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        <ChevronLeft className="size-3.5" />
+                    </button>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                        {pila.map((p, i) => (
+                            <React.Fragment key={`${p}-${i}`}>
+                                {i > 0 && <ChevronRight className="size-3 shrink-0 text-slate-300 dark:text-slate-700" />}
+                                <span
+                                    className={
+                                        i === pila.length - 1
+                                            ? "font-mono font-black text-slate-800 dark:text-white"
+                                            : "font-mono"
+                                    }
+                                >
+                                    {p}
+                                </span>
+                            </React.Fragment>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Tiempo vacante vs. ocupada: lo primero que se ve, arriba de todo. */}
             {duracion && (
                 <div className="shrink-0 border-b border-slate-100 px-5 py-3 dark:border-slate-800/60 sm:px-7">
                     <div className="mb-1.5 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-wider">
-                        <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
+                        <span className="flex items-center gap-1.5" style={{ color: ESTILO_NODO.vacancia.bg }}>
                             <Clock className="size-3.5" />
-                            Vacante: {fmtDias(duracion.diasVacante)}
+                            Vacante: {fmtDuracion(duracion.diasVacante)}
                         </span>
-                        <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-500">
+                        <span className="flex items-center gap-1.5" style={{ color: ESTILO_NODO.ocupacion.bg }}>
                             <User className="size-3.5" />
-                            Ocupada: {fmtDias(duracion.diasOcupada)}
+                            Ocupada: {fmtDuracion(duracion.diasOcupada)}
                         </span>
                     </div>
                     <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
-                            className="h-full bg-amber-400"
-                            style={{ width: `${duracion.pctVacante}%` }}
-                            title={`Vacante: ${fmtDias(duracion.diasVacante)}`}
+                            className="h-full"
+                            style={{ width: `${duracion.pctVacante}%`, background: ESTILO_NODO.vacancia.bg }}
+                            title={`Vacante: ${fmtDuracion(duracion.diasVacante)}`}
                         />
                         <div
-                            className="h-full bg-emerald-500"
-                            style={{ width: `${duracion.pctOcupada}%` }}
-                            title={`Ocupada: ${fmtDias(duracion.diasOcupada)}`}
+                            className="h-full"
+                            style={{ width: `${duracion.pctOcupada}%`, background: ESTILO_NODO.ocupacion.bg }}
+                            title={`Ocupada: ${fmtDuracion(duracion.diasOcupada)}`}
                         />
                     </div>
                 </div>
@@ -672,6 +780,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
                                         origin={origin}
                                         seleccionado={seleccionado === n.id}
                                         onSelect={(node) => setSeleccionado(node.id)}
+                                        onAbrirPlaza={abrirPlaza}
                                         canViewPhoto={canViewPhoto}
                                     />
                                 ))}
