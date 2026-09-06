@@ -2342,6 +2342,38 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                   </motion.div>
                 )}
               </AnimatePresence>
+              {/* Botonera de selección de la columna "Código" (para "Agregar a Anexo
+                  2") — antes vivía en un `div` aparte debajo de este toolbar, lo que
+                  se veía como una segunda fila con su propio scroll; unificada aquí
+                  para que todo comparta el mismo contenedor y `overflow-x-auto`.
+                  Siempre visible, no sólo cuando hay algo seleccionado, porque
+                  "Seleccionar todo" tiene que poder usarse partiendo de cero. */}
+              <div className="flex items-center gap-2 px-2.5 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-950/85 flex-shrink-0">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Selección de Código:</span>
+                <button
+                  type="button"
+                  onClick={handleQuitarSeleccionCodigos}
+                  disabled={selectedCodigos.size === 0}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  Quitar selección
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSeleccionarTodoCodigos}
+                  title="Selecciona el Código de todas las filas que cumplan los filtros aplicados ahora mismo"
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Seleccionar todo
+                </button>
+                <span
+                  title="Plazas seleccionadas en la columna Código"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30"
+                >
+                  <ListFilter className="size-3" />
+                  {selectedCodigos.size}
+                </span>
+              </div>
               <button onClick={resetAllFilters} disabled={!canReset} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <button onClick={openHistorialModal} title="Ver historial de ediciones manuales de esta tabla" className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><History className="size-3.5" /><span>Historial de Cambios</span></button>
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
@@ -2359,36 +2391,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                 <span>{isExportingExcel ? "Cargando..." : "Excel"}</span>
               </button>
             </div>
-          </div>
-
-          {/* Botonera de selección de la columna "Código" (para "Agregar a Anexo 2") —
-              siempre visible, no sólo cuando hay algo seleccionado, porque
-              "Seleccionar todo" tiene que poder usarse partiendo de cero. */}
-          <div className="hidden md:flex items-center gap-2 px-1 pb-2 shrink-0">
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Selección de Código:</span>
-            <button
-              type="button"
-              onClick={handleQuitarSeleccionCodigos}
-              disabled={selectedCodigos.size === 0}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-            >
-              Quitar selección
-            </button>
-            <button
-              type="button"
-              onClick={handleSeleccionarTodoCodigos}
-              title="Selecciona el Código de todas las filas que cumplan los filtros aplicados ahora mismo"
-              className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              Seleccionar todo
-            </button>
-            <span
-              title="Plazas seleccionadas en la columna Código"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-[#621f32]/10 text-[#621f32] dark:bg-[#bc955c]/20 dark:text-[#bc955c] border border-[#621f32]/20 dark:border-[#bc955c]/30"
-            >
-              <ListFilter className="size-3" />
-              {selectedCodigos.size}
-            </span>
           </div>
 
           {/* Tabla densa: sólo desktop */}
