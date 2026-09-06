@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
 /**
  * Aplica sobre `initialColumns` la visibilidad/ancho guardados en `localStorage`
@@ -30,6 +30,7 @@ const applyPersistedColumns = (storageKey, initialColumns) => {
  *   visibleColumns: Array<Object>,
  *   toggleVisibility: (key: string) => void,
  *   setWidth: (key: string, width: number) => void,
+ *   resetWidth: (key: string) => void,
  *   isColumnsModalOpen: boolean,
  *   setColumnsModalOpen: (open: boolean) => void
  * }}
@@ -37,6 +38,13 @@ const applyPersistedColumns = (storageKey, initialColumns) => {
 export function useColumnState(initialColumns = [], storageKey) {
   const [columns, setColumns] = useState(() => applyPersistedColumns(storageKey, initialColumns));
   const [isColumnsModalOpen, setColumnsModalOpen] = useState(false);
+  // Ancho "de fábrica" (el que trae `initialColumns` en código, ignorando lo
+  // persistido en localStorage) — se refleja en cada render (no sólo al
+  // montar) para que `resetWidth` (doble clic en el grip de resize) siga
+  // funcionando en consumidores como `CatalogosEstructuraTab`, donde
+  // `initialColumns` cambia de catálogo en catálogo sin desmontar el hook.
+  const originalColumnsRef = useRef(initialColumns);
+  originalColumnsRef.current = initialColumns;
 
   useEffect(() => {
     if (!storageKey || typeof window === 'undefined') return;
@@ -59,5 +67,11 @@ export function useColumnState(initialColumns = [], storageKey) {
     setColumns((prev) => prev.map((c) => (c.key === key ? { ...c, width } : c)));
   }, []);
 
-  return { columns, setColumns, visibleColumns, toggleVisibility, setWidth, isColumnsModalOpen, setColumnsModalOpen };
+  const resetWidth = useCallback((key) => {
+    const original = originalColumnsRef.current.find((c) => c.key === key);
+    if (!original) return;
+    setColumns((prev) => prev.map((c) => (c.key === key ? { ...c, width: original.width } : c)));
+  }, []);
+
+  return { columns, setColumns, visibleColumns, toggleVisibility, setWidth, resetWidth, isColumnsModalOpen, setColumnsModalOpen };
 }

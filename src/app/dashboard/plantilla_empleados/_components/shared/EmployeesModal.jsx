@@ -30,6 +30,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import DataTable from "./DataTable";
+import { animateColumnWidth, killColumnWidthAnimation } from "./columnResize";
 import HistorialMovimientosTab from "./HistorialMovimientosTab";
 import ColumnFilterDropdown from "./ColumnFilterDropdown";
 import CopyCellMenu from "./CopyCellMenu";
@@ -1777,7 +1778,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         if (tableContainerRef.current) tableContainerRef.current.scrollTop = 0;
     }, [columnFilters, textFilters, sortConfig.key, sortConfig.direction]);
 
-    const [columnWidths, setColumnWidths] = useState(() => {
+    // Anchos "de fábrica" — en un ref (no sólo el useState inicial) para que
+    // `handleResizeReset` (doble clic en el grip de resize) pueda restaurarlos
+    // aunque `columnWidths` ya no coincida con estos valores.
+    const defaultColumnWidthsRef = useRef(null);
+    if (defaultColumnWidthsRef.current === null) {
         const widths = {};
         ALL_AVAILABLE_COLUMNS.forEach(col => { widths[col.key] = 175; });
         widths["id_empleado"] = 130;
@@ -1789,8 +1794,9 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         widths["unidad_administrativa"] = 280;
         widths["nombre_puesto_funcional"] = 280;
         widths["fecha_de_ingreso"] = 145;
-        return widths;
-    });
+        defaultColumnWidthsRef.current = widths;
+    }
+    const [columnWidths, setColumnWidths] = useState(() => ({ ...defaultColumnWidthsRef.current }));
 
     const availableColumns = useMemo(() => {
         if (!restrictColumnsTo) return ALL_AVAILABLE_COLUMNS;
@@ -1911,17 +1917,29 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         if (!colKey) return;
         const startX = e.clientX;
         const startWidth = columnWidths[colKey] || 175;
+        let latestWidth = startWidth;
         const onMove = (moveEvent) => {
             const deltaX = moveEvent.clientX - startX;
-            const newWidth = direction === 'left' ? startWidth - deltaX : startWidth + deltaX;
-            setColumnWidths(prev => ({ ...prev, [colKey]: Math.max(80, newWidth) }));
+            latestWidth = Math.max(80, direction === 'left' ? startWidth - deltaX : startWidth + deltaX);
+            if (!animateColumnWidth(tableContainerRef, colKey, latestWidth)) {
+                setColumnWidths(prev => ({ ...prev, [colKey]: latestWidth }));
+            }
         };
         const onUp = () => {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
+            killColumnWidthAnimation(tableContainerRef, colKey);
+            setColumnWidths(prev => ({ ...prev, [colKey]: latestWidth }));
         };
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
+    };
+
+    const handleResizeReset = (index) => {
+        const colKey = columns[index]?.key;
+        const original = colKey && defaultColumnWidthsRef.current[colKey];
+        if (original == null) return;
+        setColumnWidths(prev => ({ ...prev, [colKey]: original }));
     };
 
     const handleSort = (key) => {
@@ -2299,6 +2317,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                                 onSort={handleSort}
                                 onOpenFilter={openFilterDropdown}
                                 onResizeStart={handleResizeStart}
+                                onResizeReset={handleResizeReset}
                                 getColumnLetter={getColumnLetter}
                                 isMonoColumn={isMonoColumn}
                                 isPending={false}

@@ -19,6 +19,7 @@ import OcupacionDetalleModal from "../../shared/OcupacionDetalleModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/columnResize";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import NotificacionesPosicionBell from "../../shared/NotificacionesPosicionBell";
 import CeldaValorModal from "../../shared/CeldaValorModal";
@@ -167,7 +168,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const editAltaSolicitadaCancelledRef = useRef(false);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
-  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
     // Snapshot de HOY (sp_dias_ocupacion_masivo, recalculado en cada import
     // ZAFIRO vía InvalidarCacheZafiroView) — a un lado de la posición para
@@ -1026,6 +1027,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const dropdownRef = useRef(null);
   const tbodyRef = useRef(null);
+  const tableContainerRef = useRef(null);
 
 
 
@@ -1222,19 +1224,21 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const handleMouseDown = (e, index, direction = 'right') => {
     e.preventDefault();
-    const startX = e.clientX, startWidth = columns[index].width;
+    const target = columns[index];
+    const startX = e.clientX, startWidth = target.width;
+    let latestWidth = startWidth;
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      setColumns(prevCols => {
-        const newCols = [...prevCols];
-        const newWidth = direction === 'left' ? startWidth - deltaX : startWidth + deltaX;
-        newCols[index] = { ...newCols[index], width: Math.max(60, newWidth) };
-        return newCols;
-      });
+      latestWidth = Math.max(60, direction === 'left' ? startWidth - deltaX : startWidth + deltaX);
+      if (!animateColumnWidth(tableContainerRef, target.key, latestWidth)) {
+        setColumns(prevCols => prevCols.map(c => (c.key === target.key ? { ...c, width: latestWidth } : c)));
+      }
     };
     const handleMouseUp = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      killColumnWidthAnimation(tableContainerRef, target.key);
+      setColumns(prevCols => prevCols.map(c => (c.key === target.key ? { ...c, width: latestWidth } : c)));
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -2396,6 +2400,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
           {/* Tabla densa: sólo desktop */}
           <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
           <DataTable
+            containerRef={tableContainerRef}
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
             columns={columns}
@@ -2421,6 +2426,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             onSort={handleSort}
             onOpenFilter={openFilterDropdown}
             onResizeStart={handleMouseDown}
+            onResizeReset={(index) => resetWidth(columns[index]?.key)}
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={isPending}

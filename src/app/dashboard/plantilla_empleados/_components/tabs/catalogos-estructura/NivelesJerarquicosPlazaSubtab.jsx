@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "motion/react";
 import { Layers, Search, RotateCcw, CheckSquare, Square, X, Monitor } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import { apiFetch } from "@/lib/fetch-interceptor";
 import DataTable from "../../shared/DataTable";
+import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/columnResize";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import PrioridadNivelJerarquicoModal from "./PrioridadNivelJerarquicoModal";
@@ -71,7 +72,8 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
   const [pendingFuente, setPendingFuente] = useState(null);
   const [aplicandoPrioridad, setAplicandoPrioridad] = useState(false);
 
-  const { columns, setColumns } = useColumnState(COLUMNS, "niveles_jerarquicos_columns");
+  const { columns, setColumns, resetWidth } = useColumnState(COLUMNS, "niveles_jerarquicos_columns");
+  const tableContainerRef = useRef(null);
   const { selectedCell, setSelectedCell, contextMenu, setContextMenu } = useCellSelection();
 
   const filters = useColumnFilters({ storageKey: "niveles_jerarquicos_filters" });
@@ -217,19 +219,21 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
 
   const handleResizeStart = (e, index, direction = "right") => {
     e.preventDefault();
-    const startX = e.clientX, startWidth = columns[index].width;
+    const target = columns[index];
+    const startX = e.clientX, startWidth = target.width;
+    let latestWidth = startWidth;
     const onMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      setColumns((prev) => {
-        const next = [...prev];
-        const newWidth = direction === "left" ? startWidth - deltaX : startWidth + deltaX;
-        next[index] = { ...next[index], width: Math.max(60, newWidth) };
-        return next;
-      });
+      latestWidth = Math.max(60, direction === "left" ? startWidth - deltaX : startWidth + deltaX);
+      if (!animateColumnWidth(tableContainerRef, target.key, latestWidth)) {
+        setColumns((prev) => prev.map((c) => (c.key === target.key ? { ...c, width: latestWidth } : c)));
+      }
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      killColumnWidthAnimation(tableContainerRef, target.key);
+      setColumns((prev) => prev.map((c) => (c.key === target.key ? { ...c, width: latestWidth } : c)));
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
@@ -573,6 +577,7 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
       {/* ── Tabla densa: sólo desktop ─────────────────────────────────────── */}
       <div className="hidden md:flex md:flex-col" style={{ height: "calc(100vh - 280px)" }}>
         <DataTable
+          containerRef={tableContainerRef}
           fillHeight
           onScroll={setScrollTop}
           columns={columns}
@@ -594,6 +599,7 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
           onSort={handleSort}
           onOpenFilter={openFilterDropdown}
           onResizeStart={handleResizeStart}
+          onResizeReset={(index) => resetWidth(columns[index]?.key)}
           getColumnLetter={getColumnLetter}
           isMonoColumn={isMonoColumn}
           isPending={false}

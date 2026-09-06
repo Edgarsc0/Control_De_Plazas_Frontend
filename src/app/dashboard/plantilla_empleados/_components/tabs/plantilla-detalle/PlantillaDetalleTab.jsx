@@ -37,6 +37,7 @@ import MobileColumnPickerDrawer from "@/components/ui/MobileColumnPickerDrawer";
 import ActiveFilterChips from "@/components/ui/ActiveFilterChips";
 import AdvancedFiltersModal, { AdvancedFiltersButton } from "../../shared/AdvancedFiltersModal";
 import { useColumnState } from "../../../_hooks/useColumnState";
+import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/columnResize";
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
 import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
@@ -893,9 +894,14 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     debouncedFilterSearchText: movHoyDebouncedFilterSearchText,
   } = movHoyFiltersHook;
   const [movHoySortConfig, setMovHoySortConfig] = useState({ key: null, direction: "asc" });
-  const [movHoyColumnWidths, setMovHoyColumnWidths] = useState({
+  // Anchos "de fábrica" (usados también por `handleMovHoyResizeReset` para
+  // restaurar una columna al hacer doble clic en su grip de resize) — en un
+  // ref para no perderlos una vez que el usuario resiza y `movHoyColumnWidths`
+  // ya no coincide con estos valores iniciales.
+  const movHoyDefaultWidthsRef = useRef({
     posicion: 100, num_empleado: 110, nombre: 220, accion_nombre: 170, motivo_nombre: 170, fecha_efectiva: 130, fecha_captura: 130, por: 120,
   });
+  const [movHoyColumnWidths, setMovHoyColumnWidths] = useState(() => ({ ...movHoyDefaultWidthsRef.current }));
   const movHoyTableContainerRef = useRef(null);
   // Sin este ref, DataTable no puede encontrar sus <tr> para revelarlos tras
   // la carga (ver `needsPreHideRef`/`hasRevealedRef` en DataTable.jsx): la
@@ -1068,18 +1074,30 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     if (!colKey) return;
     const startX = e.clientX;
     const startWidth = movHoyColumnWidths[colKey] || 150;
+    let latestWidth = startWidth;
     const onMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      const newWidth = direction === "left" ? startWidth - deltaX : startWidth + deltaX;
-      setMovHoyColumnWidths(prev => ({ ...prev, [colKey]: Math.max(80, newWidth) }));
+      latestWidth = Math.max(80, direction === "left" ? startWidth - deltaX : startWidth + deltaX);
+      if (!animateColumnWidth(movHoyTableContainerRef, colKey, latestWidth)) {
+        setMovHoyColumnWidths(prev => ({ ...prev, [colKey]: latestWidth }));
+      }
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      killColumnWidthAnimation(movHoyTableContainerRef, colKey);
+      setMovHoyColumnWidths(prev => ({ ...prev, [colKey]: latestWidth }));
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
   }, [movHoyColumns, movHoyColumnWidths]);
+
+  const handleMovHoyResizeReset = useCallback((index) => {
+    const colKey = movHoyColumns[index]?.key;
+    const original = colKey && movHoyDefaultWidthsRef.current[colKey];
+    if (original == null) return;
+    setMovHoyColumnWidths(prev => ({ ...prev, [colKey]: original }));
+  }, [movHoyColumns]);
 
   const renderMovHoyCell = useCallback(({ row, col, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
     const stickyStyle = isSticky ? { position: "sticky", left: leftOffset, zIndex: 20 } : {};
@@ -1126,7 +1144,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const canViewHistorico = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO);
   const [isPlantillaHistoricaPickerOpen, setIsPlantillaHistoricaPickerOpen] = useState(false);
   const { toast } = useToast();
-  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, isBasic: true, noFilter: true },
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     // Sólo trae dato en modo histórico (`sp_plantilla_historica` la agrega;
@@ -2169,16 +2187,19 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     const target = tableColumns[index];
     if (!target) return;
     const startX = e.clientX, startWidth = target.width;
+    let latestWidth = startWidth;
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      setColumns(prevCols => {
-        const newWidth = direction === 'left' ? startWidth - deltaX : startWidth + deltaX;
-        return prevCols.map(c => (c.key === target.key ? { ...c, width: Math.max(60, newWidth) } : c));
-      });
+      latestWidth = Math.max(60, direction === 'left' ? startWidth - deltaX : startWidth + deltaX);
+      if (!animateColumnWidth(tableContainerRef, target.key, latestWidth)) {
+        setColumns(prevCols => prevCols.map(c => (c.key === target.key ? { ...c, width: latestWidth } : c)));
+      }
     };
     const handleMouseUp = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      killColumnWidthAnimation(tableContainerRef, target.key);
+      setColumns(prevCols => prevCols.map(c => (c.key === target.key ? { ...c, width: latestWidth } : c)));
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -3429,12 +3450,22 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       })),
   }), [dataColumns, renderEstadoBadge, isMonoColumn, MOBILE_CARD_EXCLUDED_KEYS, MOBILE_CARD_CURRENCY_KEYS, columnsPersonalizadas, MOBILE_CARD_DEFAULT_FIELD_KEYS]);
 
-  // Auto-scroll when navigating with keyboard
+  // Auto-scroll when navigating with keyboard. `tableColumns` se lee vía ref
+  // (no como dependencia): al redimensionar una columna (`handleMouseDown`)
+  // `setColumns` cambia `tableColumns` en cada `mousemove`, y si dependiera de
+  // él este efecto se re-ejecutaba en cada pixel arrastrado — con
+  // `selectedCell.col` en 0/1 (columnas sticky, caso común) la rama de abajo
+  // fuerza `scrollLeft = 0` y la tabla saltaba a la izquierda a media
+  // redimensión (bug: al arrastrar hasta la derecha, la tabla regresaba al
+  // inicio y no dejaba ver la columna que se estaba ensanchando).
+  const tableColumnsRef = useRef(tableColumns);
+  tableColumnsRef.current = tableColumns;
   useEffect(() => {
     if (!selectedCell || !tableContainerRef.current) return;
-    
+
     const { row, col } = selectedCell;
     const container = tableContainerRef.current;
+    const tableColumns = tableColumnsRef.current;
     
     // Vertical scroll logic
     const rowHeight = 37; // based on h-[37px]
@@ -3476,7 +3507,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         container.scrollLeft = 0;
       }
     }
-  }, [selectedCell, tableColumns]);
+  }, [selectedCell]);
 
   // Móvil: la campana + botón de movimientos de hoy son flotantes arriba a
   // la derecha; se ocultan al llegar a la barra de búsqueda (justo el primer
@@ -3725,6 +3756,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                     onSort={handleMovHoySort}
                     onOpenFilter={openMovHoyFilterDropdown}
                     onResizeStart={handleMovHoyResizeStart}
+                    onResizeReset={handleMovHoyResizeReset}
                     getColumnLetter={getColumnLetterMovHoy}
                     isMonoColumn={isMonoColumnMovHoy}
                     isPending={false}
@@ -4206,6 +4238,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             onSort={handleSort}
             onOpenFilter={openFilterDropdown}
             onResizeStart={handleMouseDown}
+            onResizeReset={(index) => resetWidth(tableColumns[index]?.key)}
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={isPending}

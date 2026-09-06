@@ -17,6 +17,7 @@ import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
+import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/columnResize";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import MobileCardList from "@/components/ui/MobileCardList";
@@ -177,7 +178,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     }
   }, [cardRef]);
 
-  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
+  const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "posicion", label: "Posición", width: 120, visible: true },
     { key: "no_empleado", label: "No. Empleado", width: 120, visible: true },
     { key: "nombre_completo", label: "Nombre Completo", width: 250, visible: true },
@@ -317,6 +318,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
   const dropdownRef = useRef(null);
   const tbodyRef = useRef(null);
+  const tableContainerRef = useRef(null);
 
   const getColumnLetter = useCallback((index) => {
     let temp = index, letter = "";
@@ -506,19 +508,21 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
   const handleMouseDown = (e, index, direction = 'right') => {
     e.preventDefault();
-    const startX = e.clientX, startWidth = columns[index].width;
+    const target = columns[index];
+    const startX = e.clientX, startWidth = target.width;
+    let latestWidth = startWidth;
     const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      setColumns(prevCols => {
-        const newCols = [...prevCols];
-        const newWidth = direction === 'left' ? startWidth - deltaX : startWidth + deltaX;
-        newCols[index] = { ...newCols[index], width: Math.max(60, newWidth) };
-        return newCols;
-      });
+      latestWidth = Math.max(60, direction === 'left' ? startWidth - deltaX : startWidth + deltaX);
+      if (!animateColumnWidth(tableContainerRef, target.key, latestWidth)) {
+        setColumns(prevCols => prevCols.map(c => (c.key === target.key ? { ...c, width: latestWidth } : c)));
+      }
     };
     const handleMouseUp = () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      killColumnWidthAnimation(tableContainerRef, target.key);
+      setColumns(prevCols => prevCols.map(c => (c.key === target.key ? { ...c, width: latestWidth } : c)));
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -1340,6 +1344,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
           {/* Tabla densa: sólo desktop */}
           <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0">
           <DataTable
+            containerRef={tableContainerRef}
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
             columns={columns}
@@ -1357,6 +1362,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             onSort={handleSort}
             onOpenFilter={openFilterDropdown}
             onResizeStart={handleMouseDown}
+            onResizeReset={(index) => resetWidth(columns[index]?.key)}
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={isPending}

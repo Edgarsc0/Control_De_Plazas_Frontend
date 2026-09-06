@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence } from "motion/react";
 import { Search, RotateCcw, Plus, RefreshCw, ArrowUpDown } from "lucide-react";
 import DataTable from "../../shared/DataTable";
+import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/columnResize";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import CatalogRecordModal from "./CatalogRecordModal";
@@ -70,6 +71,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
   // error) cambia de tamaño; así la tabla siempre llega exacto al fondo del
   // viewport sin dejar hueco ni obligar scroll de página.
   const tableWrapRef = useRef(null);
+  const tableContainerRef = useRef(null);
   const [tableHeight, setTableHeight] = useState(0);
   useEffect(() => {
     const recompute = () => {
@@ -84,7 +86,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
 
   const data = dataByCatalog[activeCatalog] || [];
 
-  const { columns, setColumns } = useColumnState(config.columns);
+  const { columns, setColumns, resetWidth } = useColumnState(config.columns);
   useEffect(() => {
     setColumns(CATALOGOS_CONFIG[activeCatalog].columns);
   }, [activeCatalog, setColumns]);
@@ -220,19 +222,21 @@ function GenericCatalogSubtab({ activeCatalog }) {
 
   const handleResizeStart = (e, index, direction = "right") => {
     e.preventDefault();
-    const startX = e.clientX, startWidth = columns[index].width;
+    const target = columns[index];
+    const startX = e.clientX, startWidth = target.width;
+    let latestWidth = startWidth;
     const onMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      setColumns((prev) => {
-        const next = [...prev];
-        const newWidth = direction === "left" ? startWidth - deltaX : startWidth + deltaX;
-        next[index] = { ...next[index], width: Math.max(60, newWidth) };
-        return next;
-      });
+      latestWidth = Math.max(60, direction === "left" ? startWidth - deltaX : startWidth + deltaX);
+      if (!animateColumnWidth(tableContainerRef, target.key, latestWidth)) {
+        setColumns((prev) => prev.map((c) => (c.key === target.key ? { ...c, width: latestWidth } : c)));
+      }
     };
     const onUp = () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
+      killColumnWidthAnimation(tableContainerRef, target.key);
+      setColumns((prev) => prev.map((c) => (c.key === target.key ? { ...c, width: latestWidth } : c)));
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
@@ -449,6 +453,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
       {/* ── Tabla densa: sólo desktop ─────────────────────────────────────── */}
       <div ref={tableWrapRef} className="hidden md:flex md:flex-col" style={{ height: tableHeight || undefined }}>
         <DataTable
+          containerRef={tableContainerRef}
           fillHeight
           onScroll={() => {}}
           columns={columns}
@@ -468,6 +473,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
           onSort={handleSort}
           onOpenFilter={openFilterDropdown}
           onResizeStart={handleResizeStart}
+          onResizeReset={(index) => resetWidth(columns[index]?.key)}
           getColumnLetter={getColumnLetter}
           isMonoColumn={isMonoColumn}
           isPending={false}

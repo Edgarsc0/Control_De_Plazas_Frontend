@@ -25,6 +25,30 @@ const CONDITION_SYMBOLS = {
   ends_with: "$", not_ends_with: "!$", equals: "=", not_equals: "!=",
 };
 
+// Grip de redimensionado (esquina inferior derecha de la celda de filtro, un
+// único punto de arrastre por columna en vez de las 2 barras invisibles en
+// los bordes del header) — mismo look que el de `RotacionAduanasSubTab.jsx`.
+// Sólo arrastre horizontal (como un `<textarea>`, restringido a ancho).
+function ResizeGrip({ onMouseDown, onDoubleClick }) {
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
+      title="Arrastra para cambiar el ancho de la columna (doble clic: restaurar ancho original)"
+      className="absolute bottom-0 right-0 z-20 flex size-3.5 cursor-ew-resize items-end justify-end p-0.5 text-white/40 transition-colors hover:text-white"
+    >
+      <svg viewBox="0 0 10 10" className="size-2.5 fill-current">
+        <circle cx="8" cy="2" r="1" />
+        <circle cx="8" cy="5" r="1" />
+        <circle cx="8" cy="8" r="1" />
+        <circle cx="5" cy="5" r="1" />
+        <circle cx="5" cy="8" r="1" />
+        <circle cx="2" cy="8" r="1" />
+      </svg>
+    </div>
+  );
+}
+
 /**
  * Fila memoizada: sólo se re-renderiza si cambian sus propias props (row, selección,
  * columnas visibles...), no en cada `setState` no relacionado del tab padre (hover,
@@ -99,6 +123,7 @@ const TableRow = memo(function TableRow({
  * @param {(key: string) => void} props.onSort - Alterna orden por columna.
  * @param {(key: string) => void} props.onOpenFilter - Abre el dropdown de filtro de una columna.
  * @param {(event: MouseEvent, index: number, direction: ('left'|'right')) => void} props.onResizeStart - Inicia el resize de columna.
+ * @param {(index: number) => void} [props.onResizeReset] - Doble clic en el grip de resize: restaura el ancho "de fábrica" de esa columna. Opcional: sin este prop el doble clic no hace nada.
  * @param {(index: number) => string} props.getColumnLetter - Letra estilo hoja de cálculo.
  * @param {(key: string) => boolean} props.isMonoColumn - Si la columna usa `starts_with` por defecto / fuente mono.
  * @param {boolean} props.isPending - Overlay de "Procesando...".
@@ -138,6 +163,7 @@ function DataTable({
   onSort,
   onOpenFilter,
   onResizeStart,
+  onResizeReset,
   getColumnLetter,
   isMonoColumn,
   isPending,
@@ -345,7 +371,11 @@ function DataTable({
     <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
       <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
       <table className={`text-left text-gray-500 border-collapse ${centerTable && !fillWidth ? "mx-auto" : ""}`} style={{ tableLayout: "fixed", width: fillWidth ? "100%" : columnsWidth, minWidth: columnsWidth }}>
-        <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{visible.map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
+        {/* `data-col-key` en cada <col>: localiza el nodo real para animar su
+            ancho con GSAP durante el resize (ver `animateColumnWidth` en
+            columnResize.js) sin pasar por el estado de React en cada
+            `mousemove`. */}
+        <colgroup><col style={{ width: 50 }} /><col style={{ width: 45 }} />{visible.map(col => <col key={col.key} data-col-key={col.key} style={{ width: col.width }} />)}</colgroup>
         <thead className="bg-[#501929] dark:bg-[#3e131f] text-white sticky top-0 z-30 shadow-md">
           {hasGroups ? (
             <>
@@ -371,7 +401,6 @@ function DataTable({
                   return (
                     <th key={col.key} rowSpan={2} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
                       {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
-                      <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'left')} />
                       <div className="flex flex-col items-center gap-1 w-full">
                         <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
                         <div className="flex items-center justify-between w-full">
@@ -394,7 +423,6 @@ function DataTable({
                           </button>
                         </div>
                       </div>
-                      <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')} />
                     </th>
                   );
                 })}
@@ -413,7 +441,6 @@ function DataTable({
                     return (
                       <th key={col.key} className={`relative py-2 px-3 font-black text-[10px] uppercase transition-colors ${isInternalSplit ? "border-r-2 border-[#bc955c]/60" : "border-r border-[#621f32]/30"} ${bgClass}`}>
                         {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
-                        <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'left')} />
                         <div className="flex items-center justify-between w-full">
                           <div
                             onClick={() => onSort(col.key)}
@@ -430,7 +457,6 @@ function DataTable({
                             <Filter className="size-3 fill-current" />
                           </button>
                         </div>
-                        <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')} />
                       </th>
                     );
                   })
@@ -451,7 +477,6 @@ function DataTable({
               return (
                 <th key={col.key} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
                   {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
-                  <div className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'left')} />
                   <div className="flex flex-col items-center gap-1 w-full">
                     <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
                     <div className="flex items-center justify-between w-full">
@@ -469,7 +494,6 @@ function DataTable({
                       )}
                     </div>
                   </div>
-                  <div className="absolute top-0 right-0 h-full w-2 cursor-col-resize z-20" onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')} />
                 </th>
               );
             })}
@@ -500,12 +524,21 @@ function DataTable({
               // deja la celda vacía, sin buscador ni selector de condición.
               if (col.noFilter) {
                 return (
-                  <th key={`filter-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`p-1.5 border-r border-[#621f32]/30 ${isSticky ? 'bg-[#40121e] dark:bg-[#2b0d15] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`} />
+                  <th key={`filter-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative p-1.5 border-r border-[#621f32]/30 ${isSticky ? 'bg-[#40121e] dark:bg-[#2b0d15] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
+                    <ResizeGrip
+                      onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')}
+                      onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); onResizeReset?.(columns.findIndex(c => c.key === col.key)); }}
+                    />
+                  </th>
                 );
               }
 
               return (
                 <th key={`filter-${col.key}`} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`p-1.5 border-r border-[#621f32]/30 relative ${isSticky ? 'bg-[#40121e] dark:bg-[#2b0d15] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
+                  <ResizeGrip
+                    onMouseDown={(e) => onResizeStart(e, columns.findIndex(c => c.key === col.key), 'right')}
+                    onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); onResizeReset?.(columns.findIndex(c => c.key === col.key)); }}
+                  />
                   <div className="relative flex items-center w-full">
                     <button
                       type="button"
