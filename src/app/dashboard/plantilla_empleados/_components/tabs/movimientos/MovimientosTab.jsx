@@ -65,6 +65,21 @@ const formatNumber = (num) => {
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
+// Equivalente aproximado en años/meses/días de un total de días (año=365,
+// mes=30) — sólo para el paréntesis de dias_ocupada/dias_vacante, no busca
+// precisión calendárica exacta.
+const formatDiasEquivalente = (dias) => {
+  const n = Number(dias) || 0;
+  const años = Math.floor(n / 365);
+  const meses = Math.floor((n % 365) / 30);
+  const díasRestantes = (n % 365) % 30;
+  const partes = [];
+  if (años > 0) partes.push(`${años} ${años === 1 ? "año" : "años"}`);
+  if (meses > 0) partes.push(`${meses} ${meses === 1 ? "mes" : "meses"}`);
+  if (partes.length === 0 || díasRestantes > 0) partes.push(`${díasRestantes} ${díasRestantes === 1 ? "día" : "días"}`);
+  return partes.join(", ");
+};
+
 const extractRawList = (data) => {
   if (!data) return [];
   if (Array.isArray(data.results)) return data.results;
@@ -154,6 +169,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
+    // Snapshot de HOY (sp_dias_ocupacion_masivo, recalculado en cada import
+    // ZAFIRO vía InvalidarCacheZafiroView) — a un lado de la posición para
+    // comparar de un vistazo cuánto ha estado ocupada vs vacante en toda su
+    // historia. No participan en el diff de ALL_MOV_KEYS del modal de
+    // histórico: suben un día cada día aunque no haya ningún movimiento
+    // real, así que ensuciarían ese timeline con "cambios" falsos.
+    { key: "dias_ocupada", label: "Días Ocupada", width: 220, visible: true, isBasic: true },
+    { key: "dias_vacante", label: "Días Vacante", width: 220, visible: true, isBasic: true },
     { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: true, isBasic: true },
     { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
     // Las siguientes 4 son las mismas que autollena el Anexo 2 a partir del
@@ -256,6 +279,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     return DATE_KEYS_MOV.includes(colKey);
   }, []);
 
+  // Únicas columnas realmente numéricas de MOV_POS (IntegerField real, ver
+  // MovPosBase.dias_ocupada/dias_vacante) — el resto son CharField aunque su
+  // contenido parezca numérico (Grado, Esc, Máximo...), así que no se
+  // ofrecen ahí las condiciones >, <, >= etc. (mismo criterio que NUMBER_KEYS
+  // en MovimientosPersonalTab.jsx).
+  const isNumericColumn = useCallback((colKey) => {
+    return colKey === "dias_ocupada" || colKey === "dias_vacante";
+  }, []);
+
   const {
     isAdvancedFiltersOpen, setIsAdvancedFiltersOpen,
     advancedConditions, setAdvancedConditions,
@@ -266,6 +298,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   } = useAdvancedFilters({
     mode: "server",
     isDateColumn,
+    isNumericColumn,
     onApply: () => { setLoading(true); setPage(1); },
   });
   const filtrosGuardados = useFiltrosGuardados("plantilla_movimientos");
@@ -1399,6 +1432,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-emerald-500" title="Clic para ver detalle de ocupación" /></div>) : <span className="text-slate-300">-</span>;
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleOcupacionClick} className={tdClassName}>{content}</td>);
     }
+    if (col.key === "dias_ocupada" || col.key === "dias_vacante") {
+      const hasValue = value !== undefined && value !== null;
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const content = hasValue
+        ? `${formatNumber(value)} (${formatDiasEquivalente(value)})`
+        : <span className="text-slate-300">-</span>;
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={onClick} className={tdClassName}>{content}</td>);
+    }
     if (col.key === "fecha_alta_solicitada") {
       const isEditingThis = editingAltaSolicitada?.codigo === row.codigo;
       if (isEditingThis) {
@@ -2356,6 +2397,14 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
             columns={columns}
+            // Antes de sumar dias_ocupada/dias_vacante, el default `idx < 2`
+            // de DataTable dejaba fijas (al hacer scroll horizontal) a
+            // no_pos_actual + fecha_ocupacion (las primeras 2 columnas
+            // visibles). Fijarlo explícito aquí evita que insertar 2
+            // columnas nuevas entre medio corra a fecha_ocupacion fuera del
+            // set de congeladas — y de paso, las 2 nuevas quedan pegadas a
+            // Posición igual que pedían ("a un lado de cada posición").
+            stickyColumnKeys={["no_pos_actual", "dias_ocupada", "dias_vacante", "fecha_ocupacion"]}
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             textFilters={textFilters}
@@ -2464,6 +2513,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         onRemoveGroup={removeAdvancedGroup}
         onApply={applyAdvancedFilters}
         isDateColumn={isDateColumn}
+        isNumericColumn={isNumericColumn}
         fetchSuggestions={fetchAdvValueSuggestions}
         savedFilters={filtrosGuardados.filtros}
         onLoadSavedFilter={loadSavedFilter}
