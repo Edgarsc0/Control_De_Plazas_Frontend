@@ -76,7 +76,7 @@ export default function RootLayout({ children }) {
                     móvil aunque el Banner esté oculto ahí — dejaba 80px de
                     hueco fantasma bajo el Navbar. Aquí se resuelve el
                     breakpoint con clases de Tailwind, que sí funcionan. */}
-                <main className="flex-grow relative z-10 flex flex-col pt-[var(--navbar-h)] md:pt-[var(--stack-h)] pb-[calc(var(--bottomnav-h)+env(safe-area-inset-bottom))] md:pb-0">
+                <main className="flex-grow relative z-10 flex flex-col pt-[var(--navbar-h)] md:pt-[var(--stack-h)] pb-nav-safe md:pb-0">
                   <ZafiroUpdatesProvider>
                     <Navbar />
                     <TooltipProvider>

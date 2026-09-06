@@ -80,7 +80,7 @@ export default function MapaTab({ distribucionGeografica = [] }) {
   // de filtros y la atribución quedaban por debajo de la barra fija. `100dvh`
   // evita además el salto de la barra dinámica de Safari iOS.
   return (
-    <div className="w-full h-[calc(100dvh-var(--stack-h)-var(--bottomnav-h))] md:h-[calc(100dvh-var(--stack-h))] md:pt-9 flex justify-center">
+    <div className="w-full h-stack-nav-dvh md:h-stack-dvh md:pt-9 flex justify-center">
       <div className="w-full h-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex flex-col relative">
         {/* Header Bar (docked, no flota sobre el mapa) */}
         <div className="shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 z-10">

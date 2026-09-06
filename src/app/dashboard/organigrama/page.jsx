@@ -2013,7 +2013,7 @@ function OrganigramaContent() {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full h-[calc(100vh-var(--stack-h)-var(--bottomnav-h))] md:h-[calc(100vh-var(--stack-h))] relative overflow-hidden bg-slate-150/40 dark:bg-slate-950/40">
+    <div className="w-full h-stack-nav-vh md:h-stack-vh relative overflow-hidden bg-slate-150/40 dark:bg-slate-950/40">
 
       {/* ── Scrollable canvas ───────────────────────────────────────────── */}
       <div
@@ -2332,7 +2332,7 @@ function OrganigramaContent() {
       {/* ── fin barra superior apilable ─────────────────────────────────── */}
 
       {/* ── FLOATING CARD 3: Stats (Bottom-Left) ────────────────────────── */}
-      <div className="absolute bottom-[calc(var(--bottomnav-h)+0.5rem)] md:bottom-4 left-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg text-[10px] text-slate-550 dark:text-slate-400 font-medium flex items-center gap-3">
+      <div className="absolute bottom-nav-gap md:bottom-4 left-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg text-[10px] text-slate-550 dark:text-slate-400 font-medium flex items-center gap-3">
         {selectedUnidad && (
           <div className="flex items-center gap-1.5 text-rose-900 dark:text-rose-700 font-bold border-r border-slate-200 dark:border-slate-800 pr-3">
             <Building className="w-3 h-3" />
@@ -2350,7 +2350,7 @@ function OrganigramaContent() {
       </div>
 
       {/* ── FLOATING CARD 4: Zoom (Bottom-Right) ────────────────────────── */}
-      <div className="absolute bottom-[calc(var(--bottomnav-h)+0.5rem)] md:bottom-4 right-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg flex items-center gap-1">
+      <div className="absolute bottom-nav-gap md:bottom-4 right-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200/50 dark:border-slate-800/50 shadow-lg flex items-center gap-1">
         <button onClick={() => setZoom(p => Math.max(p - 0.1, 0.3))} title="Reducir Zoom"
           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 dark:text-slate-355 dark:hover:bg-slate-800 transition-colors cursor-pointer">
           <Minus className="w-4 h-4" />

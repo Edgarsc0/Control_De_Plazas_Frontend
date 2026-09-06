@@ -23,6 +23,70 @@ body {
   --bottomnav-h: 4rem; /* BottomNav móvil: h-16 */
 }
 
+/* Utilidades de alto/posición derivadas de las variables de navegación.
+   ---------------------------------------------------------------------------
+   Existen porque NO se puede escribir esto como valor arbitrario de Tailwind.
+   Un candidato como `h-[calc(100dvh-var(--stack-h)-var(--bottomnav-h))]` hace
+   que el escáner de Tailwind 4.2.4 emita un nombre de clase CORRUPTO —con
+   bytes de control dentro del identificador de la variable— y la hoja completa
+   deja de parsear:
+
+       .h-\[calc\(100dvh-var\(--<basura>\1 3-h\)...\] { height: calc(100dvh - var(--<basura>3-h) ...) }
+       Unexpected token Delim('\u{1}')
+
+   La basura CAMBIA entre corridas, así que es corrupción de memoria del
+   escáner, no un problema de sintaxis: escribir los operadores con guion bajo
+   (`calc(100dvh_-_var(--stack-h))`) no lo evita. Sólo se manifiesta en el
+   servidor de desarrollo con Turbopack —`next build` genera el CSS correcto—,
+   y ahí tumba TODAS las rutas, no sólo la que usa la clase, porque Tailwind
+   escanea el proyecto entero.
+
+   Definidas como utilidades reales, el valor nunca pasa por ese camino. Se
+   usan igual que cualquier utilidad, variantes incluidas: `md:h-stack-dvh`.
+   Si Tailwind corrige el bug, esto sigue siendo válido; no hace falta volver
+   a los valores arbitrarios. */
+@utility h-stack-vh {
+  height: calc(100vh - var(--stack-h));
+}
+@utility h-stack-dvh {
+  height: calc(100dvh - var(--stack-h));
+}
+@utility h-stack-nav-vh {
+  height: calc(100vh - var(--stack-h) - var(--bottomnav-h));
+}
+@utility h-stack-nav-dvh {
+  height: calc(100dvh - var(--stack-h) - var(--bottomnav-h));
+}
+@utility max-h-stack-vh {
+  max-height: calc(100vh - var(--stack-h));
+}
+/* Tarjeta de Parámetros de Valuación: descuenta además la barra de acciones. */
+@utility max-h-stack-barra-vh {
+  max-height: calc(100vh - var(--stack-h, 9rem) - 3.5rem);
+}
+@utility top-stack-gap {
+  top: calc(var(--stack-h) + 0.75rem);
+}
+@utility bottom-nav-gap {
+  bottom: calc(var(--bottomnav-h) + 0.5rem);
+}
+@utility bottom-nav-gap-lg {
+  bottom: calc(var(--bottomnav-h) + 1rem + env(safe-area-inset-bottom));
+}
+@utility pb-nav-safe {
+  padding-bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom));
+}
+/* DriftWall: paso de la retícula (mosaico + separación). */
+@utility h-dw-paso {
+  height: calc(var(--dw-tile-h) + var(--dw-gap));
+}
+@utility w-dw-paso {
+  width: calc(var(--dw-tile-w) + var(--dw-gap));
+}
+@utility inset-dw-medio {
+  inset: calc(var(--dw-gap) / 2);
+}
+
 /* Banner gob.mx oculto en móvil (Banner.jsx: hidden md:flex) — el contenido
    solo necesita despejar el Navbar, que ahí ocupa top-0. */
 @media (max-width: 767px) {

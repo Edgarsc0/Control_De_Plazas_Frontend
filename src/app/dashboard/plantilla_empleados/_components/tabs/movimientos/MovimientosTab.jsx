@@ -1924,7 +1924,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       {/* Campana de notificaciones de posición: esquina superior derecha,
           debajo del Navbar (mismo anclaje fijo que su contraparte en
           PlantillaDetalleTab.jsx). */}
-      <div className="fixed bottom-[calc(var(--bottomnav-h)+1rem+env(safe-area-inset-bottom))] right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-3">
+      <div className="fixed bottom-nav-gap-lg right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-3">
         <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
       </div>
 
@@ -2121,7 +2121,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       </div>
 
       <div className="w-full flex items-start justify-center">
-        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-stack-vh md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
           <MobileTableToolbar
             searchValue={searchQuery}
             onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}

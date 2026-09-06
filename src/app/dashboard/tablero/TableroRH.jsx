@@ -194,7 +194,7 @@ export default function TableroRH() {
     // CuadrosVacanciaCard puede flotar por encima de esa fila sin quedar
     // recortado, mientras el tablero como un todo nunca hace scroll de
     // página completo.
-    <div className="w-full h-[calc(100dvh-var(--stack-h)-var(--bottomnav-h))] md:h-[calc(100dvh-var(--stack-h))] flex flex-col">
+    <div className="w-full h-stack-nav-dvh md:h-stack-dvh flex flex-col">
       <CuadrosVacanciaCard />
 
       {/* Cada panel reparte header (fijo) + resultados (único que hace

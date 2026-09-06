@@ -1954,7 +1954,7 @@ function TablaRotacion({ aduanas, entradasPorAduana, cardRefs, canViewPhoto, scr
  * fetch. */
 function EsqueletoRotacion() {
     return (
-        <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100vh-var(--stack-h))]">
+        <div className="flex min-h-0 flex-1 flex-col md:h-stack-vh">
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-200/70 bg-slate-50/50 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <div className="h-3 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
@@ -2242,7 +2242,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
     }
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col md:h-[calc(100vh-var(--stack-h))]">
+        <div className="flex min-h-0 flex-1 flex-col md:h-stack-vh">
             {/* Controles: volver, búsqueda, stats+filtros, exportar, recargar
                 — TODOS en una sola fila SIN scroll (todo compacto para que
                 quepa: chips/stats más chicos, input más angosto, menos

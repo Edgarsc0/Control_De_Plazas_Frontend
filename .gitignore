@@ -15,6 +15,9 @@
 
 # next.js
 /.next/
+# Carpetas de build alternas (NEXT_DIST_DIR): sin esto Tailwind las escanea
+# como si fueran fuentes y extrae candidatos basura del bundle compilado.
+/.next-*/
 /out/
 
 # production
