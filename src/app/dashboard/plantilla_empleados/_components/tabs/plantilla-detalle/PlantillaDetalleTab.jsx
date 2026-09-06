@@ -10,6 +10,8 @@ import {
   MousePointerClick, UserPlus, Ban, ListFilter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
@@ -140,6 +142,8 @@ const getFilterCellValue = (row, key) => {
   }
   return String(row[key] || "").trim();
 };
+
+gsap.registerPlugin(useGSAP);
 
 const STATUS_COLORS = { "Activo": "#621f32", "Vacante": "#bc955c", "Solicitada": "#eab308", "No Disponible": "#64748b", "Suspendido": "#3b82f6", "Permiso": "#8b5cf6", "Permiso Retribuido": "#10b981" };
 const STATUS_ICONS = { "Activo": UserCheck, "Vacante": UserMinus, "Solicitada": UserPlus, "No Disponible": Ban, "Suspendido": UserX, "Permiso": CalendarDays, "Permiso Retribuido": Activity };
@@ -624,12 +628,13 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     [detalleSinFiltroOficial, soloPlantillaOficial]
   );
   const isLoading = historicoActivo ? historicoLoading : isLoadingLive;
-  // El donut de arriba (Activo/Vacante/Suspendido...) no se reutiliza en modo
-  // histórico: su vocabulario de estatus depende de columnas quincenal
-  // (solicitante, marca_no_disponible...) que no existen en la reconstrucción
-  // histórica. Se reemplaza por las tarjetas de `historicoResumen` (ver JSX) y
-  // el bloque del donut se oculta por completo; `resumen` (prop en vivo) no
-  // necesita tocarse.
+  // El donut de arriba (Activo/Vacante/Suspendido...) SÍ se conserva en modo
+  // histórico (se calcula sobre `detalle`, ver `resumenEfectivo` más abajo,
+  // que ya trae estado_nomina/val_estat también en la reconstrucción). Sólo
+  // el sub-estatus "Solicitada" queda en 0 ahí (depende de columnas
+  // quincenal ausentes históricamente); no afecta el total. Las tarjetas de
+  // `historicoResumen` (plazas totales/activas/inactivas/ocupadas/vacantes,
+  // ver JSX) se muestran ADEMÁS del donut, no en su lugar.
 
   // El modal "Movimientos realizados hoy" trae filas de `cp_tbl_mov_completo`
   // (posicion, num_empleado CON guion bajo, nombre/accion/motivo — un log de
@@ -1546,6 +1551,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   useBodyScrollLock(isCadenaModalOpen);
   const [hoveredSlice, setHoveredSlice] = useState(null);
   const [cardWidth, setCardWidth] = useState(null);
+  const distribCardsRef = useRef(null);
 
   // `queryOverride`: al elegir una sugerencia el input se rellena con
   // "Posición - Nombre" (más legible) pero el backend necesita solo la
@@ -3292,7 +3298,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // tarjeta y tabla cuenten exactamente lo mismo. Apagado, se sigue usando el
   // agregado del backend tal cual, sin cambios.
   const resumenEfectivo = useMemo(() => {
-    if (!soloPlantillaOficial) return resumen;
+    // `resumen` (prop) sólo agrega la plantilla EN VIVO — en modo histórico
+    // no aplica nunca, sin importar el switch "Plantilla oficial": se
+    // calcula siempre desde `detalle` (ya es `historicoFilas` ahí, ver
+    // comentario de `detalleSinFiltroOficial`).
+    if (!soloPlantillaOficial && !historicoActivo) return resumen;
     const conteo = { total_registros: detalle.length, Activo: 0, Vacante: 0, Suspendido: 0, Licencia: 0, Licencia_Medica: 0 };
     for (const row of detalle) {
       const estado = mapEstadoNomina(row.estado_nomina, row.val_estat);
@@ -3303,7 +3313,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       else conteo.Vacante += 1;
     }
     return conteo;
-  }, [soloPlantillaOficial, resumen, detalle]);
+  }, [soloPlantillaOficial, historicoActivo, resumen, detalle]);
 
   const donutData = useMemo(() => {
     const total = resumenEfectivo?.total_registros || 11957;
@@ -3338,6 +3348,22 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     () => detalle.filter(row => getEstadoNominaDisplay(row) === "Solicitada").length,
     [detalle]
   );
+
+  // Al terminar de cargar (skeleton -> tarjetas reales, ver JSX) hace una
+  // entrada escalonada de las tarjetas de distribución de estatus (móvil +
+  // escritorio) en vez de que aparezcan de golpe. `overwrite: true` porque
+  // navegar rápido entre fechas históricas (< >) puede disparar este efecto
+  // varias veces antes de que la animación previa termine.
+  useGSAP(() => {
+    if (isLoading) return;
+    const cards = gsap.utils.toArray(".distrib-card-anim", distribCardsRef.current);
+    if (!cards.length) return;
+    gsap.fromTo(
+      cards,
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.35, stagger: 0.035, ease: "power2.out", overwrite: true }
+    );
+  }, { dependencies: [isLoading, historicoFecha], scope: distribCardsRef });
 
   // Badge de estado para la vista de tarjetas en móvil (mismo lenguaje visual que la celda).
   const renderEstadoBadge = useCallback((row) => {
@@ -3817,9 +3843,15 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       {/* Móvil: carrusel horizontal de tarjetas (arrastre táctil nativo vía
           overflow-x-auto + snap) en vez del donut y las tarjetas grandes de
           escritorio, que en una pantalla angosta forzaban scroll vertical
-          largo antes de llegar a la tabla. Oculto en modo histórico (ver
-          banner de arriba, que lo reemplaza). */}
-      {!historicoActivo && (
+          largo antes de llegar a la tabla. Se conserva también en modo
+          histórico (ver `resumenEfectivo`), además del banner de arriba.
+          Mientras carga (`isLoading`) se muestra un skeleton con la misma
+          cantidad de tarjetas que va a renderizar (6 en histórico, sin
+          "Solicitada" — ver más abajo — 7 en vivo), para que no haya salto
+          de layout cuando llegan los datos reales. Las tarjetas reales
+          llevan `distrib-card-anim` para la entrada escalonada de gsap (ver
+          `useGSAP` de arriba). */}
+      <div ref={distribCardsRef}>
       <div className="w-full md:hidden mb-6">
         <div className="px-4 mb-3">
           <label
@@ -3841,75 +3873,113 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         </div>
         <Zoom triggerOnce>
           <div className="flex gap-3 overflow-x-auto px-4 pb-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
-            <button
-              type="button"
-              onClick={() => startTransition(() => setColumnFilters({}))}
-              className={`shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 shadow-md flex flex-col text-white relative overflow-hidden bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] transition-all ${activeStatusFilter.length === 0 ? "ring-2 ring-white/40" : ""}`}
-            >
-              <div className="absolute -top-6 -right-6 size-16 bg-[#bc955c]/20 rounded-full blur-lg pointer-events-none" />
-              <div className="p-1.5 bg-white/10 rounded-lg w-fit mb-2">
-                <Briefcase className="size-3.5 text-white" />
-              </div>
-              <span className="text-[8px] font-black uppercase tracking-wider text-white/70 text-left leading-tight mb-1">Posiciones Totales</span>
-              <span className="text-lg font-black text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</span>
-            </button>
-            {donutData.flatMap((slice) => {
-              const IconComponent = STATUS_ICONS[slice.label] || Users;
-              const isActiveFilter = activeStatusFilter.includes(slice.label);
-              const card = (
+            {isLoading ? (
+              Array.from({ length: historicoActivo ? 6 : 7 }).map((_, i) => (
+                <div key={i} className="shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60 flex flex-col animate-pulse">
+                  <div className="size-6 rounded-lg bg-slate-200 dark:bg-slate-700 mb-2" />
+                  <div className="h-2 w-14 rounded bg-slate-200 dark:bg-slate-700 mb-1" />
+                  <div className="h-5 w-10 rounded bg-slate-200 dark:bg-slate-700 mb-1" />
+                  <div className="h-2 w-8 rounded bg-slate-200 dark:bg-slate-700" />
+                </div>
+              ))
+            ) : (
+              <>
                 <button
-                  key={slice.label}
                   type="button"
-                  onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))}
-                  className={`shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 shadow-sm flex flex-col text-left transition-all ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] bg-white dark:bg-slate-900 shadow-md" : "border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60"}`}
+                  onClick={() => startTransition(() => setColumnFilters({}))}
+                  className={`distrib-card-anim shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 shadow-md flex flex-col text-white relative overflow-hidden bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] transition-all ${activeStatusFilter.length === 0 ? "ring-2 ring-white/40" : ""}`}
                 >
-                  <div className="p-1.5 rounded-lg w-fit mb-2" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}>
-                    <IconComponent className="size-3.5" />
+                  <div className="absolute -top-6 -right-6 size-16 bg-[#bc955c]/20 rounded-full blur-lg pointer-events-none" />
+                  <div className="p-1.5 bg-white/10 rounded-lg w-fit mb-2">
+                    <Briefcase className="size-3.5 text-white" />
                   </div>
-                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 leading-tight mb-1 truncate">{slice.label}</span>
-                  <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(slice.count)}</span>
-                  <span className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</span>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-white/70 text-left leading-tight mb-1">Posiciones Totales</span>
+                  <span className="text-lg font-black text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</span>
                 </button>
-              );
-              if (slice.label !== "Vacante") return [card];
-              const isSolicitadaFilter = activeStatusFilter.includes("Solicitada");
-              const solicitadaCard = (
-                <button
-                  key="solicitada-shortcut"
-                  type="button"
-                  onClick={() => handleStatusFilter("Solicitada")}
-                  className={`shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 shadow-sm flex flex-col text-left transition-all ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] bg-white dark:bg-slate-900 shadow-md" : "border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60"}`}
-                >
-                  <div className="p-1.5 rounded-lg w-fit mb-2" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}>
-                    <UserPlus className="size-3.5" />
-                  </div>
-                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 leading-tight mb-1 truncate">Solicitada</span>
-                  <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(solicitadaCount)}</span>
-                </button>
-              );
-              return [card, solicitadaCard];
-            })}
+                {donutData.flatMap((slice) => {
+                  const IconComponent = STATUS_ICONS[slice.label] || Users;
+                  const isActiveFilter = activeStatusFilter.includes(slice.label);
+                  const card = (
+                    <button
+                      key={slice.label}
+                      type="button"
+                      onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))}
+                      className={`distrib-card-anim shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 shadow-sm flex flex-col text-left transition-all ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] bg-white dark:bg-slate-900 shadow-md" : "border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60"}`}
+                    >
+                      <div className="p-1.5 rounded-lg w-fit mb-2" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}>
+                        <IconComponent className="size-3.5" />
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 leading-tight mb-1 truncate">{slice.label}</span>
+                      <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(slice.count)}</span>
+                      <span className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</span>
+                    </button>
+                  );
+                  // "Solicitada" depende de columnas quincenal (solicitante) ausentes
+                  // en la reconstrucción histórica — se omite mientras `historicoActivo`.
+                  if (slice.label !== "Vacante" || historicoActivo) return [card];
+                  const isSolicitadaFilter = activeStatusFilter.includes("Solicitada");
+                  const solicitadaCard = (
+                    <button
+                      key="solicitada-shortcut"
+                      type="button"
+                      onClick={() => handleStatusFilter("Solicitada")}
+                      className={`distrib-card-anim shrink-0 snap-start w-[112px] rounded-2xl px-3 py-3 border-2 shadow-sm flex flex-col text-left transition-all ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] bg-white dark:bg-slate-900 shadow-md" : "border-slate-200/60 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/60"}`}
+                    >
+                      <div className="p-1.5 rounded-lg w-fit mb-2" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}>
+                        <UserPlus className="size-3.5" />
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 leading-tight mb-1 truncate">Solicitada</span>
+                      <span className="text-lg font-black text-slate-800 dark:text-white leading-none">{formatNumber(solicitadaCount)}</span>
+                    </button>
+                  );
+                  return [card, solicitadaCard];
+                })}
+              </>
+            )}
           </div>
         </Zoom>
       </div>
-      )}
 
-      {!historicoActivo && (
       <div className="hidden md:block w-full px-4 lg:px-6">
         <Zoom triggerOnce>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">
             <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
-              <div className="relative size-28 flex items-center justify-center">
-                <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none"><defs><mask id="donut-mask-detalle"><circle cx="0" cy="0" r="1" fill="white" /><circle cx="0" cy="0" r="0.65" fill="black" /></mask></defs><g mask="url(#donut-mask-detalle)">{donutData.map((slice, i) => (<path key={slice.label} d={slice.pathData} fill={slice.color} className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90" style={{ transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)", opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.label) ? 0.35 : 1 }} onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} />))}</g></svg>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1"><AnimatePresence mode="wait">{activeHoverData ? (<motion.div key={activeHoverData.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{activeHoverData.label}</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(activeHoverData.count)}</span><br /><span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current" style={{ color: activeHoverData.color, backgroundColor: `${activeHoverData.color}15` }}>{(activeHoverData.percent * 100).toFixed(1)}%</span></motion.div>) : (<motion.div key="total" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(resumenEfectivo?.total_registros || 11957)}</span><br /><span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">100%</span></motion.div>)}</AnimatePresence></div>
-              </div>
+              {isLoading ? (
+                <div className="relative size-28 rounded-full bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
+              ) : (
+                <div className="relative size-28 flex items-center justify-center distrib-card-anim">
+                  <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none"><defs><mask id="donut-mask-detalle"><circle cx="0" cy="0" r="1" fill="white" /><circle cx="0" cy="0" r="0.65" fill="black" /></mask></defs><g mask="url(#donut-mask-detalle)">{donutData.map((slice, i) => (<path key={slice.label} d={slice.pathData} fill={slice.color} className="cursor-pointer transition-all duration-300 origin-center hover:opacity-90" style={{ transform: hoveredSlice === i ? "scale(1.04)" : "scale(1.0)", opacity: activeStatusFilter.length > 0 && !activeStatusFilter.includes(slice.label) ? 0.35 : 1 }} onMouseEnter={() => setHoveredSlice(i)} onPointerDown={() => setHoveredSlice(i)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} />))}</g></svg>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-center flex-col p-1"><AnimatePresence mode="wait">{activeHoverData ? (<motion.div key={activeHoverData.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[80px]">{activeHoverData.label}</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(activeHoverData.count)}</span><br /><span className="text-[8px] font-extrabold px-2 py-0.5 rounded-full mt-1 border border-current" style={{ color: activeHoverData.color, backgroundColor: `${activeHoverData.color}15` }}>{(activeHoverData.percent * 100).toFixed(1)}%</span></motion.div>) : (<motion.div key="total" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}><span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Total</span><br /><span className="text-xl font-black text-gray-800 dark:text-white leading-none mt-0.5">{formatNumber(resumenEfectivo?.total_registros || 11957)}</span><br /><span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-1 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-full">100%</span></motion.div>)}</AnimatePresence></div>
+                </div>
+              )}
             </div>
-            <div className="lg:col-span-9 grid grid-cols-3 md:grid-cols-3 xl:grid-cols-7 gap-3">{donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante") return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumenEfectivo?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}<motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div></div>
+            <div className={`lg:col-span-9 grid grid-cols-3 md:grid-cols-3 ${historicoActivo ? "xl:grid-cols-6" : "xl:grid-cols-7"} gap-3`}>
+              {isLoading ? (
+                Array.from({ length: historicoActivo ? 6 : 7 }).map((_, i) => (
+                  <div key={i} className="rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60 flex flex-col justify-between animate-pulse">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="size-6 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-2 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                    <div>
+                      <div className="h-5 w-12 rounded bg-slate-200 dark:bg-slate-700 mb-2" />
+                      <div className="w-full h-1 rounded-full bg-slate-200 dark:bg-slate-700 mb-1" />
+                      <div className="h-2 w-8 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  {donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`distrib-card-anim rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante" || historicoActivo) return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumenEfectivo?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`distrib-card-anim rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}
+                  <motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`distrib-card-anim bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div>
+                </>
+              )}
+            </div>
           </div>
         </Zoom>
       </div>
-      )}
+      </div>
 
       <div className="w-full flex justify-center mt-4">
         <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-stack-vh md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
