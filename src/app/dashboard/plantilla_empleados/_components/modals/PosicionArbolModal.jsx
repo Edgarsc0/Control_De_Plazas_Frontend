@@ -97,7 +97,7 @@ const fmtDuracion = (n) => {
 /* badge con flecha a cada lado del círculo lo indica.                   */
 /* ------------------------------------------------------------------ */
 function Nodo({ node, origin, seleccionado, onSelect, onAbrirPlaza, canViewPhoto }) {
-    const { periodo, origenPlaza, destinoPlaza } = node;
+    const { periodo, origenPlaza, origenFocoId, destinoPlaza, destinoFocoId } = node;
     const tipo = periodo.tipo_periodo || "ocupacion";
     const estilo = ESTILO_NODO[tipo] || ESTILO_NODO.ocupacion;
     const Icono = estilo.icon;
@@ -148,7 +148,7 @@ function Nodo({ node, origin, seleccionado, onSelect, onAbrirPlaza, canViewPhoto
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onAbrirPlaza?.(origenPlaza);
+                                onAbrirPlaza?.(origenPlaza, origenFocoId);
                             }}
                             title={`Empleado viene desde la plaza ${origenPlaza} · clic para ver su historia`}
                             className="absolute right-full top-1/2 mr-2.5 flex w-[176px] -translate-y-1/2 cursor-pointer items-start gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-left text-[10px] font-bold leading-snug text-indigo-700 shadow-sm transition-transform hover:scale-105 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
@@ -167,7 +167,7 @@ function Nodo({ node, origin, seleccionado, onSelect, onAbrirPlaza, canViewPhoto
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onAbrirPlaza?.(destinoPlaza);
+                                onAbrirPlaza?.(destinoPlaza, destinoFocoId);
                             }}
                             title={`Empleado se desplazó a la plaza ${destinoPlaza} · clic para ver su historia`}
                             className="absolute left-full top-1/2 ml-2.5 flex w-[176px] -translate-y-1/2 cursor-pointer items-start gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-left text-[10px] font-bold leading-snug text-orange-700 shadow-sm transition-transform hover:scale-105 hover:bg-orange-100 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300"
@@ -320,9 +320,17 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
     const [error, setError] = useState(null);
     const [seleccionado, setSeleccionado] = useState(null);
     const [zoom, setZoom] = useState(1);
-    // clave del nodo (mov:<id_registro_inicio>) -> plaza de la que vino ese
-    // ocupante, resuelta cruzando la historia de CADA empleado del tronco.
+    // clave del nodo (mov:<id_registro_inicio>) -> { posicion, focoId } de
+    // dónde vino ese ocupante, resuelta cruzando la historia de CADA empleado
+    // del tronco. `focoId` es el id del nodo en ESA plaza que corresponde al
+    // mismo tramo del empleado (para centrar el canvas ahí al navegar).
     const [origenMap, setOrigenMap] = useState({});
+    // clave del nodo (mov:<id_registro_inicio>) -> id del nodo, en la plaza de
+    // destino, donde continúa el mismo empleado (para centrar al llegar).
+    const [destinoFocoMap, setDestinoFocoMap] = useState({});
+    // Nodo a enfocar/centrar en cuanto cargue la plaza que se está abriendo
+    // (el mismo empleado que se estaba examinando antes de saltar de plaza).
+    const [focoNodoId, setFocoNodoId] = useState(null);
     // Pila de navegación: [0] es la plaza con la que se abrió el modal, el
     // último elemento es la que se está mostrando ahora. Clic en un badge de
     // plaza entrante/saliente empuja una nueva; "<" saca la última, "<<"
@@ -384,11 +392,13 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
     useEffect(() => {
         if (!open || !plaza) {
             setOrigenMap({});
+            setDestinoFocoMap({});
             return;
         }
         const empleados = [...new Set(plaza.periodos.filter((p) => p.num_empleado).map((p) => p.num_empleado))];
         if (empleados.length === 0) {
             setOrigenMap({});
+            setDestinoFocoMap({});
             return;
         }
         const ctrl = new AbortController();
@@ -400,7 +410,8 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             )
         ).then((resultados) => {
             if (ctrl.signal.aborted) return;
-            const mapa = {};
+            const mapaOrigen = {};
+            const mapaDestinoFoco = {};
             resultados.forEach((datos) => {
                 const tramos = datos?.tramos;
                 if (!Array.isArray(tramos)) return;
@@ -408,30 +419,46 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
                     const actual = tramos[i];
                     const anterior = tramos[i - 1];
                     if (actual.id_registro_inicio != null && anterior.tipo_cierre === "traslado" && anterior.posicion) {
-                        mapa[`mov:${actual.id_registro_inicio}`] = anterior.posicion;
+                        mapaOrigen[`mov:${actual.id_registro_inicio}`] = {
+                            posicion: anterior.posicion,
+                            focoId: anterior.id_registro_inicio != null ? `mov:${anterior.id_registro_inicio}` : null,
+                        };
+                    }
+                    if (
+                        anterior.id_registro_inicio != null &&
+                        anterior.tipo_cierre === "traslado" &&
+                        actual.id_registro_inicio != null
+                    ) {
+                        mapaDestinoFoco[`mov:${anterior.id_registro_inicio}`] = `mov:${actual.id_registro_inicio}`;
                     }
                 }
             });
-            setOrigenMap(mapa);
+            setOrigenMap(mapaOrigen);
+            setDestinoFocoMap(mapaDestinoFoco);
         });
         return () => ctrl.abort();
     }, [open, plaza]);
 
     // Clic en un badge de plaza entrante/saliente: reemplaza el tronco
-    // completo por la historia de esa otra plaza, acumulando en la pila.
+    // completo por la historia de esa otra plaza, acumulando en la pila, y
+    // pide que al llegar se centre en el nodo del mismo empleado (si se pudo
+    // resolver — depende de que ya haya cargado el cruce de historias).
     const abrirPlaza = useCallback(
-        (pos) => {
+        (pos, focoId) => {
             if (!pos || pos === posActual) return;
             setPila((p) => [...p, pos]);
+            setFocoNodoId(focoId || null);
         },
         [posActual]
     );
 
     const retroceder = useCallback(() => {
+        setFocoNodoId(null);
         setPila((p) => (p.length > 1 ? p.slice(0, -1) : p));
     }, []);
 
     const irAlInicio = useCallback(() => {
+        setFocoNodoId(null);
         setPila((p) => (p.length > 1 ? [p[0]] : p));
     }, []);
 
@@ -449,13 +476,16 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
         });
         const nodos = ordenados.map((periodo, i) => {
             const id = periodo.id_registro_inicio != null ? `mov:${periodo.id_registro_inicio}` : `idx:${i}`;
+            const origenInfo = origenMap[id] || null;
             return {
                 id,
                 periodo,
                 x: 0,
                 y: i * ROW_HEIGHT,
-                origenPlaza: origenMap[id] || null,
+                origenPlaza: origenInfo?.posicion || null,
+                origenFocoId: origenInfo?.focoId || null,
                 destinoPlaza: periodo.tipo_cierre === "traslado" && periodo.posicion_destino ? periodo.posicion_destino : null,
+                destinoFocoId: destinoFocoMap[id] || null,
             };
         });
         const bordes = [];
@@ -463,7 +493,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             bordes.push({ id: `e:${i}`, x1: nodos[i - 1].x, y1: nodos[i - 1].y, x2: nodos[i].x, y2: nodos[i].y });
         }
         return { nodes: nodos, edges: bordes };
-    }, [plaza, origenMap]);
+    }, [plaza, origenMap, destinoFocoMap]);
 
     const bbox = useMemo(() => {
         const PAD_Y = 110; // etiqueta multilínea de hasta 150px de ancho
@@ -519,8 +549,24 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             if (!open || !plaza || !viewportRef.current || !worldRef.current) return;
 
             const vp = viewportRef.current.getBoundingClientRect();
+            const objetivo = focoNodoId ? nodes.find((n) => n.id === focoNodoId) : null;
+
+            // Arranca arriba como siempre y, si venimos de seguir a un
+            // empleado hacia otra plaza, "baja" animando hasta centrarlo.
             gsap.set(worldRef.current, { x: vp.width / 2 - origin.x, y: 36, scale: 1 });
             setZoom(1);
+
+            if (objetivo) {
+                setSeleccionado(objetivo.id);
+                gsap.to(worldRef.current, {
+                    x: vp.width / 2 - (origin.x + objetivo.x),
+                    y: vp.height / 2 - (origin.y + objetivo.y),
+                    duration: 0.9,
+                    delay: 0.2,
+                    ease: "power2.inOut",
+                });
+                setFocoNodoId(null);
+            }
 
             draggableRef.current?.[0]?.kill();
             draggableRef.current = Draggable.create(worldRef.current, {
