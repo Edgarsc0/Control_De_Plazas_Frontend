@@ -16,6 +16,7 @@ import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
+import PosicionArbolModal from "../../modals/PosicionArbolModal";
 import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
@@ -1440,6 +1441,16 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     setIsVacanciaModalOpen(true);
   }, []);
 
+  // Árbol de la plaza (columna "Posición") — mismo modal que Mov. Posiciones
+  // (PosicionArbolModal): tronco de la plaza, sin historial de ocupantes en lista.
+  const [isPosicionArbolModalOpen, setIsPosicionArbolModalOpen] = useState(false);
+  const [posicionArbolSeleccionada, setPosicionArbolSeleccionada] = useState(null);
+  const openPosicionArbolModal = useCallback((posicion) => {
+    if (!posicion) return;
+    setPosicionArbolSeleccionada(posicion);
+    setIsPosicionArbolModalOpen(true);
+  }, []);
+
   // Clic en el pill de "Vacante"/"Solicitada" (columna Estado Nómina): muestra
   // u oculta en bloque las 3 columnas de solicitud. Si estaban en un estado
   // mixto (alguna visible por "Configurar Columnas" y otra no), primero las
@@ -2750,6 +2761,20 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         </Tooltip>
       );
     }
+    // Columna "Posición": clic abre el árbol de la plaza (mismo modal que
+    // Mov. Posiciones, PosicionArbolModal) en vez de seleccionar la celda.
+    if (col.key === "posicion") {
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle font-mono font-bold ${rowBg(isSelected, isSticky)} ${isSelected ? "text-[#621f32]" : "text-slate-700 dark:text-slate-300"} ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const handlePosicionClick = (e) => { onClick(e); if (hasValue) openPosicionArbolModal(value); };
+      const content = hasValue ? (
+        <div className="flex items-center justify-between gap-2">
+          <span>{String(value)}</span>
+          <MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver el árbol de la plaza" />
+        </div>
+      ) : <span className="text-slate-300 dark:text-slate-700 italic font-normal">-</span>;
+      return (<td key={col.key} style={stickyStyle} onClick={handlePosicionClick} onContextMenu={onContextMenu} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
+    }
     let displayContent;
     if (col.key === "rango") {
       const rangoVal = displayRango(value, row.tipo_de_personal_sedena_semar);
@@ -2791,7 +2816,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       );
     }
     return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassNameDefault}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
-  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, canEditCeldas, toggleSolicitudColumns]);
+  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, openPosicionArbolModal, canEditCeldas, toggleSolicitudColumns]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
@@ -3469,7 +3494,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           de arriba) para no taparla una vez que ya no hace falta tenerla a
           la vista. */}
       <div
-        className={`fixed top-[calc(var(--stack-h)+0.75rem)] right-4 md:top-48 md:right-8 z-30 flex items-center gap-3 transition-opacity duration-200 ${showFloatingMobileActions ? "opacity-100" : "opacity-0 pointer-events-none"} md:opacity-100 md:pointer-events-auto`}
+        className={`fixed top-stack-gap right-4 md:top-48 md:right-8 z-30 flex items-center gap-3 transition-opacity duration-200 ${showFloatingMobileActions ? "opacity-100" : "opacity-0 pointer-events-none"} md:opacity-100 md:pointer-events-auto`}
       >
         <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
         <button
@@ -3887,7 +3912,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       )}
 
       <div className="w-full flex justify-center mt-4">
-        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-stack-vh md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%', maxWidth: cardWidth ? 'none' : '100%' }}>
           {/* Toolbar móvil (búsqueda + Excel + Drawer de herramientas) */}
           <MobileTableToolbar
             searchValue={searchQuery}
@@ -4641,6 +4666,13 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         onClose={() => setIsVacanciaModalOpen(false)}
         detalle={vacanciaDetalle}
         isLoading={isVacanciaLoading}
+      />
+
+      <PosicionArbolModal
+        open={isPosicionArbolModalOpen}
+        onOpenChange={setIsPosicionArbolModalOpen}
+        posicion={posicionArbolSeleccionada}
+        canViewPhoto={canViewFotoDetalle}
       />
 
       <CopyCellMenu

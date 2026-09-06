@@ -12,14 +12,13 @@ import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
-import PosicionTimelineModal from "../../modals/PosicionTimelineModal";
+import PosicionArbolModal from "../../modals/PosicionArbolModal";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ExportConFotosModal from "../../shared/ExportConFotosModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
 import RotacionAduanasSubTab from "./RotacionAduanasSubTab";
-import ArbolMovimientosSubTab from "./ArbolMovimientosSubTab";
 import CopyCellMenu from "../../shared/CopyCellMenu";
 import CeldaValorModal from "../../shared/CeldaValorModal";
 import ModalShell from "@/components/shared/ModalShell";
@@ -541,7 +540,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [cardWidth, setCardWidth] = useState(null);
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedNumEmpleado, setSelectedNumEmpleado] = useState(null);
-  const [posicionTimelineModalOpen, setPosicionTimelineModalOpen] = useState(false);
+  const [posicionArbolModalOpen, setPosicionArbolModalOpen] = useState(false);
   const [selectedPosicion, setSelectedPosicion] = useState(null);
   const [selectedActionName, setSelectedActionName] = useState(null);
   const [motifStatsData, setMotifStatsData] = useState({ by_year: {}, all: [] });
@@ -897,7 +896,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     else if (col.key === "motivo_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
     if (catalogInfo) cellClass += " cursor-help";
     const handleCellClick = (e) => {
-      if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionTimelineModalOpen(true); }
+      if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionArbolModalOpen(true); }
       else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setTimelineModalOpen(true); }
       else { setSelectedCell({ rowIdx: globalRowIdx, colIdx, colName: col.label, value: val }); }
     };
@@ -1965,7 +1964,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   return (
     <div className="w-full flex flex-col">
-      {activeSubTab !== "rotacion" && activeSubTab !== "arbol" && (
+      {activeSubTab !== "rotacion" && (
       <div className="w-full px-4 lg:px-6 pt-2">
       {/* Statistics Card and Pie Chart */}
         <Zoom triggerOnce>
@@ -2432,13 +2431,9 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         </Zoom>
       </div>
       )}
-      <div className={`w-full flex justify-center ${activeSubTab === "arbol" ? "" : "mt-4"}`}>
-        <div ref={cardRef} className={activeSubTab === "arbol" ? "w-full h-[calc(100dvh-var(--stack-h)-var(--bottomnav-h))] md:h-[calc(100dvh-var(--stack-h))] md:pt-9 flex flex-col overflow-hidden z-30" : "bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-[calc(100vh-var(--stack-h))] md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]"} style={activeSubTab === "arbol" ? undefined : { width: cardWidth ? `${cardWidth}px` : '100%' }}>
-          {activeSubTab === "arbol" ? (
-            /* El arbol se carga por nodo, bajo demanda, y trae su propio estado:
-               no comparte toolbar, paginador ni filtros con los subtabs tabulares. */
-            <ArbolMovimientosSubTab />
-          ) : activeSubTab === "rotacion" ? (
+      <div className="w-full flex justify-center mt-4">
+        <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-stack-vh md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%' }}>
+          {activeSubTab === "rotacion" ? (
             /* La rotación de titulares no es una vista tabular: no comparte
                toolbar, paginador ni filtros de columna con los otros dos
                subtabs, y trae su propio estado. */
@@ -2866,10 +2861,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         numEmpleado={selectedNumEmpleado}
       />
       
-      <PosicionTimelineModal
-        open={posicionTimelineModalOpen}
-        onOpenChange={setPosicionTimelineModalOpen}
+      <PosicionArbolModal
+        open={posicionArbolModalOpen}
+        onOpenChange={setPosicionArbolModalOpen}
         posicion={selectedPosicion}
+        canViewPhoto={canViewFotoMovimientos}
       />
 
       <ExportConFotosModal

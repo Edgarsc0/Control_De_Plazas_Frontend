@@ -20,8 +20,7 @@ import {
   GitCompareArrows,
   FileSpreadsheet,
   UserCheck,
-  Building2,
-  GitBranch
+  Building2
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
@@ -322,7 +321,6 @@ export default function PlantillaEmpleadosDetalle({
         { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
         { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck },
         { id: "rotacion", label: "Rotación de titulares de Aduanas", icon: Building2 },
-        { id: "arbol", label: "Árbol de movimientos", icon: GitBranch },
       ],
       active: activeMovPersonalSubTab,
       setActive: setActiveMovPersonalSubTab,
@@ -359,11 +357,10 @@ export default function PlantillaEmpleadosDetalle({
     subtabConfigs,
   });
 
-  // Prevent page scroll on tabs with a full-bleed canvas layout (altura
-  // exacta h-[calc(100dvh-var(--stack-h))], sin scroll de documento): mapa y
-  // el árbol de movimientos comparten esa arquitectura.
+  // Prevent page scroll on tabs con layout de canvas a sangre (altura exacta
+  // h-stack-dvh, sin scroll de documento): sólo el mapa usa esa arquitectura.
   useEffect(() => {
-    if (activeTab === "mapa" || (activeTab === "movimientos_personal" && activeMovPersonalSubTab === "arbol")) {
+    if (activeTab === "mapa") {
       document.documentElement.classList.add("overflow-hidden");
       document.body.classList.add("overflow-hidden");
     } else {
@@ -375,7 +372,7 @@ export default function PlantillaEmpleadosDetalle({
       document.documentElement.classList.remove("overflow-hidden");
       document.body.classList.remove("overflow-hidden");
     };
-  }, [activeTab, activeMovPersonalSubTab]);
+  }, [activeTab]);
 
   // Window scroll clamping to prevent scrolling below the table
   useEffect(() => {
@@ -438,14 +435,13 @@ export default function PlantillaEmpleadosDetalle({
 
       {/* pt-14 sólo despeja el PageTabBar fijo (md+); en móvil esa barra está
           oculta (hidden md:flex), así que ahí no hace falta ese hueco. */}
-      {/* activeMovPersonalSubTab==="arbol" se excluye igual que "mapa": ambos
-          reservan su propio espacio para el PageTabBar con md:pt-9 dentro de
-          su propio contenedor (altura exacta h-[calc(100dvh-var(--stack-h))]);
+      {/* "mapa" se excluye: reserva su propio espacio para el PageTabBar con
+          md:pt-9 dentro de su propio contenedor (altura exacta h-stack-dvh);
           dejar el pt-14 de aquí ENCIMA duplicaba el hueco bajo el tab bar. */}
-      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" || (activeTab === "movimientos_personal" && activeMovPersonalSubTab === "arbol") ? "p-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`}>
+      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`}>
         <div className={`w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 transition-all duration-300 ${isTightLayout ? "gap-2" : "gap-6"}`}>
 
-          {activeTab !== "mapa" && !(activeTab === "movimientos_personal" && activeMovPersonalSubTab === "arbol") && (
+          {activeTab !== "mapa" && (
             <Zoom triggerOnce>
               <div className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-8 transition-all duration-300 ${isTightLayout ? "mb-4" : "mb-12"}`}>
                 <div className="flex flex-col gap-3 w-full md:w-auto">

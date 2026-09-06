@@ -901,23 +901,9 @@ export const VacantesService = {
     },
 
     /**
-     * Sugerencias de autocompletado del número de plaza mientras se escribe
-     * (input de "Árbol de movimientos", ver ArbolMovimientosSubTab.jsx).
-     * @param {string} q - prefijo de la plaza, mínimo 2 caracteres.
-     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
-     * @returns {Promise<Response>} 200 con un arreglo `{posicion, puesto, ocupada, ocupante}` (puede venir vacío; `ocupante` sólo si `ocupada`).
-     */
-    getPlazaSugerencias: (q, options = {}) => {
-        return apiFetch(`/plantilla/plazas/sugerencias/${buildQuery({ q })}`, {
-            method: 'GET',
-            ...options
-        });
-    },
-
-    /**
-     * Pila cronológica de una plaza (tronco del "Árbol de movimientos"):
-     * creación, ocupaciones, vacancias, insubsistencias y tránsitos, continua
-     * y sin huecos.
+     * Pila cronológica de una plaza (tronco de su árbol de movimientos, ver
+     * PosicionArbolModal.jsx): creación, ocupaciones, vacancias,
+     * insubsistencias y tránsitos, continua y sin huecos.
      * @param {string} posicion - Número de plaza.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
@@ -930,9 +916,10 @@ export const VacantesService = {
     },
 
     /**
-     * Tramos de un empleado en todas sus plazas (rama del "Árbol de
-     * movimientos"). Se pide SÓLO al expandir un nodo: el árbol se carga bajo
-     * demanda porque cargarlo completo crecería de forma explosiva.
+     * Tramos de un empleado en todas las plazas por las que pasó. La usa
+     * PosicionArbolModal.jsx para resolver, por cada gestión del tronco de una
+     * plaza, de qué otra plaza vino el ocupante (el tramo inmediatamente
+     * anterior de ese empleado, si cerró por traslado).
      * @param {string} numEmpleado - Número de empleado.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
