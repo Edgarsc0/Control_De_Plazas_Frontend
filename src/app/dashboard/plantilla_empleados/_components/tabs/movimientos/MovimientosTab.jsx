@@ -6,7 +6,7 @@ import {
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft,
   ChevronRight as ChevronRightIcon, ChevronsLeft, ChevronsRight,
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck,
-  MousePointerClick, Loader2, Copy, Check, History, ListFilter,
+  MousePointerClick, Loader2, Copy, Check, History, ListFilter, FileCheck2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/useToast";
@@ -39,6 +39,7 @@ import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, finalizeFilterDropdownValues, resolveColumnFilterCommit, sortValueCounts, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { daysUntil, getAnuenciaColorClasses, FECHA_ANUENCIA_CATEGORIAS } from "@/utils/anuencia";
+import { getVacanciaColorClasses, getVacanciaColorCategoria, VACANCIA_COLOR_LABELS, VACANCIA_COLOR_ORDEN } from "@/utils/vacancia";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
@@ -119,6 +120,16 @@ const DATE_KEYS_MOV = ["f_efva", "fecha_est", "fecha_captura", "fh_ult_actz", "f
 // plana de valores únicos, que sí las incluye) sin afectar el formateo de
 // fecha en pantalla (que sigue usando DATE_KEYS_MOV/isDateColumn tal cual).
 const DATE_HIERARCHY_KEYS_MOV = DATE_KEYS_MOV.filter((k) => k !== "fecha_anuencia");
+
+// Preset de columnas de la card "Anuencia" — sólo las relevantes para dar
+// seguimiento a una solicitud de anuencia, en el orden que pidió el usuario.
+// Al hacer clic en la card se reordenan al frente y se oculta el resto (no
+// es un filtro de filas, sólo cambia qué columnas se ven y en qué orden).
+const ANUENCIA_COLUMN_ORDER = [
+  "no_pos_actual", "ocupacion", "codigo", "fecha_vacancia", "fecha_alta_solicitada",
+  "anuencia_anexo_nombre", "tuvo_insubsistencia", "nivel_salarial", "salario_mensual_neto",
+  "tipo_contratacion", "denominacion_puesto", "unidad_de_negocio", "unidad_adva",
+];
 
 // Server-side distinct_search only supports icontains; only safe to forward
 // for "positive" conditions (a match always implies icontains too).
@@ -408,6 +419,73 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     });
   };
 
+  // Filtro por semáforo de "Fecha de Vacancia" (amarillo/verde/rojo, ver
+  // utils/vacancia.js) — filtro múltiple (no exclusivo como Ocupada/Vacante):
+  // se puede marcar más de un color a la vez. Se resuelve en el backend
+  // sobre `dias_vacante` (ver mov_pos_column_filter_resolver en views.py).
+  const activeVacanciaColorFilter = columnFilters["fecha_vacancia_color"] || [];
+
+  const handleVacanciaColorFilterToggle = (color) => {
+    setLoading(true);
+    startTransition(() => {
+      const actual = columnFilters["fecha_vacancia_color"] || [];
+      const siguiente = actual.includes(color) ? actual.filter((c) => c !== color) : [...actual, color];
+      const newF = { ...columnFilters };
+      if (siguiente.length > 0) newF.fecha_vacancia_color = siguiente;
+      else delete newF.fecha_vacancia_color;
+      setColumnFilters(newF);
+      setScrollTop(0);
+    });
+  };
+
+  // Reordena las columnas al frente en ANUENCIA_COLUMN_ORDER y oculta el
+  // resto (preset de columnas), y además filtra la tabla a sólo vacantes
+  // (activas + no ocupadas) — igual que darle clic a "Vacantes" bajo la
+  // card de Posiciones Activas.
+  const handleAnuenciaCardClick = useCallback(() => {
+    setColumns((prev) => {
+      const porKey = new Map(prev.map((c) => [c.key, c]));
+      const ordenadas = ANUENCIA_COLUMN_ORDER
+        .map((key) => porKey.get(key))
+        .filter(Boolean)
+        .map((c) => ({ ...c, visible: true }));
+      const resto = prev
+        .filter((c) => !ANUENCIA_COLUMN_ORDER.includes(c.key))
+        .map((c) => ({ ...c, visible: false }));
+      return [...ordenadas, ...resto];
+    });
+    setLoading(true);
+    startTransition(() => {
+      setColumnFilters((prev) => ({ ...prev, estado_psn: ["A"], is_latest: ["true"], ocupacion: ["Vacante"] }));
+      setScrollTop(0);
+    });
+  }, [setColumns, startTransition, setColumnFilters, setLoading, setScrollTop]);
+
+  const isAnuenciaColumnsActive = useMemo(() => {
+    const visiblesEnOrden = columns.filter((c) => c.visible).map((c) => c.key);
+    return (
+      visiblesEnOrden.length === ANUENCIA_COLUMN_ORDER.length &&
+      visiblesEnOrden.every((key, i) => key === ANUENCIA_COLUMN_ORDER[i])
+    );
+  }, [columns]);
+
+  const isAnuenciaViewActive = useMemo(
+    () => (
+      isAnuenciaColumnsActive &&
+      activeStatusFilter.length === 1 && activeStatusFilter[0] === "A" &&
+      isLatestFilter &&
+      columnFilters.ocupacion?.length === 1 && columnFilters.ocupacion[0] === "Vacante"
+    ),
+    [isAnuenciaColumnsActive, activeStatusFilter, isLatestFilter, columnFilters.ocupacion]
+  );
+
+  // Sólo informativo (cuenta sobre lo que ya está cargado en pantalla, no un
+  // total del servidor): posiciones con al menos un Anexo 2 asociado.
+  const totalEnAnuencia = useMemo(
+    () => movPosData.filter((r) => String(r.anuencia_anexo_nombre || "").trim() !== "").length,
+    [movPosData]
+  );
+
   const cardData = useMemo(() => {
     const total = stats.todas_posiciones || 1;
     return [
@@ -454,9 +532,21 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         isActive: !isLatestFilter,
         onClick: () => handleTabCardClick("Movimientos"),
         hoverIndex: null,
+      },
+      {
+        key: "Anuencia",
+        label: "Anuencia",
+        count: totalEnAnuencia,
+        percent: null,
+        color: "#bc955c",
+        icon: FileCheck2,
+        isActive: isAnuenciaViewActive,
+        onClick: handleAnuenciaCardClick,
+        hoverIndex: null,
+        caption: "En la vista actual",
       }
     ];
-  }, [stats, activeStatusFilter, isLatestFilter]);
+  }, [stats, activeStatusFilter, isLatestFilter, totalEnAnuencia, isAnuenciaViewActive, handleAnuenciaCardClick]);
 
   const isAnyCardActive = useMemo(() => cardData.some(c => c.isActive), [cardData]);
 
@@ -1424,10 +1514,20 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     const handleCellClick = (e) => { onClick(e); if (isPosicionCol || isHistoricoCol) { setActiveModalTab('timeline'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
     if (col.key === "fecha_vacancia") {
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
-      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md text-[#621f32]" : (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      // Semáforo por días vacante (mismo dato ya calculado por el backend en
+      // la columna "Días Vacante" — ver getVacanciaColorClasses) — tiene
+      // prioridad visual sobre el fondo base, igual que el semáforo de
+      // "Fecha de Anuencia", pero se conserva siempre (incluso seleccionada).
+      const colorClasses = hasValue ? getVacanciaColorClasses(row.dias_vacante) : null;
+      const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle font-semibold ${
+        colorClasses || (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")
+      } ${isSelected ? "ring-2 ring-[#621f32] z-10 shadow-md" : ""} ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
+      const diasTitle = hasValue && row.dias_vacante !== undefined && row.dias_vacante !== null
+        ? `${formatNumber(row.dias_vacante)} días vacante (${formatDiasEquivalente(row.dias_vacante)})`
+        : undefined;
       const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>;
-      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{content}</td>);
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName} title={diasTitle}>{content}</td>);
     }
     if (col.key === "fecha_ocupacion") {
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
@@ -2060,7 +2160,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             </div>
 
             {/* Grid of cards */}
-            <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {cardData.map((card, index) => {
                 const IconComponent = card.icon;
                 return (
@@ -2127,32 +2227,32 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
                           />
                         </div>
                         <p className="text-[8px] font-bold text-slate-400 mt-1">
-                          {card.percent !== null ? `${(card.percent * 100).toFixed(1)}%` : "Historial completo"}
+                          {card.percent !== null ? `${(card.percent * 100).toFixed(1)}%` : (card.caption || "Historial completo")}
                         </p>
                       </div>
                     </motion.div>
                     {card.key === "A" && (
                       <div className="px-3 pb-3">
-                        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                        <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                           <button
                             onClick={(e) => handleOcupacionFilter(e, "Ocupada")}
-                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 min-h-11 md:min-h-0 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                            className={`min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 min-h-11 md:min-h-0 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
                               activeOcupacionFilter === "Ocupada"
                                 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
                                 : "bg-slate-50 dark:bg-slate-800/40 text-slate-500 border-slate-200/60 dark:border-slate-700/60 hover:text-emerald-600 hover:border-emerald-300"
                             }`}
                           >
-                            <UserCheck className="size-3" /> Ocupadas
+                            <UserCheck className="size-3 shrink-0" /> <span className="truncate">Ocupadas</span>
                           </button>
                           <button
                             onClick={(e) => handleOcupacionFilter(e, "Vacante")}
-                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 min-h-11 md:min-h-0 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                            className={`min-w-0 flex items-center justify-center gap-1 px-1.5 py-1 min-h-11 md:min-h-0 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
                               activeOcupacionFilter === "Vacante"
                                 ? "bg-[#bc955c]/10 text-[#8d6a3d] dark:text-[#ebd1ac] border-[#bc955c]/30"
                                 : "bg-slate-50 dark:bg-slate-800/40 text-slate-500 border-slate-200/60 dark:border-slate-700/60 hover:text-[#bc955c] hover:border-[#bc955c]/40"
                             }`}
                           >
-                            <Briefcase className="size-3" /> Vacantes
+                            <Briefcase className="size-3 shrink-0" /> <span className="truncate">Vacantes</span>
                           </button>
                         </div>
                       </div>
@@ -2550,6 +2650,33 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             onApply={() => applyColumnFilter(activeFilterDropdown)}
             onClear={() => clearColumnFilter(activeFilterDropdown)}
             onClose={() => setActiveFilterDropdown(null)}
+            extraContent={activeFilterDropdown === "fecha_vacancia" ? (
+              <div className="mb-3">
+                <p className="text-[9px] font-black uppercase tracking-wide text-slate-400 mb-1.5">Filtrar por color</p>
+                <div className="flex items-center gap-1.5">
+                  {VACANCIA_COLOR_ORDEN.map((color) => {
+                    const active = activeVacanciaColorFilter.includes(color);
+                    const dotClass = { amarillo: "bg-amber-400", verde: "bg-emerald-500", rojo: "bg-red-500" }[color];
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => handleVacanciaColorFilterToggle(color)}
+                        title={VACANCIA_COLOR_LABELS[color]}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all ${
+                          active
+                            ? "border-[#621f32] dark:border-[#bc955c] bg-[#621f32]/5 dark:bg-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c]"
+                            : "border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        <span className={`size-2.5 rounded-full ${dotClass}`} />
+                        {color.charAt(0).toUpperCase() + color.slice(1)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           />
         )}
       </AnimatePresence>

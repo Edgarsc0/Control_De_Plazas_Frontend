@@ -93,6 +93,7 @@ export default function ColumnFilterDropdown({
   dimBackdrop = true,
   renderValueLabel = null,
   zIndexClass = "z-[60]",
+  extraContent = null,
 }) {
   const {
     filterSearchText, setFilterSearchText,
@@ -383,6 +384,7 @@ export default function ColumnFilterDropdown({
                 </h4>
                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="size-4" /></button>
               </div>
+              {extraContent}
               <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 shadow-sm gap-2">
                 {!isDate && (
                   <button

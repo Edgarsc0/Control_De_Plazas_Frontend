@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { normalizeForSearch } from "@/utils/columnFilters";
+import { diasVacanteDesdeFecha, getVacanciaColorBgSolid } from "@/utils/vacancia";
 import { useAnuenciaAnexoUpdatesRealtime } from "../../../_hooks/useAnuenciaAnexoUpdatesRealtime";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
@@ -1208,8 +1209,15 @@ export default function AnuenciaTab({ cardRef }) {
     // nuevo (ver `_fechaVacanciaEditada` en autollenarDesdeCodigo).
     if (col.tipo === "fecha_vacancia") {
       const esClicable = !fila._fechaVacanciaEditada && fila._movPosId !== null && fila._movPosId !== undefined && String(valor).trim() !== "";
+      // Mismo semáforo de color que Mov. Posiciones (columna "Fecha de
+      // Vacancia", ver utils/vacancia.js) — aquí no hay un `dias_vacante` ya
+      // calculado por el backend (el Anexo 2 sólo guarda la fecha), así que
+      // se calcula al vuelo desde `valor`.
+      const diasVacante = diasVacanteDesdeFecha(valor);
+      const colorBg = getVacanciaColorBgSolid(diasVacante);
+      const tituloDias = diasVacante !== null ? `${diasVacante} días vacante` : undefined;
       return (
-        <div className="relative flex items-center h-full">
+        <div className="relative flex items-center h-full" title={tituloDias}>
           <input
             type="date"
             value={valor}
@@ -1219,7 +1227,7 @@ export default function AnuenciaTab({ cardRef }) {
                 filas.map((f) => (f._id === fila._id ? { ...f, fecha_inicio_vacancia: nuevoValor, _fechaVacanciaEditada: true } : f))
               );
             }}
-            className={`${CELDA_BASE} text-center ${esClicable ? "pr-6" : ""}`}
+            className={`${CELDA_BASE} text-center ${esClicable ? "pr-6" : ""} ${colorBg || ""}`}
           />
           {esClicable && (
             <button
