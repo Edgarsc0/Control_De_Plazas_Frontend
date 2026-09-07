@@ -1348,6 +1348,41 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     [historicoFilas]
   );
 
+  // Las tarjetas del resumen histórico (Plazas Totales/Activas/Inactivas/
+  // Ocupadas/Vacantes) vienen "de fábrica" de `historicoResumen` (backend,
+  // universo completo de la fecha — ver `activarHistorico`), pero eso las
+  // desincroniza del switch "Plantilla oficial": con el switch prendido
+  // (default) la tabla y su dropdown "Estado de la Plaza" ya excluyen Laudos/
+  // 1039/PASEM vía `detalle` (línea ~628), así que filtrar ahí por "Activa"
+  // daba menos filas que lo que anunciaba la tarjeta "Plazas Activas". Con el
+  // switch prendido se recalculan las 5 métricas contando directo sobre
+  // `detalle` (ya recortado a ese universo); con el switch apagado se vuelve
+  // a mostrar tal cual el resumen oficial del backend (mismo universo que
+  // `detalle` en ese caso). Las 2 columnas de anomalías no dependen del
+  // switch (no las calcula este conteo) y se preservan del backend siempre.
+  const historicoResumenEfectivo = useMemo(() => {
+    if (!historicoActivo) return historicoResumen;
+    if (!soloPlantillaOficial) return historicoResumen;
+    let activas = 0, inactivas = 0, ocupadas = 0, vacantes = 0;
+    for (const row of detalle) {
+      if (row.estado_plaza === "A") {
+        activas += 1;
+        if (mapEstadoNomina(row.estado_nomina, row.val_estat) === "Vacante") vacantes += 1;
+        else ocupadas += 1;
+      } else {
+        inactivas += 1;
+      }
+    }
+    return {
+      ...historicoResumen,
+      plazas_totales: detalle.length,
+      plazas_activas: activas,
+      plazas_inactivas: inactivas,
+      ocupadas,
+      vacantes,
+    };
+  }, [historicoActivo, soloPlantillaOficial, detalle, historicoResumen]);
+
   // Refs de la navegación día a día (< >, definida más abajo) — declaradas
   // aquí porque `activarHistorico` necesita limpiarlas en cada llamada,
   // venga o no de esos botones (ver comentario junto a `navegarHistoricoDia`).
@@ -3865,14 +3900,14 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                     className={`flex flex-col gap-1 px-3.5 py-3 bg-white/70 dark:bg-slate-900/60 border rounded-2xl text-left transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isActive ? "border-[#621f32] dark:border-[#bc955c] ring-2 ring-[#621f32]/30 dark:ring-[#bc955c]/30 shadow-md" : "border-amber-200/50 dark:border-amber-900/30"}`}
                   >
                     <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400"><Icon className="size-3" />{label}</div>
-                    <span className="text-lg font-black text-[#621f32] dark:text-[#bc955c] leading-none">{historicoLoading ? "···" : formatNumber(historicoResumen?.[key])}</span>
+                    <span className="text-lg font-black text-[#621f32] dark:text-[#bc955c] leading-none">{historicoLoading ? "···" : formatNumber(historicoResumenEfectivo?.[key])}</span>
                   </button>
                 );
               })}
             </div>
-            {historicoResumen && (historicoResumen.anomalia_ocupante_en_plaza_inactiva > 0 || historicoResumen.anomalia_ocupante_sin_plaza > 0) && (
+            {historicoResumenEfectivo && (historicoResumenEfectivo.anomalia_ocupante_en_plaza_inactiva > 0 || historicoResumenEfectivo.anomalia_ocupante_sin_plaza > 0) && (
               <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                Inconsistencias en la fuente a esta fecha: {historicoResumen.anomalia_ocupante_en_plaza_inactiva} ocupante(s) en plaza inactiva, {historicoResumen.anomalia_ocupante_sin_plaza} ocupante(s) sin plaza.
+                Inconsistencias en la fuente a esta fecha: {historicoResumenEfectivo.anomalia_ocupante_en_plaza_inactiva} ocupante(s) en plaza inactiva, {historicoResumenEfectivo.anomalia_ocupante_sin_plaza} ocupante(s) sin plaza.
               </p>
             )}
           </div>
