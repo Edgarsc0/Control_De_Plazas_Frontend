@@ -15,6 +15,7 @@ import EmpleadoTimelineModal from "../../modals/EmpleadoTimelineModal";
 import PosicionArbolModal from "../../modals/PosicionArbolModal";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ExportConFotosModal from "../../shared/ExportConFotosModal";
+import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
@@ -56,6 +57,11 @@ import {
 
 // Referencia estable (no recreada en cada render) para no invalidar el React.memo de DataTable.
 const noop = () => {};
+
+// Columna de presentación (no es un campo real de la fila): la fotografía se
+// pide aparte por num_empleado — ver FotoEmpleadoCell. Se excluye de
+// exportaciones/filtros/orden mediante `dataColumns` más abajo.
+const FOTO_COLUMN_KEY = "foto";
 
 const DATE_KEYS = ["fecha_efectiva", "fecha_captura", "salida_prevista", "fecha_ult_actz", "ult_inicio", "fecha_inicial", "fecha_entrada", "fecha_posicion"];
 const isDateColumn = (key) => DATE_KEYS.includes(key);
@@ -699,6 +705,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   }, []);
 
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
+    { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, isBasic: true, noFilter: true },
     { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
     { key: "num_empleado", label: "No. Empleado", width: 120, visible: true, isBasic: true },
     // Unifica nombre + ap. paterno + ap. materno en una sola celda (antes 3
@@ -747,6 +754,17 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     { key: "fecha_entrada", label: "Fecha Entrada", width: 130, visible: false, isBasic: false },
     { key: "fecha_posicion", label: "Fecha Posición", width: 130, visible: false, isBasic: false },
   ], "movimientos_personal_columns");
+
+  // `columns` es el estado persistido completo; `tableColumns` es lo que ven la
+  // tabla y el selector "Columnas" (sin la de foto si no hay permiso de verla);
+  // `dataColumns` es lo que corresponde a un campo real de la fila (sin la de
+  // foto siempre) — exportaciones, filtros avanzados y navegación por índice
+  // de columna deben partir de aquí, no de `columns` — ver PlantillaDetalleTab.
+  const tableColumns = useMemo(
+    () => (canViewFotoMovimientos ? columns : columns.filter((c) => c.key !== FOTO_COLUMN_KEY)),
+    [columns, canViewFotoMovimientos]
+  );
+  const dataColumns = useMemo(() => columns.filter((c) => c.key !== FOTO_COLUMN_KEY), [columns]);
 
   useEffect(() => setMounted(true), []);
 
@@ -875,6 +893,24 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const renderCell = useCallback(({ row, col, colIdx, actualRowIdx, isSticky, leftOffset, isSelected }) => {
     const globalRowIdx = (page - 1) * pageSize + actualRowIdx;
     const isSelectedRow = selectedCell?.rowIdx === globalRowIdx;
+    // Fotografía: la fila no trae la imagen (se pide por num_empleado, una por
+    // una, sólo cuando la celda entra al viewport) — ver FotoEmpleadoCell.
+    if (col.key === FOTO_COLUMN_KEY) {
+      return (
+        <td
+          key={col.key}
+          style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {}}
+          className={`relative px-1 border-r h-[37px] align-middle ${isSelectedRow ? "bg-[#f0e4e6] dark:bg-[#621f32]/20" : "bg-white/95 dark:bg-slate-900/95"}`}
+        >
+          <FotoEmpleadoCell
+            numempleado={row.num_empleado}
+            rootRef={tbodyRef}
+            enabled={canViewFotoMovimientos}
+            caption={[buildFullName(row), row.posicion ? `POS ${row.posicion}` : null].filter(Boolean).join(" — ")}
+          />
+        </td>
+      );
+    }
     let val = col.key === "nombre" ? buildFullName(row) : row[col.key];
     if (val === null || val === undefined) val = "";
     if (col.key === "fecha_ult_actz" && val) {
@@ -958,7 +994,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       );
     }
     return tdElement;
-  }, [page, pageSize, selectedCell, deptoCatalog, accionesCatalog, motivosCatalog]);
+  }, [page, pageSize, selectedCell, deptoCatalog, accionesCatalog, motivosCatalog, canViewFotoMovimientos]);
 
   const handleCellContextMenu = useCallback((e, value, rect) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect });
@@ -1022,7 +1058,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet(activeSubTab === "bitacora" ? `Bitácora ${bitacoraDates.length === 0 ? "Ninguno" : bitacoraDates.length === 1 ? bitacoraDates[0] : `${bitacoraDates.length} fechas`}` : "Movimientos de Personal");
 
-      const visibleCols = columns.filter((c) => c.visible);
+      const visibleCols = dataColumns.filter((c) => c.visible);
       worksheet.columns = visibleCols.map((c) => ({
         key: c.key,
         width: 15,
@@ -1117,7 +1153,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     exportConFotosAbortRef.current = controller;
     setIsExportingConFotos(true);
     try {
-      const visibleCols = columns.filter(c => c.visible);
+      const visibleCols = dataColumns.filter(c => c.visible);
       const params = buildExportParams();
       const res = await VacantesService.exportarMovimientosPersonalConFotos(
         params,
@@ -1311,15 +1347,15 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         { header: "Departamento Antes",             key: "__adsc_depto_antes__",  width: 28 },
         { header: "Departamento Después",           key: "__adsc_depto_despues__",width: 28 },
       ];
-      const totalDataCols = columns.length + ADSC_COLS.length;
+      const totalDataCols = dataColumns.length + ADSC_COLS.length;
       ws.columns = [
-        ...columns.map((c) => ({ header: c.label, key: c.key, width: 15 })),
+        ...dataColumns.map((c) => ({ header: c.label, key: c.key, width: 15 })),
         ...ADSC_COLS,
       ];
 
       allRows.forEach((row, idx) => {
         const rd = {};
-        columns.forEach((c) => { rd[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key]; });
+        dataColumns.forEach((c) => { rd[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key]; });
         const det = detalleAdscripcion.get(idx);
         rd.__adsc_ua_antes__     = det ? det.ua_antes     : "";
         rd.__adsc_ua_despues__   = det ? det.ua_despues   : "";
@@ -1331,7 +1367,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         addedRow.eachCell((cell) => { cell.border = thin; });
         // Resaltar las 6 celdas de adscripción cuando hay registro previo
         if (det) {
-          for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+          for (let ci = dataColumns.length + 1; ci <= totalDataCols; ci++) {
             addedRow.getCell(ci).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: VINO } };
           }
         }
@@ -1347,7 +1383,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         cell.border = headerBorder;
       });
       // Las 6 columnas de adscripción tienen encabezado vino para distinguirlas
-      for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+      for (let ci = dataColumns.length + 1; ci <= totalDataCols; ci++) {
         const hc = detHeader.getCell(ci);
         hc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
         hc.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
@@ -1356,7 +1392,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: totalMovs + 1, column: totalDataCols } };
 
       // Auto-ancho columnas detalle (excluye la extra que ya tiene width fijo)
-      ws.columns.slice(0, columns.length).forEach((col) => {
+      ws.columns.slice(0, dataColumns.length).forEach((col) => {
         let max = col.header ? col.header.length : 0;
         col.eachCell({ includeEmpty: false }, (cell) => {
           const v = cell.value != null ? String(cell.value) : "";
@@ -1516,14 +1552,14 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         const sheetName = accionSheetNames.get(accion) || accion;
         const aws = workbook.addWorksheet(sheetName, { views: [{ state: "frozen", ySplit: 1 }] });
         aws.columns = [
-          ...columns.map((c) => ({ header: c.label, key: c.key, width: 15 })),
+          ...dataColumns.map((c) => ({ header: c.label, key: c.key, width: 15 })),
           ...ADSC_COLS,
         ];
 
         idxList.forEach((idx) => {
           const row = allRows[idx];
           const rd = {};
-          columns.forEach((c) => { rd[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key]; });
+          dataColumns.forEach((c) => { rd[c.key] = c.key === "nombre" ? buildFullName(row) : row[c.key]; });
           const det = detalleAdscripcion.get(idx);
           rd.__adsc_ua_antes__     = det ? det.ua_antes     : "";
           rd.__adsc_ua_despues__   = det ? det.ua_despues   : "";
@@ -1534,7 +1570,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           const addedRow = aws.addRow(rd);
           addedRow.eachCell((cell) => { cell.border = thin; });
           if (det) {
-            for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+            for (let ci = dataColumns.length + 1; ci <= totalDataCols; ci++) {
               addedRow.getCell(ci).font = { name: "Segoe UI", size: 10, bold: true, color: { argb: VINO } };
             }
           }
@@ -1548,7 +1584,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.border = headerBorder;
         });
-        for (let ci = columns.length + 1; ci <= totalDataCols; ci++) {
+        for (let ci = dataColumns.length + 1; ci <= totalDataCols; ci++) {
           const hc = awsHeader.getCell(ci);
           hc.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINO } };
           hc.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
@@ -1556,7 +1592,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
         aws.autoFilter = { from: { row: 1, column: 1 }, to: { row: idxList.length + 1, column: totalDataCols } };
 
-        aws.columns.slice(0, columns.length).forEach((col) => {
+        aws.columns.slice(0, dataColumns.length).forEach((col) => {
           let max = col.header ? col.header.length : 0;
           col.eachCell({ includeEmpty: false }, (cell) => {
             const v = cell.value != null ? String(cell.value) : "";
@@ -1583,7 +1619,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   const handleMouseDown = (e, index, direction = 'right') => {
     e.preventDefault();
-    const target = columns[index];
+    const target = tableColumns[index];
     const startX = e.clientX, startWidth = target.width;
     let latestWidth = startWidth;
     const handleMouseMove = (moveEvent) => {
@@ -1927,7 +1963,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     const rowBottom = rowTop + rowHeight;
     if (rowTop < container.scrollTop + headerHeight) container.scrollTop = Math.max(0, rowTop - headerHeight);
     else if (rowBottom > container.scrollTop + container.clientHeight) container.scrollTop = rowBottom - container.clientHeight + headerHeight;
-    const visibleCols = columns.filter(c => c.visible);
+    const visibleCols = tableColumns.filter(c => c.visible);
     if (!visibleCols[colIdx]) return;
     const frozenWidth = 95 + (visibleCols[0]?.width || 110) + (visibleCols[1]?.width || 120);
     let colLeft = 95;
@@ -1937,7 +1973,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       if (colLeft < container.scrollLeft + frozenWidth) container.scrollLeft = Math.max(0, colLeft - frozenWidth - 20);
       else if (colRight > container.scrollLeft + container.clientWidth) container.scrollLeft = colRight - container.clientWidth + 20;
     }
-  }, [selectedCell, columns, page, pageSize]);
+  }, [selectedCell, tableColumns, page, pageSize]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1948,7 +1984,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       e.preventDefault();
       if (e.repeat) arrowRepeatRef.current += 1; else arrowRepeatRef.current = 1;
       let step = 1; if (arrowRepeatRef.current > 5) step = 2; if (arrowRepeatRef.current > 12) step = 5; if (arrowRepeatRef.current > 20) step = 10;
-      const visibleColsArray = columns.filter(c => c.visible);
+      const visibleColsArray = tableColumns.filter(c => c.visible);
       const visibleCols = visibleColsArray.length;
       setSelectedCell(prev => {
         if (!prev) return prev;
@@ -1963,7 +1999,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [data, columns, page, pageSize]);
+  }, [data, tableColumns, page, pageSize]);
 
   return (
     <div className="w-full flex flex-col">
@@ -2497,7 +2533,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
             onOpenChange={setIsColumnPickerOpen}
 
-            columns={columns}
+            columns={dataColumns}
 
             columnFilters={columnFilters}
 
@@ -2511,7 +2547,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           <MobileSortDrawer
             open={isSortDrawerOpen}
             onOpenChange={setIsSortDrawerOpen}
-            columns={columns}
+            columns={dataColumns}
             sortConfig={sortConfig}
             onSort={setSortConfig}
           />
@@ -2640,7 +2676,8 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             containerRef={tbodyRef}
             tbodyRef={dataTableTbodyRef}
             onScroll={() => {}}
-            columns={columns}
+            columns={tableColumns}
+            stickyColumnKeys={["posicion", "num_empleado"]}
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             textFilters={textFilters}
@@ -2659,7 +2696,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
             onSort={handleRequestSort}
             onOpenFilter={openFilterDropdown}
             onResizeStart={handleMouseDown}
-            onResizeReset={(index) => resetWidth(columns[index]?.key)}
+            onResizeReset={(index) => resetWidth(tableColumns[index]?.key)}
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={false}
@@ -2715,7 +2752,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       {/* Columns Select Modal */}
             <ColumnsModal
         open={isColumnsModalOpen}
-        columns={columns}
+        columns={tableColumns}
         onToggle={toggleColumnVisibility}
         onShowAll={() => setColumns(prev => prev.map(c => ({ ...c, visible: true })))}
         onHideAll={() => setColumns(prev => prev.map(c => ({ ...c, visible: false })))}
@@ -2726,7 +2763,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         open={isAdvancedFiltersOpen}
         onClose={() => setIsAdvancedFiltersOpen(false)}
         mounted={mounted}
-        columns={columns}
+        columns={dataColumns}
         conditions={advancedConditions}
         onAddCondition={addAdvancedCondition}
         onRemoveCondition={removeAdvancedCondition}
@@ -2749,7 +2786,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
           <ColumnFilterDropdown
             open={!!activeFilterDropdown}
             columnKey={activeFilterDropdown}
-            columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
+            columnLabel={dataColumns.find(c => c.key === activeFilterDropdown)?.label}
             isDate={isDateColumn(activeFilterDropdown)}
             data={data}
             filters={filters}
@@ -2850,7 +2887,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
               isOpen={!!selectedRowData}
               onClose={() => setSelectedRowData(null)}
               record={mappedEmployee}
-              columns={columns}
+              columns={dataColumns}
               canViewPhoto={canViewFotoMovimientos}
             />
           );

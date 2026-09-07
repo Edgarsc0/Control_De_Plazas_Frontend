@@ -14,6 +14,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { addExcelLetterhead } from "@/utils/excelLetterhead";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import ExportConFotosModal from "../../shared/ExportConFotosModal";
+import FotoEmpleadoCell from "../../shared/FotoEmpleadoCell";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
@@ -53,6 +54,11 @@ const formatNumber = (num) => {
   if (num === undefined || num === null) return "0";
   return String(num).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
+
+// Columna de presentación (no es un campo real de la fila): la fotografía se
+// pide aparte por no_empleado — ver FotoEmpleadoCell. Se excluye de
+// exportaciones/filtros/orden mediante `dataColumns` más abajo.
+const FOTO_COLUMN_KEY = "foto";
 
 const ALL_MOV_KEYS = [
   "posicion", "no_empleado", "nombre_completo", "primer_apellido", "segundo_apellido", 
@@ -179,6 +185,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
   }, [cardRef]);
 
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
+    { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, noFilter: true },
     { key: "posicion", label: "Posición", width: 120, visible: true },
     { key: "no_empleado", label: "No. Empleado", width: 120, visible: true },
     { key: "nombre_completo", label: "Nombre Completo", width: 250, visible: true },
@@ -232,6 +239,17 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     { key: "fecha_posicion", label: "Fecha Posición", width: 130, visible: false }
   ], "bajas_columns");
 
+  // `columns` es el estado persistido completo; `tableColumns` es lo que ven la
+  // tabla y el selector "Columnas" (sin la de foto si no hay permiso de verla);
+  // `dataColumns` es lo que corresponde a un campo real de la fila (sin la de
+  // foto siempre) — exportaciones, filtros avanzados y navegación por índice
+  // de columna deben partir de aquí, no de `columns` — ver PlantillaDetalleTab.
+  const tableColumns = useMemo(
+    () => (canViewFotoBajas ? columns : columns.filter((c) => c.key !== FOTO_COLUMN_KEY)),
+    [columns, canViewFotoBajas]
+  );
+  const dataColumns = useMemo(() => columns.filter((c) => c.key !== FOTO_COLUMN_KEY), [columns]);
+
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario en localStorage.
   const [sortConfig, setSortConfig] = usePersistedState("bajas_sort", { key: null, direction: null });
@@ -278,7 +296,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
           if (!excludedKeys.includes(key) && row[key] !== prevRow[key]) {
             changes.push({
               key,
-              label: columns.find(c => c.key === key)?.label || key.replace(/_/g, ' ').toUpperCase(),
+              label: dataColumns.find(c => c.key === key)?.label || key.replace(/_/g, ' ').toUpperCase(),
               before: prevRow[key] === null || prevRow[key] === '' ? '-' : String(prevRow[key]),
               after: row[key] === null || row[key] === '' ? '-' : String(row[key])
             });
@@ -290,7 +308,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     
     // Reverse again so that the timeline displays newest first
     return computed.reverse();
-  }, [modalHistoryData, columns]);
+  }, [modalHistoryData, dataColumns]);
 
   const filteredTimelineData = useMemo(() => {
     if (!timelineSearch) return timelineData;
@@ -508,7 +526,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
   const handleMouseDown = (e, index, direction = 'right') => {
     e.preventDefault();
-    const target = columns[index];
+    const target = tableColumns[index];
     const startX = e.clientX, startWidth = target.width;
     let latestWidth = startWidth;
     const handleMouseMove = (moveEvent) => {
@@ -714,6 +732,26 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
   const renderCell = ({ row, col, value, isSticky, leftOffset, isSelected, onClick, onContextMenu }) => {
     const stickyStyle = isSticky ? { position: 'sticky', left: leftOffset, zIndex: 20 } : {};
+    // Fotografía: la fila no trae la imagen (se pide por no_empleado, una por
+    // una, sólo cuando la celda entra al viewport) — ver FotoEmpleadoCell.
+    if (col.key === FOTO_COLUMN_KEY) {
+      return (
+        <td
+          key={col.key}
+          onClick={onClick}
+          onContextMenu={onContextMenu}
+          style={stickyStyle}
+          className={`relative px-1 border-r h-[37px] align-middle ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}
+        >
+          <FotoEmpleadoCell
+            numempleado={row.no_empleado}
+            rootRef={tableContainerRef}
+            enabled={canViewFotoBajas}
+            caption={[row.nombre_completo, row.posicion ? `POS ${row.posicion}` : null].filter(Boolean).join(" — ")}
+          />
+        </td>
+      );
+    }
     if (col.key === "estado_psn") {
       const badge = MOV_STATUS_BADGE_STYLES[value] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", label: value };
       return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-[10px] border-r align-middle h-[37px] transition-all ${isSelected ? "bg-white ring-2 ring-[#621f32] z-10 shadow-md" : (isSticky ? "bg-white dark:bg-slate-950" : "bg-white/10")} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`}><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-bold uppercase ${badge.bg} ${badge.text} ${badge.border}`}>{badge.label}</span></td>);
@@ -772,7 +810,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Empleados_Bajas");
 
-      const visibleCols = columns.filter(c => c.visible);
+      const visibleCols = dataColumns.filter(c => c.visible);
 
       // Define columns
       worksheet.columns = visibleCols.map(col => ({
@@ -901,7 +939,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     exportConFotosAbortRef.current = controller;
     setIsExportingConFotos(true);
     try {
-      const visibleCols = columns.filter(c => c.visible);
+      const visibleCols = dataColumns.filter(c => c.visible);
       const ids = filteredSortedData.map(row => row.id);
       const res = await VacantesService.exportarBajasConFotos(
         {
@@ -1275,7 +1313,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
 
             onOpenChange={setIsColumnPickerOpen}
 
-            columns={columns}
+            columns={dataColumns}
 
             columnFilters={columnFilters}
 
@@ -1289,7 +1327,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
           <MobileSortDrawer
             open={isSortDrawerOpen}
             onOpenChange={setIsSortDrawerOpen}
-            columns={columns}
+            columns={dataColumns}
             sortConfig={sortConfig}
             onSort={setSortConfig}
           />
@@ -1315,9 +1353,9 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex items-center gap-3 py-2 px-3.5 bg-[#621f32]/5 dark:bg-[#bc955c]/5 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-xl text-[10px] font-bold text-slate-600 dark:text-slate-300 group">
                     <div className="flex items-center gap-2.5">
                       <span className="font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] flex-shrink-0">{getColumnLetter(selectedCell.col)}{selectedCell.row + 1}</span>
-                      <span className="max-w-[120px] sm:max-w-[180px] md:max-w-[250px] truncate">Col: <strong className="text-slate-700 dark:text-slate-200">{columns.filter(c => c.visible)[selectedCell.col]?.label}</strong></span>
+                      <span className="max-w-[120px] sm:max-w-[180px] md:max-w-[250px] truncate">Col: <strong className="text-slate-700 dark:text-slate-200">{tableColumns.filter(c => c.visible)[selectedCell.col]?.label}</strong></span>
                       <span className="opacity-30">|</span>
-                      <span className="max-w-[150px] sm:max-w-[250px] md:max-w-[350px] truncate">Val: <strong className="text-slate-700 dark:text-slate-200">{(() => { const v = filteredSortedData[selectedCell.row]?.[columns.filter(c => c.visible)[selectedCell.col]?.key]; return !v ? "-" : String(v); })()}</strong></span>
+                      <span className="max-w-[150px] sm:max-w-[250px] md:max-w-[350px] truncate">Val: <strong className="text-slate-700 dark:text-slate-200">{(() => { const v = filteredSortedData[selectedCell.row]?.[tableColumns.filter(c => c.visible)[selectedCell.col]?.key]; return !v ? "-" : String(v); })()}</strong></span>
                       <button onClick={() => setIsCellModalOpen(true)} className="ml-1 p-1 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] rounded-md shadow-sm hover:opacity-90 active:scale-95 transition-all flex-shrink-0" title="Ver detalle completo"><ChevronRightIcon className="size-3" /></button>
                     </div>
                   </motion.div>
@@ -1347,7 +1385,8 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             containerRef={tableContainerRef}
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
-            columns={columns}
+            columns={tableColumns}
+            stickyColumnKeys={["posicion", "no_empleado"]}
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             textFilters={textFilters}
@@ -1362,7 +1401,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             onSort={handleSort}
             onOpenFilter={openFilterDropdown}
             onResizeStart={handleMouseDown}
-            onResizeReset={(index) => resetWidth(columns[index]?.key)}
+            onResizeReset={(index) => resetWidth(tableColumns[index]?.key)}
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={isPending}
@@ -1408,7 +1447,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         <AnimatePresence>
                     <ColumnsModal
             open={isColumnsModalOpen}
-            columns={columns}
+            columns={tableColumns}
             onToggle={toggleColumnVisibility}
             onShowAll={() => setColumns(prev => prev.map(c => ({ ...c, visible: true })))}
             onHideAll={() => setColumns(prev => prev.map(c => ({ ...c, visible: false })))}
@@ -1424,7 +1463,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
           <ColumnFilterDropdown
             open={!!activeFilterDropdown}
             columnKey={activeFilterDropdown}
-            columnLabel={columns.find(c => c.key === activeFilterDropdown)?.label}
+            columnLabel={dataColumns.find(c => c.key === activeFilterDropdown)?.label}
             isDate={isDateColumn(activeFilterDropdown)}
             data={bajasData}
             filters={filters}
@@ -1444,7 +1483,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
         open={isAdvancedFiltersOpen}
         onClose={() => setIsAdvancedFiltersOpen(false)}
         mounted={mounted}
-        columns={columns}
+        columns={dataColumns}
         conditions={advancedConditions}
         onAddCondition={addAdvancedCondition}
         onRemoveCondition={removeAdvancedCondition}
@@ -1515,12 +1554,12 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                     )}
                     <div className="w-full overflow-auto">
                     {tableDataToRender && tableDataToRender.length > 0 ? (
-                      <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 50 + columns.reduce((sum, col) => sum + col.width, 0) }}>
-                        <colgroup><col style={{ width: 50 }} />{columns.map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
+                      <table className="text-left text-gray-500 border-collapse" style={{ tableLayout: "fixed", width: 50 + dataColumns.reduce((sum, col) => sum + col.width, 0) }}>
+                        <colgroup><col style={{ width: 50 }} />{dataColumns.map(col => <col key={col.key} style={{ width: col.width }} />)}</colgroup>
                         <thead className="bg-[#501929]/90 dark:bg-[#3e131f]/90 text-white sticky top-0 z-30 shadow-md border-b border-[#bc955c]/30">
                           <tr>
                             <th className="sticky left-0 top-0 z-40 bg-[#40121e]/90 dark:bg-[#2b0d15]/90 backdrop-blur-md border-r border-b border-[#621f32]/35 w-[50px] min-w-[50px] text-center align-middle">#</th>
-                            {columns.map((col, index) => (
+                            {dataColumns.map((col, index) => (
                               <th key={col.key} className="relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors bg-[#501929] text-slate-200">
                                 <div className="flex flex-col items-center gap-1 w-full">
                                   <span className="text-[9px] font-mono text-[#bc955c]">{getColumnLetter(index)}</span>
@@ -1538,7 +1577,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
                               <td className={`sticky left-0 z-25 text-center font-mono text-[10px] border-r h-[37px] px-4 align-middle ${activeModalTab === 'diff_table' && index === 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : activeModalTab === 'diff_table' && index === 1 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/30' : 'bg-slate-50/85 text-slate-400'}`}>
                                 {activeModalTab === 'diff_table' ? (index === 0 ? 'Ahora' : 'Antes') : (tableDataToRender.length - index)}
                               </td>
-                              {columns.map((col) => {
+                              {dataColumns.map((col) => {
                                 const val = rowData[col.key];
                                 if (col.key === "estado_psn") {
                                   const badge = MOV_STATUS_BADGE_STYLES[val] || { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", label: val };
@@ -1656,12 +1695,12 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
       <CeldaValorModal
         open={isCellModalOpen && !!selectedCell}
         onClose={() => setIsCellModalOpen(false)}
-        columnLabel={selectedCell ? columns.filter(c => c.visible)[selectedCell.col]?.label : ""}
+        columnLabel={selectedCell ? tableColumns.filter(c => c.visible)[selectedCell.col]?.label : ""}
         cellRef={selectedCell ? `${getColumnLetter(selectedCell.col)}${selectedCell.row + 1}` : ""}
         value={(() => {
           if (!selectedCell) return null;
           const row = filteredSortedData[selectedCell.row];
-          const col = columns.filter(c => c.visible)[selectedCell.col];
+          const col = tableColumns.filter(c => c.visible)[selectedCell.col];
           return row?.[col?.key] ?? null;
         })()}
       />
@@ -1678,7 +1717,7 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
             isOpen={!!selectedRowData}
             onClose={() => setSelectedRowData(null)}
             record={mappedEmployee}
-            columns={columns}
+            columns={dataColumns}
             canViewPhoto={canViewFotoBajas}
           />
         );
