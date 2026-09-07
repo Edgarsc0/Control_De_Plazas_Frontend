@@ -5,8 +5,35 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ArrowUpDown, Filter, X, Check, Search, Eye } from "lucide-react";
+import { ArrowUpDown, ArrowUpNarrowWide, ArrowDownNarrowWide, Filter, X, Check, Search, Eye } from "lucide-react";
 import { getConditionLabel } from "@/utils/columnFilters";
+import { isNivelTabularColumn } from "@/utils/nivelTabular";
+
+// Botón/ícono de orden de una columna de encabezado. Para las columnas de
+// "nivel tabular" (ver `isNivelTabularColumn`) usa un ícono y un título
+// distintos que dejan explícito que el orden sigue la jerarquía de
+// tabuladores de ANAM (P<D<S<A<K<J<H, numéricos al fondo) y no un orden
+// alfabético/numérico plano — la regla de negocio real vive en
+// `compareNivelTabular` (utils/nivelTabular.js), aplicada por cada tab en su
+// propio comparador de `sortConfig`; este componente sólo comunica la acción.
+function SortIndicator({ col, sortConfig }) {
+  const isNivelTabular = isNivelTabularColumn(col.key);
+  const isActive = sortConfig.key === col.key;
+  if (isNivelTabular) {
+    const Icon = isActive && sortConfig.direction === "desc" ? ArrowDownNarrowWide : ArrowUpNarrowWide;
+    return <Icon className={`size-3 transition-opacity ${isActive ? "opacity-100" : "opacity-40"}`} />;
+  }
+  return <ArrowUpDown className={`size-3 transition-opacity ${isActive ? "opacity-100" : "opacity-0"}`} />;
+}
+
+function sortTitle(col, sortConfig) {
+  if (!isNivelTabularColumn(col.key)) return col.label;
+  const isActive = sortConfig.key === col.key;
+  if (!isActive) return "Ordenar por nivel tabular (Ascendente)";
+  return sortConfig.direction === "asc"
+    ? "Ordenar por nivel tabular (Descendente)"
+    : "Ordenar por nivel tabular (quitar orden)";
+}
 
 gsap.registerPlugin(useGSAP);
 
@@ -409,11 +436,11 @@ function DataTable({
                             role="button"
                             tabIndex={0}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(col.key); } }}
-                            title={col.label}
+                            title={sortTitle(col, sortConfig)}
                             className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded"
                           >
                             <span>{col.label}</span>
-                            <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                            <SortIndicator col={col} sortConfig={sortConfig} />
                           </div>
                           {renderColumnHeaderExtra && (
                             <div onClick={(e) => e.stopPropagation()} className="shrink-0">{renderColumnHeaderExtra(col)}</div>
@@ -447,11 +474,11 @@ function DataTable({
                             role="button"
                             tabIndex={0}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(col.key); } }}
-                            title={col.label}
+                            title={sortTitle(col, sortConfig)}
                             className="flex items-center gap-1.5 cursor-pointer flex-1 truncate py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded"
                           >
                             <span>{col.label}</span>
-                            <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />
+                            <SortIndicator col={col} sortConfig={sortConfig} />
                           </div>
                           <button onClick={(e) => { e.stopPropagation(); onOpenFilter(col.key); }} title={filterTitle} className={`p-1 rounded-md transition-colors ${hasFilter ? "text-[#3e131f]" : "text-white/60"}`}>
                             <Filter className="size-3 fill-current" />
@@ -480,9 +507,9 @@ function DataTable({
                   <div className="flex flex-col items-center gap-1 w-full">
                     <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
                     <div className="flex items-center justify-between w-full">
-                      <div onClick={() => { if (!col.noFilter) onSort(col.key); }} className={`flex items-center gap-1.5 flex-1 truncate py-0.5 ${col.noFilter ? "" : "cursor-pointer"}`}>
+                      <div onClick={() => { if (!col.noFilter) onSort(col.key); }} title={col.noFilter ? undefined : sortTitle(col, sortConfig)} className={`flex items-center gap-1.5 flex-1 truncate py-0.5 ${col.noFilter ? "" : "cursor-pointer"}`}>
                         <span>{col.label}</span>
-                        {!col.noFilter && <ArrowUpDown className={`size-3 transition-opacity ${sortConfig.key === col.key ? "opacity-100" : "opacity-0"}`} />}
+                        {!col.noFilter && <SortIndicator col={col} sortConfig={sortConfig} />}
                       </div>
                       {renderColumnHeaderExtra && (
                         <div onClick={(e) => e.stopPropagation()} className="shrink-0">{renderColumnHeaderExtra(col)}</div>

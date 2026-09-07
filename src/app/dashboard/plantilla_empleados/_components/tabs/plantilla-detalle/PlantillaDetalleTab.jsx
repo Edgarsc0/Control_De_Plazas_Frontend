@@ -41,6 +41,7 @@ import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/colum
 import { useCellSelection, useClearSelectionOnFilterChange } from "../../../_hooks/useCellSelection";
 import { useEscapeToClose } from "../../../_hooks/useEscapeToClose";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { isNivelTabularColumn, compareNivelTabular } from "@/utils/nivelTabular";
 import { usePersistedState } from "../../../_hooks/usePersistedState";
 import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
@@ -2344,6 +2345,12 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         if (!valA && !valB) return 0;
         if (!valA) return 1;
         if (!valB) return -1;
+      }
+      // Nivel tabular (P<D<S<A<K<J<H, numéricos al fondo): regla de negocio
+      // ANAM, no un orden alfabético/numérico plano — ver compareNivelTabular.
+      if (isNivelTabularColumn(key)) {
+        const cmp = compareNivelTabular(a[key], b[key]);
+        return direction === "asc" ? cmp : -cmp;
       }
       const numA = Number(valA), numB = Number(valB);
       if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;

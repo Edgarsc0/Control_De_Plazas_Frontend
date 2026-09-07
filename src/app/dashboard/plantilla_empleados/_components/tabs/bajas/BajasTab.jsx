@@ -44,6 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { isNivelTabularColumn, compareNivelTabular } from "@/utils/nivelTabular";
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -652,6 +653,12 @@ export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHisto
     if (sortConfig.key && sortConfig.direction) {
       const { key, direction } = sortConfig;
       result.sort((a, b) => {
+        // Nivel tabular (P<D<S<A<K<J<H, numéricos al fondo): regla de negocio
+        // ANAM, no un orden alfabético/numérico plano — ver compareNivelTabular.
+        if (isNivelTabularColumn(key)) {
+          const cmp = compareNivelTabular(a[key], b[key]);
+          return direction === "asc" ? cmp : -cmp;
+        }
         let valA = String(a[key] || "").trim(), valB = String(b[key] || "").trim();
         const numA = Number(valA), numB = Number(valB);
         if (!isNaN(numA) && !isNaN(numB)) return direction === "asc" ? numA - numB : numB - numA;
