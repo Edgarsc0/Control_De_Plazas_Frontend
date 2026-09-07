@@ -605,7 +605,7 @@ export default function AdvancedFiltersModal({
 /** Botón de toolbar para abrir el modal, con badge de condiciones aplicadas. */
 export function AdvancedFiltersButton({ onClick, appliedCount = 0 }) {
   return (
-    <button onClick={onClick} className="relative flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer">
+    <button onClick={onClick} className="relative flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer">
       <SlidersHorizontal className="size-3.5" /><span>Filtros Avanzados</span>
       {appliedCount > 0 && (
         <span className="absolute -top-1.5 -right-1.5 size-5 flex items-center justify-center bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#3e131f] text-[9px] font-black rounded-full">{appliedCount}</span>

@@ -4118,18 +4118,17 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
                 </label>
               </div>
-              <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>{STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}<span>{status}</span><X className="size-3" /></button>))}</div>
             </div>
             <div className="flex items-center gap-3 min-w-0 w-full lg:w-auto overflow-x-auto overflow-y-hidden pb-1 -mb-1">
-              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
+              <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 h-12 px-5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
-              <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
+              <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
               {canViewHistorico && (
                 historicoActivo ? (
                   <>
                     {/* Nav rápida día a día en la misma barra de controles —
                         antes solo vivía en el banner ámbar de arriba. */}
-                    <div className="flex items-center gap-1 px-3 py-3.5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase shadow-sm flex-shrink-0">
+                    <div className="flex items-center gap-1 h-12 px-3 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase shadow-sm flex-shrink-0">
                       <button
                         type="button"
                         onClick={() => navegarHistoricoDia(-1)}
@@ -4151,18 +4150,18 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                       </button>
                       {historicoLoading && <Loader2 className="size-3.5 animate-spin" />}
                     </div>
-                    <button onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a otra fecha pasada" className="flex items-center gap-2 px-5 py-3.5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
+                    <button onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a otra fecha pasada" className="flex items-center gap-2 h-12 px-5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
                       <CalendarDays className="size-3.5" /><span>Consultar otra fecha</span>
                     </button>
-                    <button onClick={salirHistorico} title="Volver a ver la plantilla en vivo" className="flex items-center gap-2 px-5 py-3.5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
+                    <button onClick={salirHistorico} title="Volver a ver la plantilla en vivo" className="flex items-center gap-2 h-12 px-5 border border-amber-300/70 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
                       <RotateCcw className="size-3.5" /><span>Consultar la plantilla normal</span>
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a una fecha pasada" className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><CalendarDays className="size-3.5" /><span>Consultar plantillas pasadas</span></button>
+                  <button onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a una fecha pasada" className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><CalendarDays className="size-3.5" /><span>Consultar plantillas pasadas</span></button>
                 )
               )}
-              <button onClick={openHistorialModal} title={remoteUpdatesCount > 0 ? `${remoteUpdatesCount} cambio${remoteUpdatesCount === 1 ? "" : "s"} de otros usuarios sin ver` : "Ver historial de cambios de la tabla"} className="relative flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
+              <button onClick={openHistorialModal} title={remoteUpdatesCount > 0 ? `${remoteUpdatesCount} cambio${remoteUpdatesCount === 1 ? "" : "s"} de otros usuarios sin ver` : "Ver historial de cambios de la tabla"} className="relative flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
                 <History className="size-3.5" />
                 <span>Historial de Cambios</span>
                 {remoteUpdatesCount > 0 && (
@@ -4171,11 +4170,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                   </span>
                 )}
               </button>
-              <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex-shrink-0"><Columns className="size-3.5" /><span>Columnas</span></button>
+              <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex-shrink-0"><Columns className="size-3.5" /><span>Columnas</span></button>
               <button
                 onClick={handleOpenExportClick}
                 disabled={isExportingExcel}
-                className="flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 disabled:opacity-75 disabled:pointer-events-none"
+                className="flex items-center gap-2 h-12 px-5 bg-gradient-to-r from-[#621f32] to-[#802842] dark:from-[#bc955c] dark:to-[#d0ab75] text-white dark:text-[#3e131f] font-black rounded-2xl text-[10px] uppercase transition-all shadow-md active:scale-95 cursor-pointer flex-shrink-0 disabled:opacity-75 disabled:pointer-events-none"
               >
                 {isExportingExcel ? (
                   <div className="size-3.5 border-2 border-white/20 border-t-white dark:border-[#3e131f]/20 dark:border-t-[#3e131f] rounded-full animate-spin" />
@@ -4190,9 +4189,15 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           {/* 7.2 QA: chips de filtros activos — antes el único indicio era el
               punto blanco del header y había hasta 4 mecanismos de filtro
               (tarjeta, global, columna, avanzados) invisibles entre sí. */}
-          {(globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some(v => v?.value) || appliedAdvancedFilters.length > 0) && (
+          {(activeStatusFilter.length > 0 || globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some(v => v?.value) || appliedAdvancedFilters.length > 0) && (
             <div className="hidden md:flex flex-wrap items-center gap-2 px-6 py-3 border-b border-slate-200/50 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/20">
               <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest shrink-0">Filtros activos:</span>
+              {activeStatusFilter.map(status => (
+                <button key={`status-${status}`} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border transition-colors hover:opacity-80 cursor-pointer" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
+                  {STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-2.5" })}
+                  <span>{status}</span><X className="size-2.5" />
+                </button>
+              ))}
               {globalSearch && (
                 <button onClick={() => { setSearchQuery(""); setGlobalSearch(""); }} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-red-300 dark:hover:border-red-900 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer">
                   <Search className="size-2.5" /><span>Búsqueda: "{globalSearch}"</span><X className="size-2.5" />
