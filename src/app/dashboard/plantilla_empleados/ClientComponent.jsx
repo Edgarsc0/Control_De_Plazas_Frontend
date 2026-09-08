@@ -253,6 +253,11 @@ export default function PlantillaEmpleadosDetalle({
   // "cuadros" y "anuencia" son tarjetas de contenido (no tablas densas a todo
   // lo ancho), así que conservan el layout holgado.
   const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab !== "cuadros" && activeMovimientosSubTab !== "anuencia") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
+  // Subtab "rotacion": sin título ni tarjetas de stats (ver más abajo), la
+  // tabla debe pegarse directo bajo el PageTabBar — mismo criterio de
+  // clearance que usa MapaTab (md:pt-9), no el pt-14 de los demás subtabs
+  // (ese extra colchón era para separar el título, que aquí no existe).
+  const isRotacionSubtab = activeTab === "movimientos_personal" && activeMovPersonalSubTab === "rotacion";
 
   // Tabs con datos propios (filtros, orden, fetch en cliente) que ya se visitaron:
   // se mantienen montados y se ocultan con CSS al cambiar de tab, en vez de
@@ -438,10 +443,10 @@ export default function PlantillaEmpleadosDetalle({
       {/* "mapa" se excluye: reserva su propio espacio para el PageTabBar con
           md:pt-9 dentro de su propio contenedor (altura exacta h-stack-dvh);
           dejar el pt-14 de aquí ENCIMA duplicaba el hueco bajo el tab bar. */}
-      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`}>
+      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isRotacionSubtab ? "pt-3 md:pt-9 pb-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`}>
         <div className={`w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 transition-all duration-300 ${isTightLayout ? "gap-2" : "gap-6"}`}>
 
-          {activeTab !== "mapa" && (
+          {activeTab !== "mapa" && !isRotacionSubtab && (
             <Zoom triggerOnce>
               <div className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-8 transition-all duration-300 ${isTightLayout ? "mb-4" : "mb-12"}`}>
                 <div className="flex flex-col gap-3 w-full md:w-auto">
@@ -506,7 +511,7 @@ export default function PlantillaEmpleadosDetalle({
         {/* El tab de mapa calcula su alto exacto contra el viewport
             (`100dvh - stack - bottomnav`); el `mt-2` lo empujaba 8px y dejaba el
             borde inferior del mapa por debajo del BottomNav. */}
-        <div className={`w-full ${activeTab === "mapa" ? "mt-0" : "mt-2"}`} ref={tabContentRef}>
+        <div className={`w-full ${activeTab === "mapa" || isRotacionSubtab ? "mt-0" : "mt-2"}`} ref={tabContentRef}>
           {/* Tabs con estado propio (filtros, orden, scroll, datos por fetch de cliente):
               se mantienen montados una vez visitados y se ocultan con CSS al salir,
               en vez de desmontarse, para no perder su estado ni re-fetchear. */}
