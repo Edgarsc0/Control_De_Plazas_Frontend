@@ -4875,7 +4875,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         <PlantillaHistoricaModal
           open={isPlantillaHistoricaPickerOpen}
           onClose={() => setIsPlantillaHistoricaPickerOpen(false)}
-          onConfirm={activarHistorico}
+          onConfirm={(fecha) => activarHistorico(fecha, { preserveFilters: true })}
         />
       )}
 
