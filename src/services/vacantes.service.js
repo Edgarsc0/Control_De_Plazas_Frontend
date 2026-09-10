@@ -247,8 +247,11 @@ export const VacantesService = {
      * @returns {Promise<Response>}
      */
     getEmpleadoFoto: (numempleado, options = {}) => {
+        // Forzado al servidor remoto: las fotos solo existen en ese medio,
+        // no en el backend local de desarrollo.
         return apiFetch(`/plantilla/empleado_foto/${encodeURIComponent(numempleado)}/`, {
             method: 'GET',
+            baseUrl: 'http://89.116.51.124:3030',
             ...options
         });
     },
@@ -762,6 +765,24 @@ export const VacantesService = {
      */
     getMovPosOcupacionDetalle: (id, options = {}) => {
         return apiFetch(`/plantilla/mov_pos_ocupacion_detalle/?id=${id}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * Detalle dinámico (categoría A/B/C) de la vacancia de una plaza en una
+     * FECHA PASADA — columna "Fecha de Vacancia" de la Plantilla Histórica
+     * (PlantillaDetalleTab, botón "Consultar plantillas pasadas"). Análogo a
+     * `getMovPosVacanciaDetalle` pero reconstruido con sp_historia_plaza en
+     * vez de los campos de MOV_POS (que sólo reflejan HOY).
+     * @param {string} posicion - Nº Pos Actual.
+     * @param {string} fecha - YYYY-MM-DD, la misma fecha consultada en la plantilla histórica.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getPlantillaHistoricaVacanciaDetalle: (posicion, fecha, options = {}) => {
+        return apiFetch(`/plantilla/plantilla_historica_vacancia_detalle/${buildQuery({ posicion, fecha })}`, {
             method: 'GET',
             ...options
         });

@@ -6,6 +6,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
  * Cliente base de API con interceptor de tokens isomórfico (Server/Client)
  */
 export const apiFetch = async (endpoint, options = {}) => {
+    const { baseUrl, ...fetchOptions } = options;
+    options = fetchOptions;
     let token;
 
     // Si ya se proporcionó un token de autorización, no intentamos obtenerlo de las cookies
@@ -42,7 +44,7 @@ export const apiFetch = async (endpoint, options = {}) => {
     // en vez de forzar no-store por defecto.
     const defaultCache = options.next || options.cache ? {} : { cache: 'no-store' };
 
-    const response = await fetch(`${API_BASE_URL}/api${endpoint}`, {
+    const response = await fetch(`${baseUrl ?? API_BASE_URL}/api${endpoint}`, {
         ...defaultCache,
         ...options,
         headers,

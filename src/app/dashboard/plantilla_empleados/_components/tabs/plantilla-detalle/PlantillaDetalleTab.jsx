@@ -315,7 +315,7 @@ const ALL_DETAIL_KEYS = [
   "observaciones_plantillas_do", "observaciones_proyectos_alineaciones", "anno_vacancia"
 ];
 
-const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso", "fecha_anuencia_detalle", "fecha_genera_vacante"];
+const DATE_KEYS = ["fecha_efectiva_personal", "fecha_de_captura", "fecha_prevista_de_salida", "fecha_de_ingreso", "fecha_anuencia_detalle", "fecha_genera_vacante", "fecha_vacancia", "fecha_ocupacion"];
 
 // Columnas agregadas por la opción "Incluir datos personales" del export a
 // Excel (cruce por numempleado con DATOS_PERSONALES, ver
@@ -397,8 +397,14 @@ const VACANCY_DEFINING_KEYS = new Set(["estado_nomina", "val_estat"]);
 // mapEstadoNomina la manda siempre a "Vacante" y `detalleParaFiltros` la
 // descarta. Sin esto, el propio dropdown de "Estado de la Plaza" sólo podía
 // ofrecer "A" — el valor "I" quedaba fuera del universo antes de contarlo.
+// "fecha_vacancia" (modo histórico, ver sp_periodo_plaza_masivo): mismo caso
+// que "fecha_genera_vacante" — sólo trae dato en plazas VACANTES. NO se
+// agrega "fecha_ocupacion": ésa sólo trae dato en plazas OCUPADAS, que es
+// justo el universo que `detalleParaFiltros` ya deja por default (excluye
+// vacantes), así que su dropdown no necesita el dataset ampliado.
 const isVacancyScopedColumn = (key) => VACANCY_DEFINING_KEYS.has(key) || SOLICITUD_COLS.includes(key)
-  || key === "fecha_genera_vacante" || key === FECHA_ANUENCIA_COL || key === "estado_plaza";
+  || key === "fecha_genera_vacante" || key === FECHA_ANUENCIA_COL || key === "estado_plaza"
+  || key === "fecha_vacancia";
 
 // Etiquetas de Estado Nómina que representan una posición vacante (sin
 // importar el sub-estatus derivado — Solicitada/No Disponible siguen siendo
@@ -1153,6 +1159,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     // columna siempre vacía en el uso diario; se fuerza visible al activar
     // "Consultar plantillas pasadas" (ver `activarHistorico`).
     { key: "estado_plaza", label: "Estado de la Plaza", width: 130, visible: false, isBasic: true, greenHeader: true },
+    // Idem estado_plaza: sólo traen dato en modo histórico (sp_periodo_plaza_masivo,
+    // ver PlantillaHistoricaView) — fecha_vacancia sólo en plazas vacantes,
+    // fecha_ocupacion sólo en ocupadas.
+    { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 150, visible: false, isBasic: true, greenHeader: true },
+    { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: false, isBasic: true, greenHeader: true },
     { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
     { key: "solicitante", label: "Solicitante", width: 200, visible: false, isBasic: false, yellowHeader: true },
     { key: "nombre_candidato", label: "Nombre del candidato", width: 200, visible: false, isBasic: false, yellowHeader: true },
@@ -1248,10 +1259,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // - `dataColumns`: sólo columnas que corresponden a un campo real de la fila
   //   (sin la de foto) — exportaciones, filtros avanzados, historial y tarjetas
   //   móviles, donde una columna de presentación no tiene ningún valor que dar.
-  // Ambas también quitan "estado_plaza" fuera del modo histórico (no basta
-  // con dejarla en `visible: false` al salir — ver `salirHistorico` — porque
-  // el usuario podría reactivarla a mano desde "Columnas" y quedarse viendo
-  // una columna siempre vacía en la plantilla en vivo), y en sentido inverso
+  // Ambas también quitan "estado_plaza"/"fecha_vacancia"/"fecha_ocupacion"
+  // fuera del modo histórico (no basta con dejarlas en `visible: false` al
+  // salir — ver `salirHistorico` — porque el usuario podría reactivarlas a
+  // mano desde "Columnas" y quedarse viendo una columna siempre vacía en la
+  // plantilla en vivo), y en sentido inverso
   // filtran estas 15 fuera del modo histórico: son columnas de EDICIÓN
   // manual quincenal (solicitud de candidato, oficios/plazas eventuales,
   // CAP, observaciones DO, año de vacancia) o derivadas en vivo (código
@@ -1267,6 +1279,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     "cap_anual", "cap_mensual",
     "observaciones_plantillas_do", "observaciones_proyectos_alineaciones",
     "anno_vacancia",
+  ]), []);
+  // Sólo existen en la reconstrucción histórica (ver comentario junto a su
+  // definición en useColumnState más arriba) -- lo inverso de LIVE_ONLY.
+  const HISTORICO_ONLY_COLUMN_KEYS = useMemo(() => new Set([
+    "estado_plaza", "fecha_vacancia", "fecha_ocupacion",
   ]), []);
   // No basta con que la columna venga del SP: a una fecha dada, muchas de
   // las 71 salen completamente vacías en TODAS las filas (campos que sólo se
@@ -1292,16 +1309,16 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     let cols = canViewFotoDetalle ? columns : columns.filter(c => c.key !== FOTO_COLUMN_KEY);
     cols = historicoActivo
       ? cols.filter(c => !LIVE_ONLY_COLUMN_KEYS.has(c.key) && !historicoColumnasVacias.has(c.key))
-      : cols.filter(c => c.key !== "estado_plaza");
+      : cols.filter(c => !HISTORICO_ONLY_COLUMN_KEYS.has(c.key));
     return cols;
-  }, [columns, canViewFotoDetalle, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias]);
+  }, [columns, canViewFotoDetalle, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias, HISTORICO_ONLY_COLUMN_KEYS]);
   const dataColumns = useMemo(() => {
     let cols = columns.filter(c => c.key !== FOTO_COLUMN_KEY);
     cols = historicoActivo
       ? cols.filter(c => !LIVE_ONLY_COLUMN_KEYS.has(c.key) && !historicoColumnasVacias.has(c.key))
-      : cols.filter(c => c.key !== "estado_plaza");
+      : cols.filter(c => !HISTORICO_ONLY_COLUMN_KEYS.has(c.key));
     return cols;
-  }, [columns, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias]);
+  }, [columns, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias, HISTORICO_ONLY_COLUMN_KEYS]);
 
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
@@ -1427,9 +1444,9 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       setHistoricoFecha(data.fecha);
       setHistoricoResumen(data.resumen);
       setHistoricoFilas(data.filas || []);
-      // Se fuerza visible en cada activación (es la columna que justifica
-      // este modo) aunque el usuario la haya ocultado manualmente antes.
-      setColumns((prev) => prev.map((c) => (c.key === "estado_plaza" ? { ...c, visible: true } : c)));
+      // Se fuerza visible en cada activación (son las columnas que justifican
+      // este modo) aunque el usuario las haya ocultado manualmente antes.
+      setColumns((prev) => prev.map((c) => (HISTORICO_ONLY_COLUMN_KEYS.has(c.key) ? { ...c, visible: true } : c)));
     } catch (err) {
       if (historicoRequestIdRef.current !== requestId) return;
       toast.error("Error de conexión con el servidor.");
@@ -1437,7 +1454,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     } finally {
       if (historicoRequestIdRef.current === requestId) setHistoricoLoading(false);
     }
-  }, [setColumns, setSelectedCell, setColumnFilters, setTextFilters, toast]);
+  }, [setColumns, setSelectedCell, setColumnFilters, setTextFilters, toast, HISTORICO_ONLY_COLUMN_KEYS]);
 
   // Navegación día a día en modo histórico (< >) — a pedido del usuario para
   // recorrer plantillas secuenciales en un análisis, sin reabrir el picker
@@ -1478,13 +1495,13 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     setHistoricoLoading(false);
     setSelectedCell(null);
     setScrollTop(0);
-    // Vuelve a ocultarla (se había forzado visible al activar el modo) para
-    // no dejar una columna vacía en el uso diario en vivo.
-    setColumns((prev) => prev.map((c) => (c.key === "estado_plaza" ? { ...c, visible: false } : c)));
+    // Vuelve a ocultarlas (se habían forzado visibles al activar el modo)
+    // para no dejar columnas vacías en el uso diario en vivo.
+    setColumns((prev) => prev.map((c) => (HISTORICO_ONLY_COLUMN_KEYS.has(c.key) ? { ...c, visible: false } : c)));
     // Restaura el default en vivo que se limpió al activar (ver `activarHistorico`).
     setColumnFilters({ estado_nomina: ["Activo"] });
     setTextFilters({});
-  }, [setSelectedCell, setColumns, setColumnFilters, setTextFilters]);
+  }, [setSelectedCell, setColumns, setColumnFilters, setTextFilters, HISTORICO_ONLY_COLUMN_KEYS]);
 
   // Modal de Detalle de Vacancia (columna "Fecha que se genera la vacante")
   // — mismo componente y mismo flujo que Mov. Posiciones (VacanciaDetalleModal),
@@ -1492,13 +1509,28 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // ver EmpleadosCompletosActivosDetalleView) en vez de `row.id` (MovPos).
   const [isVacanciaModalOpen, setIsVacanciaModalOpen] = useState(false);
   const [vacanciaRowId, setVacanciaRowId] = useState(null);
+  // Columna "Fecha de Vacancia" en modo histórico (sp_periodo_plaza_masivo,
+  // ver PLAN_FECHA_VACANCIA_OCUPACION_PLANTILLA_HISTORICA_2026-09-10.md):
+  // mismo modal que la columna en vivo, pero sin `mov_pos_id` (MOV_POS.
+  // categoria_vacancia sólo refleja HOY) -- se pide por (posicion, fecha
+  // consultada) vía PlantillaHistoricaVacanciaDetalleView, que reconstruye
+  // con sp_historia_plaza. Mutuamente excluyente con `vacanciaRowId`: cada
+  // apertura limpia la fuente contraria.
+  const [vacanciaHistoricoQuery, setVacanciaHistoricoQuery] = useState(null);
   const [vacanciaDetalle, setVacanciaDetalle] = useState(null);
   const [isVacanciaLoading, setIsVacanciaLoading] = useState(false);
   const openVacanciaModal = useCallback((row) => {
     if (!row || row.mov_pos_id === undefined || row.mov_pos_id === null) return;
+    setVacanciaHistoricoQuery(null);
     setVacanciaRowId(row.mov_pos_id);
     setIsVacanciaModalOpen(true);
   }, []);
+  const openVacanciaModalHistorico = useCallback((row) => {
+    if (!row || !row.posicion || !historicoFecha) return;
+    setVacanciaRowId(null);
+    setVacanciaHistoricoQuery({ posicion: row.posicion, fecha: historicoFecha });
+    setIsVacanciaModalOpen(true);
+  }, [historicoFecha]);
 
   // Árbol de la plaza (columna "Posición") — mismo modal que Mov. Posiciones
   // (PosicionArbolModal): tronco de la plaza, sin historial de ocupantes en lista.
@@ -1535,11 +1567,22 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           if (active) setVacanciaDetalle({ error: "Error al cargar el detalle de la vacancia." });
         })
         .finally(() => { if (active) setIsVacanciaLoading(false); });
+    } else if (isVacanciaModalOpen && vacanciaHistoricoQuery) {
+      setIsVacanciaLoading(true);
+      setVacanciaDetalle(null);
+      VacantesService.getPlantillaHistoricaVacanciaDetalle(vacanciaHistoricoQuery.posicion, vacanciaHistoricoQuery.fecha)
+        .then(res => res.json())
+        .then(data => { if (active) setVacanciaDetalle(data); })
+        .catch(err => {
+          console.error("Error fetching vacancia detalle histórico:", err);
+          if (active) setVacanciaDetalle({ error: "Error al cargar el detalle de la vacancia." });
+        })
+        .finally(() => { if (active) setIsVacanciaLoading(false); });
     } else {
       setVacanciaDetalle(null);
     }
     return () => { active = false; };
-  }, [isVacanciaModalOpen, vacanciaRowId]);
+  }, [isVacanciaModalOpen, vacanciaRowId, vacanciaHistoricoQuery]);
 
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   // Abre el modal y apaga el badge de "cambios de otros usuarios pendientes de ver"
@@ -2671,6 +2714,18 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         : <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName}>{content}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
     }
+    // "Fecha de Vacancia" del modo histórico (sp_periodo_plaza_masivo): mismo
+    // modal de Detalle de Vacancia, pedido por (posicion, historicoFecha) en
+    // vez de mov_pos_id — ver openVacanciaModalHistorico.
+    if (col.key === "fecha_vacancia") {
+      const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+      const tdClassName = `relative px-4 text-xs border-r truncate h-[37px] align-middle ${rowBg(isSelected, isSticky)} ${isSelected ? "text-[#621f32]" : "text-slate-700 dark:text-slate-300"} font-semibold ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
+      const handleVacanciaHistoricoClick = (e) => { onClick(e); if (hasValue) openVacanciaModalHistorico(row); };
+      const content = hasValue
+        ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>)
+        : <span className="text-slate-300 dark:text-slate-700 italic">-</span>;
+      return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaHistoricoClick} className={tdClassName}>{content}</td>);
+    }
     if (editingCell && editingCell.posicion === row.posicion && editingCell.colKey === col.key) {
       return (
         <td key={col.key} style={stickyStyle} className={`relative px-1.5 text-xs border-r h-[37px] align-middle ring-2 ring-[#621f32] z-10 ${isSticky ? "bg-white dark:bg-slate-950" : "bg-white dark:bg-slate-900"}`}>
@@ -2885,7 +2940,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       );
     }
     return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick} style={stickyStyle} className={tdClassNameDefault}>{displayContent}{renderCellStatusOverlay(row.posicion, col.key)}</td>);
-  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, openPosicionArbolModal, canEditCeldas, toggleSolicitudColumns]);
+  }, [isMonoColumn, isDateColumn, deptoCatalog, motivosCatalog, editingCell, handleEditKeyDown, handleEditBlur, renderCellStatusOverlay, canViewFotoDetalle, openVacanciaModal, openVacanciaModalHistorico, openPosicionArbolModal, canEditCeldas, toggleSolicitudColumns]);
 
   const handleCellContextMenu = useCallback((e, value, rect, row, colKey) => {
     setContextMenu({ x: e.clientX, y: e.clientY, value, rect, row, colKey });
