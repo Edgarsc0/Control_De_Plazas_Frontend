@@ -1,15 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Calendar, Activity, Loader2, ArrowUpRight, MapPin, Search, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Note: using framer-motion as it seems imported differently sometimes, I'll use "motion/react" if it was "motion/react" in the tab
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { VacantesService } from "@/services/vacantes.service";
 import { normalizeForSearch, formatDateEsMx } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { getDifferences } from "../../_utils/movimientosDiff";
+
+gsap.registerPlugin(useGSAP);
 
 // 7.9 QA: DD/MM/AAAA — antes "18 jul 2026" (formato distinto al resto del módulo).
 const formatDate = (dateString) => {
@@ -67,13 +71,20 @@ const COLUMNS = [
 
 // `zIndexClass` permite abrirlo encima de otro modal (p. ej. desde la tabla del
 // modal "Movimientos realizados hoy", que vive en un ModalShell con z-[1000]).
-export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado, zIndexClass = "z-[110]" }) {
+export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado, targetMovimiento = null, zIndexClass = "z-[110]" }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline"); // "timeline" | "table"
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedPorIndex, setCopiedPorIndex] = useState(null);
   const { toast } = useToast();
+  // Scroll-to-record: se abrió el modal dando clic a un movimiento concreto en
+  // la tabla (no sólo al empleado) — ver `targetMovimiento` en
+  // MovimientosPersonalTab.jsx. `scrollContainerRef` es el contenedor con
+  // scroll de la línea de tiempo; `cardRefs` guarda el nodo de cada tarjeta
+  // (indexado igual que `data`) para poder ubicar y resaltar la que coincide.
+  const scrollContainerRef = useRef(null);
+  const cardRefs = useRef([]);
 
   useEscapeToClose(open, () => onOpenChange(false));
   useBodyScrollLock(open);
@@ -130,6 +141,65 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado,
       setData([]);
     }
   }, [open, numEmpleado]);
+
+  // Localiza en `data` (ya ordenada por fecha_efectiva,sec desc) el registro
+  // exacto sobre el que se dio clic. `posicion + fecha_efectiva + fecha_captura`
+  // ya identifican un movimiento concreto en el historial de este empleado;
+  // `sec` (cuando ambos lados lo traen) desempata el caso raro de más de un
+  // movimiento capturado el mismo día para la misma posición.
+  const targetIndex = useMemo(() => {
+    if (!targetMovimiento || !data.length) return null;
+    const idx = data.findIndex((mov) => {
+      if (mov.posicion !== targetMovimiento.posicion) return false;
+      if (mov.fecha_efectiva !== targetMovimiento.fecha_efectiva) return false;
+      if (mov.fecha_captura !== targetMovimiento.fecha_captura) return false;
+      if (targetMovimiento.sec != null && mov.sec != null) {
+        return Number(mov.sec) === Number(targetMovimiento.sec);
+      }
+      return true;
+    });
+    return idx === -1 ? null : idx;
+  }, [data, targetMovimiento]);
+
+  // Si se abrió apuntando a un movimiento concreto, siempre debe verse en la
+  // vista de línea de tiempo (si el usuario se había quedado en "Vista de
+  // Tabla" de una apertura anterior, el salto animado no tendría sentido ahí).
+  useEffect(() => {
+    if (open && targetMovimiento) setActiveTab("timeline");
+  }, [open, targetMovimiento]);
+
+  cardRefs.current = [];
+
+  useGSAP(() => {
+    if (!open || activeTab !== "timeline" || targetIndex === null) return;
+    const container = scrollContainerRef.current;
+    const card = cardRefs.current[targetIndex];
+    if (!container || !card) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const delta = cardRect.top - containerRect.top;
+    const rawTarget = container.scrollTop + delta - (containerRect.height / 2 - cardRect.height / 2);
+    const maxScroll = container.scrollHeight - container.clientHeight;
+    const targetScrollTop = Math.max(0, Math.min(rawTarget, maxScroll));
+
+    const reduceMotion = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduceMotion) {
+      container.scrollTop = targetScrollTop;
+      gsap.set(card, { boxShadow: "0 0 0 6px rgba(188,149,92,0.65)" });
+      gsap.to(card, { boxShadow: "0 0 0 0px rgba(188,149,92,0)", duration: 0.4, clearProps: "boxShadow" });
+      return;
+    }
+
+    const tl = gsap.timeline();
+    tl.to(container, { scrollTop: targetScrollTop, duration: 0.65, ease: "power2.inOut" })
+      .to(card, { boxShadow: "0 0 0 6px rgba(188,149,92,0.65)", duration: 0.35, ease: "power2.out" }, "-=0.15")
+      .to(card, { boxShadow: "0 0 0 0px rgba(188,149,92,0)", duration: 1, ease: "power2.inOut", clearProps: "boxShadow" }, "+=0.25");
+
+    return () => tl.kill();
+  }, { dependencies: [open, activeTab, targetIndex, data] });
 
   if (!open) return null;
 
@@ -188,7 +258,7 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado,
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-900/50 custom-scrollbar relative flex flex-col">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-900/50 custom-scrollbar relative flex flex-col">
           {loading ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-[#621f32] dark:text-[#bc955c]">
               <Loader2 className="size-10 animate-spin mb-4" />
@@ -212,7 +282,10 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado,
                   </div>
 
                   {/* Card Content */}
-                  <div className="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 ml-6 hover:shadow-md hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 transition-all">
+                  <div
+                    ref={(el) => { cardRefs.current[idx] = el; }}
+                    className="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 ml-6 hover:shadow-md hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 transition-all"
+                  >
                     
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                       <div>

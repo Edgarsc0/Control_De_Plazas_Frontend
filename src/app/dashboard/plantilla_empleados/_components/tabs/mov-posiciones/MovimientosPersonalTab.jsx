@@ -547,6 +547,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [cardWidth, setCardWidth] = useState(null);
   const [timelineModalOpen, setTimelineModalOpen] = useState(false);
   const [selectedNumEmpleado, setSelectedNumEmpleado] = useState(null);
+  // Fila exacta (registro) sobre la que se dio clic en "No. Empleado" — permite
+  // que el modal salte directo a ese movimiento en la línea de tiempo en vez de
+  // abrir siempre al principio. Ver `targetMovimiento` en EmpleadoTimelineModal.
+  const [selectedMovimiento, setSelectedMovimiento] = useState(null);
   const [posicionArbolModalOpen, setPosicionArbolModalOpen] = useState(false);
   const [selectedPosicion, setSelectedPosicion] = useState(null);
   const [selectedActionName, setSelectedActionName] = useState(null);
@@ -934,7 +938,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     if (catalogInfo) cellClass += " cursor-help";
     const handleCellClick = (e) => {
       if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionArbolModalOpen(true); }
-      else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setTimelineModalOpen(true); }
+      else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setSelectedMovimiento(row); setTimelineModalOpen(true); }
       else { setSelectedCell({ rowIdx: globalRowIdx, colIdx, colName: col.label, value: val }); }
     };
     const handleCellContext = (e) => { e.preventDefault(); e.stopPropagation(); handleCellContextMenu(e, val, e.currentTarget.getBoundingClientRect()); };
@@ -2900,6 +2904,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         open={timelineModalOpen}
         onOpenChange={setTimelineModalOpen}
         numEmpleado={selectedNumEmpleado}
+        targetMovimiento={selectedMovimiento}
       />
       
       <PosicionArbolModal
