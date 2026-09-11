@@ -181,15 +181,6 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   const { motivosCatalog } = useAccionesMotivosCatalog();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: "no_pos_actual", label: "No. Posición", width: 130, visible: true, isBasic: true },
-    // Snapshot de HOY (sp_dias_ocupacion_masivo, recalculado en cada import
-    // ZAFIRO vía InvalidarCacheZafiroView) — a un lado de la posición para
-    // comparar de un vistazo cuánto ha estado ocupada vs vacante en toda su
-    // historia. No participan en el diff de ALL_MOV_KEYS del modal de
-    // histórico: suben un día cada día aunque no haya ningún movimiento
-    // real, así que ensuciarían ese timeline con "cambios" falsos.
-    { key: "dias_ocupada", label: "Días Acumulados Ocupada", width: 220, visible: true, isBasic: true },
-    { key: "dias_vacante", label: "Días Acumulados Vacante", width: 220, visible: true, isBasic: true },
-    { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: true, isBasic: true },
     { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
     // Las siguientes 4 son las mismas que autollena el Anexo 2 a partir del
     // Código Federal de Puesto (ver AnuenciaLookupView) — cruzando cd_puesto/
@@ -204,6 +195,15 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     { key: "total_movimientos", label: "Histórico", width: 100, visible: true, isBasic: true },
     { key: "ocupacion", label: "Ocupación", width: 120, visible: true, isBasic: true },
     { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 140, visible: true, isBasic: true },
+    // Snapshot de HOY (sp_dias_ocupacion_masivo, recalculado en cada import
+    // ZAFIRO vía InvalidarCacheZafiroView) — junto a fecha_vacancia/fecha_ocupacion
+    // para comparar de un vistazo cuánto ha estado ocupada vs vacante en toda su
+    // historia. No participan en el diff de ALL_MOV_KEYS del modal de
+    // histórico: suben un día cada día aunque no haya ningún movimiento
+    // real, así que ensuciarían ese timeline con "cambios" falsos.
+    { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: true, isBasic: true },
+    { key: "dias_ocupada", label: "Días Acumulados Ocupada", width: 220, visible: true, isBasic: true },
+    { key: "dias_vacante", label: "Días Acumulados Vacante", width: 220, visible: true, isBasic: true },
     // Vive dentro de `hojas` del Anexo 2 al que pertenezca esta posición, no
     // en MOV_POS — sólo editable si el código ya está en alguno guardado
     // (ver MovPosFechaAltaSolicitadaOverrideView / fecha_alta_solicitada_editable).
@@ -2505,14 +2505,10 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
             tbodyRef={tbodyRef}
             onScroll={setScrollTop}
             columns={columns}
-            // Antes de sumar dias_ocupada/dias_vacante, el default `idx < 2`
-            // de DataTable dejaba fijas (al hacer scroll horizontal) a
-            // no_pos_actual + fecha_ocupacion (las primeras 2 columnas
-            // visibles). Fijarlo explícito aquí evita que insertar 2
-            // columnas nuevas entre medio corra a fecha_ocupacion fuera del
-            // set de congeladas — y de paso, las 2 nuevas quedan pegadas a
-            // Posición igual que pedían ("a un lado de cada posición").
-            stickyColumnKeys={["no_pos_actual", "dias_ocupada", "dias_vacante", "fecha_ocupacion"]}
+            // Sólo no_pos_actual queda fija al hacer scroll horizontal; el
+            // default `idx < 2` de DataTable fijaría también la 2a columna
+            // visible (codigo), así que se fija explícito aquí.
+            stickyColumnKeys={["no_pos_actual"]}
             columnFilters={columnFilters}
             setColumnFilters={setColumnFilters}
             textFilters={textFilters}
