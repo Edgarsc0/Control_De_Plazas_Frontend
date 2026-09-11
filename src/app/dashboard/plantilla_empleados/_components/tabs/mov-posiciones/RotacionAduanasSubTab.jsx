@@ -79,6 +79,15 @@ const TIPO_SALIDA = {
     CAMBIO_PLAZA: { etiqueta: "Cambió de plaza", clase: "amber" },
 };
 
+/** Etiqueta de "Tipo de Movimiento" — igual a TIPO_SALIDA[tipoSalida].etiqueta
+ * salvo TRASLADO_ADUANA en la fuente de direcciones generales (adaptada por
+ * adaptarGestionDG), que ahí no es literalmente "otra aduana" sino otra
+ * dirección general de las 12. */
+function etiquetaTipoSalida(tipoSalida, esDireccionGeneral) {
+    if (tipoSalida === "TRASLADO_ADUANA" && esDireccionGeneral) return "Pasó a otra dirección general";
+    return (TIPO_SALIDA[tipoSalida] || TIPO_SALIDA.BAJA).etiqueta;
+}
+
 const fecha = (valor) => (valor ? formatDateEsMx(valor) : "—");
 
 /** Desglose años/meses/días (no "1,8 años") — años y meses con longitud
@@ -377,6 +386,174 @@ function codigoUaActual(aduana) {
     return aduana.codigo_ua_actual || aduana.codigos_ua?.[aduana.codigos_ua.length - 1] || "—";
 }
 
+// ─── Fuente alterna: Rotación de Direcciones Generales ─────────────────────
+// Este subtab ahora ofrece DOS fuentes de datos sobre la MISMA tabla (ver el
+// switch "Titulares de Aduanas / Directores Generales" en el header): la de
+// aduanas trae las 50 columnas de un solo golpe (RotacionTitularesAduanasView,
+// PUESTOS_TITULARIDAD son 2 códigos fijos, sin ambigüedad); la de direcciones
+// generales llama una vez por cada `cd_puesto` (HistoriaDireccionGeneralView
+// — ver rotacion_direccion_general.py, ahí NO basta con el cd_puesto para
+// ser titular, hace falta además el nv_jerarquico mínimo del puesto) y cada
+// respuesta se adapta aquí a la MISMA forma de "aduana" (una columna) que ya
+// consume el resto de este archivo — por eso el resto del componente
+// (construirSegmentos, filaValoresRotacion, TablaRotacion, el export a
+// Excel…) no cambia nada.
+const DIRECCIONES_GENERALES_CD_PUESTO = [
+    "OI1001", "EV1001", "AD2353", "AD2054", "AD2052", "AD2049",
+    "AD2056", "AD2055", "RE1001", "CT1001", "AD2354", "RS1001",
+];
+
+/**
+ * Adapta una gestión de rotacion_direccion_general.py a la forma que produce
+ * rotacion_aduanas.py para una gestión de aduana.
+ *
+ * `TRASLADO_ADUANA` se reutiliza tal cual (mismo nombre interno) cuando el
+ * destino es OTRA dirección general de las 12 — así el botón "Pasó a
+ * otra aduana"/el cruce por clave (construirDestinos, ver más arriba) sigue
+ * funcionando sin tocar esa lógica: solo hace falta que `salida_destino_unidad`
+ * coincida exactamente con la `aduana` (clave) de la columna destino, y aquí
+ * ambas son el mismo `cd_puesto` crudo.
+ *
+ * `CAMBIO_NIVEL` (caso borde de rotacion_direccion_general.py: sigue en el
+ * mismo cd_puesto pero ya no calificó como titular por nv_jerarquico) no
+ * tiene equivalente en aduanas — se trata como SALIDA_PUESTO: en ambos casos
+ * la persona dejó de ser titular de ESTA dirección general.
+ */
+function adaptarGestionDG(g, aduanaLabel) {
+    const destinoEsOtraDG =
+        (g.tipo_salida === "SALIDA_PUESTO" || g.tipo_salida === "CAMBIO_NIVEL") &&
+        g.salida_destino_puesto &&
+        DIRECCIONES_GENERALES_CD_PUESTO.includes(g.salida_destino_puesto);
+    const tipoSalida = destinoEsOtraDG
+        ? "TRASLADO_ADUANA"
+        : g.tipo_salida === "CAMBIO_NIVEL"
+          ? "SALIDA_PUESTO"
+          : g.tipo_salida;
+    const origenEsOtraDG =
+        g.origen_completo?.cd_puesto && DIRECCIONES_GENERALES_CD_PUESTO.includes(g.origen_completo.cd_puesto);
+
+    return {
+        ...g,
+        aduana: aduanaLabel,
+        plaza_entrada: g.posicion_entrada,
+        plazas: g.posiciones,
+        tipo_salida: tipoSalida,
+        salida_destino_unidad: tipoSalida === "TRASLADO_ADUANA" ? g.salida_destino_puesto : null,
+        // {tipo,valor} — mismo contrato que rotacion_aduanas: "PUESTO" ya
+        // renderiza `Puesto ${valor}` (textoOrigen) sin tocar esa función;
+        // "DG" es aditivo (ver textoOrigen/textoDestino) para distinguir
+        // cuando el origen/destino es OTRA dirección general de las 12.
+        origen: g.origen_completo
+            ? { tipo: origenEsOtraDG ? "DG" : "PUESTO", valor: g.origen_completo.cd_puesto }
+            : null,
+        corregida_por_mov_pos: false,
+    };
+}
+
+/** Adapta la respuesta de HistoriaDireccionGeneralView a la forma de UNA
+ * aduana (una columna) — ver comentario del bloque arriba. */
+/**
+ * Nombre de la unidad de negocio (`desc_larga_un`, misma columna cruda que
+ * usa rotacion_aduanas para resolver el nombre de una aduana) a la que
+ * pertenece un cd_puesto de dirección general — se toma del movimiento MÁS
+ * RECIENTE de la gestión más reciente (la adscripción puede cambiar a lo
+ * largo de la historia del puesto por alineaciones organizacionales; lo que
+ * importa para la columna es a qué unidad pertenece HOY).
+ */
+function unidadNegocioDeGestion(gestion) {
+    const filas = [gestion?.entrada_completo, ...(gestion?.movimientos || [])].filter(Boolean);
+    const ultima = filas[filas.length - 1];
+    return ultima?.desc_larga_un || null;
+}
+
+function adaptarDireccionGeneralComoAduana(resultadoDG) {
+    // Clave de columna: el cd_puesto crudo, NO el nombre descriptivo — tiene
+    // que coincidir carácter por carácter con `salida_destino_unidad` de la
+    // gestión que traslada hacia acá (ver adaptarGestionDG) para que el
+    // cruce entre columnas funcione. El nombre legible (unidad de negocio)
+    // va aparte, en `aduana_corta` — esa sí es solo para mostrar.
+    const aduanaLabel = resultadoDG.cd_puesto;
+    const gestiones = (resultadoDG.gestiones || []).map((g) => adaptarGestionDG(g, aduanaLabel));
+    const unidadNegocio = unidadNegocioDeGestion(gestiones[gestiones.length - 1]);
+    return {
+        aduana: aduanaLabel,
+        aduana_corta: unidadNegocio || aduanaLabel,
+        codigos_ua: [resultadoDG.cd_puesto],
+        codigo_ua_actual: resultadoDG.cd_puesto,
+        plazas: [...new Set(gestiones.flatMap((g) => g.plazas || []))],
+        cd_puestos: [resultadoDG.cd_puesto],
+        titular_actual: resultadoDG.titular_actual,
+        titular_desde: resultadoDG.titular_desde,
+        total_gestiones: resultadoDG.total_gestiones,
+        total_vacancias: resultadoDG.total_vacancias,
+        dias_acefalia: resultadoDG.dias_acefalia,
+        gestiones,
+        vacancias: resultadoDG.vacancias || [],
+        // Marca que este objeto viene de la fuente de direcciones generales
+        // — filaValoresRotacion la usa para la etiqueta de TRASLADO_ADUANA
+        // ("Pasó a otra dirección general" en vez de "Pasó a otra aduana")
+        // sin tener que hilar `fuente` hasta ahí.
+        esDireccionGeneral: true,
+        // Metadata propia de direcciones generales — el resto del componente
+        // no la necesita, se conserva por si un futuro consumidor la usa
+        // (p. ej. un tooltip con el nombre completo del puesto funcional).
+        nombre_puesto_funcional: resultadoDG.nombre_puesto_funcional,
+        nivel_jerarquico_titularidad: resultadoDG.nivel_jerarquico_titularidad,
+        total_insubsistencias: resultadoDG.total_insubsistencias,
+    };
+}
+
+/**
+ * `adaptarGestionDG` marca TRASLADO_ADUANA solo con que el cd_puesto destino
+ * esté en la lista de las 12 — pero ser titular de una dirección general
+ * exige además el nv_jerárquico mínimo del puesto (ver comentario de
+ * `adaptarGestionDG`), así que el cd_puesto puede coincidir sin que del otro
+ * lado exista de verdad una gestión de esa persona. Sin esta corrección la
+ * fila queda con la etiqueta "Pasó a otra dirección general" aunque no haya
+ * fila destino a la que saltar (el hipervínculo ya no aparece porque
+ * `construirDestinos`/`origenSegmentoPorClave` sí validan la gestión real —
+ * lo que faltaba era alinear la ETIQUETA con ese mismo hecho). Mismo criterio
+ * que `construirDestinos`: si la clave `unidad|num_empleado|fecha_salida` no
+ * existe entre las gestiones realmente traídas, se degrada a SALIDA_PUESTO
+ * ("Pasó a otro puesto"), que es lo que en verdad pasó.
+ */
+function corregirTraslasDGSinDestino(aduanas) {
+    const porClave = new Set();
+    aduanas.forEach((a) => (a.gestiones || []).forEach((g) => porClave.add(claveGestion(a.aduana, g))));
+    aduanas.forEach((a) => {
+        (a.gestiones || []).forEach((g) => {
+            if (g.tipo_salida !== "TRASLADO_ADUANA") return;
+            const haciaClave = `${g.salida_destino_unidad}|${g.num_empleado}|${g.fecha_salida}`;
+            if (!porClave.has(haciaClave)) g.tipo_salida = "SALIDA_PUESTO";
+        });
+    });
+}
+
+/** Trae las 12 direcciones generales en paralelo y arma la MISMA forma
+ * `{aduanas, total_gestiones, total_titulares}` que devuelve
+ * RotacionTitularesAduanasView, para que `cargar` no tenga que distinguir
+ * después de este punto de dónde vino el dato. */
+async function cargarRotacionDireccionGeneral(refrescar, signal) {
+    const params = refrescar ? { refrescar: 1 } : {};
+    const respuestas = await Promise.all(
+        DIRECCIONES_GENERALES_CD_PUESTO.map((cdPuesto) =>
+            VacantesService.getRotacionDireccionGeneral(cdPuesto, params, { signal }).then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status} (${cdPuesto})`);
+                return res.json();
+            })
+        )
+    );
+    const aduanas = respuestas.map(adaptarDireccionGeneralComoAduana);
+    corregirTraslasDGSinDestino(aduanas);
+    return {
+        aduanas,
+        total_gestiones: aduanas.reduce((n, a) => n + (a.total_gestiones || 0), 0),
+        // Titulares REALES (excluye insubsistencias) — mismo campo que ya
+        // calcula el backend, ver rotacion_direccion_general.py.
+        total_titulares: respuestas.reduce((n, r) => n + (r.total_titulares_reales ?? 0), 0),
+    };
+}
+
 // ─── Exportación a Excel ────────────────────────────────────────────────────
 // Reporte formal (membrete compacto propio — ver addMembreteCompactoRotacion
 // más abajo, distinto del membrete apilado que usa el resto del sistema en
@@ -415,6 +592,8 @@ const EXCEL_FILA_INSUBSISTENCIA_BG = "FFFEF2F2";
 const EXPORT_COLUMNS_ROTACION = [
     { key: "aduana", header: "Aduana", width: 30, uiWidth: 190 },
     { key: "codigosUa", header: "Código UA", width: 15, uiWidth: 90 },
+    // (headers de "aduana"/"codigosUa" se sobrescriben en direcciones
+    // generales — ver columnasDetalle)
     { key: "plaza", header: "Plaza", width: 13, uiWidth: 90 },
     { key: "nivelEntrada", header: "Nivel Tabular al Ingresar", width: 20, uiWidth: 130 },
     { key: "nivelSalida", header: "Nivel Tabular al Salir", width: 20, uiWidth: 130 },
@@ -450,6 +629,23 @@ const EXPORT_COLUMNS_ROTACION = [
     { key: "deptoDestino", header: "Departamento Destino", width: 18, uiWidth: 130, detalle: true },
     { key: "depDirectaDestino", header: "Dependencia Directa Destino", width: 20, uiWidth: 150, detalle: true },
 ];
+
+/** Columnas de la tabla de detalle (pantalla Y Excel, mismo arreglo — ver
+ * comentario de filaValoresRotacion) según la fuente activa: en direcciones
+ * generales la columna "Aduana" pasa a ser "Unidad de Negocio" (nombre de la
+ * unidad de negocio a la que pertenece el cd_puesto — ver
+ * unidadNegocioDeGestion/adaptarDireccionGeneralComoAduana) y "Código UA"
+ * pasa a mostrar el cd_puesto de la dirección general en vez de un código de
+ * unidad administrativa de aduana. */
+function columnasDetalle(fuente) {
+    if (fuente !== "dg") return EXPORT_COLUMNS_ROTACION;
+    return EXPORT_COLUMNS_ROTACION.map((col) => {
+        if (col.key === "aduana") return { ...col, header: "Unidad de Negocio" };
+        if (col.key === "codigosUa") return { ...col, header: "Cd Puesto Dirección Gral." };
+        if (col.key === "titular") return { ...col, header: "Nombre" };
+        return col;
+    });
+}
 
 // Tamaño de la foto y celda que la contiene, calibrados para que la foto
 // quede CENTRADA en la celda (no pegada a una esquina) con un margen parejo
@@ -526,13 +722,25 @@ async function precargarFotosRotacion(numerosEmpleado) {
 function textoOrigen(origen) {
     if (!origen) return "—";
     if (origen.tipo === "ADUANA") return `Aduana: ${nombreCorto(origen.valor)}`;
+    // "DG": origen es OTRA dirección general de las 12 — ver adaptarGestionDG
+    // en la fuente alterna de Rotación de Direcciones Generales.
+    if (origen.tipo === "DG") return `Dirección General: ${origen.valor}`;
     if (origen.tipo === "PLAZA") return `Plaza ${origen.valor}`;
     if (origen.tipo === "PUESTO") return `Puesto ${origen.valor}`;
     return "—";
 }
 
 function textoDestino(seg) {
-    if (seg.tipoSalida === "TRASLADO_ADUANA") return seg.salidaDestinoUnidad ? `Aduana: ${nombreCorto(seg.salidaDestinoUnidad)}` : "—";
+    if (seg.tipoSalida === "TRASLADO_ADUANA") {
+        // Reutilizado tal cual por la fuente de Direcciones Generales
+        // (ver adaptarGestionDG): ahí salidaDestinoUnidad es un cd_puesto
+        // crudo (p. ej. "AD2354"), no un nombre de aduana — mostrarlo sin el
+        // prefijo "Aduana:" en ese caso.
+        if (!seg.salidaDestinoUnidad) return "—";
+        return DIRECCIONES_GENERALES_CD_PUESTO.includes(seg.salidaDestinoUnidad)
+            ? `Dirección General: ${seg.salidaDestinoUnidad}`
+            : `Aduana: ${nombreCorto(seg.salidaDestinoUnidad)}`;
+    }
     if (seg.tipoSalida === "CAMBIO_PLAZA") return seg.salidaDestinoPlaza ? `Plaza ${seg.salidaDestinoPlaza}` : "—";
     if (seg.tipoSalida === "SALIDA_PUESTO") return seg.salidaDestinoPuesto ? `Puesto ${seg.salidaDestinoPuesto}` : "—";
     return "—";
@@ -691,7 +899,7 @@ function filaValoresRotacion(aduana, entrada, consecutivo) {
             procedencia: textoOrigen(seg.entradaOrigen),
             ...detalleProcedenciaPuesto(seg),
             motivoSalida: seg.salidaMotivo || "—",
-            tipoMovimiento: esInsubsistencia(seg) ? "Baja (Insubsistencia)" : (TIPO_SALIDA[seg.tipoSalida] || TIPO_SALIDA.BAJA).etiqueta,
+            tipoMovimiento: esInsubsistencia(seg) ? "Baja (Insubsistencia)" : etiquetaTipoSalida(seg.tipoSalida, aduana.esDireccionGeneral),
             destino: textoDestino(seg),
             ...detalleDestinoPuesto(seg),
             __consecutivo: consecutivo,
@@ -723,7 +931,7 @@ function fmtFechaHoraGeneracionRotacion() {
  * Devuelve el número de filas que ocupó (2: logo+títulos, "reporte
  * generado") — el caller sigue escribiendo desde la siguiente fila.
  */
-function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, logoWidth = 674) {
+function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, logoWidth = 674, fuente = "aduanas") {
     const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
     const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
     // nativeColOff/nativeRowOff en EMU directo, no la fracción `tl:{col,row}`
@@ -749,7 +957,7 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
     const reporteIniCol = numCols - 3;
     worksheet.mergeCells(1, reporteIniCol, 2, numCols);
     const tituloReporteCell = worksheet.getCell(1, reporteIniCol);
-    tituloReporteCell.value = "ROTACIÓN DE TITULARES DE ADUANAS";
+    tituloReporteCell.value = fuente === "dg" ? "ROTACIÓN DE DIRECTORES GENERALES" : "ROTACIÓN DE TITULARES DE ADUANAS";
     tituloReporteCell.font = { name: "Noto Sans", bold: true, size: 22, color: { argb: "FF621F32" } };
     tituloReporteCell.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
 
@@ -831,6 +1039,16 @@ const RESUMEN_COLUMNS = [
     { key: "porcentajeOcupado", header: "% Periodo de Ocupación", width: 20 },
 ];
 
+/** Igual que columnasDetalle pero para la hoja "Resumen". */
+function columnasResumen(fuente) {
+    if (fuente !== "dg") return RESUMEN_COLUMNS;
+    return RESUMEN_COLUMNS.map((col) => {
+        if (col.key === "aduana") return { ...col, header: "Unidad de Negocio" };
+        if (col.key === "codigosUa") return { ...col, header: "Cd Puesto Dirección Gral." };
+        return col;
+    });
+}
+
 /**
  * Membrete propio de la hoja "Resumen" — no reusa addMembreteCompactoRotacion
  * porque ese layout coloca el título del reporte a partir de `numCols - 3`,
@@ -839,7 +1057,7 @@ const RESUMEN_COLUMNS = [
  * superpuestos, que ExcelJS rechaza). Aquí todo va apilado en 3 filas, ancho
  * completo de la tabla real.
  */
-function addMembreteResumen(workbook, worksheet, numCols) {
+function addMembreteResumen(workbook, worksheet, numCols, fuente) {
     const logoWidth = 260;
     const logoHeight = Math.round((logoWidth * LETTERHEAD_LOGO_HEIGHT) / LETTERHEAD_LOGO_WIDTH);
     const imageId = workbook.addImage({ base64: LETTERHEAD_LOGO_BASE64, extension: "png" });
@@ -857,7 +1075,7 @@ function addMembreteResumen(workbook, worksheet, numCols) {
 
     worksheet.mergeCells(2, 1, 2, numCols);
     const tituloReporteCell = worksheet.getCell(2, 1);
-    tituloReporteCell.value = "RESUMEN DE ROTACIÓN DE TITULARES DE ADUANAS";
+    tituloReporteCell.value = fuente === "dg" ? "RESUMEN DE ROTACIÓN DE DIRECTORES GENERALES" : "RESUMEN DE ROTACIÓN DE TITULARES DE ADUANAS";
     tituloReporteCell.font = { name: "Noto Sans", bold: true, size: 16, color: { argb: "FF621F32" } };
     tituloReporteCell.alignment = { vertical: "middle", horizontal: "center" };
     worksheet.getRow(2).height = 26;
@@ -873,12 +1091,13 @@ function addMembreteResumen(workbook, worksheet, numCols) {
 }
 
 /** Arma la hoja "Resumen" completa (membrete + tabla + fila de totales). */
-function addHojaResumenAduanas(workbook, resumenPorAduana) {
+function addHojaResumenAduanas(workbook, resumenPorAduana, fuente = "aduanas") {
     const worksheet = workbook.addWorksheet("Resumen");
-    const numCols = RESUMEN_COLUMNS.length;
-    worksheet.columns = RESUMEN_COLUMNS.map(({ key, width }) => ({ key, width }));
+    const RESUMEN_COLS = columnasResumen(fuente);
+    const numCols = RESUMEN_COLS.length;
+    worksheet.columns = RESUMEN_COLS.map(({ key, width }) => ({ key, width }));
 
-    let row = addMembreteResumen(workbook, worksheet, numCols) + 1;
+    let row = addMembreteResumen(workbook, worksheet, numCols, fuente) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
     worksheet.mergeCells(`A${row}:${lastCol}${row}`);
@@ -892,7 +1111,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
     const headerRowNum = row;
     const headerRow = worksheet.getRow(headerRowNum);
     const goldBorder = { style: "thin", color: { argb: "FFBC955C" } };
-    RESUMEN_COLUMNS.forEach((col, i) => {
+    RESUMEN_COLS.forEach((col, i) => {
         const cell = headerRow.getCell(i + 1);
         cell.value = col.header;
         cell.border = { top: goldBorder, left: goldBorder, bottom: goldBorder, right: goldBorder };
@@ -904,7 +1123,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
     row += 1;
 
     const thinGray = { style: "thin", color: { argb: "FF94A3B8" } };
-    const porcentajeColIdx = RESUMEN_COLUMNS.findIndex((c) => c.key === "porcentajeOcupado") + 1;
+    const porcentajeColIdx = RESUMEN_COLS.findIndex((c) => c.key === "porcentajeOcupado") + 1;
     let totalTitulares = 0;
     let totalDiasOcupados = 0;
     let totalDiasVacancia = 0;
@@ -929,7 +1148,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
         // EXCEL_FILA_INSUBSISTENCIA_BG) — anula el zebra a propósito, debe
         // saltar a la vista sin importar la paridad de la fila.
         const filaFillColor = r.sinTitularHoy ? EXCEL_FILA_INSUBSISTENCIA_BG : (i % 2 === 1 ? "FFF9FAFB" : null);
-        RESUMEN_COLUMNS.forEach((col, ci) => {
+        RESUMEN_COLS.forEach((col, ci) => {
             const cell = dataRow.getCell(ci + 1);
             cell.value = values[col.key];
             cell.border = { top: thinGray, left: thinGray, bottom: thinGray, right: thinGray };
@@ -961,7 +1180,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
         diasVacancia: totalDiasVacancia,
         porcentajeOcupado: totalDiasConDato > 0 ? totalDiasOcupados / totalDiasConDato : 0,
     };
-    RESUMEN_COLUMNS.forEach((col, ci) => {
+    RESUMEN_COLS.forEach((col, ci) => {
         const cell = totalRow.getCell(ci + 1);
         cell.value = totalValues[col.key];
         cell.border = { top: { style: "double", color: { argb: "FFBC955C" } }, left: thinGray, bottom: thinGray, right: thinGray };
@@ -987,7 +1206,7 @@ function addHojaResumenAduanas(workbook, resumenPorAduana) {
  * filtradas por búsqueda/chips) para que el archivo coincida con lo que el
  * usuario ve.
  */
-async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto }) {
+async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto, fuente = "aduanas" }) {
     // Fotos: una por titular ÚNICO (no por fila — el mismo titular puede
     // repetir varias filas/segmentos), pedidas ANTES de armar el workbook
     // porque cuántas columnas tiene la tabla (numCols, usado por el
@@ -1012,9 +1231,13 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     // vacancia no es un titular). Va junto a "Foto" siempre, la tenga la
     // exportación o no.
     const CONSECUTIVO_COL = { key: "__consecutivo", header: "Consecutivo", width: 12 };
+    // Mismos headers (Unidad de Negocio/Cd Puesto Dirección Gral./Nombre) que
+    // ya usa la tabla en pantalla para la fuente de direcciones generales —
+    // ver columnasDetalle.
+    const columnasBase = columnasDetalle(fuente);
     const columns = incluirFotos
-        ? [{ key: "__foto", header: "Foto", width: FOTO_COL_WIDTH }, CONSECUTIVO_COL, ...EXPORT_COLUMNS_ROTACION]
-        : [CONSECUTIVO_COL, ...EXPORT_COLUMNS_ROTACION];
+        ? [{ key: "__foto", header: "Foto", width: FOTO_COL_WIDTH }, CONSECUTIVO_COL, ...columnasBase]
+        : [CONSECUTIVO_COL, ...columnasBase];
     const tipoMovimientoCol = columns.findIndex((c) => c.key === "tipoMovimiento") + 1;
     const consecutivoCol = columns.findIndex((c) => c.key === "__consecutivo") + 1;
     const fechaDesdeCol = columns.findIndex((c) => c.key === "fechaDesde") + 1;
@@ -1026,9 +1249,11 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
 
     // Hoja "Resumen": PRIMERA pestaña del workbook — el orden de
     // `addWorksheet` es el orden de las pestañas en Excel.
-    addHojaResumenAduanas(workbook, construirResumenPorAduana(aduanas, entradasPorAduana));
+    addHojaResumenAduanas(workbook, construirResumenPorAduana(aduanas, entradasPorAduana), fuente);
 
-    const worksheet = workbook.addWorksheet("Rotación de Aduanas");
+    // Excel limita el nombre de pestaña a 31 caracteres — "Rotación de
+    // Directores Generales" (33) lo rebasa, de ahí la forma abreviada.
+    const worksheet = workbook.addWorksheet(fuente === "dg" ? "Rot. Directores Generales" : "Rotación de Aduanas");
     const numCols = columns.length;
     worksheet.columns = columns.map(({ key, width }) => ({ key, width }));
 
@@ -1037,7 +1262,7 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     // pedido explícito, ver addMembreteCompactoRotacion.
     // +1 por "Consecutivo" (siempre presente) y +1 más por "Foto" si aplica.
     const colOffset = (incluirFotos ? 1 : 0) + 1;
-    let row = addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, 674) + 1;
+    let row = addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, 674, fuente) + 1;
     const lastCol = worksheet.getColumn(numCols).letter;
 
     worksheet.mergeCells(row, 1, row, 10);
@@ -1310,7 +1535,10 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
                 // Puesto no enlaza (viene de fuera del universo de aduanas).
                 if (seg.entradaOrigen?.tipo === "PLAZA" && seg.claveSegmentoAnterior) {
                     enlacesPendientes.push({ filaOrigen: row, claveDestino: seg.claveSegmentoAnterior, columna: "procedencia" });
-                } else if (seg.entradaOrigen?.tipo === "ADUANA") {
+                } else if (seg.entradaOrigen?.tipo === "ADUANA" || seg.entradaOrigen?.tipo === "DG") {
+                    // "DG": mismo mecanismo que "ADUANA" pero viniendo de otra
+                    // dirección general (ver adaptarGestionDG) — sin este caso
+                    // el hipervínculo de Procedencia nunca se armaba.
                     enlacesPendientes.push({ filaOrigen: row, claveViaOrigen: seg.clave, columna: "procedencia" });
                 }
             }
@@ -1363,7 +1591,8 @@ async function exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegme
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Rotacion_Titulares_Aduanas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const nombreArchivo = fuente === "dg" ? "Rotacion_Directores_Generales" : "Rotacion_Titulares_Aduanas";
+    a.download = `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -1407,14 +1636,14 @@ function getColumnLetterRotacion(index) {
  * — mismo orden que `columns` en `exportarRotacionAExcel`. Siempre las 32
  * columnas completas (Procedencia/Destino con su detalle incluido) — mismo
  * layout que exporta el Excel, sin nada oculto por defecto. */
-function useColumnasTabla(canViewPhoto) {
+function useColumnasTabla(canViewPhoto, fuente) {
     return useMemo(
         () => [
-            ...(canViewPhoto ? [{ key: "__foto", header: "Foto", uiWidth: 56 }] : []),
+            ...(canViewPhoto ? [{ key: "__foto", header: "Foto", uiWidth: 68 }] : []),
             { key: "__consecutivo", header: "No.", uiWidth: 52 },
-            ...EXPORT_COLUMNS_ROTACION,
+            ...columnasDetalle(fuente),
         ],
-        [canViewPhoto]
+        [canViewPhoto, fuente]
     );
 }
 
@@ -1454,7 +1683,10 @@ function FilaTabla({ fila, i, canViewPhoto, scrollRootRef, ctx, rowRef }) {
     if (!isVacancia) {
         if (seg.entradaOrigen?.tipo === "PLAZA" && seg.claveSegmentoAnterior) {
             claveProcedencia = seg.claveSegmentoAnterior;
-        } else if (seg.entradaOrigen?.tipo === "ADUANA") {
+        } else if (seg.entradaOrigen?.tipo === "ADUANA" || seg.entradaOrigen?.tipo === "DG") {
+            // "DG": mismo mecanismo que "ADUANA" pero viniendo de otra
+            // dirección general (ver adaptarGestionDG) — sin este caso el
+            // link de Procedencia nunca se armaba para esos traslados.
             claveProcedencia = ctx.origenSegmentoPorClave.get(entrada.clave) || null;
         }
     }
@@ -1466,7 +1698,7 @@ function FilaTabla({ fila, i, canViewPhoto, scrollRootRef, ctx, rowRef }) {
     return (
         <tr
             ref={rowRef}
-            className={`h-[44px] transition-colors hover:bg-[#621f32]/[0.03] dark:hover:bg-[#bc955c]/[0.05] ${filaFillClass}`}
+            className={`h-[52px] transition-colors hover:bg-[#621f32]/[0.03] dark:hover:bg-[#bc955c]/[0.05] ${filaFillClass}`}
         >
             {canViewPhoto && (
                 <td className="border-r border-slate-300 px-1.5 text-center align-middle dark:border-slate-600">
@@ -1475,7 +1707,7 @@ function FilaTabla({ fila, i, canViewPhoto, scrollRootRef, ctx, rowRef }) {
                             numempleado={seg.gestion.num_empleado}
                             rootRef={scrollRootRef}
                             enabled={canViewPhoto}
-                            size={26}
+                            size={36}
                             caption={seg.gestion.cd_puesto ? `${seg.gestion.nombre} · ${seg.gestion.cd_puesto}` : seg.gestion.nombre}
                         />
                     )}
@@ -1549,8 +1781,8 @@ function FilaTabla({ fila, i, canViewPhoto, scrollRootRef, ctx, rowRef }) {
     );
 }
 
-function TablaRotacion({ aduanas, entradasPorAduana, cardRefs, canViewPhoto, scrollAreaRef, destinoSegmentoPorClave, onIrADestino }) {
-    const columnas = useColumnasTabla(canViewPhoto);
+function TablaRotacion({ aduanas, entradasPorAduana, cardRefs, canViewPhoto, scrollAreaRef, destinoSegmentoPorClave, onIrADestino, fuente }) {
+    const columnas = useColumnasTabla(canViewPhoto, fuente);
     const numCols = columnas.length;
     // Columnas "reales" (sin Foto/Consecutivo, que tienen su propia celda
     // fija) — la lista que se recorre para pintar encabezado, buscador y
@@ -1741,7 +1973,7 @@ function TablaRotacion({ aduanas, entradasPorAduana, cardRefs, canViewPhoto, scr
             <div ref={scrollAreaRef} className="custom-scrollbar min-h-[420px] overflow-auto md:min-h-0 md:flex-1">
                 <table className="w-full border-collapse text-left" style={{ tableLayout: "fixed" }}>
                     <colgroup>
-                        {canViewPhoto && <col style={{ width: 56 }} />}
+                        {canViewPhoto && <col style={{ width: 68 }} />}
                         <col style={{ width: 52 }} />
                         {columnasVisibles.map((c) => (
                             <col key={c.key} style={{ width: anchoDe(c) }} />
@@ -1949,30 +2181,80 @@ function TablaRotacion({ aduanas, entradasPorAduana, cardRefs, canViewPhoto, scr
     );
 }
 
-/** Esqueleto de carga: barra de toolbar + filas de tabla con pulso, mismo
- * ritmo visual que el resto de tabs de plantilla mientras llega el primer
- * fetch. */
+// Anchos de columna del esqueleto — MISMOS que usa la tabla real (colgroup
+// de TablaRotacion): Foto (56) + No. (52) + `uiWidth` de cada columna de
+// EXPORT_COLUMNS_ROTACION, en el mismo orden — así las barras de cabecera y
+// de fila caen alineadas con la tabla real que aparece un instante después.
+const ESQUELETO_ANCHOS_COLUMNA = [56, 52, ...EXPORT_COLUMNS_ROTACION.map((c) => c.uiWidth)];
+const ESQUELETO_ALTO_FILA = 38; // mismo alto que las filas reales (ver FilaTabla)
+const ESQUELETO_ALTO_BANDA = 34; // banda de aduana (ver "bg-[#f5ebef]" en TablaRotacion)
+const ESQUELETO_FILAS_POR_BANDA = 4;
+// Suficientes bandas para que el patrón desborde el alto disponible en
+// cualquier pantalla (incluida 4K) — el contenedor recorta el sobrante con
+// `overflow-hidden`, así el esqueleto siempre llega exacto hasta el borde
+// inferior sin dejar un hueco en blanco debajo.
+const ESQUELETO_NUM_BANDAS = 14;
+
+/** Esqueleto de carga: mismo layout de la toolbar (volver + switch de fuente
+ * + buscador + Excel + recargar en una sola fila) y de la tabla real
+ * (cabecera guinda de dos filas + bandas por aduana con sus filas debajo),
+ * relleno de bandas/filas hasta cubrir el alto disponible completo. */
 function EsqueletoRotacion() {
     return (
         <div className="flex min-h-0 flex-1 flex-col md:h-stack-vh">
-            <div className="flex flex-wrap items-center gap-3 border-b border-slate-200/70 bg-slate-50/50 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <div className="h-3 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-3 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-3 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-3 w-36 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                    <div className="h-9 w-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-9 w-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-                    <div className="h-9 w-9 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-                </div>
+            {/* Toolbar — mismo orden/anchos que el header real: volver, switch
+                de fuente, buscador, Excel (a la derecha), recargar. */}
+            <div className="flex flex-nowrap items-center gap-1.5 border-b border-slate-200/70 bg-slate-50/50 px-3 py-3 dark:border-slate-800/80 dark:bg-slate-900/20">
+                <div className="h-[34px] w-[34px] shrink-0 animate-pulse rounded-xl border-2 border-[#bc955c]/40 bg-[#621f32]/10 dark:bg-[#621f32]/25" />
+                <div className="h-[34px] w-52 shrink-0 animate-pulse rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950" />
+                <div className="h-[34px] w-72 shrink-0 animate-pulse rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950" />
+                <div className="ml-auto h-[38px] w-28 shrink-0 animate-pulse rounded-xl bg-[#621f32]/70 dark:bg-[#621f32]/60" />
+                <div className="h-[38px] w-[38px] shrink-0 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="flex-1 p-3">
-                <div className="mb-2 h-8 w-full animate-pulse rounded-lg bg-[#621f32]/10 dark:bg-[#621f32]/20" />
-                <div className="flex flex-col gap-1">
-                    {Array.from({ length: 12 }).map((_, i) => (
-                        <div key={i} className="h-[38px] w-full animate-pulse rounded bg-slate-100 dark:bg-slate-900/40" />
+
+            {/* Tabla: cabecera guinda (títulos de columna + fila de buscador
+                por columna) y, debajo, bandas de aduana con sus filas —
+                mismos anchos/alturas/colores que TablaRotacion. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex shrink-0 overflow-hidden bg-[#501929] shadow-md dark:bg-[#3e131f]">
+                    {ESQUELETO_ANCHOS_COLUMNA.map((w, i) => (
+                        <div key={i} style={{ width: w }} className="shrink-0 border-r border-[#621f32]/35 px-2 py-2.5">
+                            <div className="mx-auto h-2.5 w-3/4 animate-pulse rounded bg-white/20" />
+                        </div>
+                    ))}
+                </div>
+                <div className="flex shrink-0 overflow-hidden bg-[#40121e] p-1.5 dark:bg-[#2b0d15]">
+                    {ESQUELETO_ANCHOS_COLUMNA.map((w, i) => (
+                        <div key={i} style={{ width: w }} className="shrink-0 border-r border-[#621f32]/30 px-1.5">
+                            <div className="h-5 w-full animate-pulse rounded-md bg-white/10" />
+                        </div>
+                    ))}
+                </div>
+
+                <div className="flex-1 overflow-hidden">
+                    {Array.from({ length: ESQUELETO_NUM_BANDAS }).map((_, bandaIdx) => (
+                        <div key={bandaIdx}>
+                            <div
+                                className="flex items-center gap-3 border-b border-slate-100 bg-[#f5ebef] px-3 dark:border-slate-900/60 dark:bg-[#2a1620]"
+                                style={{ height: ESQUELETO_ALTO_BANDA }}
+                            >
+                                <div className="h-2.5 w-36 animate-pulse rounded bg-[#621f32]/25 dark:bg-[#e3c793]/25" />
+                                <div className="h-2.5 w-56 animate-pulse rounded bg-[#621f32]/15 dark:bg-[#e3c793]/15" />
+                            </div>
+                            {Array.from({ length: ESQUELETO_FILAS_POR_BANDA }).map((_, filaIdx) => (
+                                <div
+                                    key={filaIdx}
+                                    className="flex items-center border-b border-slate-100 dark:border-slate-900/60"
+                                    style={{ height: ESQUELETO_ALTO_FILA }}
+                                >
+                                    {ESQUELETO_ANCHOS_COLUMNA.map((w, colIdx) => (
+                                        <div key={colIdx} style={{ width: w }} className="shrink-0 px-2">
+                                            <div className="h-3 w-full animate-pulse rounded bg-slate-100 dark:bg-slate-900/40" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     ))}
                 </div>
             </div>
@@ -1980,48 +2262,89 @@ function EsqueletoRotacion() {
     );
 }
 
+// Las dos fuentes que alimentan esta MISMA tabla — ver el switch en el
+// header y el bloque "Fuente alterna: Rotación de Direcciones Generales"
+// más arriba.
+const FUENTES_ROTACION = {
+    aduanas: { label: "Titulares de Aduanas", etiquetaColumna: "aduana", errorCarga: "No se pudo cargar la rotación de titulares de aduanas." },
+    dg: { label: "Directores Generales", etiquetaColumna: "dirección general", errorCarga: "No se pudo cargar la rotación de directores generales." },
+};
+
+// Estado inicial por fuente — ambas arrancan "cargando" porque las dos se
+// piden en paralelo al montar el subtab (ver el useEffect de abajo), sin
+// importar cuál esté visible.
+const ESTADO_INICIAL_FUENTE = { datos: null, cargando: true, error: null };
+
 export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
-    const [datos, setDatos] = useState(null);
-    const [cargando, setCargando] = useState(true);
-    const [error, setError] = useState(null);
+    const [fuente, setFuente] = useState("aduanas"); // "aduanas" | "dg" — solo decide QUÉ SE MUESTRA, no dispara fetch
+    // Caché en memoria de ambas fuentes, indexado por clave — se llenan las
+    // DOS al montar el componente (una sola vez) y el switch del header solo
+    // cambia cuál se lee de aquí, sin volver a pedir nada al servidor. Antes
+    // cada visita al subtab y cada click en el switch disparaban un fetch
+    // nuevo; a petición explícita del usuario ahora se piden ambas de una
+    // vez y se conservan mientras el componente siga montado.
+    const [porFuente, setPorFuente] = useState({ aduanas: ESTADO_INICIAL_FUENTE, dg: ESTADO_INICIAL_FUENTE });
     const [busqueda, setBusqueda] = useState("");
     const [puedeVolver, setPuedeVolver] = useState(false);
-    const abortRef = useRef(null);
+    const abortRefs = useRef({ aduanas: null, dg: null });
     const scrollAreaRef = useRef(null);
     const cardRefs = useRef(new Map());
     const pendingAccionRef = useRef(null); // { tipo: "clave", clave } | { tipo: "posicion", left, top }
     const historialRef = useRef([]); // pila de {scrollLeft, scrollTop, busqueda} previos a cada salto
 
-    const cargar = useCallback((refrescar = false) => {
-        abortRef.current?.abort();
+    const { datos, cargando, error } = porFuente[fuente];
+
+    /** Carga (o recarga, con `refrescar`) UNA fuente puntual — independiente
+     * de cuál esté visible ahora mismo, así las dos pueden pedirse en
+     * paralelo sin pisarse el abort controller ni el estado una a la otra. */
+    const cargarFuente = useCallback((clave, refrescar = false) => {
+        abortRefs.current[clave]?.abort();
         const ctrl = new AbortController();
-        abortRef.current = ctrl;
+        abortRefs.current[clave] = ctrl;
 
-        historialRef.current = [];
-        setPuedeVolver(false);
-        setCargando(true);
-        setError(null);
+        setPorFuente((prev) => ({ ...prev, [clave]: { ...prev[clave], cargando: true, error: null } }));
 
-        VacantesService.getRotacionTitularesAduanas(refrescar ? { refrescar: 1 } : {}, { signal: ctrl.signal })
-            .then((res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
+        const promesa =
+            clave === "dg"
+                ? cargarRotacionDireccionGeneral(refrescar, ctrl.signal)
+                : VacantesService.getRotacionTitularesAduanas(refrescar ? { refrescar: 1 } : {}, { signal: ctrl.signal }).then((res) => {
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                      return res.json();
+                  });
+
+        promesa
             .then((json) => {
-                setDatos(json);
-                setCargando(false);
+                setPorFuente((prev) => ({ ...prev, [clave]: { datos: json, cargando: false, error: null } }));
             })
             .catch((err) => {
                 if (err.name === "AbortError") return;
-                setError("No se pudo cargar la rotación de titulares.");
-                setCargando(false);
+                setPorFuente((prev) => ({
+                    ...prev,
+                    [clave]: { ...prev[clave], cargando: false, error: FUENTES_ROTACION[clave].errorCarga },
+                }));
             });
     }, []);
 
+    // Al montar: las DOS fuentes de una sola vez (una sola pasada, nunca se
+    // repite mientras el componente siga vivo — ver comentario de `porFuente`).
     useEffect(() => {
-        cargar(false);
-        return () => abortRef.current?.abort();
-    }, [cargar]);
+        cargarFuente("aduanas", false);
+        cargarFuente("dg", false);
+        return () => {
+            abortRefs.current.aduanas?.abort();
+            abortRefs.current.dg?.abort();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Cambiar de fuente (switch del header) ya NO recarga nada — solo limpia
+    // búsqueda y la pila de "regresar", que no tienen sentido cruzados entre
+    // aduanas y direcciones generales.
+    useEffect(() => {
+        setBusqueda("");
+        historialRef.current = [];
+        setPuedeVolver(false);
+    }, [fuente]);
 
     // Línea de tiempo (segmentos por plaza + vacancias) de cada aduana, y el
     // mapa de destino de cruce entre aduanas resuelto a nivel de SEGMENTO (la
@@ -2213,13 +2536,13 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
         if (exportando) return;
         setExportando(true);
         try {
-            await exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto });
+            await exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto, fuente });
         } catch (err) {
             console.error("Error exportando rotación de aduanas a Excel:", err);
         } finally {
             setExportando(false);
         }
-    }, [aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, exportando, canViewPhoto]);
+    }, [aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, exportando, canViewPhoto, fuente]);
 
     if (cargando) {
         return <EsqueletoRotacion />;
@@ -2232,7 +2555,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                 <p className="text-sm font-bold">{error}</p>
                 <button
                     type="button"
-                    onClick={() => cargar(true)}
+                    onClick={() => cargarFuente(fuente, true)}
                     className="cursor-pointer rounded-xl bg-[#621f32] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90"
                 >
                     Reintentar
@@ -2261,6 +2584,33 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     <ChevronLeft className="size-3.5" />
                 </button>
 
+                {/* Switch de fuente: MISMA tabla, distinta fuente de datos —
+                    ver FUENTES_ROTACION y el bloque "Fuente alterna" arriba
+                    en el archivo. Ambas fuentes ya están cargadas en
+                    `porFuente` desde que se montó el subtab — cambiar de
+                    fuente solo cambia cuál se lee, no dispara ningún fetch. */}
+                <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-950">
+                    <span className="hidden pl-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:inline">
+                        Viendo:
+                    </span>
+                    {Object.entries(FUENTES_ROTACION).map(([clave, { label }]) => (
+                        <button
+                            key={clave}
+                            type="button"
+                            onClick={() => clave !== fuente && setFuente(clave)}
+                            aria-pressed={fuente === clave}
+                            title={`Rotación de personal: ${label}`}
+                            className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                                fuente === clave
+                                    ? "bg-[#621f32] text-white"
+                                    : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
                 <div className="relative w-72 shrink-0">
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
                     <input
@@ -2288,7 +2638,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     onClick={handleExportarExcel}
                     disabled={exportando || aduanas.length === 0}
                     aria-label="Exportar a Excel"
-                    title="Exportar la rotación de titulares a un Excel formal, con membrete y leyenda de Control de Plazas"
+                    title={`Exportar la rotación de ${FUENTES_ROTACION[fuente].label.toLowerCase()} a un Excel formal, con membrete y leyenda de Control de Plazas`}
                     className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#621f32] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {exportando ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />}
@@ -2297,7 +2647,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
 
                 <button
                     type="button"
-                    onClick={() => cargar(true)}
+                    onClick={() => cargarFuente(fuente, true)}
                     aria-label="Recargar"
                     title="Recargar ignorando el caché"
                     className="shrink-0 cursor-pointer rounded-xl bg-white p-2.5 text-slate-400 transition-colors hover:text-[#621f32] dark:bg-slate-950 dark:hover:text-[#bc955c]"
@@ -2309,7 +2659,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
             {aduanas.length === 0 ? (
                 <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 text-slate-400 md:flex-1">
                     <Search className="size-10 opacity-40" />
-                    <p className="text-sm font-bold">Ninguna aduana coincide con la búsqueda.</p>
+                    <p className="text-sm font-bold">Ninguna {FUENTES_ROTACION[fuente].etiquetaColumna} coincide con la búsqueda.</p>
                 </div>
             ) : (
                 <TablaRotacion
@@ -2320,6 +2670,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                     scrollAreaRef={scrollAreaRef}
                     destinoSegmentoPorClave={destinoSegmentoPorClave}
                     onIrADestino={viajarA}
+                    fuente={fuente}
                 />
             )}
         </div>

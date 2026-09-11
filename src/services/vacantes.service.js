@@ -997,6 +997,24 @@ export const VacantesService = {
     },
 
     /**
+     * Línea de tiempo de titularidad de UNA dirección general (por cd_puesto).
+     * Misma forma de respuesta que getRotacionTitularesAduanas pero para un
+     * solo puesto — RotacionAduanasSubTab la llama una vez por cada una de
+     * las 12 direcciones generales (ver DIRECCIONES_GENERALES_CD_PUESTO).
+     *
+     * @param {string} cdPuesto
+     * @param {{refrescar?: (1|'1')}} [params={}] - `refrescar` salta el caché del servidor.
+     * @param {RequestInit} [options={}]
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getRotacionDireccionGeneral: (cdPuesto, params = {}, options = {}) => {
+        return apiFetch(`/plantilla/rotacion-direccion-general/${cdPuesto}/${buildQuery(params)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Historial completo de empleados desde cp_tbl_mov_completo_29_05_26 via raw SQL.
      * Sin filtro de año. Ordenado por num_empleado, fecha_efectiva, sec ASC.
      * @param {string[]} numEmpleadoList - Array de num_empleado
