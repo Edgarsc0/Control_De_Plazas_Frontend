@@ -39,7 +39,7 @@ import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { matchesTextCondition, finalizeFilterDropdownValues, resolveColumnFilterCommit, sortValueCounts, normalizeForSearch, formatDateEsMx, parseDateParts } from "@/utils/columnFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
 import { daysUntil, getAnuenciaColorClasses, FECHA_ANUENCIA_CATEGORIAS } from "@/utils/anuencia";
-import { getVacanciaColorClasses, getVacanciaColorCategoria, VACANCIA_COLOR_LABELS, VACANCIA_COLOR_ORDEN } from "@/utils/vacancia";
+import { getVacanciaColorClasses, getVacanciaColorCategoria, diasVacanteDesdeFecha, VACANCIA_COLOR_LABELS, VACANCIA_COLOR_ORDEN } from "@/utils/vacancia";
 import { useOrganigramaCatalog } from "../../../_hooks/useOrganigramaCatalog";
 import { getMotivoInfo } from "@/utils/accionesMotivosCatalog";
 import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCatalog";
@@ -187,8 +187,8 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     // historia. No participan en el diff de ALL_MOV_KEYS del modal de
     // histórico: suben un día cada día aunque no haya ningún movimiento
     // real, así que ensuciarían ese timeline con "cambios" falsos.
-    { key: "dias_ocupada", label: "Días Ocupada", width: 220, visible: true, isBasic: true },
-    { key: "dias_vacante", label: "Días Vacante", width: 220, visible: true, isBasic: true },
+    { key: "dias_ocupada", label: "Días Acumulados Ocupada", width: 220, visible: true, isBasic: true },
+    { key: "dias_vacante", label: "Días Acumulados Vacante", width: 220, visible: true, isBasic: true },
     { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: true, isBasic: true },
     { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true },
     // Las siguientes 4 son las mismas que autollena el Anexo 2 a partir del
@@ -1514,17 +1514,18 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     const handleCellClick = (e) => { onClick(e); if (isPosicionCol || isHistoricoCol) { setActiveModalTab('timeline'); setComparingIndex(null); setTimelineSearch(''); setIsHistoryModalOpen(true); } };
     if (col.key === "fecha_vacancia") {
       const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
-      // Semáforo por días vacante (mismo dato ya calculado por el backend en
-      // la columna "Días Vacante" — ver getVacanciaColorClasses) — tiene
-      // prioridad visual sobre el fondo base, igual que el semáforo de
-      // "Fecha de Anuencia", pero se conserva siempre (incluso seleccionada).
-      const colorClasses = hasValue ? getVacanciaColorClasses(row.dias_vacante) : null;
+      // Semáforo por días transcurridos desde la fecha de vacancia hasta hoy
+      // (NO el acumulado histórico de "Días Vacante" — ese es el total que ha
+      // sumado la plaza en todas sus vacancias, no lo que lleva vacante desde
+      // esta fecha en particular) — ver diasVacanteDesdeFecha/getVacanciaColorClasses.
+      const diasDesdeVacancia = hasValue ? diasVacanteDesdeFecha(value) : null;
+      const colorClasses = diasDesdeVacancia !== null ? getVacanciaColorClasses(diasDesdeVacancia) : null;
       const tdClassName = `px-4 text-xs border-r truncate h-[37px] align-middle font-semibold ${
         colorClasses || (isSticky ? "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300" : "bg-white/10 text-slate-700 dark:text-slate-300")
       } ${isSelected ? "ring-2 ring-[#621f32] z-10 shadow-md" : ""} ${hasValue ? "cursor-pointer hover:underline hover:text-[#621f32] dark:hover:text-[#bc955c]" : ""} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.05)]' : ''}`;
       const handleVacanciaClick = (e) => { onClick(e); if (hasValue) openVacanciaModal(row); };
-      const diasTitle = hasValue && row.dias_vacante !== undefined && row.dias_vacante !== null
-        ? `${formatNumber(row.dias_vacante)} días vacante (${formatDiasEquivalente(row.dias_vacante)})`
+      const diasTitle = diasDesdeVacancia !== null
+        ? `${formatNumber(diasDesdeVacancia)} días vacante (${formatDiasEquivalente(diasDesdeVacancia)})`
         : undefined;
       const content = hasValue ? (<div className="flex items-center justify-between gap-2"><span>{formatDateEsMx(value)}</span><MousePointerClick className="size-3 shrink-0 text-[#bc955c]" title="Clic para ver detalle de vacancia" /></div>) : <span className="text-slate-300">-</span>;
       return (<td key={col.key} style={stickyStyle} onContextMenu={onContextMenu} onClick={handleVacanciaClick} className={tdClassName} title={diasTitle}>{content}</td>);
