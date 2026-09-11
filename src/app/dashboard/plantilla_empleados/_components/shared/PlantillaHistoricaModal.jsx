@@ -50,6 +50,7 @@ export default function PlantillaHistoricaModal({ open, onClose, onConfirm }) {
         <div className="flex items-center gap-3">
           <input
             type="date"
+            data-tour="plantilla-historica-fecha-input"
             value={fecha}
             min="2022-01-01"
             max={hoyISO()}

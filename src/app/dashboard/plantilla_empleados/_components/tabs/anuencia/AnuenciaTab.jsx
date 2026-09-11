@@ -1389,6 +1389,7 @@ export default function AnuenciaTab({ cardRef }) {
               <span>{guardando ? "Guardando..." : "Guardar"}</span>
             </button>
             <button
+              data-tour="anuencia-generar-anexo3"
               onClick={handleGenerarAnexo3}
               disabled={!hayPlazasCapturadas || anexo3Bloqueado}
               title={
@@ -1404,6 +1405,7 @@ export default function AnuenciaTab({ cardRef }) {
               <span>Generar Anexo 3</span>
             </button>
             <button
+              data-tour="anuencia-descargar-anexo2"
               onClick={handleExportar}
               disabled={exportando || anexo3Bloqueado}
               title={anexo3Bloqueado ? "Cierra la pestaña del editor de Anexo 3 para continuar" : undefined}
@@ -1651,7 +1653,7 @@ export default function AnuenciaTab({ cardRef }) {
                     </th>
                     {ANEXO2_COLUMNAS.map((col) => (
                       <Fragment key={col.key}>
-                        <th className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-2 align-middle text-center text-[9px] font-black text-slate-700 dark:text-slate-200 leading-tight">
+                        <th data-tour-anexo2-col={col.key} className="sticky top-0 z-[1] border border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-2 align-middle text-center text-[9px] font-black text-slate-700 dark:text-slate-200 leading-tight">
                           {col.label}
                         </th>
                         {col.esLlave && (

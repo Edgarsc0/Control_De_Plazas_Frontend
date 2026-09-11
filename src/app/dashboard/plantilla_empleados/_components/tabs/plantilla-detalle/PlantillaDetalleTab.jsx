@@ -29,6 +29,7 @@ import NotificacionesPosicionBell from "../../shared/NotificacionesPosicionBell"
 import CeldaHistorialModal from "../../shared/CeldaHistorialModal";
 import VacanciaDetalleModal from "../../shared/VacanciaDetalleModal";
 import PlantillaHistoricaModal from "../../shared/PlantillaHistoricaModal";
+import TourGroup from "@/components/shared/tour/TourGroup";
 import ModalShell from "@/components/shared/ModalShell";
 import MobileCardList from "@/components/ui/MobileCardList";
 import MobileTableToolbar from "@/components/ui/MobileTableToolbar";
@@ -597,7 +598,7 @@ function CadenaTreeNode({
   );
 }
 
-export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates }) {
+export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates, isActiveTab = true }) {
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
@@ -1149,7 +1150,31 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const canEditCeldas = hasPermission(PERMISSIONS.EDIT_PLANTILLA_DETALLE) && !historicoActivo;
   const canViewFotoDetalle = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
   const canViewHistorico = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO);
+  // Tour de descubrimiento de "Consultar plantillas pasadas" (una sola vez
+  // por navegador; ver ProductTour). Subir el sufijo -v2, -v3... cuando se
+  // agregue un tour nuevo para otra funcionalidad, nunca reusar este id.
+  const plantillaHistoricaTourSteps = useMemo(() => [
+    {
+      id: "boton",
+      selector: '[data-tour="plantilla-historica-btn"]',
+      title: "Nueva funcionalidad",
+      body: "Ahora puedes consultar plantillas de empleados pasadas. Puedes consultar cualquiera desde el 01/01/2022.",
+    },
+    {
+      id: "fecha",
+      selector: '[data-tour="plantilla-historica-fecha-input"]',
+      title: "Selecciona la fecha",
+      body: "Aquí podrás seleccionar la fecha de la que deseas conocer la plantilla de empleados.",
+      onEnter: () => setIsPlantillaHistoricaPickerOpen(true),
+    },
+  ], []);
   const [isPlantillaHistoricaPickerOpen, setIsPlantillaHistoricaPickerOpen] = useState(false);
+  // Tours de este tab: agregar aquí una entrada más (mismo shape) para sumar
+  // un tour nuevo — TourGroup se encarga de mostrar uno a la vez y del
+  // navegador "< n/m >" entre los pendientes.
+  const tabTours = useMemo(() => [
+    { tourId: "plantilla-historica-v1", steps: plantillaHistoricaTourSteps, enabled: canViewHistorico && isActiveTab },
+  ], [plantillaHistoricaTourSteps, canViewHistorico, isActiveTab]);
   const { toast } = useToast();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, isBasic: true, noFilter: true },
@@ -4255,7 +4280,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a una fecha pasada" className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><CalendarDays className="size-3.5" /><span>Consultar plantillas pasadas</span></button>
+                  <button data-tour="plantilla-historica-btn" onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a una fecha pasada" className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><CalendarDays className="size-3.5" /><span>Consultar plantillas pasadas</span></button>
                 )
               )}
               <button onClick={openHistorialModal} title={remoteUpdatesCount > 0 ? `${remoteUpdatesCount} cambio${remoteUpdatesCount === 1 ? "" : "s"} de otros usuarios sin ver` : "Ver historial de cambios de la tabla"} className="relative flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
@@ -4933,6 +4958,8 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           onConfirm={(fecha) => activarHistorico(fecha, { preserveFilters: true })}
         />
       )}
+
+      <TourGroup tours={tabTours} />
 
       <ExportConFotosModal
         open={isExportFotosModalOpen}

@@ -27,6 +27,7 @@ import { useRegisterPageTabs } from "@/context/PageTabsContext";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import PageTabBar from "@/components/ui/PageTabBar";
+import TourGroup from "@/components/shared/tour/TourGroup";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
@@ -226,6 +227,12 @@ export default function PlantillaEmpleadosDetalle({
   useEffect(() => {
     if (activeMovimientosSubTab === "anuencia") setAnuenciaVisited(true);
   }, [activeMovimientosSubTab]);
+  // Tour de descubrimiento del proceso de Anuencia (una sola vez por
+  // navegador, ver ProductTour/TourGroup más abajo): mientras está en `true`,
+  // `PageTabBar` mantiene forzado el dropdown de subtabs de "Mov. Posiciones"
+  // abierto para poder señalar la opción "Anuencia" antes de que el usuario
+  // la elija (ver prop `forceOpenTabId`).
+  const [anuenciaTourDropdownForced, setAnuenciaTourDropdownForced] = useState(false);
   const [activeCatalogoSubTab, setActiveCatalogoSubTab] = useState(CATALOGOS_ORDER[0]);
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
@@ -311,7 +318,7 @@ export default function PlantillaEmpleadosDetalle({
         { id: "cuadros", label: "Cuadros Vacancia" },
         { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
         { id: "aduanas", label: "Aduanas Ocupación vs Vacantes", icon: Globe },
-        { id: "anuencia", label: "Anuencia", icon: FileSpreadsheet },
+        { id: "anuencia", label: "Anuencia", icon: FileSpreadsheet, tourId: "movpos-anuencia-subtab-option" },
       ],
       active: activeMovimientosSubTab,
       setActive: setActiveMovimientosSubTab,
@@ -325,7 +332,7 @@ export default function PlantillaEmpleadosDetalle({
       options: [
         { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
         { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck },
-        { id: "rotacion", label: "Rotación de titulares de Aduanas", icon: Building2 },
+        { id: "rotacion", label: "Rotación de personal", icon: Building2 },
       ],
       active: activeMovPersonalSubTab,
       setActive: setActiveMovPersonalSubTab,
@@ -349,6 +356,67 @@ export default function PlantillaEmpleadosDetalle({
     activeCatalogoSubTab,
     activeMovPersonalSubTab,
   ]);
+
+  // Pasos del tour de Anuencia (ver `anuenciaTourDropdownForced` arriba). El
+  // primer paso vive en el dropdown de subtabs (fuera de cualquier tab de
+  // contenido, por eso el tour vive aquí y no dentro de MovimientosTab/
+  // AnuenciaTab); los siguientes señalan encabezados/botones DENTRO de
+  // AnuenciaTab (ver `data-tour-anexo2-col`/`data-tour` en ese archivo), que
+  // sólo existen en el DOM una vez montado — por eso el paso 2 selecciona el
+  // subtab en su `onEnter`, justo antes de necesitarlos.
+  const anuenciaTourSteps = useMemo(() => [
+    {
+      id: "subtab",
+      selector: '[data-tour="movpos-anuencia-subtab-option"]',
+      title: "Proceso de Anuencia",
+      body: 'Da clic en "Anuencia" para capturar las plazas a solicitar, su fecha de alta y generar el Anexo 3.',
+      onEnter: () => setAnuenciaTourDropdownForced(true),
+    },
+    {
+      id: "codigo",
+      selector: '[data-tour-anexo2-col="codigo"]',
+      title: "Código de la plaza",
+      body: "Escribe aquí el Código Federal de Puesto (o el identificador de plaza eventual / folio de honorarios); el resto de la fila se autocompleta. Prueba con una plaza de ejemplo.",
+      onEnter: () => {
+        setAnuenciaTourDropdownForced(false);
+        setActiveMovimientosSubTab("anuencia");
+      },
+    },
+    {
+      id: "fecha-alta",
+      selector: '[data-tour-anexo2-col="fecha_alta_solicitada"]',
+      title: "Fecha de alta solicitada",
+      body: "Aquí capturas la fecha de alta solicitada para esa plaza.",
+    },
+    {
+      id: "oficio",
+      selector: '[data-tour-anexo2-col="oficio_autorizacion"]',
+      title: "Oficio de autorización presupuestaria",
+      body: "Y aquí el oficio de autorización presupuestaria correspondiente.",
+    },
+    {
+      id: "anexo2",
+      selector: '[data-tour="anuencia-descargar-anexo2"]',
+      title: "Descarga el Anexo 2",
+      body: "Cuando termines de capturar todas las plazas, descarga el Anexo 2 con este botón.",
+    },
+    {
+      id: "anexo3",
+      selector: '[data-tour="anuencia-generar-anexo3"]',
+      title: "Genera el Anexo 3",
+      body: "Y da clic aquí para generar el Anexo 3 (FUMP) a partir de las plazas capturadas. ¡Listo!",
+    },
+  ], []);
+  const anuenciaTourEnabled = activeTab === "movimientos" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES);
+  // Si el usuario sale de "Mov. Posiciones" a la mitad del tour, ProductTour
+  // oculta y reinicia su paso solo (ver `enabled` ahí abajo), pero no avisa
+  // — sin esto, el dropdown se quedaría forzado abierto para siempre.
+  useEffect(() => {
+    if (!anuenciaTourEnabled) setAnuenciaTourDropdownForced(false);
+  }, [anuenciaTourEnabled]);
+  const tabTours = useMemo(() => [
+    { tourId: "movpos-anuencia-v1", steps: anuenciaTourSteps, enabled: anuenciaTourEnabled },
+  ], [anuenciaTourSteps, anuenciaTourEnabled]);
 
   // Publica los tabs de esta página al BottomNav para abrirlos en un Drawer
   // (móvil). El check sigue a activeTab; al desmontar se limpia el registro.
@@ -436,7 +504,9 @@ export default function PlantillaEmpleadosDetalle({
         activeTab={activeTab}
         onSelect={handleSelectTab}
         subtabConfigs={subtabConfigs}
+        forceOpenTabId={anuenciaTourDropdownForced ? "movimientos" : null}
       />
+      <TourGroup tours={tabTours} />
 
       {/* pt-14 sólo despeja el PageTabBar fijo (md+); en móvil esa barra está
           oculta (hidden md:flex), así que ahí no hace falta ese hueco. */}
@@ -527,6 +597,7 @@ export default function PlantillaEmpleadosDetalle({
                 cardRef={cardRefDetalle}
                 remoteUpdatesCount={remoteUpdatesCount}
                 onClearRemoteUpdates={clearRemoteUpdatesCount}
+                isActiveTab={activeTab === "detalle"}
               />
             </div>
           )}

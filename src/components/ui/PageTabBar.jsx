@@ -15,10 +15,13 @@ import { motion, AnimatePresence } from 'motion/react';
  * @param {{id:string,label:string,icon?:Function}[]} tabs
  * @param {string} activeTab
  * @param {(id:string)=>void} onSelect
- * @param {Record<string, {options:{id:string,label:string,icon?:Function}[], active:string, setActive:(id:string)=>void}>} [subtabConfigs]
+ * @param {Record<string, {options:{id:string,label:string,icon?:Function,tourId?:string}[], active:string, setActive:(id:string)=>void}>} [subtabConfigs]
  * @param {string} [layoutId] - id único del layoutId de motion; sólo hace falta cambiarlo si hay 2 barras montadas a la vez.
+ * @param {string|null} [forceOpenTabId] - fuerza abierto el dropdown de subtabs de este tab (ignorando hover)
+ *   y evita que se cierre solo (ni por mouseleave ni por clic fuera) — usado por los ProductTour que necesitan
+ *   señalar una opción dentro del dropdown antes de que el usuario la elija.
  */
-export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = {}, layoutId = 'pageTabActivePill' }) {
+export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = {}, layoutId = 'pageTabActivePill', forceOpenTabId = null }) {
     const [openSubtabId, setOpenSubtabId] = useState(null);
     const [dropdownPos, setDropdownPos] = useState(null);
     const barRef = useRef(null);
@@ -41,14 +44,18 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
     // (portal, fuera del árbol DOM del wrapper) se dispara mouseleave
     // antes del mouseenter del dropdown; sin este margen se ve un parpadeo
     // de cierre/apertura.
+    // Mientras `forceOpenTabId` está activo, ignora el cierre por mouseleave:
+    // el dropdown debe quedarse abierto para que el tour pueda señalarlo, sin
+    // depender de que el mouse se quede encima.
     const closeDropdown = useCallback(() => {
+        if (forceOpenTabId) return;
         if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
         closeTimerRef.current = setTimeout(() => {
             setOpenSubtabId(null);
             setDropdownPos(null);
             closeTimerRef.current = null;
         }, 120);
-    }, []);
+    }, [forceOpenTabId]);
 
     const closeDropdownNow = useCallback(() => {
         if (closeTimerRef.current) {
@@ -65,6 +72,10 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
 
     useEffect(() => {
         const handleClickOutside = (e) => {
+            // Forzado por un tour: sólo se cierra al elegir una opción (ver
+            // `onClick` de cada opción, que llama `closeDropdownNow` directo),
+            // nunca por un clic fuera mientras el tour lo tiene abierto.
+            if (forceOpenTabId) return;
             if (
                 barRef.current && !barRef.current.contains(e.target) &&
                 !e.target.closest('[data-page-tab-dropdown]')
@@ -74,7 +85,23 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [closeDropdownNow]);
+    }, [closeDropdownNow, forceOpenTabId]);
+
+    // El tour externo pide abrir el dropdown de `forceOpenTabId` (ver
+    // `openDropdown` — calcula la posición desde el `<div>` real del tab en
+    // `tabRefs`, así que funciona igual que abrirlo con el mouse).
+    const prevForceOpenTabIdRef = useRef(null);
+    useEffect(() => {
+        if (forceOpenTabId) {
+            openDropdown(forceOpenTabId);
+        } else if (prevForceOpenTabIdRef.current) {
+            // Dejó de forzarse: como nunca hubo un mouseleave real que
+            // programara el cierre (se abrió por código, no por hover), hay
+            // que cerrarlo explícito — si no, se queda pegado abierto.
+            closeDropdownNow();
+        }
+        prevForceOpenTabIdRef.current = forceOpenTabId;
+    }, [forceOpenTabId, openDropdown, closeDropdownNow]);
 
     // El pill bar tiene overflow-x-auto, lo que obliga overflow-y a auto
     // (regla CSS: un eje "auto" fuerza al otro a dejar "visible"). El menú
@@ -178,6 +205,7 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
                                 return (
                                     <button
                                         key={sub.id}
+                                        data-tour={sub.tourId}
                                         onClick={() => {
                                             if (activeTab !== openSubtabId) onSelect(openSubtabId);
                                             subtabConfigs[openSubtabId].setActive(sub.id);
