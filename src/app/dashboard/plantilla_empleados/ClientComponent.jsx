@@ -233,6 +233,11 @@ export default function PlantillaEmpleadosDetalle({
   // abierto para poder señalar la opción "Anuencia" antes de que el usuario
   // la elija (ver prop `forceOpenTabId`).
   const [anuenciaTourDropdownForced, setAnuenciaTourDropdownForced] = useState(false);
+  // Mismo mecanismo para el tour de descubrimiento de "Rotación de
+  // personal" (switch Titulares de Aduanas/Directores Generales dentro de
+  // RotacionAduanasSubTab), pero forzando el dropdown de subtabs de
+  // "Movimientos" (movimientos_personal) en vez del de "Mov. Posiciones".
+  const [rotacionTourDropdownForced, setRotacionTourDropdownForced] = useState(false);
   const [activeCatalogoSubTab, setActiveCatalogoSubTab] = useState(CATALOGOS_ORDER[0]);
   const [movCardTitle, setMovCardTitle] = useState("Posiciones Activas");
   const [isPending, startTransition] = useTransition();
@@ -332,7 +337,7 @@ export default function PlantillaEmpleadosDetalle({
       options: [
         { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
         { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck },
-        { id: "rotacion", label: "Rotación de personal", icon: Building2 },
+        { id: "rotacion", label: "Rotación de personal", icon: Building2, tourId: "movpersonal-rotacion-subtab-option" },
       ],
       active: activeMovPersonalSubTab,
       setActive: setActiveMovPersonalSubTab,
@@ -414,9 +419,49 @@ export default function PlantillaEmpleadosDetalle({
   useEffect(() => {
     if (!anuenciaTourEnabled) setAnuenciaTourDropdownForced(false);
   }, [anuenciaTourEnabled]);
+
+  // Pasos del tour de "Rotación de personal" (switch Titulares de Aduanas/
+  // Directores Generales, ver RotacionAduanasSubTab.jsx). Mismo patrón que
+  // el de Anuencia: el paso 1 vive en el dropdown de subtabs de
+  // "Movimientos" (fuera de MovimientosPersonalTab, por eso el tour vive
+  // aquí); el paso 2 hace clic en el subtab (montando el componente, que
+  // trae su propio spinner de carga — ProductTour reintenta ubicar el
+  // selector hasta 4s, así que espera a que termine de cargar) y señala el
+  // botón "Titulares de Aduanas"; el paso 3 señala "Directores Generales".
+  const rotacionTourSteps = useMemo(() => [
+    {
+      id: "subtab",
+      selector: '[data-tour="movpersonal-rotacion-subtab-option"]',
+      title: "Rotación de personal",
+      body: 'Da clic en "Rotación de personal" para ver la línea de tiempo de titulares de aduanas y direcciones generales.',
+      onEnter: () => setRotacionTourDropdownForced(true),
+    },
+    {
+      id: "aduanas",
+      selector: '[data-tour="rotacion-fuente-aduanas"]',
+      title: "Rotación de Titulares de Aduanas",
+      body: "Aquí ves la línea de tiempo de quién ha sido titular de cada aduana: cuándo entró, cuándo salió y hacia dónde se fue.",
+      onEnter: () => {
+        setRotacionTourDropdownForced(false);
+        setActiveMovPersonalSubTab("rotacion");
+      },
+    },
+    {
+      id: "dg",
+      selector: '[data-tour="rotacion-fuente-dg"]',
+      title: "Nuevo: Directores Generales",
+      body: "Da clic aquí para ver la misma rotación, pero de las 12 direcciones generales — mismo formato, mismos filtros y el mismo Excel exportable.",
+    },
+  ], []);
+  const rotacionTourEnabled = activeTab === "movimientos_personal" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS);
+  useEffect(() => {
+    if (!rotacionTourEnabled) setRotacionTourDropdownForced(false);
+  }, [rotacionTourEnabled]);
+
   const tabTours = useMemo(() => [
     { tourId: "movpos-anuencia-v1", steps: anuenciaTourSteps, enabled: anuenciaTourEnabled },
-  ], [anuenciaTourSteps, anuenciaTourEnabled]);
+    { tourId: "movpersonal-rotacion-v1", steps: rotacionTourSteps, enabled: rotacionTourEnabled },
+  ], [anuenciaTourSteps, anuenciaTourEnabled, rotacionTourSteps, rotacionTourEnabled]);
 
   // Publica los tabs de esta página al BottomNav para abrirlos en un Drawer
   // (móvil). El check sigue a activeTab; al desmontar se limpia el registro.
@@ -504,7 +549,7 @@ export default function PlantillaEmpleadosDetalle({
         activeTab={activeTab}
         onSelect={handleSelectTab}
         subtabConfigs={subtabConfigs}
-        forceOpenTabId={anuenciaTourDropdownForced ? "movimientos" : null}
+        forceOpenTabId={anuenciaTourDropdownForced ? "movimientos" : rotacionTourDropdownForced ? "movimientos_personal" : null}
       />
       <TourGroup tours={tabTours} />
 

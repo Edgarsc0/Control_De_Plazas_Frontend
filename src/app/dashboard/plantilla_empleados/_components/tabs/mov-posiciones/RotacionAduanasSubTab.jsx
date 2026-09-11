@@ -2597,6 +2597,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
                         <button
                             key={clave}
                             type="button"
+                            data-tour={`rotacion-fuente-${clave}`}
                             onClick={() => clave !== fuente && setFuente(clave)}
                             aria-pressed={fuente === clave}
                             title={`Rotación de personal: ${label}`}
