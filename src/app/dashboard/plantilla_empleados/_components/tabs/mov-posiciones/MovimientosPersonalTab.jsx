@@ -553,6 +553,11 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   const [selectedMovimiento, setSelectedMovimiento] = useState(null);
   const [posicionArbolModalOpen, setPosicionArbolModalOpen] = useState(false);
   const [selectedPosicion, setSelectedPosicion] = useState(null);
+  // Fila sobre la que se dio clic en "Posición" — el árbol de movimientos hace
+  // pan hasta el tramo de ESTE empleado (num_empleado + fecha_efectiva para
+  // desempatar si tuvo más de un tramo en la misma plaza) en vez de abrir
+  // siempre arriba del todo. Ver PosicionArbolModal `focoNumEmpleado`/`focoFecha`.
+  const [selectedPosicionRow, setSelectedPosicionRow] = useState(null);
   const [selectedActionName, setSelectedActionName] = useState(null);
   const [motifStatsData, setMotifStatsData] = useState({ by_year: {}, all: [] });
   const [selectedMotifYear, setSelectedMotifYear] = useState("all");
@@ -937,7 +942,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
     else if (col.key === "motivo_nombre" && val && val.toLowerCase().includes("baja")) cellClass += " text-red-600 dark:text-red-400";
     if (catalogInfo) cellClass += " cursor-help";
     const handleCellClick = (e) => {
-      if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setPosicionArbolModalOpen(true); }
+      if (col.key === "posicion" && val) { e.stopPropagation(); setSelectedPosicion(val); setSelectedPosicionRow(row); setPosicionArbolModalOpen(true); }
       else if (col.key === "num_empleado" && val) { e.stopPropagation(); setSelectedNumEmpleado(val); setSelectedMovimiento(row); setTimelineModalOpen(true); }
       else { setSelectedCell({ rowIdx: globalRowIdx, colIdx, colName: col.label, value: val }); }
     };
@@ -2912,6 +2917,9 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         onOpenChange={setPosicionArbolModalOpen}
         posicion={selectedPosicion}
         canViewPhoto={canViewFotoMovimientos}
+        sidebar
+        focoNumEmpleado={selectedPosicionRow?.num_empleado ?? null}
+        focoFecha={selectedPosicionRow?.fecha_efectiva ?? null}
       />
 
       <ExportConFotosModal

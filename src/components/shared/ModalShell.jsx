@@ -49,7 +49,39 @@ export default function ModalShell({
   // contenido que no quepa hace scroll DENTRO del cuerpo (que ya es
   // `overflow-y-auto`), en vez de estirar el panel.
   fixedHeight = false,
+  // "right" pega el panel al borde derecho de OTRO modal centrado ya abierto
+  // (no al del viewport) — flota a su lado, mismo centrado vertical, sin el
+  // backdrop-click habitual. Pensado para PosicionArbolModal `dock` junto a
+  // VacanciaDetalleModal/OcupacionDetalleModal (ambos max-w-lg = 512px,
+  // centrados, z-[9999] — por eso este modo usa z-[10000], si no el backdrop
+  // blur de ésos lo tapa).
+  // "right-edge" es un sidebar de verdad: pegado al borde derecho DEL
+  // VIEWPORT, alto completo, con su propio backdrop y animación de entrada/
+  // salida deslizando en X (xPercent, no depende de conocer el ancho).
+  anchor = "center",
+  // Ancho fijo en px, relevante con anchor="right" o "right-edge" (ahí no
+  // aplica SIZE_CLASSES/resizable).
+  width,
+  // Distancia en px desde el CENTRO del viewport hasta el borde izquierdo de
+  // este panel, sólo con anchor="right". Default asume que el modal de
+  // referencia (max-w-lg = 512px) también se corrió `shiftLeftPx` a la
+  // izquierda para centrar el PAR como conjunto (ver VacanciaDetalleModal
+  // `shiftLeftPx`): (512 + gap12 - width)/2, con width=440 → 42.
+  dockOffset = 42,
+  // false = sin overlay propio ni cierre por clic afuera — para el caso
+  // "modal acompañante" (anchor="right") que convive sobre otro modal ya
+  // con su propio backdrop; evita oscurecer doble y bloquear clics fuera
+  // del panel.
+  showBackdrop = true,
+  // Cuando cambia (con el modal ya abierto) repite la animación de salida +
+  // entrada del panel en vez de dejarlo estático — pensado para
+  // PosicionArbolModal `sidebar`: clic en OTRA plaza de la tabla mientras el
+  // sidebar ya está abierto se siente como "se contrae y vuelve a abrir" en
+  // vez de que el contenido cambie de golpe debajo.
+  contentKey,
 }) {
+  const isRight = anchor === "right";
+  const isEdge = anchor === "right-edge";
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -64,25 +96,57 @@ export default function ModalShell({
   const backdropRef = useRef(null);
   const panelRef = useRef(null);
 
+  const getAnimShapes = () => ({
+    inFrom: isEdge
+      ? { opacity: 0, xPercent: 100 }
+      : isRight
+      ? { opacity: 0, x: 40 }
+      : { opacity: 0, y: 24, scale: 0.98 },
+    inTo: isEdge
+      ? { opacity: 1, xPercent: 0, duration: 0.32, ease: "power3.out" }
+      : isRight
+      ? { opacity: 1, x: 0, duration: 0.22, ease: "expo.out" }
+      : { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: "expo.out" },
+    outTo: isEdge
+      ? { opacity: 0, xPercent: 100, duration: 0.26, ease: "power2.in" }
+      : isRight
+      ? { opacity: 0, x: 40, duration: 0.16, ease: "power2.in" }
+      : { opacity: 0, y: 24, scale: 0.98, duration: 0.16, ease: "power2.in" },
+  });
+
   useGSAP(
     () => {
       if (!rendered) return;
+      const { inFrom, inTo, outTo } = getAnimShapes();
       if (open) {
-        gsap
-          .timeline()
-          .set(panelRef.current, { opacity: 0, y: 24, scale: 0.98 })
-          .set(backdropRef.current, { opacity: 0 })
-          .to(backdropRef.current, { opacity: 1, duration: 0.18 }, 0)
-          .to(panelRef.current, { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: "expo.out" }, 0);
+        const tl = gsap.timeline().set(panelRef.current, inFrom);
+        if (backdropRef.current) tl.set(backdropRef.current, { opacity: 0 }).to(backdropRef.current, { opacity: 1, duration: 0.18 }, 0);
+        tl.to(panelRef.current, inTo, 0);
       } else {
-        gsap
-          .timeline({ onComplete: () => setRendered(false) })
-          .to(panelRef.current, { opacity: 0, y: 24, scale: 0.98, duration: 0.16, ease: "power2.in" }, 0)
-          .to(backdropRef.current, { opacity: 0, duration: 0.16 }, 0);
+        const tl = gsap.timeline({ onComplete: () => setRendered(false) }).to(panelRef.current, outTo, 0);
+        if (backdropRef.current) tl.to(backdropRef.current, { opacity: 0, duration: 0.16 }, 0);
       }
     },
-    { scope: rootRef, dependencies: [open, rendered], revertOnUpdate: true }
+    { scope: rootRef, dependencies: [open, rendered, isRight, isEdge], revertOnUpdate: true }
   );
+
+  // Repetir la entrada al cambiar de contenido con el panel ya abierto (ver
+  // `contentKey` arriba): sale y vuelve a entrar, sin tocar `open`/`rendered`
+  // (el padre nunca se entera, no hay onClose de por medio).
+  const prevContentKeyRef = useRef(contentKey);
+  useEffect(() => {
+    const prev = prevContentKeyRef.current;
+    prevContentKeyRef.current = contentKey;
+    if (contentKey === undefined || prev === undefined || prev === contentKey) return;
+    if (!open || !rendered || !panelRef.current) return;
+    const { inFrom, inTo, outTo } = getAnimShapes();
+    gsap
+      .timeline()
+      .to(panelRef.current, outTo)
+      .set(panelRef.current, inFrom)
+      .to(panelRef.current, inTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentKey]);
 
   useBodyScrollLock(open);
 
@@ -92,6 +156,17 @@ export default function ModalShell({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // isEdge no tiene backdrop propio (para dejar ver la tabla de fondo): el
+  // cierre por "clic afuera" se resuelve a mano contra el propio panel.
+  useEffect(() => {
+    if (!open || !isEdge || showBackdrop) return;
+    const onDocPointerDown = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.();
+    };
+    document.addEventListener("mousedown", onDocPointerDown);
+    return () => document.removeEventListener("mousedown", onDocPointerDown);
+  }, [open, isEdge, showBackdrop, onClose]);
 
   // Ancho custom solo aplica si resizable; se reinicia al tamaño base cada vez
   // que el modal se abre.
@@ -126,23 +201,65 @@ export default function ModalShell({
   return createPortal(
     <div
       ref={rootRef}
-      className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-6"
+      className={
+        isRight
+          ? `fixed inset-0 z-[10000] ${showBackdrop ? "" : "pointer-events-none"}`
+          : isEdge
+          ? // top-16/md:top-36 + overflow-hidden: recorta TODO lo del sidebar
+            // (panel + su boxShadow) por debajo del Navbar, para que la sombra
+            // no sangre hacia arriba encima de la barra (mismo z-40).
+            `fixed inset-x-0 top-16 md:top-36 bottom-0 z-40 overflow-hidden ${showBackdrop ? "" : "pointer-events-none"}`
+          : "fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-6"
+      }
     >
-      <div
-        ref={backdropRef}
-        className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      {showBackdrop && (
+        <div
+          ref={backdropRef}
+          className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+          onClick={onClose}
+        />
+      )}
 
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
-        className={`relative w-full ${!resizable ? SIZE_CLASSES[size] : ""} ${fixedHeight ? "h-[92vh] sm:h-[85vh]" : "max-h-[92vh] sm:max-h-[85vh]"} flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`}
-        style={resizable ? { width: customWidth ?? maxWidth ?? SIZE_PX[size] ?? 672, maxWidth: "95vw" } : undefined}
+        className={
+          isRight
+            ? `absolute flex flex-col bg-white dark:bg-slate-950 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden pointer-events-auto`
+            : isEdge
+            ? // absolute dentro del root ya recortado (top-16/md:top-36):
+              // ocupa todo ese alto, pegado al borde derecho. Sin bordes
+              // redondeados — es un panel a ras del viewport, no una tarjeta.
+              `absolute inset-y-0 right-0 flex flex-col bg-white dark:bg-slate-950 border-l border-slate-200/80 dark:border-slate-800 overflow-hidden pointer-events-auto`
+            : `relative w-full ${!resizable ? SIZE_CLASSES[size] : ""} ${fixedHeight ? "h-[92vh] sm:h-[85vh]" : "max-h-[92vh] sm:max-h-[85vh]"} flex flex-col bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden`
+        }
+        style={
+          isRight
+            ? {
+                top: "50%",
+                left: `calc(50% + ${dockOffset}px)`,
+                marginTop: "-42.5vh",
+                width: width ?? 420,
+                maxWidth: "92vw",
+                height: "85vh",
+                maxHeight: "85vh",
+              }
+            : isEdge
+            ? {
+                width: width ?? 480,
+                maxWidth: "100vw",
+                // Sombra concentrada en el borde izquierdo (no ambient shadow-2xl
+                // simétrica) — refuerza que el panel flota "sobre" la tabla.
+                boxShadow: "-24px 0 48px -12px rgba(15,23,42,0.45), -8px 0 16px -4px rgba(15,23,42,0.3)",
+              }
+            : resizable
+            ? { width: customWidth ?? maxWidth ?? SIZE_PX[size] ?? 672, maxWidth: "95vw" }
+            : undefined
+        }
       >
-        {resizable && (
+        {resizable && !isRight && (
           <>
             <div
               onMouseDown={(e) => handleResizeStart(e, "left")}

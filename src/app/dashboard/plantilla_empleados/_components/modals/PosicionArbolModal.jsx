@@ -314,7 +314,33 @@ function PanelDetalle({ node, onCerrar }) {
 /* ------------------------------------------------------------------ */
 /* Componente principal                                                */
 /* ------------------------------------------------------------------ */
-export default function PosicionArbolModal({ open, onOpenChange, posicion, canViewPhoto = true }) {
+export default function PosicionArbolModal({
+    open,
+    onOpenChange,
+    posicion,
+    canViewPhoto = true,
+    // Modo "acompañante": pegado al borde derecho de OTRO modal ya abierto,
+    // sin backdrop propio y con ancho reducido — para abrirse junto a otro
+    // modal (detalle de vacancia/ocupación) sin taparlo. Ver MovimientosTab
+    // (clic en fecha).
+    dock = false,
+    // Sólo con dock: en cuanto cargue el tronco, hace pan animado hasta el
+    // nodo más reciente (abajo del todo) en vez de dejarlo arriba.
+    autoScrollToBottom = false,
+    // Sidebar de verdad: pegado al borde derecho del VIEWPORT (no de otro
+    // modal), alto completo, con su propio backdrop. Usado al hacer clic en
+    // la columna "Posición" desde Movimientos de Personal y Plantilla
+    // Detalle — GSAP anima la entrada/salida (ver ModalShell anchor="right-edge").
+    sidebar = false,
+    // Sólo en la carga INICIAL del tronco (pila.length === 1, no al navegar
+    // internamente con los badges de plaza entrante/saliente): centra el pan
+    // en el nodo del empleado de la FILA en la que se dio clic, en vez de
+    // dejar el canvas arriba del todo. `focoFecha` (fecha_efectiva de esa
+    // fila, ISO) desempata cuando el empleado tuvo más de un tramo en la
+    // misma plaza. Ver MovimientosPersonalTab (clic en columna "Posición").
+    focoNumEmpleado = null,
+    focoFecha = null,
+}) {
     const [plaza, setPlaza] = useState(null);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState(null);
@@ -474,9 +500,18 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             if (puntualA !== puntualB) return puntualA - puntualB;
             return (a.id_registro_inicio || 0) - (b.id_registro_inicio || 0);
         });
+        // sp_historia_plaza puede repetir id_registro_inicio entre el nodo
+        // "creación" y el de "vacancia inicial" (ambos usan el mismo id de la
+        // plaza recién creada) — se desambigua aquí para no chocar keys de
+        // React; los mapas de origen/destino se consultan con el id BASE
+        // (limpio), ya que sólo aplican a nodos de ocupación (siempre únicos).
+        const vistos = new Map();
         const nodos = ordenados.map((periodo, i) => {
-            const id = periodo.id_registro_inicio != null ? `mov:${periodo.id_registro_inicio}` : `idx:${i}`;
-            const origenInfo = origenMap[id] || null;
+            const baseId = periodo.id_registro_inicio != null ? `mov:${periodo.id_registro_inicio}` : `idx:${i}`;
+            const repetidos = vistos.get(baseId) || 0;
+            vistos.set(baseId, repetidos + 1);
+            const id = repetidos === 0 ? baseId : `${baseId}#${repetidos}`;
+            const origenInfo = origenMap[baseId] || null;
             return {
                 id,
                 periodo,
@@ -485,7 +520,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
                 origenPlaza: origenInfo?.posicion || null,
                 origenFocoId: origenInfo?.focoId || null,
                 destinoPlaza: periodo.tipo_cierre === "traslado" && periodo.posicion_destino ? periodo.posicion_destino : null,
-                destinoFocoId: destinoFocoMap[id] || null,
+                destinoFocoId: destinoFocoMap[baseId] || null,
             };
         });
         const bordes = [];
@@ -549,7 +584,28 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             if (!open || !plaza || !viewportRef.current || !worldRef.current) return;
 
             const vp = viewportRef.current.getBoundingClientRect();
-            const objetivo = focoNodoId ? nodes.find((n) => n.id === focoNodoId) : null;
+            let objetivo = focoNodoId ? nodes.find((n) => n.id === focoNodoId) : null;
+
+            // Sin navegación interna de por medio (pila.length === 1, tronco
+            // recién abierto): si viene un empleado a enfocar desde afuera,
+            // busca su tramo — el que contiene `focoFecha`, o si no hay fecha
+            // (o no cae en ninguno) el primero de ese empleado en el tronco.
+            if (!objetivo && pila.length === 1 && focoNumEmpleado) {
+                const fechaISO = focoFecha ? String(focoFecha).slice(0, 10) : null;
+                const delEmpleado = nodes.filter(
+                    (n) => n.periodo.num_empleado != null && String(n.periodo.num_empleado) === String(focoNumEmpleado)
+                );
+                objetivo =
+                    (fechaISO &&
+                        delEmpleado.find(
+                            (n) =>
+                                n.periodo.fecha_inicio &&
+                                n.periodo.fecha_inicio <= fechaISO &&
+                                (!n.periodo.fecha_fin || n.periodo.fecha_fin >= fechaISO)
+                        )) ||
+                    delEmpleado[0] ||
+                    null;
+            }
 
             // Arranca arriba como siempre y, si venimos de seguir a un
             // empleado hacia otra plaza, "baja" animando hasta centrarlo.
@@ -605,7 +661,7 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
                 draggableRef.current?.[0]?.kill();
             };
         },
-        { scope: contenedorRef, dependencies: [open, plaza] }
+        { scope: contenedorRef, dependencies: [open, plaza, pila.length, focoNumEmpleado, focoFecha] }
     );
 
     /* ---------------- Entrada animada del tronco ---------------------- */
@@ -624,6 +680,26 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
             );
         },
         { scope: contenedorRef, dependencies: [open, plaza] }
+    );
+
+    /* ---------------- Dock/sidebar: pan animado hasta el fondo del tronco */
+    useGSAP(
+        () => {
+            if (!open || !(dock || sidebar) || !autoScrollToBottom || !plaza || nodes.length === 0) return;
+            if (!viewportRef.current || !worldRef.current) return;
+            const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            const ultimo = nodes[nodes.length - 1];
+            const vp = viewportRef.current.getBoundingClientRect();
+            gsap.to(worldRef.current, {
+                x: vp.width / 2 - origin.x,
+                y: vp.height / 2 - (origin.y + ultimo.y),
+                duration: reducido ? 0 : 1,
+                delay: reducido ? 0 : 0.6,
+                ease: "power2.inOut",
+                onUpdate: () => setZoom(gsap.getProperty(worldRef.current, "scale")),
+            });
+        },
+        { scope: contenedorRef, dependencies: [open, plaza, dock, sidebar, autoScrollToBottom, nodes, origin.x, origin.y] }
     );
 
     const centrar = useCallback(() => {
@@ -664,11 +740,19 @@ export default function PosicionArbolModal({ open, onOpenChange, posicion, canVi
         <ModalShell
             open={open}
             onClose={() => onOpenChange(false)}
-            size="xl"
-            resizable
+            size={dock || sidebar ? "sm" : "xl"}
+            resizable={!dock && !sidebar}
             minWidth={900}
             maxWidth={1500}
             fixedHeight
+            anchor={dock ? "right" : sidebar ? "right-edge" : "center"}
+            width={dock ? 440 : sidebar ? 560 : undefined}
+            // (512 + gap12 - 440) / 2 = 42 — ver ModalShell `dockOffset` y
+            // VacanciaDetalleModal/OcupacionDetalleModal `shiftLeftPx` (226),
+            // que juntos centran el PAR completo en vez de sólo este panel.
+            dockOffset={dock ? 42 : undefined}
+            showBackdrop={!dock && !sidebar}
+            contentKey={posicion}
             icon={Building2}
             eyebrow="Árbol de movimientos"
             title={`Posición ${posActual || ""}`}

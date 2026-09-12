@@ -16,6 +16,7 @@ import HistoryDataTable from "@/components/ui/HistoryDataTable";
 import { EmployeeRecordModal } from "../../shared/EmployeesModal";
 import VacanciaDetalleModal, { CATEGORIA_VACANCIA_TOOLTIP, TUVO_INSUBSISTENCIA_TOOLTIP } from "../../shared/VacanciaDetalleModal";
 import OcupacionDetalleModal from "../../shared/OcupacionDetalleModal";
+import PosicionArbolModal from "../../modals/PosicionArbolModal";
 import ColumnsModal from "../../shared/ColumnsModal";
 import ColumnFilterDropdown from "../../shared/ColumnFilterDropdown";
 import DataTable from "../../shared/DataTable";
@@ -951,6 +952,7 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     setSelectedRowData(null);
     setVacanciaRowId(row.id);
     setIsVacanciaModalOpen(true);
+    setArbolDockPosicion(row.no_pos_actual ?? null);
   }, []);
 
   const [isOcupacionModalOpen, setIsOcupacionModalOpen] = useState(false);
@@ -963,6 +965,17 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
     setSelectedRowData(null);
     setOcupacionRowId(row.id);
     setIsOcupacionModalOpen(true);
+    setArbolDockPosicion(row.no_pos_actual ?? null);
+  }, []);
+
+  // Árbol de movimientos "acompañante": se abre pegado al borde derecho junto
+  // al modal de detalle de vacancia/ocupación (clic en la fecha), mostrando
+  // el tronco de esa misma posición ya centrado en el movimiento más reciente.
+  const [arbolDockPosicion, setArbolDockPosicion] = useState(null);
+  const isArbolDockOpen = (isVacanciaModalOpen || isOcupacionModalOpen) && !!arbolDockPosicion;
+  const closeArbolDock = useCallback(() => {
+    setIsVacanciaModalOpen(false);
+    setIsOcupacionModalOpen(false);
   }, []);
 
   // ── Edición inline de "Fecha de Anuencia" (doble clic) ─────────────────
@@ -2935,20 +2948,36 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         document.body
       )}
 
-      {/* Modal de Detalle de Vacancia */}
+      {/* Modal de Detalle de Vacancia — se corre a la izquierda mientras el
+          Árbol de movimientos lo acompaña a la derecha, para que el PAR
+          quede centrado (ver PosicionArbolModal `dock`/`dockOffset`). */}
       <VacanciaDetalleModal
         open={isVacanciaModalOpen}
         onClose={() => setIsVacanciaModalOpen(false)}
         detalle={vacanciaDetalle}
         isLoading={isVacanciaLoading}
+        shiftLeftPx={isArbolDockOpen ? 226 : 0}
       />
 
-      {/* Modal de Detalle de Ocupación */}
+      {/* Modal de Detalle de Ocupación — mismo corrimiento que Vacancia. */}
       <OcupacionDetalleModal
         open={isOcupacionModalOpen}
         onClose={() => setIsOcupacionModalOpen(false)}
         detalle={ocupacionDetalle}
         isLoading={isOcupacionLoading}
+        shiftLeftPx={isArbolDockOpen ? 226 : 0}
+      />
+
+      {/* Árbol de movimientos acompañante — pegado al borde derecho, junto al
+          detalle de vacancia/ocupación de arriba (ver openVacanciaModal/
+          openOcupacionModal). */}
+      <PosicionArbolModal
+        open={isArbolDockOpen}
+        onOpenChange={closeArbolDock}
+        posicion={arbolDockPosicion}
+        canViewPhoto={canViewFotoMovPosiciones}
+        dock
+        autoScrollToBottom
       />
 
 

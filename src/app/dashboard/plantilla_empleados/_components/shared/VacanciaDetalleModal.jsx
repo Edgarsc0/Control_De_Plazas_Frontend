@@ -1,9 +1,9 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "motion/react";
 import { X, XCircle, AlertTriangle, Info, User, Hash, Calendar, Eye, Activity, Layers } from "lucide-react";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { useDetalleModalAnim } from "@/hooks/useDetalleModalAnim";
 
 // Compartido con MovimientosTab (columna "Fecha de Vacancia" de su tabla, que
 // usa estos mismos textos en su propio tooltip) — única fuente de verdad para
@@ -73,26 +73,30 @@ const VACANCIA_CATEGORIA_DEFAULT = {
  * @param {() => void} props.onClose
  * @param {?Object} props.detalle - Respuesta de getMovPosVacanciaDetalle (o null mientras carga).
  * @param {boolean} props.isLoading
+ * @param {number} [props.shiftLeftPx] - Corrimiento a la izquierda (px) para
+ *   que el par [este modal + PosicionArbolModal `dock` a su derecha] quede
+ *   centrado como conjunto en vez de que este modal se vea centrado solo y
+ *   el árbol "cuelgue" a un lado (ver MovimientosTab, columna Fecha de
+ *   Vacancia).
  */
-export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading }) {
+export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading, shiftLeftPx = 0 }) {
   useBodyScrollLock(open);
+  const contentReady = open && !isLoading && !!detalle && !(detalle.error && !detalle.categoria_vacancia);
+  const { rendered, backdropRef, panelRef, contentRef } = useDetalleModalAnim({ open, shiftLeftPx, contentReady });
 
   if (typeof document === "undefined") return null;
 
+  const catStyle = VACANCIA_CATEGORIA_STYLE[detalle?.categoria_vacancia] || VACANCIA_CATEGORIA_DEFAULT;
+  const CatIcon = catStyle.icon;
+
   return createPortal(
-    <AnimatePresence>
-      {open && (() => {
-        const catStyle = VACANCIA_CATEGORIA_STYLE[detalle?.categoria_vacancia] || VACANCIA_CATEGORIA_DEFAULT;
-        const CatIcon = catStyle.icon;
-        return (
+    <>
+      {rendered && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 24 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 24 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-              className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/85 shadow-[0_32px_96px_-24px_rgba(15,23,42,0.3)] w-full max-w-lg overflow-hidden flex flex-col z-[90]"
+            <div ref={backdropRef} onClick={onClose} className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm" />
+            <div
+              ref={panelRef}
+              className="relative bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/85 shadow-[0_32px_96px_-24px_rgba(15,23,42,0.3)] w-full max-w-lg h-[85vh] overflow-hidden flex flex-col z-[90]"
             >
               <div className={`h-1.5 w-full bg-gradient-to-r ${catStyle.gradient}`} />
 
@@ -119,7 +123,7 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                 </button>
               </div>
 
-              <div className="p-6 flex flex-col gap-5 max-h-[65vh] overflow-y-auto">
+              <div className="p-6 flex flex-col gap-5 flex-1 min-h-0 overflow-y-auto">
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center py-20 gap-4">
                     <div className="size-10 border-4 border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
@@ -131,25 +135,8 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                     <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{detalle.error}</p>
                   </div>
                 ) : (
-                  <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    variants={{
-                      hidden: { opacity: 0 },
-                      visible: {
-                        opacity: 1,
-                        transition: {
-                          staggerChildren: 0.08
-                        }
-                      }
-                    }}
-                    className="flex flex-col gap-5"
-                  >
-                    <motion.div
-                      variants={{
-                        hidden: { opacity: 0, y: 12 },
-                        visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                      }}
+                  <div ref={contentRef} className="flex flex-col gap-5">
+                    <div
                       className={`flex flex-col gap-2 p-4 rounded-2xl border relative overflow-hidden ${catStyle.badgeBg} ${catStyle.badgeBorder}`}
                     >
                       <div className="absolute right-4 top-4 opacity-[0.08] pointer-events-none">
@@ -166,29 +153,17 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                       <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed pr-12">
                         {CATEGORIA_VACANCIA_TOOLTIP[detalle.categoria_vacancia]}
                       </p>
-                    </motion.div>
+                    </div>
 
                     {detalle.error && (
-                      <motion.div
-                        variants={{
-                          hidden: { opacity: 0, y: 12 },
-                          visible: { opacity: 1, y: 0 }
-                        }}
-                        className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex items-start gap-3"
-                      >
+                      <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex items-start gap-3">
                         <Info className="size-4.5 text-amber-500 shrink-0 mt-0.5" />
                         <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{detalle.error}</p>
-                      </motion.div>
+                      </div>
                     )}
 
                     {detalle.tuvo_insubsistencia === "S" && (
-                      <motion.div
-                        variants={{
-                          hidden: { opacity: 0, y: 12 },
-                          visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                        }}
-                        className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex flex-col gap-3"
-                      >
+                      <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 flex flex-col gap-3">
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="size-4 text-amber-500 shrink-0" />
                           <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Insubsistencia Detectada</span>
@@ -241,18 +216,12 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                             </div>
                           </>
                         )}
-                      </motion.div>
+                      </div>
                     )}
 
                     {!detalle.error && (
                       <>
-                        <motion.div
-                          variants={{
-                            hidden: { opacity: 0, y: 12 },
-                            visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                          }}
-                          className="grid grid-cols-2 gap-4"
-                        >
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors group">
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em]">Fecha de Vacancia</span>
@@ -271,17 +240,11 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                               {detalle.categoria_vacancia === "B" ? detalle.posicion_destino : detalle.no_pos_actual || '—'}
                             </p>
                           </div>
-                        </motion.div>
+                        </div>
 
                         {(detalle.categoria_vacancia === "A" || detalle.categoria_vacancia === "B") && (
                           <>
-                            <motion.div
-                              variants={{
-                                hidden: { opacity: 0, y: 12 },
-                                visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                              }}
-                              className="p-4 bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-950/40 dark:to-slate-900/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex items-center gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                            >
+                            <div className="p-4 bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-950/40 dark:to-slate-900/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex items-center gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                               <div className="size-12 bg-gradient-to-br from-[#621f32] to-[#8d2c48] text-white rounded-full flex items-center justify-center font-bold text-sm shadow-md ring-4 ring-[#621f32]/10 shrink-0">
                                 {detalle.empleado?.nombre_completo
                                   ? detalle.empleado.nombre_completo.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
@@ -302,15 +265,9 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                                   </span>
                                 </div>
                               </div>
-                            </motion.div>
+                            </div>
 
-                            <motion.div
-                              variants={{
-                                hidden: { opacity: 0, y: 12 },
-                                visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                              }}
-                              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-                            >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                                 <div>
                                   <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-2 block">
@@ -340,18 +297,12 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                                   </div>
                                 )}
                               </div>
-                            </motion.div>
+                            </div>
                           </>
                         )}
 
                         {detalle.categoria_vacancia === "C" && (
-                          <motion.div
-                            variants={{
-                              hidden: { opacity: 0, y: 12 },
-                              visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                            }}
-                            className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex gap-3.5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                          >
+                          <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 flex gap-3.5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                             <div className="p-2 bg-slate-100 dark:bg-slate-850 rounded-xl text-slate-500 shrink-0 h-fit">
                               <Eye className="size-4.5" />
                             </div>
@@ -361,16 +312,10 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                                 Esta posición nunca ha tenido un ocupante registrado. Las fechas y detalles reflejados corresponden al primer movimiento documentado en el historial de esta plaza.
                               </p>
                             </div>
-                          </motion.div>
+                          </div>
                         )}
 
-                        <motion.div
-                          variants={{
-                            hidden: { opacity: 0, y: 12 },
-                            visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-                          }}
-                          className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 grid grid-cols-2 gap-4 divide-x divide-slate-200/60 dark:divide-slate-800/80"
-                        >
+                        <div className="p-4 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 grid grid-cols-2 gap-4 divide-x divide-slate-200/60 dark:divide-slate-800/80">
                           <div className="flex flex-col">
                             <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-1.5">Fecha Efectiva</label>
                             <p className={`text-sm font-extrabold ${catStyle.accent}`}>{detalle.fecha_efectiva || '—'}</p>
@@ -379,10 +324,10 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                             <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.15em] mb-1.5">Fecha de Captura</label>
                             <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{detalle.fecha_captura || '—'}</p>
                           </div>
-                        </motion.div>
+                        </div>
                       </>
                     )}
-                  </motion.div>
+                  </div>
                 )}
               </div>
 
@@ -394,11 +339,10 @@ export default function VacanciaDetalleModal({ open, onClose, detalle, isLoading
                   Cerrar
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
-        );
-      })()}
-    </AnimatePresence>,
+      )}
+    </>,
     document.body
   );
 }

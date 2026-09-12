@@ -4927,6 +4927,8 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         onOpenChange={setIsPosicionArbolModalOpen}
         posicion={posicionArbolSeleccionada}
         canViewPhoto={canViewFotoDetalle}
+        sidebar
+        autoScrollToBottom
       />
 
       <CopyCellMenu
