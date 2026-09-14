@@ -257,7 +257,7 @@ const DetailModal = ({
     <ModalShell
       open
       onClose={onClose}
-      size="xl"
+      size="2xl"
       icon={FileText}
       eyebrow="Expediente digital integrado"
       title={item.asuntoFolio}

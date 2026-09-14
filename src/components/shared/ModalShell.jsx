@@ -14,11 +14,12 @@ const SIZE_CLASSES = {
   md: "sm:max-w-2xl",
   lg: "sm:max-w-4xl",
   xl: "sm:max-w-6xl",
+  "2xl": "sm:max-w-[96vw]",
 };
 
 // Ancho base en px por tamaño (equivalente a los max-w-* de Tailwind) — punto de
 // partida cuando el modal es resizable, ya que ahí el ancho se controla inline.
-const SIZE_PX = { sm: 448, md: 672, lg: 896, xl: 1152 };
+const SIZE_PX = { sm: 448, md: 672, lg: 896, xl: 1152, "2xl": 1800 };
 
 /**
  * Shell único para todos los modals de detalle del sistema (ver
