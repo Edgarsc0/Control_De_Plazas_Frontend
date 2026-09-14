@@ -896,6 +896,19 @@ export const VacantesService = {
     },
 
     /**
+     * Obtiene los empleados de TODOS los pisos de la Torre Caballito (sin
+     * filtrar por piso), usado por el contador global de la torre.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getTorreCaballitoEmpleadosTotal: (options = {}) => {
+        return apiFetch(`/plantilla/torre-caballito/empleados/`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Busca empleados/posiciones dentro de la Torre Caballito.
      * @param {string} query - Texto de búsqueda.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.

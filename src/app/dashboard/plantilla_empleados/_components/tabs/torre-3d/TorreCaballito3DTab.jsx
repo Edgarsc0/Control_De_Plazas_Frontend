@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, Html, ContactShadows } from "@react-three/drei";
+import { OrbitControls, Environment, Lightformer, Html, ContactShadows } from "@react-three/drei";
 import { VacantesService } from "@/services/vacantes.service";
-import { Search, MapPin, RotateCcw, ChevronDown } from "lucide-react";
+import { Search, MapPin, RotateCcw, ChevronDown, Users } from "lucide-react";
 import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
 import * as THREE from "three";
 import { useAuth } from "@/hooks/useAuth";
@@ -613,6 +613,20 @@ export default function TorreCaballito3DTab() {
     return [...data].sort((a, b) => b.count - a.count).filter(d => d.count > 0);
   }, [data]);
 
+  // Total de empleados activos (no vacantes) en toda la torre — suma de los
+  // conteos por piso, que ya vienen filtrados sin vacantes desde el backend.
+  const totalTorreActivos = useMemo(() => data.reduce((acc, floor) => acc + floor.count, 0), [data]);
+
+  const openTorreEmpleadosModal = () => {
+    setLoadingEmpleados(true);
+    setEmpleadosModalTitle("Empleados en Torre Caballito Reforma 10");
+    VacantesService.getTorreCaballitoEmpleadosTotal()
+      .then(res => res.json())
+      .then(data => setEmpleadosData(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoadingEmpleados(false));
+  };
+
   const displayUaRemote = selectedUaRemote || hoveredUaRemote;
   
   const uaDetails = useMemo(() => {
@@ -666,8 +680,10 @@ export default function TorreCaballito3DTab() {
 
   return (
     <div className="w-full h-full bg-transparent overflow-hidden flex flex-col md:pt-9">
-      {/* Top Bar: título, toggle de modo, reset y buscador — docked, ya no flota sobre la torre */}
-      <div className="shrink-0 relative z-20 flex flex-col gap-3 md:flex-row md:items-center md:gap-4 p-3 md:p-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70">
+      {/* Top Bar: título, toggle de modo, reset y buscador — docked, ya no flota sobre la torre.
+          En móvil se oculta por completo: la vista inicial es solo el modelo 3D + el
+          contador flotante de activos (ver más abajo), que revela el ranking de pisos. */}
+      <div className="shrink-0 relative z-20 hidden md:flex md:flex-row md:items-center md:gap-4 p-3 md:p-4 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70">
         <div className="shrink-0">
           <h2 className="text-xl md:text-2xl font-black text-[#621f32] dark:text-[#f3dcd4] leading-tight">Torre del Caballito</h2>
           <p className="hidden md:block text-slate-700 dark:text-slate-300 font-semibold text-sm">Paseo de la Reforma 10</p>
@@ -675,6 +691,17 @@ export default function TorreCaballito3DTab() {
 
         {/* Toggle Switch & Reset View Button */}
         <div className="flex items-center gap-2 md:gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          {/* Contador global: total de activos en la torre, abre el listado completo */}
+          <button
+            onClick={openTorreEmpleadosModal}
+            className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-4 py-2.5 min-h-11 md:min-h-0 rounded-[1.25rem] border border-slate-200 dark:border-slate-800/80 shadow-sm hover:border-[#621f32]/40 dark:hover:border-[#bc955c]/40 transition-all shrink-0 cursor-pointer"
+            title="Ver todos los empleados de la Torre Caballito"
+          >
+            <Users className="size-4 text-[#621f32] dark:text-[#bc955c]" />
+            <span className="font-black text-sm text-[#621f32] dark:text-[#f3dcd4]">{totalTorreActivos}</span>
+            <span className="hidden lg:inline text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Activos en la Torre</span>
+          </button>
+
           <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-1.5 rounded-[1.25rem] border border-slate-200 dark:border-slate-800/80 flex shadow-sm shrink-0">
             <button
               onClick={() => {
@@ -774,9 +801,25 @@ export default function TorreCaballito3DTab() {
 
       {/* Contenido: sidebar izquierdo (leyenda) + canvas + sidebar derecho (detalle) */}
       <div className="flex-1 relative flex overflow-hidden min-h-0">
-        {/* Sidebar izquierdo: leyenda de calor+ranking, o leyenda de UA */}
+        {/* Contador flotante — SOLO móvil: con la top bar oculta, esta es la única
+            pieza de UI visible junto al modelo 3D al entrar. Al tocarlo revela el
+            panel de Ranking de Pisos (mismo estado `mobilePanelOpen` de siempre). */}
+        <button
+          type="button"
+          onClick={() => setMobilePanelOpen((o) => !o)}
+          className="md:hidden absolute z-20 top-2 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 min-h-11 rounded-full border border-slate-200 dark:border-slate-800/80 shadow-lg active:scale-95 transition-transform"
+        >
+          <Users className="size-4 text-[#621f32] dark:text-[#bc955c]" />
+          <span className="font-black text-sm text-[#621f32] dark:text-[#f3dcd4]">{totalTorreActivos}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Activos</span>
+          <ChevronDown className={`size-3.5 text-slate-400 transition-transform ${mobilePanelOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {/* Sidebar izquierdo: leyenda de calor+ranking, o leyenda de UA.
+            En móvil arranca oculto por completo (solo el contador de arriba +
+            el modelo 3D); tocar el contador lo revela. En `md+` siempre visible. */}
         {((viewMode === "heat" && sortedFloors.length > 0) || (viewMode === "ua" && uniqueUas.length > 0)) && (
-          <div className="absolute z-10 top-2 left-2 right-2 md:static md:top-auto md:left-auto md:right-auto md:w-72 lg:w-80 md:shrink-0 md:border-r md:border-slate-200/70 dark:md:border-slate-800/70 md:bg-white/40 dark:md:bg-slate-900/40 md:backdrop-blur-md md:p-4 md:overflow-y-auto flex flex-col gap-3 md:gap-4">
+          <div className={`${mobilePanelOpen ? "flex" : "hidden"} md:flex absolute z-10 top-16 left-2 right-2 md:static md:top-auto md:left-auto md:right-auto md:w-72 lg:w-80 md:shrink-0 md:border-r md:border-slate-200/70 dark:md:border-slate-800/70 md:bg-white/40 dark:md:bg-slate-900/40 md:backdrop-blur-md md:p-4 md:overflow-y-auto flex-col gap-3 md:gap-4`}>
             {/* Legend for Heatmap mode */}
             {viewMode === "heat" && (
               <div className="flex flex-col gap-4">
@@ -877,7 +920,15 @@ export default function TorreCaballito3DTab() {
             <ambientLight intensity={0.4} />
             <directionalLight position={[10, 50, 20]} intensity={1.5} castShadow />
             <pointLight position={[-20, 30, -20]} intensity={1} color="#38bdf8" />
-            <Environment preset="city" />
+            {/* Entorno procedural (sin fetch a CDN externo): evita el NetworkError +
+                pérdida de contexto WebGL que ocurría con preset="city" cuando
+                raw.githack.com no es alcanzable desde el navegador del usuario. */}
+            <Environment resolution={256}>
+              <Lightformer intensity={2} color="white" position={[0, 5, -9]} rotation={[0, 0, 0]} scale={[10, 10, 1]} />
+              <Lightformer intensity={2} color="white" position={[-5, 1, -1]} rotation={[0, Math.PI / 2, 0]} scale={[10, 2, 1]} />
+              <Lightformer intensity={2} color="white" position={[10, 1, 0]} rotation={[0, -Math.PI / 2, 0]} scale={[20, 2, 1]} />
+              <Lightformer intensity={1} color="#bc955c" position={[0, 20, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[15, 15, 1]} />
+            </Environment>
 
             {/* The 3D Tower */}
             <TorreCaballito

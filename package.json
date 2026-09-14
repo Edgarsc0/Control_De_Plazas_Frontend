@@ -40,6 +40,7 @@
     "react-awesome-reveal": "^4.3.1",
     "react-datepicker": "^9.1.0",
     "react-dom": "19.2.4",
+    "react-grid-layout": "^2.2.4",
     "react-map-gl": "^8.1.1",
     "react-markdown": "^10.1.0",
     "react-select": "^5.10.2",

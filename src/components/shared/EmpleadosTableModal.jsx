@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useDeferredValue } from "react";
 import { Search, Filter, Check, X, ChevronDown, FilterX, Eye } from "lucide-react";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
+import MobileCardList from "@/components/ui/MobileCardList";
 
 const getConditionLabel = (cond) => {
   switch (cond) {
@@ -82,6 +83,24 @@ export default function EmpleadosTableModal({ data, loading, title, onClose, can
     { key: "ubicacion", label: "Ubicación", width: 200 },
     { key: "estado_nomina", label: "Estatus", width: 120 },
   ];
+
+  // Config de tarjeta para móvil (`< md`): misma info que la tabla, en formato
+  // DataCard/MobileCardList (mismo componente que usa Plantilla Detalle).
+  const mobileCardConfig = useMemo(() => ({
+    getRowId: (row, i) => `${row.num_empleado || "s-n"}-${i}`,
+    getTitle: (row) => (row.nombre && String(row.nombre).trim()) ? row.nombre : "Vacante",
+    getSubtitle: (row) => row.num_empleado ? `No. ${row.num_empleado}` : "",
+    renderBadge: (row) => (
+      <span className={`inline-flex px-2 py-1 rounded text-[9px] font-bold tracking-wide whitespace-nowrap ${getStatusStyle(row.estado_nomina)}`}>
+        {row.estado_nomina}
+      </span>
+    ),
+    fields: [
+      { key: "posicion", label: "Posición" },
+      { key: "ua", label: "UA Adscrito" },
+      { key: "ubicacion", label: "Ubicación" },
+    ],
+  }), []);
 
   const uniqueColumnValues = useMemo(() => {
     if (!data) return {};
@@ -249,7 +268,17 @@ export default function EmpleadosTableModal({ data, loading, title, onClose, can
           ) : data?.length === 0 ? (
             <div className="p-8 text-center text-slate-800 font-bold h-full flex items-center justify-center">No se encontraron empleados.</div>
           ) : (
-            <table className="w-full text-left text-sm text-slate-900">
+            <>
+            {/* Móvil (`< md`): tarjetas en vez de tabla densa */}
+            <div className="md:hidden">
+              <MobileCardList
+                data={filteredData}
+                config={mobileCardConfig}
+                onCardClick={(row) => setSelectedEmployeeRecord(row)}
+              />
+            </div>
+
+            <table className="hidden md:table w-full text-left text-sm text-slate-900">
               <thead className="text-xs uppercase bg-slate-50/90 text-slate-800 sticky top-0 backdrop-blur-md z-20 shadow-md">
                 <tr>
                   <th className="p-0 align-top border-b border-slate-200 bg-slate-100" style={{ width: 50 }}>
@@ -427,6 +456,7 @@ export default function EmpleadosTableModal({ data, loading, title, onClose, can
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
       </div>
