@@ -28,9 +28,11 @@ export const PERMISSIONS = {
   VIEW_PLANTILLA_GEOGRAFIA_FOTO: 'authentication.view_plantilla_geografia_foto',
 
   // Ocupación de Plazas por Oficio
-  VIEW_OCUPACION_SANKEY: 'authentication.view_ocupacion_sankey',
-  VIEW_OCUPACION_TABLA: 'authentication.view_ocupacion_tabla',
-  VIEW_OCUPACION_ESTADISTICAS: 'authentication.view_ocupacion_estadisticas',
+  // view_ocupacion_sankey/tabla/estadisticas quedaron sin uso en el rediseño
+  // 2026-09 (la vista pasó a listar Solicitudes de Nueva Creación) — se
+  // dejan asignadas en roles existentes por compatibilidad, sin referenciarse
+  // más desde el front.
+  VIEW_OCUPACION_SOLICITUDES: 'authentication.view_ocupacion_solicitudes',
   EDIT_OCUPACION_PLAZAS: 'authentication.edit_ocupacion_plazas',
 
   // Valuación Presupuestaria

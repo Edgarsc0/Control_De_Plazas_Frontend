@@ -12,9 +12,9 @@ export const PERMISSION_PREVIEWS = {
   [PERMISSIONS.MANAGE_ROLES]: '/permission-previews/manage_roles.png',
   [PERMISSIONS.MANAGE_USUARIOS]: '/permission-previews/manage_usuarios.png',
   [PERMISSIONS.VIEW_MONITOREO_ZAFIRO]: '/permission-previews/view_monitoreo_zafiro.png',
-  [PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS]: '/permission-previews/view_ocupacion_estadisticas.png',
-  [PERMISSIONS.VIEW_OCUPACION_SANKEY]: '/permission-previews/view_ocupacion_sankey.png',
-  [PERMISSIONS.VIEW_OCUPACION_TABLA]: '/permission-previews/view_ocupacion_tabla.png',
+  // TODO: capturar screenshot de la vista rediseñada (Solicitudes de Nueva
+  // Creación); de momento reusa la captura vieja de la matriz de tabla.
+  [PERMISSIONS.VIEW_OCUPACION_SOLICITUDES]: '/permission-previews/view_ocupacion_tabla.png',
   [PERMISSIONS.VIEW_OFICIOS_TURNADOS]: '/permission-previews/view_oficios_turnados.png',
   // TODO: capturar screenshots dedicados de cada vista; de momento ambas
   // reusan la captura única que existía para el permiso original.

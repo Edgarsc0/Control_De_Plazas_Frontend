@@ -1,28 +1,28 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  Book,
-  Calculator,
   User,
   Building2,
+  Paperclip,
   Loader2,
   Search,
   X,
   Filter,
+  Eye,
   Table as TableIcon,
-  Trash2,
-  AlertTriangle,
+  Calculator,
   RotateCcw,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Zoom } from '@/components/shared/Reveal';
-import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
-import { ControlGestionService } from '@/services/control_gestion.service';
+import { AnimatePresence } from 'motion/react';
 import DetailModal from '@/components/shared/OficioDetailModal';
-import ValuacionGuardadaModal from './ValuacionGuardadaModal';
+import ValuacionGuardadaModal from '@/app/dashboard/valuacion_presupuestaria/_components/ValuacionGuardadaModal';
+import AdjuntarResolucionModal from './AdjuntarResolucionModal';
+import AdjuntarNotificacionOcupacionModal from './AdjuntarNotificacionOcupacionModal';
 import MobileCardList from '@/components/ui/MobileCardList';
-import { useAsuntosValuacionData, tieneValuacion, getEstatusValuacionLabel } from '../_hooks/useAsuntosValuacionData';
+import { ControlGestionService } from '@/services/control_gestion.service';
+import { useAsuntosValuacionData, tieneValuacion } from '@/app/dashboard/valuacion_presupuestaria/_hooks/useAsuntosValuacionData';
 import DataTable from '@/app/dashboard/plantilla_empleados/_components/shared/DataTable';
 import ColumnFilterDropdown from '@/app/dashboard/plantilla_empleados/_components/shared/ColumnFilterDropdown';
 import CopyCellMenu from '@/app/dashboard/plantilla_empleados/_components/shared/CopyCellMenu';
@@ -33,7 +33,6 @@ import { usePersistedState } from '@/app/dashboard/plantilla_empleados/_hooks/us
 import {
   defaultGetCellValue,
   getUniqueColumnValues,
-  sortValueCounts,
   matchesTextCondition,
   finalizeFilterDropdownValues,
   resolveColumnFilterCommit,
@@ -46,10 +45,8 @@ const CONTAINER_HEIGHT = 800;
 const MONO_COLUMN_KEYS = ['asuntoNoOficio'];
 const DATE_COLUMN_KEYS = ['fechaRegistro'];
 
-// La columna "No. Oficio" también debe poder filtrarse por texto usando el
-// folio (que no es columna propia — vive como sub-texto dentro de la misma
-// celda, ver renderCell) — mismo criterio que `asuntoNoOficio`/`clasificacion`
-// en oficios_turnados_do/ClientComponent.jsx.
+// Igual criterio que en AsuntosValuacion.jsx: el folio vive como sub-texto
+// dentro de la celda "No. Oficio", no como columna propia.
 const TEXT_FILTER_COLUMNS = { asuntoNoOficio: ['asuntoNoOficio', 'asuntoFolio'] };
 const getTextFilterKeys = (colKey) => TEXT_FILTER_COLUMNS[colKey] || [colKey];
 
@@ -62,8 +59,9 @@ const COLUMNS = [
   { key: 'statusTurnado', label: 'Estado Oficio', width: 140, visible: true },
   { key: 'fechaRegistro', label: 'Fecha Registro', width: 125, visible: true },
   { key: 'estatusValuacionLabel', label: 'Estatus Valuación', width: 155, visible: true },
-  { key: 'valuacionEstado', label: 'Valuación', width: 175, visible: true },
-  { key: 'acciones', label: 'Acciones', width: 155, visible: true, noFilter: true },
+  { key: 'resolucionLabel', label: 'Resolución', width: 125, visible: true },
+  { key: 'notificacionOcupacionLabel', label: 'Oficio de Notificación de Ocupación', width: 190, visible: true },
+  { key: 'acciones', label: 'Acciones', width: 90, visible: true, noFilter: true },
 ];
 
 const getColumnLetter = (colIdx) => {
@@ -76,8 +74,14 @@ const getColumnLetter = (colIdx) => {
   return letter;
 };
 
-export default function AsuntosValuacion({ onNavigateToSimulador }) {
-  const { asuntos, setAsuntos, loading, reload: loadAsuntosData } = useAsuntosValuacionData();
+// Tabla de oficios marcados como "Solicitud de Ocupación de Plazas de Nueva
+// Creación" (CatTipoAsunto id=1) enfocada en el trámite posterior a la
+// valuación: adjuntar Resolución y, si procede, el Oficio de Notificación de
+// Ocupación. El simulador/valuación en sí vive en valuacion_presupuestaria —
+// ambas vistas comparten el mismo universo de datos vía useAsuntosValuacionData.
+export default function SolicitudesOcupacionTable() {
+  const router = useRouter();
+  const { asuntos, setAsuntos, loading, reload } = useAsuntosValuacionData();
 
   // Modal de expediente
   const [selectedItem, setSelectedItem] = useState(null);
@@ -89,19 +93,20 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
   // Valuación previamente guardada desde el simulador
   const [valuacionAbierta, setValuacionAbierta] = useState(null);
 
-  // Eliminación de oficio (categoría Valuación Presupuestaria)
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
+  // Adjuntar resolución (status + PDF) de un asunto
+  const [adjuntarResolucionAsunto, setAdjuntarResolucionAsunto] = useState(null);
+
+  // Adjuntar oficio de notificación de ocupación (sólo asuntos Procedente)
+  const [adjuntarNotificacionAsunto, setAdjuntarNotificacionAsunto] = useState(null);
 
   const tableContainerRef = useRef(null);
   const tbodyRef = useRef(null);
   const [scrollTop, setScrollTop] = useState(0);
 
-  const { columns, setColumns, resetWidth } = useColumnState(COLUMNS, 'asuntos_valuacion_columns');
-  const [sortConfig, setSortConfig] = usePersistedState('asuntos_valuacion_sort', { key: null, direction: null });
+  const { columns, setColumns, resetWidth } = useColumnState(COLUMNS, 'ocupacion_solicitudes_columns');
+  const [sortConfig, setSortConfig] = usePersistedState('ocupacion_solicitudes_sort', { key: null, direction: null });
   const { selectedCell, setSelectedCell, contextMenu, openContextMenu, closeContextMenu } = useCellSelection();
-  const filters = useColumnFilters({ storageKey: 'asuntos_valuacion_filters' });
+  const filters = useColumnFilters({ storageKey: 'ocupacion_solicitudes_filters' });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -124,12 +129,12 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
     [isDateColumn],
   );
 
-  // Aplana `oficioInfo` y deriva las etiquetas de estatus a nivel de fila para
-  // que sean columnas filtrables/ordenables más de la tabla, en vez de casos
-  // especiales — mismo criterio que `instruccion` en oficios_turnados_do.
+  // Aplana `oficioInfo` y deriva las etiquetas de estatus a nivel de fila —
+  // mismo criterio que AsuntosValuacion.jsx.
   const tableData = useMemo(() => asuntos.map((item) => {
     const oInfo = item.oficioInfo || {};
-    const estatusValuacionLabel = getEstatusValuacionLabel(item.status);
+    const s = item.status?.toLowerCase() || 'pendiente';
+    const estatusValuacionLabel = s === 'procedente' ? 'Procedente' : s === 'improcedente' ? 'Improcedente' : 'Pendiente';
     return {
       ...item,
       asuntoNoOficio: oInfo.asuntoNoOficio || '',
@@ -141,9 +146,24 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
       statusTurnado: oInfo.statusTurnado || '',
       fechaRegistro: oInfo.fechaRegistro || '',
       estatusValuacionLabel,
-      valuacionEstado: tieneValuacion(item) ? 'Valuada' : 'Sin valuación',
+      resolucionLabel: item.oficio_resolucion ? 'Con resolución' : 'Sin resolución',
+      // El oficio de notificación de ocupación sólo aplica a asuntos ya
+      // dictaminados como Procedente — en el resto ni se pide ni se muestra.
+      notificacionOcupacionLabel: estatusValuacionLabel !== 'Procedente'
+        ? 'No aplica'
+        : (item.oficio_notificacion_ocupacion ? 'Con oficio' : 'Sin oficio'),
     };
   }), [asuntos]);
+
+  // El backend no devuelve `oficioInfo` (lo arma useAsuntosValuacionData al
+  // cargar), así que se conserva el que ya tenía la fila en memoria.
+  // Compartido por `AdjuntarResolucionModal` y `AdjuntarNotificacionOcupacionModal`:
+  // ambos sólo hacen PATCH parcial sobre el mismo `AsuntoValuacion`.
+  const handleAsuntoActualizado = (asuntoActualizado) => {
+    setAsuntos((prev) => prev.map((a) => (
+      a.id === asuntoActualizado.id ? { ...a, ...asuntoActualizado, oficioInfo: a.oficioInfo } : a
+    )));
+  };
 
   const handleSelectItem = async (item) => {
     if (!item) return;
@@ -177,43 +197,6 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
       console.error('Error al previsualizar documento:', error);
     } finally {
       setIsPreviewing(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (currentPdfUrl) window.URL.revokeObjectURL(currentPdfUrl);
-    };
-  }, [currentPdfUrl]);
-
-  const handleUpdateClasificacion = () => {
-    // Recarga si un asunto deja de ser "Valuación Presupuestaria" tras
-    // cambiar su clasificación (el backend lo borra en cascada).
-    loadAsuntosData();
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    setIsDeleting(true);
-    setDeleteError('');
-    try {
-      // La relación asunto-tipoOficio es la que clasifica el oficio como
-      // "Valuación Presupuestaria" (idTipoAsunto=1). Al eliminarla, una señal
-      // en el backend borra en cascada la AsuntoValuacion asociada (si existe).
-      const relaciones = await CatTipoOficioService.getRelacionesAsuntoOficio(itemToDelete.idAsuntoSCG);
-      const relacionesList = Array.isArray(relaciones) ? relaciones : relaciones?.results || [];
-      const relacion = relacionesList.find((r) => r.idTipoAsunto === 1);
-
-      if (!relacion) throw new Error('No se encontró la clasificación del oficio para eliminarla.');
-
-      await CatTipoOficioService.deleteRelacionAsuntoOficio(relacion.id);
-      setItemToDelete(null);
-      await loadAsuntosData();
-    } catch (error) {
-      console.error('Error al eliminar el oficio:', error);
-      setDeleteError(error.message || 'No se pudo eliminar el oficio. Intenta de nuevo.');
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -412,7 +395,7 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
       return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={baseTdClass}>{formatDateEsMx(row.fechaRegistro) || <span className="text-slate-300">-</span>}</td>);
     }
 
-    if (col.key === 'valuacionEstado') {
+    if (col.key === 'estatusValuacionLabel') {
       const valuada = tieneValuacion(row);
       return (
         <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r h-[37px] align-middle ${cellBgClass}`}>
@@ -429,7 +412,69 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
               )}
             </button>
           ) : (
-            <span className="text-[9px] font-bold text-slate-300 uppercase">Sin valuación</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/valuacion_presupuestaria?asuntoId=${row.id}`); }}
+              className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] uppercase hover:underline cursor-pointer transition-colors"
+              title="Realizar la valuación de este asunto en el simulador"
+            >
+              <Calculator className="size-3" /> Realizar valuación
+            </button>
+          )}
+        </td>
+      );
+    }
+
+    if (col.key === 'resolucionLabel') {
+      return (
+        <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r h-[37px] align-middle ${cellBgClass}`}>
+          {row.oficio_resolucion ? (
+            <a
+              href={row.oficio_resolucion}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase hover:underline w-fit"
+              title="Abrir la resolución (PDF)"
+            >
+              {row.estatusValuacionLabel}
+            </a>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); setAdjuntarResolucionAsunto(row); }}
+              className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] uppercase hover:underline cursor-pointer transition-colors"
+              title="Adjuntar la resolución (Procedente/Improcedente) de este asunto"
+            >
+              <Paperclip className="size-3" /> Adjuntar PDF
+            </button>
+          )}
+        </td>
+      );
+    }
+
+    if (col.key === 'notificacionOcupacionLabel') {
+      const esProcedente = row.estatusValuacionLabel === 'Procedente';
+      return (
+        <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r h-[37px] align-middle ${cellBgClass}`}>
+          {!esProcedente ? (
+            <span className="text-slate-300 dark:text-slate-700">No aplica</span>
+          ) : row.oficio_notificacion_ocupacion ? (
+            <a
+              href={row.oficio_notificacion_ocupacion}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1.5 text-[10px] font-black text-[#bc955c] uppercase hover:underline"
+            >
+              <Paperclip className="size-3" /> Ver
+            </a>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); setAdjuntarNotificacionAsunto(row); }}
+              className="inline-flex items-center gap-1.5 text-[10px] font-black text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] uppercase hover:underline cursor-pointer transition-colors"
+              title="Adjuntar el oficio de notificación de ocupación de este asunto"
+            >
+              <Paperclip className="size-3" /> Adjuntar PDF
+            </button>
           )}
         </td>
       );
@@ -446,23 +491,11 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
     }
 
     if (col.key === 'acciones') {
-      const valuada = tieneValuacion(row);
       return (
         <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-2 border-r h-[37px] align-middle ${cellBgClass}`}>
-          <div className="flex items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => onNavigateToSimulador(row)} title="Simular" className="text-black dark:text-white hover:opacity-50 transition-opacity cursor-pointer">
-              <Calculator className="size-3.5" />
-            </button>
-            <button
-              onClick={() => setValuacionAbierta(row)}
-              disabled={!valuada}
-              title={valuada ? 'Ver valuación guardada' : 'Aún no se ha guardado una valuación'}
-              className="text-black dark:text-white hover:opacity-50 transition-opacity cursor-pointer disabled:opacity-20 disabled:pointer-events-none"
-            >
-              <TableIcon className="size-3.5" />
-            </button>
-            <button onClick={() => { setDeleteError(''); setItemToDelete(row); }} title="Eliminar" className="text-black dark:text-white hover:opacity-50 transition-opacity cursor-pointer">
-              <Trash2 className="size-3.5" />
+          <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => handleSelectItem(row.oficioInfo)} title="Ver expediente" className="text-black dark:text-white hover:opacity-50 transition-opacity cursor-pointer">
+              <Eye className="size-3.5" />
             </button>
           </div>
         </td>
@@ -473,7 +506,7 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
   };
 
   return (
-    <div className="w-full h-full min-h-0 flex flex-col space-y-6 pb-0 font-sans animate-in fade-in duration-400">
+    <div className="w-full flex-1 min-h-0 flex flex-col">
       {isPreviewing && (
         <div className="fixed inset-0 z-[100000] bg-white/20 backdrop-blur-sm flex items-center justify-center">
           <div className="bg-[#621f32] text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4">
@@ -491,62 +524,21 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
         />
       )}
 
-      <AnimatePresence>
-        {itemToDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100001] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={() => !isDeleting && setItemToDelete(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white dark:bg-slate-950 rounded-3xl shadow-2xl max-w-md w-full p-8 border border-gray-100 dark:border-slate-800"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start gap-4 mb-5">
-                <div className={`shrink-0 p-3 rounded-2xl ${tieneValuacion(itemToDelete) ? 'bg-red-50 dark:bg-red-950/20' : 'bg-amber-50 dark:bg-amber-950/20'}`}>
-                  <AlertTriangle className={`size-6 ${tieneValuacion(itemToDelete) ? 'text-red-600' : 'text-amber-600'}`} />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-gray-800 dark:text-white uppercase tracking-tight">Eliminar oficio</h3>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 mt-1">
-                    {itemToDelete.oficioInfo?.asuntoNoOficio || 'Sin Oficio'} · Folio {itemToDelete.oficioInfo?.asuntoFolio || 'N/A'}
-                  </p>
-                </div>
-              </div>
+      {adjuntarResolucionAsunto && (
+        <AdjuntarResolucionModal
+          asunto={adjuntarResolucionAsunto}
+          onClose={() => setAdjuntarResolucionAsunto(null)}
+          onSaved={handleAsuntoActualizado}
+        />
+      )}
 
-              <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
-                ¿Seguro que deseas eliminar este oficio de <strong>Valuación Presupuestaria</strong>?
-              </p>
-
-              {tieneValuacion(itemToDelete) && (
-                <div className="mt-4 p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 flex items-start gap-3">
-                  <AlertTriangle className="size-4 text-red-600 shrink-0 mt-0.5" />
-                  <p className="text-[12px] font-bold text-red-700 dark:text-red-400 leading-relaxed">
-                    Este oficio tiene una valuación guardada. Si das clic en <strong>Eliminar</strong>, la valuación también se eliminará de forma permanente.
-                  </p>
-                </div>
-              )}
-
-              {deleteError && <p className="mt-4 text-[11px] font-bold text-red-600">{deleteError}</p>}
-
-              <div className="flex items-center justify-end gap-3 mt-7">
-                <button onClick={() => setItemToDelete(null)} disabled={isDeleting} className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-900 transition-colors disabled:opacity-50 cursor-pointer">
-                  Cancelar
-                </button>
-                <button onClick={handleConfirmDelete} disabled={isDeleting} className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-60 flex items-center gap-2 cursor-pointer">
-                  {isDeleting && <Loader2 className="size-3.5 animate-spin" />}
-                  Eliminar
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {adjuntarNotificacionAsunto && (
+        <AdjuntarNotificacionOcupacionModal
+          asunto={adjuntarNotificacionAsunto}
+          onClose={() => setAdjuntarNotificacionAsunto(null)}
+          onSaved={handleAsuntoActualizado}
+        />
+      )}
 
       <AnimatePresence>
         {selectedItem && (
@@ -557,7 +549,7 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
             pdfUrl={currentPdfUrl}
             isPreviewing={isPreviewing}
             onPreview={handlePreviewDocument}
-            onUpdate={handleUpdateClasificacion}
+            onUpdate={reload}
             onNext={handleNextItem}
             onPrevious={handlePreviousItem}
             hasNext={currentIndex < filteredSortedData.length - 1}
@@ -572,32 +564,6 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
         )}
       </AnimatePresence>
 
-      {/* ── HERO HEADER (mismo patrón que oficios_turnados_do) ─── */}
-      <div className="w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 pt-3 md:pt-8 gap-2">
-        <Zoom triggerOnce>
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-4">
-            <div className="flex flex-col gap-3 w-full md:w-auto">
-              <div className="flex items-start sm:items-center gap-6">
-                <div className="relative p-4 sm:p-5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] rounded-[1.8rem] sm:rounded-[2.2rem] shadow-xl shadow-[#621f32]/20 flex-shrink-0 group overflow-hidden transition-all duration-300 hover:scale-105">
-                  <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <Book className="size-8 sm:size-10 text-white" />
-                </div>
-                <div className="max-w-screen-md">
-                  <h2 className="text-3xl sm:text-4xl md:text-5xl tracking-tight font-black text-gray-900 dark:text-white leading-tight">
-                    Asuntos de <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">Valuación</span>
-                  </h2>
-                  <p className="hidden md:block mt-3 text-gray-500 dark:text-gray-400 sm:text-lg font-medium leading-relaxed">
-                    Solicitudes de ocupación de plazas clasificadas como Valuación Presupuestaria.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Zoom>
-      </div>
-
-      {/* ── Toolbar + tabla (borde a borde, mismo patrón que oficios_turnados_do; flex-1 para llegar hasta el borde inferior de la página) ────── */}
-      <div className="w-full flex-1 min-h-0 flex flex-col">
       <div className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-y border-x-0 border-slate-200/80 dark:border-slate-800/80 shadow-2xl rounded-none overflow-hidden flex flex-col w-full flex-1 min-h-0">
         <div className="p-6 border-b border-slate-200/50 dark:border-slate-800/80 flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/30 dark:bg-slate-900/10">
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-stretch sm:items-center">
@@ -664,7 +630,7 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
             isPending={false}
             isLoading={loading}
             loadingVariant="skeleton"
-            loadingMessage="Cargando solicitudes de plazas..."
+            loadingMessage="Cargando solicitudes de ocupación..."
             data={paginatedData}
             startIndex={startIndex}
             endIndex={endIndex}
@@ -685,11 +651,10 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
               fields: [
                 { key: 'asuntoRemitente', label: 'Remitente' },
                 { key: 'asuntoRemitenteDependencia', label: 'Dependencia' },
-                { key: 'asuntoTema', label: 'Tema' },
-                { key: 'statusTurnado', label: 'Estado Oficio' },
                 { key: 'estatusValuacionLabel', label: 'Estatus Valuación' },
+                { key: 'resolucionLabel', label: 'Resolución' },
+                { key: 'notificacionOcupacionLabel', label: 'Notificación de Ocupación' },
                 { label: 'Fecha', render: (r) => formatDateEsMx(r.fechaRegistro) },
-                { label: 'Valuación', render: (r) => (tieneValuacion(r) ? 'Valuada' : 'Sin valuación') },
               ],
             }}
             isLoading={loading}
@@ -710,7 +675,6 @@ export default function AsuntosValuacion({ onNavigateToSimulador }) {
             </div>
           </div>
         )}
-      </div>
       </div>
 
       <AnimatePresence>

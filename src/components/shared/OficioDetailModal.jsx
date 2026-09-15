@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   FileText,
   CheckCircle2,
@@ -17,6 +18,7 @@ import {
   Paperclip,
   Loader2,
   FileSearch,
+  Calculator,
 } from 'lucide-react';
 import { CatTipoOficioService } from '@/services/cat_tipo_oficio.service';
 import Select from 'react-select';
@@ -78,6 +80,9 @@ const DetailModal = ({
   hasPrevious,
 }) => {
   if (!item) return null;
+
+  const router = useRouter();
+  const pathname = usePathname();
 
   const config = {
     atendido: {
@@ -303,6 +308,17 @@ const DetailModal = ({
                 </div>
               )}
             </div>
+
+            {selectedTipoAsunto === 1 && (
+              <button
+                onClick={() => router.push(`/dashboard/valuacion_presupuestaria?asuntoScgId=${item.idAsunto}&origen=${encodeURIComponent(pathname)}`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-[9px] font-black uppercase tracking-widest border border-[#621f32]/20 bg-[#621f32]/5 text-[#621f32] dark:text-[#bc955c] dark:bg-[#bc955c]/10 dark:border-[#bc955c]/25 hover:bg-[#621f32] hover:text-white dark:hover:bg-[#bc955c] dark:hover:text-[#3e131f] transition-all cursor-pointer"
+                title="Ir a realizar la valuación presupuestaria de este asunto"
+              >
+                <Calculator className="size-3" />
+                Ir a valuar
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">

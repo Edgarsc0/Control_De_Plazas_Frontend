@@ -40,9 +40,7 @@ export const MODULES = [
     description: '1,800 plazas ANAM',
     group: 'Plazas',
     permissions: [
-      PERMISSIONS.VIEW_OCUPACION_SANKEY,
-      PERMISSIONS.VIEW_OCUPACION_TABLA,
-      PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS,
+      PERMISSIONS.VIEW_OCUPACION_SOLICITUDES,
       PERMISSIONS.EDIT_OCUPACION_PLAZAS,
     ],
     primary: true,

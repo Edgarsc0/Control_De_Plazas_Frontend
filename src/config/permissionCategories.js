@@ -21,9 +21,7 @@ const CATEGORY_MAP = {
   [PERMISSIONS.VIEW_PLANTILLA_BAJAS_FOTO]: 'Plantilla de Empleados',
   [PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO]: 'Plantilla de Empleados',
 
-  [PERMISSIONS.VIEW_OCUPACION_SANKEY]: 'Ocupación de Plazas por Oficio',
-  [PERMISSIONS.VIEW_OCUPACION_TABLA]: 'Ocupación de Plazas por Oficio',
-  [PERMISSIONS.VIEW_OCUPACION_ESTADISTICAS]: 'Ocupación de Plazas por Oficio',
+  [PERMISSIONS.VIEW_OCUPACION_SOLICITUDES]: 'Ocupación de Plazas por Oficio',
   [PERMISSIONS.EDIT_OCUPACION_PLAZAS]: 'Ocupación de Plazas por Oficio',
 
   [PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA]: 'Valuación Presupuestaria',

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useTransition, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useTransition, useCallback } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { PresupuestoService } from '@/services/presupuesto.service';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PageTabBar from '@/components/ui/PageTabBar';
@@ -13,6 +14,7 @@ import { PERMISSIONS } from '@/config/permissions';
 import SimuladorValuacion from './_components/SimuladorValuacion';
 import ParametrosValuacion from './_components/ParametrosValuacion';
 import AsuntosValuacion from './_components/AsuntosValuacion';
+import { useAsuntosValuacionData } from './_hooks/useAsuntosValuacionData';
 
 const TABS = [
     { id: 'simulador', label: 'Simulador', icon: Calculator, permission: PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA },
@@ -90,13 +92,54 @@ export default function ValuacionPresupuestaria({
         startTransition(() => setActiveTab('simulador'));
     };
 
+    // Entrada directa desde otras vistas vía query params: ?asuntoId=<id> (ya
+    // se conoce el PK de AsuntoValuacion, p.ej. desde "Ocupación de Plazas por
+    // Oficio" → Estatus Valuación → Sin valuación) o ?asuntoScgId=<idAsuntoSCG>
+    // (sólo se conoce el asunto del SCG, p.ej. recién clasificado desde el
+    // modal de detalle en "Oficios Turnados a DO", donde el AsuntoValuacion se
+    // crea por señal del backend y el front nunca ve su id). En cuanto el
+    // universo de asuntos cargue, se abre ese asunto en el simulador y se
+    // limpia el query string. `origen` (opcional) es la ruta a la que se debe
+    // regresar al usuario una vez que guarde la valuación.
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const { asuntos: asuntosParaDeepLink } = useAsuntosValuacionData();
+    const returnToRef = useRef(null);
+    useEffect(() => {
+        const asuntoId = searchParams.get('asuntoId');
+        const asuntoScgId = searchParams.get('asuntoScgId');
+        const origen = searchParams.get('origen');
+        if ((!asuntoId && !asuntoScgId) || !asuntosParaDeepLink.length) return;
+        const match = asuntosParaDeepLink.find((a) => (
+            (asuntoId && String(a.id) === asuntoId)
+            || (asuntoScgId && String(a.idAsuntoSCG) === asuntoScgId)
+        ));
+        if (match) {
+            // Sólo se acepta una ruta interna del propio dashboard — nunca una
+            // URL externa (open redirect) tomada de un query param.
+            if (origen && origen.startsWith('/dashboard/')) {
+                returnToRef.current = origen;
+            }
+            handleNavigateToSimulador(match);
+            router.replace(pathname);
+        }
+    }, [searchParams, asuntosParaDeepLink, pathname, router]);
+
     // El asunto guardado vuelve del backend sin `oficioInfo` (ese enriquecido lo
     // arma AsuntosValuacion), así que se conserva el que ya tenía en memoria.
+    // Si el asunto se abrió aquí vía deep link con `origen`, al guardar se
+    // regresa al usuario a esa vista en vez de dejarlo en el simulador.
     const handleValuacionGuardada = useCallback((asuntoActualizado) => {
         setSelectedAsuntoForSimulation((prev) =>
             prev ? { ...prev, ...asuntoActualizado, oficioInfo: prev.oficioInfo } : prev
         );
-    }, []);
+        if (returnToRef.current) {
+            const returnTo = returnToRef.current;
+            returnToRef.current = null;
+            router.push(returnTo);
+        }
+    }, [router]);
 
     const fetchInitialData = async () => {
         setLoading(true);
