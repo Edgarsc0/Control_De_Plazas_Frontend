@@ -49,7 +49,7 @@ export default function OcupacionStatsView({
     };
 
     return (
-        <div className="size-full p-8 lg:p-12 bg-gray-50/10">
+        <div className="size-full p-8 lg:p-12 bg-gray-50/10 dark:bg-slate-950/20">
             {/* Upper Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                 <StatCard 
@@ -88,15 +88,15 @@ export default function OcupacionStatsView({
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                 {/* Top Offices Section */}
-                <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100 ring-1 ring-black/[0.02]">
+                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 shadow-sm border border-gray-100 dark:border-slate-800 ring-1 ring-black/[0.02] dark:ring-white/[0.02]">
                     <div className="flex items-center justify-between mb-10">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Distribución</p>
-                            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2 tracking-tight">
-                                Top 10 oficios con mas plazas 
+                            <h3 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2 tracking-tight">
+                                Top 10 oficios con mas plazas
                             </h3>
                         </div>
-                        <div className="p-3 bg-gray-50 rounded-2xl">
+                        <div className="p-3 bg-gray-50 dark:bg-slate-800 rounded-2xl">
                             <BarChart3 className="size-5 text-gray-400" />
                         </div>
                     </div>
@@ -105,14 +105,14 @@ export default function OcupacionStatsView({
                         {officesTop.map((o) => (
                             <div key={o.name} className="group cursor-default">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-[11px] font-black text-gray-600 truncate max-w-[240px] group-hover:text-[#621f32] transition-colors uppercase tracking-tight">
+                                    <span className="text-[11px] font-black text-gray-600 dark:text-gray-300 truncate max-w-[240px] group-hover:text-[#621f32] transition-colors uppercase tracking-tight">
                                         {o.name}
                                     </span>
                                     <span className="text-sm font-black text-[#621f32] tabular-nums">
                                         {o.value.toLocaleString()}
                                     </span>
                                 </div>
-                                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                <div className="w-full bg-gray-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: animateStats ? `${(o.value / (maxOffice || 1)) * 100}%` : '0%' }}
@@ -128,15 +128,15 @@ export default function OcupacionStatsView({
                 </div>
 
                 {/* Levels Section */}
-                <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100 ring-1 ring-black/[0.02] flex flex-col">
+                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 shadow-sm border border-gray-100 dark:border-slate-800 ring-1 ring-black/[0.02] dark:ring-white/[0.02] flex flex-col">
                     <div className="flex items-center justify-between mb-10">
                         <div>
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Segmentación</p>
-                            <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2 tracking-tight">
+                            <h3 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2 tracking-tight">
                                 Niveles
                             </h3>
                         </div>
-                        <div className="p-3 bg-gray-50 rounded-2xl">
+                        <div className="p-3 bg-gray-50 dark:bg-slate-800 rounded-2xl">
                             <PieChart className="size-5 text-gray-400" />
                         </div>
                     </div>
@@ -150,14 +150,14 @@ export default function OcupacionStatsView({
                                     <div className="flex justify-between items-end mb-2.5">
                                         <div className="flex items-center gap-3">
                                             <div className={`size-3.5 rounded-full ${levelColor(lvl)} shadow-sm ring-2 ring-white`} />
-                                            <span className="text-xs font-black text-gray-700 uppercase tracking-tight">{lvl}</span>
+                                            <span className="text-xs font-black text-gray-700 dark:text-gray-300 uppercase tracking-tight">{lvl}</span>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-sm font-black text-gray-900 leading-none">{val.toLocaleString()}</p>
+                                            <p className="text-sm font-black text-gray-900 dark:text-white leading-none">{val.toLocaleString()}</p>
                                             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Plazas</p>
                                         </div>
                                     </div>
-                                    <div className="w-full bg-gray-100 h-3 rounded-xl overflow-hidden p-0.5">
+                                    <div className="w-full bg-gray-100 dark:bg-slate-800 h-3 rounded-xl overflow-hidden p-0.5">
                                         <motion.div
                                             initial={{ width: 0 }}
                                             animate={{ width: animateStats ? `${percentage}%` : '0%' }}
@@ -174,7 +174,7 @@ export default function OcupacionStatsView({
                     </div>
 
                     {/* Best Performers Highlights */}
-                    <div className="mt-12 pt-8 border-t border-gray-100 grid grid-cols-2 gap-4">
+                    <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800 grid grid-cols-2 gap-4">
                         <HighlightCard 
                             icon={<Award className="size-4" />}
                             label="Oficio con mas plazas"
@@ -200,17 +200,17 @@ export default function OcupacionStatsView({
 
 function StatCard({ icon, label, value, subtitle, color, bg }) {
     return (
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 group">
             <div className="flex items-start justify-between mb-4">
                 <div className={`p-4 ${bg} ${color} rounded-2xl group-hover:scale-110 transition-transform duration-500`}>
                     {icon}
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{label}</p>
-                    <div className="text-2xl font-black text-gray-900 tracking-tight">{value}</div>
+                    <div className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">{value}</div>
                 </div>
             </div>
-            <div className="w-full h-px bg-gray-50 mb-3" />
+            <div className="w-full h-px bg-gray-50 dark:bg-slate-800 mb-3" />
             <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{subtitle}</span>
                 <ArrowUpRight className="size-3 text-gray-200 group-hover:text-gray-400 transition-colors" />
@@ -221,14 +221,14 @@ function StatCard({ icon, label, value, subtitle, color, bg }) {
 
 function HighlightCard({ icon, label, value, count, color, bg }) {
     return (
-        <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-colors group">
+        <div className="p-4 bg-gray-50/50 dark:bg-slate-800/50 rounded-2xl border border-gray-100 dark:border-slate-800 hover:border-gray-200 dark:hover:border-slate-700 transition-colors group">
             <div className="flex items-center gap-3 mb-2">
                 <div className={`p-2 ${bg} ${color} rounded-lg group-hover:rotate-12 transition-transform`}>
                     {icon}
                 </div>
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</span>
             </div>
-            <p className="text-xs font-black text-gray-900 truncate mb-1" title={value}>{value}</p>
+            <p className="text-xs font-black text-gray-900 dark:text-white truncate mb-1" title={value}>{value}</p>
             <div className="flex items-center gap-2">
                 <span className={`text-[10px] font-black ${color} tabular-nums`}>{count?.toLocaleString()}</span>
                 <span className="text-[9px] font-bold text-gray-400 uppercase">Registros</span>

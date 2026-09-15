@@ -28,7 +28,7 @@ export default function OcupacionSankeyView({ sankeyData, handleDrillDown }) {
                 <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center gap-3 px-4 py-2 bg-white rounded-2xl border border-gray-100 shadow-sm"
+                    className="flex items-center gap-3 px-4 py-2 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm"
                 >
                     <div className="p-1.5 bg-[#621f32]/10 rounded-lg">
                         <MousePointer2 className="size-3.5 text-[#621f32]" />
@@ -46,7 +46,7 @@ export default function OcupacionSankeyView({ sankeyData, handleDrillDown }) {
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.5, ease: "easeOut" }}
-                        className="w-full max-w-6xl bg-white rounded-[2.5rem] p-8 shadow-inner-white border border-gray-50 flex justify-center"
+                        className="w-full max-w-6xl bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-inner-white border border-gray-50 dark:border-slate-800 flex justify-center"
                     >
                         <SankeyChart
                             data={sankeyData}

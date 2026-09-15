@@ -35,29 +35,29 @@ export default function OcupacionFilterDrawer({
                             exit={{ opacity: 0, scale: 0.98 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
                             onClick={(e) => e.stopPropagation()}
-                            className="bg-white w-full max-w-2xl max-h-[75vh] mt-20 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col relative border border-gray-100 transform-gpu"
+                            className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[75vh] mt-20 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col relative border border-gray-100 dark:border-slate-800 transform-gpu"
                         >
                             {/* Header */}
-                            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+                            <div className="px-8 py-6 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center">
                                 <div className="flex items-center gap-4">
                                     <div className="p-2.5 bg-[#621f32]/5 rounded-xl">
                                         <SlidersHorizontal className="size-5 text-[#621f32]" />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-black text-gray-900 tracking-tight">Filtros de Oficios</h3>
+                                        <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Filtros de Oficios</h3>
                                         <p className="text-gray-400 text-[9px] font-bold uppercase tracking-[0.2em] mt-0.5">Gestión de visualización</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-400 hover:text-gray-900 group"
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-all text-gray-400 hover:text-gray-900 dark:hover:text-white group"
                                 >
                                     <X className="size-5 group-hover:rotate-90 transition-transform duration-300" />
                                 </button>
                             </div>
 
                             {/* Search and Quick Selection */}
-                            <div className="px-8 py-6 bg-gray-50/50 border-b border-gray-100 space-y-4">
+                            <div className="px-8 py-6 bg-gray-50/50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 space-y-4">
                                 <div className="relative group">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-gray-300 group-focus-within:text-[#621f32] transition-colors" />
                                     <input
@@ -65,7 +65,7 @@ export default function OcupacionFilterDrawer({
                                         placeholder="Buscar oficio..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-11 pr-11 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold focus:ring-4 focus:ring-[#621f32]/5 focus:border-[#621f32]/20 transition-all placeholder:text-gray-300 shadow-sm"
+                                        className="w-full pl-11 pr-11 py-3 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-700 rounded-2xl text-xs font-bold text-gray-900 dark:text-white focus:ring-4 focus:ring-[#621f32]/5 focus:border-[#621f32]/20 transition-all placeholder:text-gray-300 shadow-sm"
                                     />
                                     {searchTerm && (
                                         <button
@@ -81,14 +81,14 @@ export default function OcupacionFilterDrawer({
                                     <div className="flex-1 flex gap-2">
                                         <button
                                             onClick={resetFilters}
-                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-200 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-500 hover:border-[#621f32]/30 hover:text-[#621f32] transition-all shadow-sm active:scale-95"
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-500 hover:border-[#621f32]/30 hover:text-[#621f32] transition-all shadow-sm active:scale-95"
                                         >
                                             <CheckSquare className="size-3.5" />
                                             Todos
                                         </button>
                                         <button
                                             onClick={excludeAll}
-                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-200 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-500 hover:border-[#621f32]/30 hover:text-[#621f32] transition-all shadow-sm active:scale-95"
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-widest text-gray-500 hover:border-[#621f32]/30 hover:text-[#621f32] transition-all shadow-sm active:scale-95"
                                         >
                                             <Square className="size-3.5" />
                                             Ninguno
@@ -103,7 +103,7 @@ export default function OcupacionFilterDrawer({
                             </div>
 
                             {/* List Area */}
-                            <div className="flex-1 overflow-y-auto px-8 py-4 custom-scrollbar bg-white">
+                            <div className="flex-1 overflow-y-auto px-8 py-4 custom-scrollbar bg-white dark:bg-slate-900">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pb-6">
                                     {filteredOffices.length === 0 ? (
                                         <div className="col-span-full py-12 text-center flex flex-col items-center gap-3">
@@ -122,8 +122,8 @@ export default function OcupacionFilterDrawer({
                                                     className={`
                                                         flex items-center justify-between p-3 rounded-xl transition-all border text-left group
                                                         ${!isExcluded 
-                                                            ? 'bg-white border-gray-100 shadow-sm hover:border-[#621f32]/20' 
-                                                            : 'bg-gray-50/40 border-transparent opacity-60 hover:opacity-100'
+                                                            ? 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800 shadow-sm hover:border-[#621f32]/20'
+                                                            : 'bg-gray-50/40 dark:bg-slate-800/40 border-transparent opacity-60 hover:opacity-100'
                                                         }
                                                     `}
                                                 >
@@ -132,12 +132,12 @@ export default function OcupacionFilterDrawer({
                                                             size-5 rounded-md flex items-center justify-center transition-all duration-300 flex-shrink-0
                                                             ${!isExcluded 
                                                                 ? 'bg-[#621f32] text-white shadow-md shadow-[#621f32]/20' 
-                                                                : 'bg-white border-2 border-gray-200 text-transparent group-hover:border-[#621f32]/30'
+                                                                : 'bg-white dark:bg-slate-900 border-2 border-gray-200 dark:border-slate-700 text-transparent group-hover:border-[#621f32]/30'
                                                             }
                                                         `}>
                                                             <Check className={`size-3 transition-transform ${!isExcluded ? 'scale-100' : 'scale-0'}`} />
                                                         </div>
-                                                        <span className={`text-[10px] font-bold tracking-tight truncate uppercase transition-colors ${!isExcluded ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                        <span className={`text-[10px] font-bold tracking-tight truncate uppercase transition-colors ${!isExcluded ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
                                                             {office === '(vacío)' ? 'Sin Registro' : office}
                                                         </span>
                                                     </div>
@@ -149,7 +149,7 @@ export default function OcupacionFilterDrawer({
                             </div>
 
                             {/* Footer Actions */}
-                            <div className="px-8 py-6 border-t border-gray-100 bg-gray-50 flex items-center justify-center">
+                            <div className="px-8 py-6 border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
                                 <button
                                     onClick={onClose}
                                     className="w-full max-w-[280px] py-3 bg-[#621f32] text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-[#621f32]/20 hover:bg-[#4a1726] hover:-translate-y-0.5 transition-all active:scale-95"

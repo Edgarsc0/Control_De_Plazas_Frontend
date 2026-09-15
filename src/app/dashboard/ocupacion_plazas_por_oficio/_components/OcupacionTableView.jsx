@@ -211,8 +211,8 @@ export default function OcupacionTableView({ tableHeaders, filteredFilas, handle
     };
 
     return (
-        <div className="size-full bg-white overflow-hidden flex flex-col p-6 relative">
-            <div className="overflow-auto relative flex-1 min-h-0 border border-slate-200 rounded-xl custom-scrollbar shadow-sm">
+        <div className="size-full bg-white dark:bg-slate-900 overflow-hidden flex flex-col p-6 relative">
+            <div className="overflow-auto relative flex-1 min-h-0 border border-slate-200 dark:border-slate-700 rounded-xl custom-scrollbar shadow-sm">
                 <table className="text-left text-gray-500 border-collapse w-full animate-fade-in" style={{ tableLayout: "fixed", minWidth: columns.reduce((sum, col) => sum + col.width, 0) }}>
                     <colgroup>
                         {columns.map(col => <col key={col.key} style={{ width: col.width }} />)}
@@ -240,10 +240,10 @@ export default function OcupacionTableView({ tableHeaders, filteredFilas, handle
                             })}
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-slate-200">
+                    <tbody className="bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">
                         {filteredSortedData.length === 0 ? (
                             <tr>
-                                <td colSpan={columns.length} className="py-20 text-center bg-white border border-slate-100">
+                                <td colSpan={columns.length} className="py-20 text-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
                                     <div className="flex flex-col items-center justify-center">
                                         <h4 className="text-sm font-black text-gray-700">Sin coincidencias</h4>
                                         <p className="text-xs text-gray-400 mt-1">Intente ajustar los filtros de búsqueda</p>
