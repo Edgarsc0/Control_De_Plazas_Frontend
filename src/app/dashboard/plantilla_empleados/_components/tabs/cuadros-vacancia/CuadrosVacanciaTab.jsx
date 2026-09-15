@@ -314,10 +314,13 @@ function PlazasEventsLayer({ events, chartData, onEventClick }) {
 
 // Offset vertical "preferido" por serie para sus etiquetas de máximo/mínimo:
 // punto de partida del empaquetado anticolisión de PlazasExtremeLabelsLayer,
-// y también usado por renderPlazasDot para separar el nombre de serie (en el
-// primer/último punto) de esa misma etiqueta. Compartido a nivel de módulo
-// porque ambos (capa y dot) lo necesitan.
-const PLAZAS_LABEL_BASE_OFFSET = { totales: 26, activas: 50, inactivas: 74 };
+// y también usado por renderPlazasDot/renderOcupVacMensualDot para separar el
+// nombre de serie (en el primer/último punto) de esa misma etiqueta.
+// Compartido a nivel de módulo porque ambos (capa y dot) lo necesitan.
+// `ocupadas`/`vacantes` son las series mensuales de OCUPACION_MENSUAL_SERIES/
+// VACANCIA_MENSUAL_SERIES (una sola serie por tarjeta, así que no necesitan
+// carriles tan separados entre sí como totales/activas/inactivas).
+const PLAZAS_LABEL_BASE_OFFSET = { totales: 26, activas: 50, inactivas: 74, ocupadas: 26, vacantes: 26 };
 
 // Ancho estimado (por caracter) del texto de las etiquetas de extremos, y
 // según el textAnchor calcula el rango [xStart, xEnd] que esa etiqueta ocupa
@@ -728,7 +731,11 @@ export function CuadrosVacanciaSkeleton() {
   );
 }
 
-export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal }) {
+// 'tendencia' (líneas), 'barras' o 'cuadros'. `activeSectionTab`/
+// `setActiveSectionTab` llegan por props (levantados a ClientComponent.jsx):
+// la barra que los controla se renderiza a nivel de página, pegada debajo de
+// PageTabBar, no dentro de este componente — ver ClientComponent.jsx.
+export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab }) {
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedQnas, setSelectedQnas] = useState([]);
   const [yearFilterOpen, setYearFilterOpen] = useState(false);
@@ -1046,6 +1053,8 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         totales: row['Plazas totales'] || 0,
         activas: row['Plazas activas'] || 0,
         inactivas: row['Plazas inactivas'] || 0,
+        ocupadas: row['Ocupadas'] || 0,
+        vacantes: row['Vacantes'] || 0,
       }))
       .filter(d => d.fecha)
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
@@ -1056,6 +1065,20 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     { key: 'activas', name: 'Plazas Activas', color: '#2e5890' },
     { key: 'inactivas', name: 'Plazas Inactivas', color: '#621f32' },
   ];
+
+  // Ocupación/Vacancia mensual (mismas columnas Ocupadas/Vacantes del SP
+  // sp_conteo_plazas_historico_serie, ya incluidas en plazasChartData) —
+  // a diferencia de OCUPACION_SERIES/VACANCIA_SERIES (quincenal, filtrable
+  // por Año/Qna, con desglose Permanente/Eventual), esta es la serie
+  // agregada de TODA la historia mes a mes, sin desglose (el SP no separa
+  // Permanente/Eventual). Comparten chartData/bandas/ticks con PLAZAS_SERIES.
+  const OCUPACION_MENSUAL_SERIES = [
+    { key: 'ocupadas', name: 'Posiciones Ocupadas', color: '#10243e' },
+  ];
+  const VACANCIA_MENSUAL_SERIES = [
+    { key: 'vacantes', name: 'Posiciones Vacantes', color: '#621f32' },
+  ];
+  const OCUP_VAC_MENSUAL_SERIES = [...OCUPACION_MENSUAL_SERIES, ...VACANCIA_MENSUAL_SERIES];
 
   // Franjas de fondo por año.
   const plazasYearBands = useMemo(() => {
@@ -1135,6 +1158,84 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const renderPlazasDot = (key, color, seriesName) => (dotProps) => {
     const { cx, cy, index } = dotProps;
     const extreme = plazasExtremeAtIndex[`${key}-${index}`];
+    const isFirstPoint = index === 0;
+    const isLastPoint = index === plazasChartData.length - 1;
+    const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
+    const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
+
+    const isMaxish = extreme === 'max' || extreme === 'both';
+    const nameLabelY = isMaxish ? cy - PLAZAS_LABEL_BASE_OFFSET[key] - 14 : cy - 10;
+    const nameLabel = (isFirstPoint || isLastPoint) && (
+      <text
+        key={`name-${key}-${index}`}
+        x={textX}
+        y={nameLabelY}
+        textAnchor={textAnchor}
+        fontSize={11}
+        fontWeight={800}
+        fill={color}
+        className="select-none pointer-events-none"
+      >
+        {seriesName}
+      </text>
+    );
+
+    if (!extreme) {
+      return (
+        <g key={`dot-${key}-${index}`}>
+          <circle cx={cx} cy={cy} r={2} fill={color} strokeWidth={0} />
+          {nameLabel}
+        </g>
+      );
+    }
+
+    return (
+      <g key={`dot-${key}-${index}`}>
+        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
+        {nameLabel}
+      </g>
+    );
+  };
+
+  // Mismo cálculo que plazasMinMaxByYear/plazasExtremeAtIndex pero para
+  // OCUP_VAC_MENSUAL_SERIES (Ocupadas/Vacantes mensuales, mismo plazasChartData) —
+  // tarjetas separadas de Ocupación/Vacancia Histórica (Mensual).
+  const ocupVacMensualMinMaxByYear = useMemo(() => {
+    const result = {};
+    OCUP_VAC_MENSUAL_SERIES.forEach(s => {
+      result[s.key] = {};
+      plazasChartData.forEach((d, i) => {
+        const year = d.fecha.slice(0, 4);
+        const v = d[s.key];
+        if (!result[s.key][year]) result[s.key][year] = { max: null, min: null };
+        const g = result[s.key][year];
+        if (g.max === null || v > g.max.value) g.max = { index: i, value: v };
+        if (g.min === null || v < g.min.value) g.min = { index: i, value: v };
+      });
+    });
+    return result;
+  }, [plazasChartData]);
+
+  const ocupVacMensualExtremeAtIndex = useMemo(() => {
+    const map = {};
+    OCUP_VAC_MENSUAL_SERIES.forEach(s => {
+      Object.values(ocupVacMensualMinMaxByYear[s.key] || {}).forEach(g => {
+        if (g.max) {
+          const k = `${s.key}-${g.max.index}`;
+          map[k] = map[k] === 'min' ? 'both' : 'max';
+        }
+        if (g.min) {
+          const k = `${s.key}-${g.min.index}`;
+          map[k] = map[k] === 'max' ? 'both' : 'min';
+        }
+      });
+    });
+    return map;
+  }, [ocupVacMensualMinMaxByYear]);
+
+  const renderOcupVacMensualDot = (key, color, seriesName) => (dotProps) => {
+    const { cx, cy, index } = dotProps;
+    const extreme = ocupVacMensualExtremeAtIndex[`${key}-${index}`];
     const isFirstPoint = index === 0;
     const isLastPoint = index === plazasChartData.length - 1;
     const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
@@ -1331,6 +1432,16 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     </>
   );
 
+  // Footnote de las tarjetas Ocupación/Vacancia Histórica (Mensual): solo la
+  // leyenda de máximo/mínimo (sin franjas de eventos ni click, a diferencia
+  // de plazasEventFootnote).
+  const ocupVacMensualFootnote = (
+    <span className="flex items-center gap-1.5">
+      <span className="text-[#10243e] dark:text-[#bc955c]">▲/▼</span>
+      Máximo / mínimo del año junto al punto
+    </span>
+  );
+
   // Unique lists for the filters (based on all available data)
   const uniqueYears = useMemo(() => {
     return [...new Set(sortedDescData.map(d => getYear(d.fecha)))];
@@ -1516,6 +1627,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   };
 
   const handleGeneratePdf = async () => {
+    // Los 10 charts con data-pdf-chart (5 de "Tendencia Histórica" + 5 de
+    // "Comparativo por Barras") se mantienen montados mientras isGeneratingPdf
+    // es true sin importar el tab activo (ver sus condiciones más abajo en el
+    // return), así toPng los encuentra todos sin necesidad de cambiar de tab.
     try {
       setIsGeneratingPdf(true);
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -1658,7 +1773,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       // PÁGINAS 2+: Gráficas (una por página, grandes)
       // ════════════════════════════════════════════════
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Ocupación Histórica', 'Vacancia Histórica', 'Plazas Totales vs Activas vs Inactivas', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
+      const chartTitles = ['Ocupación Histórica', 'Vacancia Histórica', 'Plazas Totales vs Activas vs Inactivas', 'Ocupación Histórica (Mensual)', 'Vacancia Histórica (Mensual)', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
           pdf.addPage();
@@ -1955,6 +2070,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   };
 
   const handleGenerateWord = async () => {
+    // Ver comentario equivalente en handleGeneratePdf.
     try {
       setIsGeneratingWord(true);
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -1982,7 +2098,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const chartEls = pdfRef.current?.querySelectorAll('[data-pdf-chart]');
-      const chartTitles = ['Ocupación Histórica', 'Vacancia Histórica', 'Plazas Totales vs Activas vs Inactivas', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
+      const chartTitles = ['Ocupación Histórica', 'Vacancia Histórica', 'Plazas Totales vs Activas vs Inactivas', 'Ocupación Histórica (Mensual)', 'Vacancia Histórica (Mensual)', 'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular', 'Posiciones Totales'];
       const chartImages = [];
       if (chartEls && chartEls.length > 0) {
         for (let i = 0; i < chartEls.length; i++) {
@@ -2014,48 +2130,16 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     <div className="w-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
       <div ref={pdfRef} className="space-y-6">
-        {/* Ocupación / Vacancia Histórica — antes ocupado por los KPIs de la
-            quincena actual; esa información ya vive en la última fila del
-            cuadro de abajo, así que aquí arriba se prioriza la tendencia. */}
-        {historicoChartData.length > 0 && (
-          <div className="w-full px-0 sm:px-4 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-6" data-pdf-section>
-            <Zoom triggerOnce>
-              <HistoricoChartCard
-                title="Ocupación Histórica"
-                subtitle="Permanentes / Eventuales Ocupadas por quincena"
-                icon={Users}
-                series={OCUPACION_SERIES}
-                chartData={historicoChartData}
-                ticks={historicoTicks}
-                isCompactChart={isCompactChart}
-                formatNumber={formatNumber}
-                monthBands={historicoMonthBands}
-                renderDot={renderHistoricoDot}
-                hoveredPointKey={hoveredPointKey}
-                onDotHover={setHoveredPointKey}
-                onDotLeave={() => setHoveredPointKey(null)}
-              />
-            </Zoom>
-            <Zoom triggerOnce delay={100}>
-              <HistoricoChartCard
-                title="Vacancia Histórica"
-                subtitle="Permanentes / Eventuales Vacantes por quincena"
-                icon={AlertCircle}
-                series={VACANCIA_SERIES}
-                chartData={historicoChartData}
-                ticks={historicoTicks}
-                isCompactChart={isCompactChart}
-                formatNumber={formatNumber}
-                monthBands={historicoMonthBands}
-                renderDot={renderHistoricoDot}
-                hoveredPointKey={hoveredPointKey}
-                onDotHover={setHoveredPointKey}
-                onDotLeave={() => setHoveredPointKey(null)}
-              />
-            </Zoom>
-          </div>
-        )}
-
+        {/* La barra que controla activeSectionTab (Tendencia Histórica /
+            Comparativo por Barras / Cuadros y Detalle de Vacantes) se
+            renderiza en ClientComponent.jsx, pegada debajo de PageTabBar —
+            aquí solo se leen sus props. Las tarjetas del tab "Tendencia
+            Histórica" llevan data-pdf-chart y su orden en el DOM debe
+            coincidir con chartTitles en handleGeneratePdf/handleGenerateWord,
+            por eso se ocultan/muestran solo con la condición del tab (sin
+            mover su posición en el árbol) y esos handlers también las
+            mantienen montadas mientras exportan sin importar el tab activo. */}
+        {activeSectionTab === 'cuadros' && (
         <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
           <Zoom triggerOnce>
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
@@ -2357,7 +2441,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             </div>
           </Zoom>
         </div>
+        )}
 
+        {(activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord) && (
         <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
           <Zoom triggerOnce>
             <HistoricoChartCard
@@ -2392,16 +2478,138 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             />
           </Zoom>
         </div>
+        )}
 
-        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section data-pdf-charts>
-          <Zoom triggerOnce>
-            <DesgloseJerarquicoCharts data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
-          </Zoom>
-        </div>
+        {/* Ocupación / Vacancia Histórica — antes ocupado por los KPIs de la
+            quincena actual; esa información ya vive en la última fila del
+            cuadro de abajo, así que aquí arriba se prioriza la tendencia. */}
+        {(activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord) && historicoChartData.length > 0 && (
+          <div className="w-full px-0 sm:px-4 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-6" data-pdf-section>
+            <Zoom triggerOnce>
+              <HistoricoChartCard
+                title="Ocupación Histórica"
+                subtitle="Permanentes / Eventuales Ocupadas por quincena"
+                icon={Users}
+                series={OCUPACION_SERIES}
+                chartData={historicoChartData}
+                ticks={historicoTicks}
+                isCompactChart={isCompactChart}
+                formatNumber={formatNumber}
+                monthBands={historicoMonthBands}
+                renderDot={renderHistoricoDot}
+                hoveredPointKey={hoveredPointKey}
+                onDotHover={setHoveredPointKey}
+                onDotLeave={() => setHoveredPointKey(null)}
+              />
+            </Zoom>
+            <Zoom triggerOnce delay={100}>
+              <HistoricoChartCard
+                title="Vacancia Histórica"
+                subtitle="Permanentes / Eventuales Vacantes por quincena"
+                icon={AlertCircle}
+                series={VACANCIA_SERIES}
+                chartData={historicoChartData}
+                ticks={historicoTicks}
+                isCompactChart={isCompactChart}
+                formatNumber={formatNumber}
+                monthBands={historicoMonthBands}
+                renderDot={renderHistoricoDot}
+                hoveredPointKey={hoveredPointKey}
+                onDotHover={setHoveredPointKey}
+                onDotLeave={() => setHoveredPointKey(null)}
+              />
+            </Zoom>
+          </div>
+        )}
 
+        {/* Ocupación / Vacancia Histórica (Mensual) — mismo SP y mismo corte
+            mensual completo (2022-hoy) que la tarjeta de Plazas de arriba,
+            pero graficando Ocupadas/Vacantes en vez de Totales/Activas/Inactivas.
+            A diferencia de las tarjetas "Ocupación/Vacancia Histórica" de más
+            arriba (quincenal, filtrable por Año/Qna, con desglose Permanente/
+            Eventual), estas son la serie agregada de toda la historia, sin
+            desglose ni filtro. */}
+        {(activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord) && plazasChartData.length > 0 && (
+          <div className="w-full px-0 sm:px-4 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-6" data-pdf-section>
+            <Zoom triggerOnce>
+              <HistoricoChartCard
+                title="Ocupación Histórica (Mensual)"
+                subtitle="Posiciones ocupadas · corte a fin de cada mes desde enero 2022"
+                icon={Users}
+                series={OCUPACION_MENSUAL_SERIES}
+                chartData={plazasChartData}
+                ticks={plazasTicks}
+                isCompactChart={isCompactChart}
+                formatNumber={formatNumber}
+                bandsLayer={<YearBandsLayer bands={plazasYearBands} chartData={plazasChartData} />}
+                extraLayer={
+                  <PlazasExtremeLabelsLayer
+                    minMaxByYear={ocupVacMensualMinMaxByYear}
+                    chartData={plazasChartData}
+                    series={OCUPACION_MENSUAL_SERIES}
+                    formatDateShort={formatDateShort}
+                    formatNumber={formatNumber}
+                  />
+                }
+                renderDot={renderOcupVacMensualDot}
+                hoveredPointKey={hoveredPointKey}
+                onDotHover={setHoveredPointKey}
+                onDotLeave={() => setHoveredPointKey(null)}
+                footnote={ocupVacMensualFootnote}
+                topMargin={isCompactChart ? 44 : 60}
+              />
+            </Zoom>
+            <Zoom triggerOnce delay={100}>
+              <HistoricoChartCard
+                title="Vacancia Histórica (Mensual)"
+                subtitle="Posiciones vacantes · corte a fin de cada mes desde enero 2022"
+                icon={AlertCircle}
+                series={VACANCIA_MENSUAL_SERIES}
+                chartData={plazasChartData}
+                ticks={plazasTicks}
+                isCompactChart={isCompactChart}
+                formatNumber={formatNumber}
+                bandsLayer={<YearBandsLayer bands={plazasYearBands} chartData={plazasChartData} />}
+                extraLayer={
+                  <PlazasExtremeLabelsLayer
+                    minMaxByYear={ocupVacMensualMinMaxByYear}
+                    chartData={plazasChartData}
+                    series={VACANCIA_MENSUAL_SERIES}
+                    formatDateShort={formatDateShort}
+                    formatNumber={formatNumber}
+                  />
+                }
+                renderDot={renderOcupVacMensualDot}
+                hoveredPointKey={hoveredPointKey}
+                onDotHover={setHoveredPointKey}
+                onDotLeave={() => setHoveredPointKey(null)}
+                footnote={ocupVacMensualFootnote}
+                topMargin={isCompactChart ? 44 : 60}
+              />
+            </Zoom>
+          </div>
+        )}
+
+        {/* Comparativo por Barras — Desglose de Vacantes Activas (gráficas de
+            barras por Nivel Jerárquico/Tabular + Posiciones Totales). Sus 5
+            nodos data-pdf-chart también se mantienen montados mientras se
+            exporta PDF/Word aunque el tab activo sea otro, para que
+            querySelectorAll('[data-pdf-chart]') siga encontrando los 10 (5
+            de aquí + 5 del tab "Tendencia Histórica") en el orden que espera
+            chartTitles en handleGeneratePdf/handleGenerateWord. */}
+        {(activeSectionTab === 'barras' || isGeneratingPdf || isGeneratingWord) && (
+          <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section data-pdf-charts>
+            <Zoom triggerOnce>
+              <DesgloseJerarquicoCharts data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
+            </Zoom>
+          </div>
+        )}
+
+        {activeSectionTab === 'cuadros' && (
         <div data-pdf-section>
           <DetalleVacantesTablas data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} />
         </div>
+        )}
       </div>
 
       {/* Portal: filtro Año */}

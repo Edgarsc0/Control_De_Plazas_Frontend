@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,8 +20,11 @@ import { motion, AnimatePresence } from 'motion/react';
  * @param {string|null} [forceOpenTabId] - fuerza abierto el dropdown de subtabs de este tab (ignorando hover)
  *   y evita que se cierre solo (ni por mouseleave ni por clic fuera) — usado por los ProductTour que necesitan
  *   señalar una opción dentro del dropdown antes de que el usuario la elija.
+ * @param {object} [ref] - reenviado al `<div>` fijo raíz (`position:fixed`), para que quien la use
+ *   pueda medir su alto real (`getBoundingClientRect()`) y posicionar contenido justo debajo,
+ *   en vez de adivinarlo con un padding-top fijo (ver CuadrosVacanciaTab en plantilla_empleados).
  */
-export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = {}, layoutId = 'pageTabActivePill', forceOpenTabId = null }) {
+const PageTabBar = forwardRef(function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = {}, layoutId = 'pageTabActivePill', forceOpenTabId = null }, ref) {
     const [openSubtabId, setOpenSubtabId] = useState(null);
     const [dropdownPos, setDropdownPos] = useState(null);
     const barRef = useRef(null);
@@ -119,7 +122,7 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
     }, [openSubtabId, openDropdown]);
 
     return (
-        <div className="fixed top-36 inset-x-0 z-30 hidden md:flex justify-center">
+        <div ref={ref} className="fixed top-36 inset-x-0 z-30 hidden md:flex justify-center">
             <div
                 ref={barRef}
                 className="relative flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none [&::-webkit-scrollbar]:hidden"
@@ -235,4 +238,6 @@ export default function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = 
             )}
         </div>
     );
-}
+});
+
+export default PageTabBar;
