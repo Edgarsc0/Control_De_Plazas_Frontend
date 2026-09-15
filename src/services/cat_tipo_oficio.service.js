@@ -109,4 +109,69 @@ export const CatTipoOficioService = {
     }
     return res.json();
   },
+
+  /**
+   * Adjunta la resolución (Procedente/Improcedente) de un asunto de valuación:
+   * el `status` y, salvo que el documento ya viva en el expediente de Control
+   * de Gestión, el PDF de autorización/improcedencia.
+   * @param {number} idAsuntoValuacion - PK del registro `AsuntoValuacion`.
+   * @param {{status: 'Procedente'|'Improcedente', file?: File|null}} data
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object>} Asunto de valuación actualizado (JSON parseado).
+   * @throws {Error} Si el backend rechaza la actualización.
+   */
+  actualizarResolucion: async (idAsuntoValuacion, { status, file } = {}, options = {}) => {
+    const formData = new FormData();
+    formData.append('status', status);
+    if (file) formData.append('oficio_resolucion', file);
+
+    const res = await apiFetch(`/cat-tipo-oficio/asuntos-valuacion/${idAsuntoValuacion}/`, {
+      method: 'PATCH',
+      body: formData,
+      ...options,
+    });
+    if (!res.ok) {
+      let detalle = '';
+      try {
+        const body = await res.json();
+        detalle = body?.error || body?.detail || Object.values(body || {})?.[0]?.[0] || '';
+      } catch {
+        /* respuesta sin cuerpo JSON */
+      }
+      throw new Error(detalle || 'No se pudo guardar la resolución');
+    }
+    return res.json();
+  },
+
+  /**
+   * Adjunta el oficio de notificación de ocupación de un asunto (sólo aplica
+   * a asuntos dictaminados como Procedente): el PDF, salvo que ya viva en el
+   * expediente de Control de Gestión.
+   * @param {number} idAsuntoValuacion - PK del registro `AsuntoValuacion`.
+   * @param {{file?: File|null}} data
+   * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+   * @returns {Promise<Object>} Asunto de valuación actualizado (JSON parseado).
+   * @throws {Error} Si el backend rechaza la actualización.
+   */
+  actualizarNotificacionOcupacion: async (idAsuntoValuacion, { file } = {}, options = {}) => {
+    const formData = new FormData();
+    if (file) formData.append('oficio_notificacion_ocupacion', file);
+
+    const res = await apiFetch(`/cat-tipo-oficio/asuntos-valuacion/${idAsuntoValuacion}/`, {
+      method: 'PATCH',
+      body: formData,
+      ...options,
+    });
+    if (!res.ok) {
+      let detalle = '';
+      try {
+        const body = await res.json();
+        detalle = body?.error || body?.detail || Object.values(body || {})?.[0]?.[0] || '';
+      } catch {
+        /* respuesta sin cuerpo JSON */
+      }
+      throw new Error(detalle || 'No se pudo guardar el oficio de notificación de ocupación');
+    }
+    return res.json();
+  },
 };

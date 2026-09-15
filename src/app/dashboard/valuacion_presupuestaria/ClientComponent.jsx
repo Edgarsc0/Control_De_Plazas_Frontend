@@ -117,7 +117,7 @@ export default function ValuacionPresupuestaria({
 
     return (
         <div
-            className="w-full font-sans"
+            className="w-full font-sans flex flex-col"
             style={{ minHeight: 'calc(100vh - var(--stack-h,9rem))' }}
         >
             {/* ── Fixed tab bar ─────────────────────────────────────────────── */}
@@ -129,7 +129,7 @@ export default function ValuacionPresupuestaria({
             />
 
             {/* ── Content ───────────────────────────────────────────────────── */}
-            <div className={`pt-14 ${activeTab === 'parametros' ? 'pb-0' : 'pb-24 py-8 px-4 lg:px-6 max-w-[1700px] mx-auto'}`}>
+            <div className={`pt-14 ${activeTab === 'parametros' || activeTab === 'asuntos' ? 'pb-0 flex-1 min-h-0 flex flex-col' : 'pb-24 py-8 px-4 lg:px-6 max-w-[1700px] mx-auto'}`}>
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={activeTab}
@@ -137,6 +137,7 @@ export default function ValuacionPresupuestaria({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
+                        className={activeTab === 'asuntos' ? 'flex-1 min-h-0 flex flex-col' : undefined}
                     >
                         {activeTab === 'simulador' && hasPermission(PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA) && (
                             <SimuladorValuacion

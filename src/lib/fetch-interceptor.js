@@ -30,8 +30,12 @@ export const apiFetch = async (endpoint, options = {}) => {
         token = Cookies.get('auth_token');
     }
 
+    // Con FormData (subida de archivos) el navegador debe fijar su propio
+    // Content-Type con el boundary del multipart — forzar 'application/json'
+    // aquí rompe el parseo en el backend.
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const headers = {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...options.headers,
     };
 
