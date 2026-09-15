@@ -52,6 +52,7 @@ const PRESENCE_POLL_MS = 15000;
 const TABLERO_OPTIONS = [
     { value: 'none', label: 'Ninguno' },
     { value: 'rh', label: 'Tablero RH' },
+    { value: 'personalizable', label: 'Tablero Personalizable' },
 ];
 
 function timeAgoLabel(ts) {

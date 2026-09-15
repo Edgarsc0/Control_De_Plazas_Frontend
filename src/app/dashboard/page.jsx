@@ -7,6 +7,7 @@ import { cookies } from 'next/headers';
 import { ControlGestionService } from '@/services/control_gestion.service';
 import { getServerSession } from '@/lib/getServerSession';
 import TableroRH from './tablero/TableroRH';
+import TableroPersonalizable from './tablero/TableroPersonalizable';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,9 @@ export default async function DashboardServerCompoment() {
   // redirección — es lo primero (y único) que ve esa persona al entrar.
   if (tablero === 'rh') {
     return <TableroRH />;
+  }
+  if (tablero === 'personalizable') {
+    return <TableroPersonalizable />;
   }
 
   // Initiate the fetch concurrently
