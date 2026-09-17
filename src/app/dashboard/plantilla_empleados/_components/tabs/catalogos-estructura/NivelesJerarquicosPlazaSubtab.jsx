@@ -6,6 +6,7 @@ import { AnimatePresence } from "motion/react";
 import { Layers, Search, RotateCcw, CheckSquare, Square, X, Monitor } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 import { apiFetch } from "@/lib/fetch-interceptor";
+import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import DataTable from "../../shared/DataTable";
 import { animateColumnWidth, killColumnWidthAnimation } from "../../shared/columnResize";
 import CopyCellMenu from "../../shared/CopyCellMenu";
@@ -49,6 +50,7 @@ const COLUMNS = [
  */
 export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }) {
   const router = useRouter();
+  const { notifyLocalUpdate } = useZafiroUpdates();
   const [data, setData] = useState([]);
   const [opciones, setOpciones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -379,6 +381,12 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
         // silencioso a propósito, ver comentario arriba.
       }
       router.refresh();
+      // El bulk-assign cambia EMPLEADOS_COMPLETOS_SIG/MOV_POS fuera del ciclo
+      // del ETL de Celery (no hay evento SSE real que lo avise) — sin esto,
+      // los datasets cacheados en IndexedDB (Plantilla Detalle, Mov.
+      // Posiciones) seguirían sirviendo el valor viejo hasta el próximo
+      // import de ZAFIRO.
+      notifyLocalUpdate();
     } catch (err) {
       setBanner({ type: "error", text: err?.message || "No se pudo asignar el nivel jerárquico." });
     } finally {
@@ -405,9 +413,13 @@ export default function NivelesJerarquicosPlazaSubtab({ onBeforeRefreshDetalle }
       setPendingFuente(null);
       await load();
       // Reejecuta el Server Component de la página (force-dynamic) para que
-      // Plantilla Detalle/Movimientos reciban `detalle`/`movPosData` frescos
-      // al cambiar de tab, sin esperar el TTL del cache del backend.
+      // resumen/estatus/geografía se refresquen sin esperar el TTL del cache
+      // del backend.
       router.refresh();
+      // Igual que en el bulk-assign de arriba: esto cambia EMPLEADOS_COMPLETOS_SIG
+      // Y MOV_POS fuera del ciclo del ETL, sin evento SSE real — hay que
+      // avisar a mano a los datasets cacheados en IndexedDB.
+      notifyLocalUpdate();
     } catch (err) {
       setBanner({ type: "error", text: err?.message || "No se pudo aplicar la prioridad de nivel jerárquico." });
     } finally {

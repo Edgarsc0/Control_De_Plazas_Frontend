@@ -52,6 +52,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import { getDataset, setDataset, patchDataset } from "@/lib/plantillaBrowserCache";
+import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 
 const TUVO_INSUBSISTENCIA_BADGE = {
   S: { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-400", border: "border-amber-200/60 dark:border-amber-900/40", label: "Sí" },
@@ -102,6 +104,22 @@ const filterByEstado = (list, estadoKeys) => {
   return list.filter(row => allowed.includes(row.estado_psn));
 };
 
+// Parche quirúrgico sobre el dataset "mov_pos_detalle" cacheado en IndexedDB
+// (señal b del plan: edición propia de fecha_anuencia/fecha_alta_solicitada,
+// ver PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md §4.5). Preserva
+// la forma original (`{results: [...]}` o arreglo plano, ver extractRawList)
+// para no romper el próximo `extractRawList` que lo lea.
+const patchMovPosCachedRow = (cachedValue, matchFn, updateFn) => {
+  if (!cachedValue) return cachedValue;
+  if (Array.isArray(cachedValue.results)) {
+    return { ...cachedValue, results: cachedValue.results.map(r => (matchFn(r) ? updateFn(r) : r)) };
+  }
+  if (Array.isArray(cachedValue)) {
+    return cachedValue.map(r => (matchFn(r) ? updateFn(r) : r));
+  }
+  return cachedValue;
+};
+
 const ALL_MOV_KEYS = [
   "no_pos_actual", "codigo", "estado_psn", "f_efva", "cd_motivo", "motivo", "cd_un", 
   "unidad_de_negocio", "unidad_adva", "cd_departamento", "cd_puesto", 
@@ -149,18 +167,24 @@ const encodeFilterValues = (values) => values.map(v => (v === "" ? EMPTY_VALUE_T
 // re-dispare los fetch del modal de historial.
 const HISTORIAL_COLUMNS_MOV_POS = [{ key: "fecha_anuencia", label: "Fecha de Anuencia" }];
 
-export default function MovimientosTab({ movPosData: initialMovPosData = [], detalle = [], isPending, startTransition, cardRef, onCardTitleChange }) {
-  const [movPosData, setMovPosData] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]));
+// Dataset "mov_pos_detalle" (vista default: is_latest=true, sin filtros) —
+// ya no llega por props desde el Server Component (ver
+// PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md): se cachea en
+// IndexedDB del navegador sin TTL. Único fetch de red es en frío (primera
+// vez que este navegador abre el tab) o cuando llega el evento SSE real de
+// ZAFIRO (§4.4 del plan) o una edición propia (§4.5, parche quirúrgico sin
+// refetch vía `patchMovPosCachedRow`).
+const MOV_POS_CACHE_KEY = "mov_pos_detalle";
+
+export default function MovimientosTab({ detalle = [], isPending, startTransition, cardRef, onCardTitleChange }) {
+  const [movPosData, setMovPosData] = useState([]);
 
   // Cache del set completo (sin filtro de estado, is_latest=true) que el backend
   // ya manda en una sola llamada. Activas/Inactivas/Todas se derivan de aquí
-  // client-side sin pegarle a la red ni mostrar skeleton.
+  // client-side sin pegarle a la red ni mostrar skeleton. Se siembra desde
+  // IndexedDB (o red, si el cache está frío) en el efecto de más abajo, no en
+  // el render — a diferencia de antes, ya no hay prop síncrona que leer.
   const fullLatestDataRef = useRef(null);
-  if (fullLatestDataRef.current === null && initialMovPosData &&
-      (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData))) {
-    const rawList = extractRawList(initialMovPosData);
-    fullLatestDataRef.current = { list: rawList, stats: initialMovPosData.stats || null };
-  }
 
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -321,19 +345,18 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
   // BUG-05 QA: selección posicional — limpiarla cuando cambia filtro/orden.
   useClearSelectionOnFilterChange(setSelectedCell, [columnFilters, textFilters, globalSearch, sortConfig.key, sortConfig.direction, appliedAdvancedFilters]);
 
-  const [count, setCount] = useState(() => filterByEstado(extractRawList(initialMovPosData), ["A"]).length || 0);
-  const hasInitialData = initialMovPosData && (Array.isArray(initialMovPosData.results) || Array.isArray(initialMovPosData));
-  const [loading, setLoading] = useState(!hasInitialData);
+  const [count, setCount] = useState(0);
+  // Ya no hay dato inicial síncrono (antes venía por prop desde el Server
+  // Component) — el primer render siempre arranca "cargando" hasta que el
+  // efecto de abajo resuelva IndexedDB (rápido) o red (solo en frío).
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [stats, setStats] = useState(() => {
-    if (initialMovPosData && initialMovPosData.stats) return initialMovPosData.stats;
-    return {
-      total_movimientos: 0,
-      todas_posiciones: 0,
-      posiciones_activas: 0,
-      posiciones_inactivas: 0
-    };
+  const [stats, setStats] = useState({
+    total_movimientos: 0,
+    todas_posiciones: 0,
+    posiciones_activas: 0,
+    posiciones_inactivas: 0
   });
 
   const activeStatusFilter = columnFilters["estado_psn"] || [];
@@ -611,38 +634,53 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
 
   const hasFetched = useRef(false);
 
-  // El tab se mantiene montado al cambiar de tab (ver `visitedTabs` en
-  // ClientComponent), así que un `router.refresh()` disparado desde otra
-  // pestaña (ej. Catálogos > aplicar prioridad de nivel jerárquico) sólo
-  // llega como cambio de referencia en `initialMovPosData`. Sin esto, tanto
-  // `fullLatestDataRef` (fast-path del toggle Activas/Inactivas/Todas) como
-  // `movPosDataCacheRef` (cache por firma de filtros/orden/página) seguirían
-  // sirviendo el dataset viejo indefinidamente.
-  const initialMovPosDataRef = useRef(initialMovPosData);
   const [refreshTick, setRefreshTick] = useState(0);
-  useEffect(() => {
-    if (initialMovPosDataRef.current === initialMovPosData) return;
-    initialMovPosDataRef.current = initialMovPosData;
-    fullLatestDataRef.current = null;
-    movPosDataCacheRef.current = {};
-    setRefreshTick((t) => t + 1);
-  }, [initialMovPosData]);
+
+  // Refetch de red forzado (bypass de IndexedDB) del dataset default
+  // (is_latest=true, sin filtros) + reemplazo total del cache. A diferencia
+  // del cold-path cache-first de más abajo, esto SIEMPRE pega a red — se usa
+  // cuando ya sabemos con certeza que el dato cacheado quedó obsoleto
+  // (evento real de ZAFIRO, Anexo2 modificado), así que servir la copia
+  // vieja de IndexedDB sería exactamente el bug que este refetch busca
+  // evitar. `fullLatestDataRef`/`movPosDataCacheRef` en null/vacío +
+  // `refreshTick` fuerza a que el efecto de más abajo repinte con lo fresco.
+  const refetchFullMovPosDataset = useCallback(async () => {
+    try {
+      const res = await VacantesService.getMovPosDetalle({ is_latest: "true" });
+      const resData = res.ok ? await res.json() : null;
+      if (!resData) return;
+      const rawList = extractRawList(resData);
+      fullLatestDataRef.current = { list: rawList, stats: resData.stats || null };
+      await setDataset(MOV_POS_CACHE_KEY, resData);
+    } catch (err) {
+      console.error("Error al refrescar mov_pos_detalle:", err);
+    } finally {
+      movPosDataCacheRef.current = {};
+      setRefreshTick((t) => t + 1);
+    }
+  }, []);
+
+  // Señal (a) del plan de cache de navegador: evento real de ZAFIRO (el ETL
+  // de Celery corre cada ~30 min; no el "init" de reconexión sin cambio, ver
+  // ZafiroUpdatesContext). Antes esto llegaba como cambio de referencia en
+  // la prop `movPosData` (que ya no existe, ver arriba); ahora el propio tab
+  // pide el refetch.
+  const { subscribe } = useZafiroUpdates();
+  useEffect(() => subscribe(refetchFullMovPosDataset), [subscribe, refetchFullMovPosDataset]);
 
   // Aviso en vivo (SSE) de que un Anexo 2 cambió en el servidor —
   // típicamente, alguien le agregó o le quitó plazas (soft delete) desde
   // OTRA sesión mientras esta tabla mostraba esas mismas posiciones. Sin
   // esto, la columna "En Anuencia" sólo se refrescaba al reestablecer y
   // volver a aplicar los filtros a mano (bug reportado: quedaba
-  // desactualizada aunque el backend ya tuviera el dato correcto, por el
-  // mismo motivo que `onAgregado` más abajo — cache por firma de filtros
-  // sin invalidar). No importa CUÁL anexo cambió: cualquier cambio puede
-  // afectar qué plazas cuentan como "en anuencia" en esta tabla, así que
-  // siempre se refresca — mismo patrón exacto que el efecto de arriba.
-  useAnuenciaAnexoUpdatesRealtime(useCallback(() => {
-    fullLatestDataRef.current = null;
-    movPosDataCacheRef.current = {};
-    setRefreshTick((t) => t + 1);
-  }, []));
+  // desactualizada aunque el backend ya tuviera el dato correcto). No
+  // importa CUÁL anexo cambió: cualquier cambio puede afectar qué plazas
+  // cuentan como "en anuencia" en esta tabla, así que siempre se refresca —
+  // y siempre por red (`refetchFullMovPosDataset`), nunca desde IndexedDB:
+  // sin esto, el cold-path cache-first de más abajo serviría de vuelta la
+  // copia cacheada vieja (que todavía no sabe del cambio de Anexo2) en vez
+  // de pedir la fresca.
+  useAnuenciaAnexoUpdatesRealtime(refetchFullMovPosDataset);
 
   useEffect(() => {
     // Solo toggle de estado (Activas/Inactivas/Todas) + is_latest=true, sin
@@ -670,21 +708,43 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         return;
       }
 
+      // Cache-first (IndexedDB, sin TTL — ver plan de cache de navegador):
+      // solo se pega a red si este navegador nunca lo cacheó todavía. Un
+      // `AbortController` sigue protegiendo el tramo de red; la lectura de
+      // IndexedDB es local y no necesita abortarse.
+      let cancelled = false;
       const toggleCtrl = new AbortController();
       setLoading(true);
-      VacantesService.getMovPosDetalle({ is_latest: "true" }, { signal: toggleCtrl.signal })
-        .then(res => res.json())
-        .then(resData => {
+      (async () => {
+        const cached = await getDataset(MOV_POS_CACHE_KEY);
+        if (cached && !cancelled) {
+          const rawList = extractRawList(cached);
+          fullLatestDataRef.current = { list: rawList, stats: cached.stats || null };
+          const view = filterByEstado(rawList, columnFilters.estado_psn);
+          setMovPosData(view);
+          setCount(view.length);
+          if (cached.stats) setStats(cached.stats);
+          setLoading(false);
+          return;
+        }
+        try {
+          const res = await VacantesService.getMovPosDetalle({ is_latest: "true" }, { signal: toggleCtrl.signal });
+          const resData = await res.json();
+          if (cancelled) return;
           const rawList = extractRawList(resData);
           fullLatestDataRef.current = { list: rawList, stats: resData.stats || null };
           const view = filterByEstado(rawList, columnFilters.estado_psn);
           setMovPosData(view);
           setCount(view.length);
           if (resData.stats) setStats(resData.stats);
-        })
-        .catch(err => { if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err); })
-        .finally(() => setLoading(false));
-      return () => toggleCtrl.abort();
+          await setDataset(MOV_POS_CACHE_KEY, resData);
+        } catch (err) {
+          if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+      return () => { cancelled = true; toggleCtrl.abort(); };
     }
 
     hasFetched.current = true;
@@ -1002,6 +1062,13 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         // Evita que un futuro cambio de filtro/orden/página que coincida con
         // una firma ya cacheada sirva la respuesta vieja (sin este revert).
         movPosDataCacheRef.current = {};
+        // Señal (b) del plan de cache de navegador: parche quirúrgico sin
+        // refetch, para que una recarga posterior ya vea este cambio.
+        patchDataset(MOV_POS_CACHE_KEY, (cached) => patchMovPosCachedRow(
+          cached,
+          (r) => r.no_pos_actual === noPosActual,
+          (r) => ({ ...r, fecha_anuencia: body.fecha_anuencia ?? "", fecha_anuencia_override: false }),
+        ));
         setEditingAnuencia(null);
       } catch (err) {
         setEditingAnuencia((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
@@ -1020,6 +1087,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       // Ídem: sin esto, volver a la misma firma de filtros/orden/página
       // mostraría la fecha de antes del override.
       movPosDataCacheRef.current = {};
+      patchDataset(MOV_POS_CACHE_KEY, (cached) => patchMovPosCachedRow(
+        cached,
+        (r) => r.no_pos_actual === noPosActual,
+        (r) => ({ ...r, fecha_anuencia: body.fecha_anuencia, fecha_anuencia_override: true }),
+      ));
       setEditingAnuencia(null);
     } catch (err) {
       setEditingAnuencia((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
@@ -1061,6 +1133,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
       // Ídem fecha_anuencia: sin esto, volver a la misma firma de filtros/
       // orden/página mostraría la fecha de antes del cambio.
       movPosDataCacheRef.current = {};
+      patchDataset(MOV_POS_CACHE_KEY, (cached) => patchMovPosCachedRow(
+        cached,
+        (r) => r.codigo === codigo,
+        (r) => ({ ...r, fecha_alta_solicitada: body.fecha_alta_solicitada ?? "" }),
+      ));
       setEditingAltaSolicitada(null);
     } catch (err) {
       setEditingAltaSolicitada((c) => (c ? { ...c, saving: false, error: err.message || "Error al guardar." } : c));
@@ -3034,20 +3111,11 @@ export default function MovimientosTab({ movPosData: initialMovPosData = [], det
         onAgregado={() => {
           setSelectedCodigos(new Set());
           shiftAnchorRowRef.current = null;
-          // Fuerza recargar la página actual para repintar "En Anuencia" ya
-          // marcado. `setLoading(true)` solo (como estaba antes) dejaba la
-          // tabla trabada cargando para siempre: el efecto de arriba que
-          // apaga `loading` en su `.finally()` sólo vuelve a correr si
-          // cambia una de sus dependencias reales, y esto no tocaba ninguna
-          // — `refreshTick` existe justo para este caso (ver el efecto
-          // de `initialMovPosData` unas líneas arriba, mismo patrón). Se
-          // limpian también los caches por firma de filtros: si no, el
-          // efecto podría servir la respuesta vieja (sin el anexo recién
-          // agregado) desde `movPosDataCacheRef`/`fullLatestDataRef` en vez
-          // de pedirla de nuevo al backend.
-          fullLatestDataRef.current = null;
-          movPosDataCacheRef.current = {};
-          setRefreshTick((t) => t + 1);
+          // Repinta "En Anuencia" ya marcado. Refetch de red forzado (no el
+          // cold-path cache-first del efecto de abajo): el dato en IndexedDB
+          // todavía no sabe de este cambio recién hecho, así que leerlo de
+          // ahí serviría la respuesta vieja sin el anexo agregado.
+          refetchFullMovPosDataset();
         }}
       />
       

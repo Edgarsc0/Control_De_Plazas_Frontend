@@ -126,8 +126,24 @@ export function ZafiroUpdatesProvider({ children }) {
     return () => listenersRef.current.delete(callback);
   };
 
+  // Dispara a mano los mismos suscriptores que un evento real de ZAFIRO, sin
+  // esperar al pubsub de Redis. Necesario para acciones administrativas que
+  // SÍ cambian EMPLEADOS_COMPLETOS_SIG/MOV_POS (bulk-assign o "aplicar
+  // prioridad" de nivel jerárquico, ver NivelesJerarquicosPlazaSubtab) pero
+  // corren fuera del ciclo del ETL de Celery — hoy solo invalidan el cache
+  // del backend y llaman `router.refresh()`, que ya no alcanza por sí solo
+  // para refrescar los datasets que ahora viven cacheados en IndexedDB del
+  // navegador (Plantilla Detalle, Mov. Posiciones), ver
+  // PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md.
+  const notifyLocalUpdate = () => {
+    const fecha = new Date().toISOString();
+    lastUpdateRawRef.current = fecha;
+    formatAndSetDate(fecha);
+    listenersRef.current.forEach((callback) => callback(fecha));
+  };
+
   return (
-    <ZafiroUpdatesContext.Provider value={{ lastUpdate, subscribe }}>
+    <ZafiroUpdatesContext.Provider value={{ lastUpdate, subscribe, notifyLocalUpdate }}>
       {children}
     </ZafiroUpdatesContext.Provider>
   );

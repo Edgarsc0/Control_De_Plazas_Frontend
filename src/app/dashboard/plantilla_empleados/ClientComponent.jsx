@@ -24,7 +24,7 @@ import {
   TrendingUp,
   Table2
 } from "lucide-react";
-import { useRefreshOnZafiroUpdate } from "@/context/ZafiroUpdatesContext";
+import { useRefreshOnZafiroUpdate, useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
@@ -44,7 +44,9 @@ import CuadrosVacanciaTab, { CuadrosVacanciaSkeleton } from "./_components/tabs/
 import CatalogosEstructuraTab from "./_components/tabs/catalogos-estructura/CatalogosEstructuraTab";
 import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-estructura/catalogosConfig";
 import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
+import { useAnuenciaAnexoUpdatesRealtime } from "./_hooks/useAnuenciaAnexoUpdatesRealtime";
 import { VacantesService } from "@/services/vacantes.service";
+import { getDataset, setDataset, patchDataset } from "@/lib/plantillaBrowserCache";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
@@ -56,43 +58,17 @@ const TABS = [
   { id: "catalogos_estructura", label: "Catálogos", icon: Database, permission: PERMISSIONS.VIEW_PLANTILLA_CATALOGOS }
 ];
 
-const SECONDARY_TAB_SKELETON = (
-  <div className="flex items-center justify-center py-24">
-    <div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" />
-  </div>
-);
+// "Bajas" ya no depende de `secondaryDataPromise`: hace su propio fetch
+// cache-first (IndexedDB) dentro de `BajasTab`, igual que
+// `MovimientosPersonalTab`. Ver PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md.
 
-// Los tabs "Bajas" y "Cuadros de Vacancia" solo necesitan datos secundarios.
-// `use()` suspende este subárbol hasta que la promesa resuelva, sin bloquear
-// el resto de la página (que ya está montada con los datos críticos).
-function BajasTabSection({ secondaryDataPromise, isPending, startTransition, cardRef }) {
-  const [bajasResult, motivosResult, historicoResult] = use(secondaryDataPromise);
-  const bajasData = bajasResult.status === 'fulfilled' ? (bajasResult.value || []) : [];
-  const bajasMotivos = motivosResult.status === 'fulfilled' ? (motivosResult.value || []) : [];
-  const bajasHistorico = historicoResult.status === 'fulfilled' ? (historicoResult.value || []) : [];
-  return (
-    <BajasTab
-      bajasData={bajasData}
-      bajasMotivos={bajasMotivos}
-      bajasHistorico={bajasHistorico}
-      isPending={isPending}
-      startTransition={startTransition}
-      cardRef={cardRef}
-    />
-  );
-}
-
-// "Movimientos" (Mov. Posiciones) solo necesita `movPosData` — se movió de
-// `criticalDataPromise` a `secondaryDataPromise` (ver page.jsx) porque
-// bloqueaba el primer render de TODOS los usuarios (~970KB) aunque
-// aterrizaran en el tab "Detalle", que no lo usa. Mismo patrón que
-// `BajasTabSection` arriba.
-function MovimientosTabSection({ secondaryDataPromise, detalle, isPending, startTransition, cardRef, onCardTitleChange }) {
-  const [, , , , , , , movPosResult] = use(secondaryDataPromise);
-  const movPosData = movPosResult.status === 'fulfilled' ? (movPosResult.value || []) : [];
+// "Movimientos" (Mov. Posiciones): igual que Bajas, `movPosData` ya no viaja
+// por `secondaryDataPromise` — `MovimientosTab` hace su propio fetch
+// cache-first (IndexedDB), disparado por evento ZAFIRO en vez de por
+// `router.refresh()` de toda la página.
+function MovimientosTabSection({ detalle, isPending, startTransition, cardRef, onCardTitleChange }) {
   return (
     <MovimientosTab
-      movPosData={movPosData}
       detalle={detalle}
       isPending={isPending}
       startTransition={startTransition}
@@ -103,7 +79,7 @@ function MovimientosTabSection({ secondaryDataPromise, detalle, isPending, start
 }
 
 function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab }) {
-  const [, , , cuadrosResult, desgloseResult, ocupadosResult, conteoPlazasSerieResult] = use(secondaryDataPromise);
+  const [cuadrosResult, desgloseResult, ocupadosResult, conteoPlazasSerieResult] = use(secondaryDataPromise);
   const cuadrosData = cuadrosResult.status === 'fulfilled' ? (cuadrosResult.value || []) : [];
   const desgloseJerarquicoData = desgloseResult.status === 'fulfilled' ? (desgloseResult.value || []) : [];
   const ocupadosJerarquicoData = ocupadosResult.status === 'fulfilled' ? (ocupadosResult.value || []) : [];
@@ -121,52 +97,101 @@ function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal
   );
 }
 
+// Dataset "plantilla_detalle" (empleados_completos_activos_detalle) — ya no
+// llega por props desde el Server Component (ver
+// PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md): se cachea en
+// IndexedDB del navegador sin TTL. Es el más volátil de los 3 datasets del
+// plan: además del ciclo ETL de ~30 min, cualquier usuario puede editar una
+// celda en cualquier momento y esa edición se difunde en vivo por SSE a
+// todos los navegadores conectados (ver useCeldaUpdatesRealtime más abajo).
+const DETALLE_CACHE_KEY = "plantilla_detalle";
+
 export default function PlantillaEmpleadosDetalle({
   resumen,
-  detalle = [],
   estatusPorNivelUa = { por_nivel: {}, por_ua: {} },
   distribucionGeografica = [],
   secondaryDataPromise
 }) {
   const { isLoading: authLoading, hasPermission, email } = useAuth();
-  // Estado local (no la prop cruda): permite reflejar ediciones de celda
-  // (CeldaOverride, tab Detalle) al instante y sin refetch, compartido con
-  // los demás tabs que leen `detalle` (Estatus, Mov. Posiciones).
-  const [detalleData, setDetalleData] = useState(detalle);
+  // Ya no hay dato inicial síncrono por prop: arranca vacío y se llena en el
+  // efecto cache-first de abajo (IndexedDB, casi instantáneo si ya había
+  // cache; red solo en frío). Estado local (no una prop cruda) porque
+  // también hay que reflejar ediciones de celda (CeldaOverride, tab Detalle)
+  // al instante y sin refetch, compartido con los demás tabs que leen
+  // `detalle` (Estatus, Mov. Posiciones).
+  const [detalleData, setDetalleData] = useState([]);
   // Skeleton dedicado SOLO para el refresh que dispara
   // NivelesJerarquicosPlazaSubtab tras bulk-assign (no para cualquier
-  // router.refresh(), ej. "aplicar prioridad" no lo activa): se prende a
-  // mano justo antes de llamar router.refresh() (ver
-  // startRefrescoDetalleTrasNivelJerarquico) y se apaga solo cuando el
-  // `detalle` prop efectivamente cambia (abajo). El timeout de seguridad
-  // evita un skeleton pegado si el refresh nunca trae datos distintos.
+  // actualización, ej. "aplicar prioridad" no lo activa): se prende a mano
+  // justo antes del bulk-assign (ver startRefrescoDetalleTrasNivelJerarquico)
+  // y se apaga cuando el refetch de abajo efectivamente trae datos. El
+  // timeout de seguridad evita un skeleton pegado si el refresh nunca trae
+  // datos distintos.
   const [isRefrescandoDetalleTrasNivel, setIsRefrescandoDetalleTrasNivel] = useState(false);
   const refrescoNivelJerarquicoTimeoutRef = useRef(null);
   const startRefrescoDetalleTrasNivelJerarquico = useCallback(() => {
     setIsRefrescandoDetalleTrasNivel(true);
     clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
-    // Medido con playwright contra el servidor: el fetch del Server
-    // Component que dispara router.refresh() (arma resumen + detalle +
-    // movPosData + estatusPorNivelUa + distribucionGeografica en un solo
-    // render) tardó hasta ~22s en un run real — este timeout es solo un
-    // techo de seguridad, no el tiempo esperado normal.
+    // Medido con playwright contra el servidor: el fetch podía tardar hasta
+    // ~22s en un run real — este timeout es solo un techo de seguridad, no
+    // el tiempo esperado normal.
     refrescoNivelJerarquicoTimeoutRef.current = setTimeout(() => {
       setIsRefrescandoDetalleTrasNivel(false);
     }, 30000);
   }, []);
-  // `useState(detalle)` solo toma la prop como valor inicial: en renders
-  // posteriores (ej. tras router.refresh() al invalidar cache desde otro
-  // tab, ver NivelesJerarquicosPlazaSubtab) el Server Component recibe un
-  // `detalle` fresco pero React no reinicializa el estado solo porque cambió
-  // la prop. Sin este efecto, esta tabla se queda mostrando datos viejos
-  // indefinidamente aunque el fetch de arriba sí traiga datos nuevos.
+
+  // Refetch de red forzado (bypass de IndexedDB) + reemplazo total del
+  // cache. Se usa cuando ya sabemos con certeza que el dato cacheado quedó
+  // obsoleto: evento real de ZAFIRO (señal a del plan) o aviso manual desde
+  // otro tab (`notifyLocalUpdate`, ver ZafiroUpdatesContext — cubre acciones
+  // como "aplicar prioridad"/bulk-assign de nivel jerárquico, que cambian
+  // EMPLEADOS_COMPLETOS_SIG fuera del ciclo del ETL).
+  const refetchDetalle = useCallback(async () => {
+    try {
+      const response = await VacantesService.getEmpleadosCompletosActivosDetalle();
+      if (response.ok) {
+        const fresh = (await response.json()) || [];
+        setDetalleData(fresh);
+        await setDataset(DETALLE_CACHE_KEY, fresh);
+      }
+    } catch (err) {
+      console.error("Error al refrescar plantilla_detalle:", err);
+    } finally {
+      setIsRefrescandoDetalleTrasNivel(false);
+      clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
+    }
+  }, []);
+
+  // Cache-first (IndexedDB, sin TTL): solo pega a red si este navegador
+  // nunca cacheó `plantilla_detalle` todavía.
   useEffect(() => {
-    setDetalleData(detalle);
-    setIsRefrescandoDetalleTrasNivel(false);
-    clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
-  }, [detalle]);
+    let cancelled = false;
+    (async () => {
+      const cached = await getDataset(DETALLE_CACHE_KEY);
+      if (cached && !cancelled) {
+        setDetalleData(cached);
+        return;
+      }
+      if (!cancelled) await refetchDetalle();
+    })();
+    return () => { cancelled = true; };
+  }, [refetchDetalle]);
+
+  // Señal (a) del plan: evento real de ZAFIRO (o `notifyLocalUpdate` manual)
+  // → refetch completo, siempre por red (nunca sirve la copia de IndexedDB,
+  // que en este punto ya sabemos desactualizada).
+  const { subscribe } = useZafiroUpdates();
+  useEffect(() => subscribe(refetchDetalle), [subscribe, refetchDetalle]);
+
   const updateDetalleCell = useCallback((posicion, columna, valorNuevo) => {
     setDetalleData((prev) => prev.map((row) =>
+      row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
+    ));
+    // Señales (b)/(c) del plan: edición propia o `cell_update` ajeno (ver
+    // handleRemoteCellUpdate, que reusa este mismo reducer) — parche
+    // quirúrgico sin refetch, para que una recarga posterior ya vea el
+    // cambio aunque no haya llegado el próximo evento de ZAFIRO.
+    patchDataset(DETALLE_CACHE_KEY, (rows) => rows.map((row) =>
       row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
     ));
   }, []);
@@ -185,21 +210,9 @@ export default function PlantillaEmpleadosDetalle({
   // Al reconectar el SSE (el backend corta el stream cada pocos minutos, ver
   // SSE_MAX_LIFETIME_SECONDS) puede haberse perdido algún cell_update de otro
   // usuario durante el hueco de reconexión — este canal no tiene fallback por
-  // BD como el de ZAFIRO, así que se resincroniza pidiendo la tabla completa.
-  const resyncDetalleFromServer = useCallback(async () => {
-    try {
-      const response = await VacantesService.getEmpleadosCompletosActivosDetalle();
-      if (response.ok) {
-        const fresh = await response.json();
-        setDetalleData(fresh || []);
-      }
-    } catch (err) {
-      console.error("Error al resincronizar detalle tras reconexión SSE:", err);
-    }
-  }, []);
-  // Refleja en vivo las ediciones de celda de otros usuarios (SSE dedicado,
-  // ver useCeldaUpdatesRealtime) reusando el mismo reducer que la edición local.
-  useCeldaUpdatesRealtime(handleRemoteCellUpdate, resyncDetalleFromServer);
+  // BD como el de ZAFIRO, así que se resincroniza pidiendo la tabla completa
+  // (mismo refetch forzado que la señal (a), también reemplaza el cache).
+  useCeldaUpdatesRealtime(handleRemoteCellUpdate, refetchDetalle);
   const clearRemoteUpdatesCount = useCallback(() => setRemoteUpdatesCount(0), []);
   // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
   // parpadeo) — el backend igual exige el permiso real en cada endpoint.
@@ -335,6 +348,70 @@ export default function PlantillaEmpleadosDetalle({
   useEffect(() => {
     setVisitedTabs((prev) => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
   }, [activeTab]);
+
+  // Red de seguridad para Mov. Posiciones y Bajas: su propio `subscribe()`
+  // (dentro de MovimientosTab.jsx/BajasTab.jsx) solo escucha mientras el tab
+  // está montado — si el usuario nunca lo visitó en la sesión, un evento real
+  // de ZAFIRO (o de Anexo2) no le llega a nadie y el cache de IndexedDB (sin
+  // TTL) se queda con el dato viejo indefinidamente hasta que por fin se
+  // visite (bug confirmado en pruebas 2026-09-17: 0 requests de red, cache
+  // sin tocar, UI mostrando el valor de antes del cambio). Igual que
+  // `detalleData` arriba, estos listeners viven aquí (siempre montados)
+  // como respaldo — pero solo hacen trabajo si el tab en cuestión NUNCA se
+  // montó todavía; si ya está montado, su propio subscribe ya se encarga y
+  // esto se salta para no duplicar el fetch.
+  const visitedTabsRef = useRef(visitedTabs);
+  visitedTabsRef.current = visitedTabs;
+
+  const backgroundRefetchMovPos = useCallback(async () => {
+    try {
+      const res = await VacantesService.getMovPosDetalle({ is_latest: "true" });
+      if (res.ok) {
+        const data = await res.json();
+        await setDataset("mov_pos_detalle", data);
+      }
+    } catch (err) {
+      console.error("Error al refrescar cache de mov_pos_detalle en background:", err);
+    }
+  }, []);
+
+  useEffect(() => subscribe(() => {
+    if (visitedTabsRef.current.has("movimientos")) return;
+    backgroundRefetchMovPos();
+  }), [subscribe, backgroundRefetchMovPos]);
+
+  // Cambios en Anexo 2 también afectan mov_pos_detalle (columna "En
+  // Anuencia") — señal adicional no contemplada en el plan original de
+  // cache, pero que MovimientosTab.jsx ya trata como crítica (ver
+  // useAnuenciaAnexoUpdatesRealtime allá). Mismo hueco si el tab nunca se
+  // visitó, mismo respaldo aquí.
+  useAnuenciaAnexoUpdatesRealtime(() => {
+    if (visitedTabsRef.current.has("movimientos")) return;
+    backgroundRefetchMovPos();
+  });
+
+  useEffect(() => subscribe(async () => {
+    if (visitedTabsRef.current.has("bajas")) return;
+    try {
+      const [bajasRes, motivosRes, historicoRes] = await Promise.all([
+        VacantesService.getBajasSig(),
+        VacantesService.getBajasMotivos(),
+        VacantesService.getBajasHistorico(),
+      ]);
+      const [bajas, motivos, historico] = await Promise.all([
+        bajasRes.ok ? bajasRes.json() : null,
+        motivosRes.ok ? motivosRes.json() : null,
+        historicoRes.ok ? historicoRes.json() : null,
+      ]);
+      await Promise.all([
+        bajas != null ? setDataset("bajas_sig", bajas) : null,
+        motivos != null ? setDataset("bajas_motivos", motivos) : null,
+        historico != null ? setDataset("bajas_historico", historico) : null,
+      ]);
+    } catch (err) {
+      console.error("Error al refrescar cache de bajas en background:", err);
+    }
+  }), [subscribe]);
 
   // Fade+slide corto al cambiar de tab/subtab: los paneles ya están montados y
   // solo se togglean con block/hidden (ver comentario más abajo), así que se
@@ -753,16 +830,13 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {visitedTabs.has("movimientos") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "tabla" ? "block" : "hidden"}>
-              <Suspense fallback={SECONDARY_TAB_SKELETON}>
-                <MovimientosTabSection
-                  secondaryDataPromise={secondaryDataPromise}
-                  detalle={detalleData}
-                  isPending={isPending}
-                  startTransition={startTransition}
-                  cardRef={cardRefMovimientos}
-                  onCardTitleChange={setMovCardTitle}
-                />
-              </Suspense>
+              <MovimientosTabSection
+                detalle={detalleData}
+                isPending={isPending}
+                startTransition={startTransition}
+                cardRef={cardRefMovimientos}
+                onCardTitleChange={setMovCardTitle}
+              />
             </div>
           )}
           {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
@@ -809,14 +883,11 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {visitedTabs.has("bajas") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_BAJAS) && (
             <div className={activeTab === "bajas" ? "block" : "hidden"}>
-              <Suspense fallback={SECONDARY_TAB_SKELETON}>
-                <BajasTabSection
-                  secondaryDataPromise={secondaryDataPromise}
-                  isPending={isPending}
-                  startTransition={startTransition}
-                  cardRef={cardRefBajas}
-                />
-              </Suspense>
+              <BajasTab
+                isPending={isPending}
+                startTransition={startTransition}
+                cardRef={cardRefBajas}
+              />
             </div>
           )}
           {visitedTabs.has("catalogos_estructura") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_CATALOGOS) && (

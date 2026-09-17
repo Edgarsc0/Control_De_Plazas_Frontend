@@ -27,26 +27,32 @@ const parseJsonResponse = (responsePromise, label) =>
             return null;
         });
 
-// Datos críticos: usados por los tabs default (Detalle, Estatus, Movimientos).
-// Se esperan aquí para que el Suspense de arriba los bloquee — son rápidos y
-// son lo primero que el usuario ve.
+// Datos críticos: usados por los tabs default (Estatus, Mapa) y por el
+// header de "Detalle" (resumen). Se esperan aquí para que el Suspense de
+// arriba los bloquee — son rápidos y son lo primero que el usuario ve.
+//
+// `detalle` (empleados_completos_activos_detalle) YA NO viaja por acá: era,
+// junto con mov_pos_detalle, el mayor contribuyente a los ~89MB del
+// documento RSC medidos en PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md
+// — se mueve a fetch client-side cacheado en IndexedDB dentro de
+// `ClientComponent` (mismo tratamiento que ya recibieron Bajas y Mov.
+// Posiciones). `EstatusTab`/`PlantillaDetalleTab`/`MovimientosTab` lo siguen
+// recibiendo como prop, pero ahora ese prop lo llena `ClientComponent` desde
+// su propio estado (`detalleData`), no desde este Server Component.
 async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromise }) {
     const [
         resumenResult,
-        detalleResult,
         estatusResult,
         geograficaResult
     ] = await criticalDataPromise;
 
     const resumen = resumenResult.status === 'fulfilled' ? resumenResult.value : null;
-    const detalle = detalleResult.status === 'fulfilled' ? (detalleResult.value || []) : [];
     const estatusPorNivelUa = estatusResult.status === 'fulfilled' ? (estatusResult.value || { por_nivel: {}, por_ua: {} }) : { por_nivel: {}, por_ua: {} };
     const distribucionGeografica = geograficaResult.status === 'fulfilled' ? (geograficaResult.value || []) : [];
 
     return (
         <PlantillaEmpleadosDetalle
             resumen={resumen}
-            detalle={detalle}
             estatusPorNivelUa={estatusPorNivelUa}
             distribucionGeografica={distribucionGeografica}
             secondaryDataPromise={secondaryDataPromise}
@@ -55,32 +61,28 @@ async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromis
 }
 
 export default async function PlantillaEmpleadosPage() {
-    // "mov pos detalle" (~970KB) vivía aquí pero solo lo usa el tab
-    // "Movimientos" — no el tab "Detalle" con el que arranca la página.
-    // Bloqueaba el primer render de TODOS los usuarios (incluidos quienes
-    // nunca visitan "Movimientos") esperando ~1MB que no iban a usar. Se
-    // mueve a `secondaryDataPromise`, mismo patrón ya usado para Bajas/Cuadros
-    // de Vacancia (ver comentario de abajo).
     const criticalDataPromise = Promise.allSettled([
         parseJsonResponse(VacantesService.getEmpleadosCompletosEstatusResumen(), "resumen"),
-        parseJsonResponse(VacantesService.getEmpleadosCompletosActivosDetalle(), "detalle"),
         parseJsonResponse(VacantesService.getEmpleadosEstatusPorNivelUa(), "estatus por nivel y UA"),
         parseJsonResponse(VacantesService.getEmpleadosDistribucionGeografica(), "distribución geográfica")
     ]);
 
-    // Datos secundarios: solo los usan los tabs "Bajas", "Cuadros de Vacancia"
-    // y "Movimientos". No se esperan aquí — se pasan como promesa al cliente,
-    // que los resuelve (vía `use()`) recién cuando esos tabs se abren, sin
-    // bloquear el resto.
+    // Datos secundarios: solo los usa "Cuadros de Vacancia". No se esperan
+    // aquí — se pasan como promesa al cliente, que los resuelve (vía `use()`)
+    // recién cuando ese tab se abre, sin bloquear el resto.
+    //
+    // "Bajas" y "Mov. Posiciones" (mov_pos_detalle) YA NO viajan por acá: se
+    // movieron a fetch client-side cacheado en IndexedDB (ver
+    // PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md) — mandarlos
+    // embebidos en el documento RSC en cada carga/refresh era la causa
+    // principal de los ~89MB/17-21s medidos en ese plan. `BajasTab` y
+    // `MovimientosTab` ahora hacen su propio fetch (cache-first) vía
+    // `VacantesService`, igual que ya hacía `MovimientosPersonalTab`.
     const secondaryDataPromise = Promise.allSettled([
-        parseJsonResponse(VacantesService.getBajasSig(), "bajas"),
-        parseJsonResponse(VacantesService.getBajasMotivos(), "bajas motivos"),
-        parseJsonResponse(VacantesService.getBajasHistorico(), "bajas historico"),
         parseJsonResponse(VacantesService.getCuadroVacancia(), "cuadro vacancia"),
         parseJsonResponse(VacantesService.getDesgloseJerarquico(), "desglose jerarquico"),
         parseJsonResponse(VacantesService.getDesgloseJerarquicoOcupados(), "desglose jerarquico ocupados"),
         parseJsonResponse(VacantesService.getConteoPlazasHistoricoSerie(), "conteo plazas historico serie"),
-        parseJsonResponse(VacantesService.getMovPosDetalle(), "mov pos detalle")
     ]);
 
     return (

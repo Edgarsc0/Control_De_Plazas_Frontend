@@ -45,6 +45,8 @@ import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { isNivelTabularColumn, compareNivelTabular } from "@/utils/nivelTabular";
+import { getDataset, setDataset } from "@/lib/plantillaBrowserCache";
+import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 
 const MOV_STATUS_BADGE_STYLES = {
   "A": { bg: "bg-[#621f32]/8 dark:bg-[#621f32]/15", text: "text-[#621f32] dark:text-[#f3dcd4]", border: "border-[#621f32]/20 dark:border-[#621f32]/30", label: "Activo" },
@@ -78,12 +80,68 @@ const DATE_KEYS_MOV = [
   "fecha_prevista", "ultima_fecha_ingreso", "fecha_asignacion", "fecha_entrada_posicion", "fecha_posicion",
 ];
 
-export default function BajasTab({ bajasData = [], bajasMotivos = [], bajasHistorico = [], isPending, startTransition, cardRef }) {
+// Datasets de solo lectura (BAJAS_SIG no tiene ediciones manuales, ver
+// PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md §3): se cachean en
+// IndexedDB del navegador sin TTL. Única señal para reemplazarlos es un
+// evento real de ZAFIRO (el ETL de Celery corre cada ~30 min) — nunca
+// expiran solos.
+const BAJAS_FETCHERS = {
+  bajas_sig: () => VacantesService.getBajasSig().then((r) => (r.ok ? r.json() : [])).then((v) => v || []),
+  bajas_motivos: () => VacantesService.getBajasMotivos().then((r) => (r.ok ? r.json() : [])).then((v) => v || []),
+  bajas_historico: () => VacantesService.getBajasHistorico().then((r) => (r.ok ? r.json() : [])).then((v) => v || []),
+};
+
+// Cache-first: pinta lo que ya haya en IndexedDB de inmediato (sin esperar
+// red) y, si no había nada, pide al backend y lo guarda para la próxima vez.
+function useCachedBajasDataset(key) {
+  const [data, setData] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cached = await getDataset(key);
+      if (cached && !cancelled) {
+        setData(cached);
+        return;
+      }
+      const fresh = await BAJAS_FETCHERS[key]();
+      if (!cancelled) setData(fresh);
+      await setDataset(key, fresh);
+    })();
+    return () => { cancelled = true; };
+  }, [key]);
+  return [data, setData];
+}
+
+export default function BajasTab({ isPending, startTransition, cardRef }) {
   const { hasPermission } = useAuth();
   const canViewFotoBajas = hasPermission(PERMISSIONS.VIEW_PLANTILLA_BAJAS_FOTO);
   const [mounted, setMounted] = useState(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   useEffect(() => setMounted(true), []);
+
+  const [bajasData, setBajasData] = useCachedBajasDataset("bajas_sig");
+  const [bajasMotivos, setBajasMotivos] = useCachedBajasDataset("bajas_motivos");
+  const [bajasHistorico, setBajasHistorico] = useCachedBajasDataset("bajas_historico");
+
+  // Señal (a) del plan: evento real de ZAFIRO (no el "init" de reconexión sin
+  // cambio, ver ZafiroUpdatesContext) → refetch completo + reemplazo total
+  // del cache, sin esperar a que el usuario recargue la página.
+  const { subscribe } = useZafiroUpdates();
+  useEffect(() => subscribe(async () => {
+    const [freshBajas, freshMotivos, freshHistorico] = await Promise.all([
+      BAJAS_FETCHERS.bajas_sig(),
+      BAJAS_FETCHERS.bajas_motivos(),
+      BAJAS_FETCHERS.bajas_historico(),
+    ]);
+    setBajasData(freshBajas);
+    setBajasMotivos(freshMotivos);
+    setBajasHistorico(freshHistorico);
+    await Promise.all([
+      setDataset("bajas_sig", freshBajas),
+      setDataset("bajas_motivos", freshMotivos),
+      setDataset("bajas_historico", freshHistorico),
+    ]);
+  }), [subscribe, setBajasData, setBajasMotivos, setBajasHistorico]);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
 
