@@ -128,6 +128,11 @@ export default function PlantillaEmpleadosDetalle({
   // timeout de seguridad evita un skeleton pegado si el refresh nunca trae
   // datos distintos.
   const [isRefrescandoDetalleTrasNivel, setIsRefrescandoDetalleTrasNivel] = useState(false);
+  // Carga inicial (lectura de IndexedDB y, en frío, el fetch de red que la
+  // sigue): sin esto la tabla queda en blanco ("Sin coincidencias") mientras
+  // `getDataset` resuelve, porque `detalleData` arranca en `[]` y ninguna
+  // otra bandera de loading está prendida todavía en el primer montaje.
+  const [isCargandoDetalleInicial, setIsCargandoDetalleInicial] = useState(true);
   const refrescoNivelJerarquicoTimeoutRef = useRef(null);
   const startRefrescoDetalleTrasNivelJerarquico = useCallback(() => {
     setIsRefrescandoDetalleTrasNivel(true);
@@ -158,6 +163,7 @@ export default function PlantillaEmpleadosDetalle({
       console.error("Error al refrescar plantilla_detalle:", err);
     } finally {
       setIsRefrescandoDetalleTrasNivel(false);
+      setIsCargandoDetalleInicial(false);
       clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
     }
   }, []);
@@ -170,6 +176,7 @@ export default function PlantillaEmpleadosDetalle({
       const cached = await getDataset(DETALLE_CACHE_KEY);
       if (cached && !cancelled) {
         setDetalleData(cached);
+        setIsCargandoDetalleInicial(false);
         return;
       }
       if (!cancelled) await refetchDetalle();
@@ -810,7 +817,7 @@ export default function PlantillaEmpleadosDetalle({
                 onCellEdited={updateDetalleCell}
                 resumen={resumen}
                 isPending={isPending}
-                isLoading={isRefrescandoDetalleTrasNivel}
+                isLoading={isCargandoDetalleInicial || isRefrescandoDetalleTrasNivel}
                 startTransition={startTransition}
                 cardRef={cardRefDetalle}
                 remoteUpdatesCount={remoteUpdatesCount}
