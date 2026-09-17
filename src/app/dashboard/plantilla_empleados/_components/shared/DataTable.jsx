@@ -342,6 +342,30 @@ function DataTable({
     return runs;
   }, [visible, hasGroups]);
 
+  // Sub-header opcional (opt-in vía `col.subgroup`): una tercera fila entre el
+  // grupo y las columnas hoja, para agrupar de nuevo dentro de un `group` (ej.
+  // "Niveles" > "Solicitados"/"Autorizados"/"Ocupados" > A212/S305/...). Sólo
+  // aplica dentro de runs tipo 'group'; si ningún `col` define `subgroup` esto
+  // queda en `false`/`null` y el header vuelve a ser el de 2 filas de siempre.
+  const hasSubgroups = useMemo(() => hasGroups && visible.some(c => c.subgroup), [visible, hasGroups]);
+  const headerSubgroupRuns = useMemo(() => {
+    if (!hasSubgroups) return null;
+    const runs = [];
+    headerGroupRuns.filter(r => r.type === 'group').forEach((run) => {
+      let i = run.startIndex;
+      const end = run.startIndex + run.span;
+      while (i < end) {
+        const col = visible[i];
+        const key = col.subgroup || '';
+        let j = i + 1;
+        while (j < end && (visible[j].subgroup || '') === key) j++;
+        runs.push({ label: key, startIndex: i, span: j - i });
+        i = j;
+      }
+    });
+    return runs;
+  }, [visible, hasSubgroups, headerGroupRuns]);
+
   // Identidad estable: si el consumidor no pasa `onRowClick`, el default no debe
   // recrearse en cada render (invalidaría el memo de TableRow).
   const fallbackOnRowClick = useCallback(
@@ -407,12 +431,17 @@ function DataTable({
           {hasGroups ? (
             <>
               <tr>
-                <th rowSpan={2} className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
-                <th rowSpan={2} className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-500">{rowActionHeaderLabel}</span></th>
+                <th rowSpan={hasSubgroups ? 3 : 2} className="sticky left-0 top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35">#</th>
+                <th rowSpan={hasSubgroups ? 3 : 2} className="sticky left-[50px] top-0 z-40 bg-[#40121e] text-center align-middle border-r border-[#621f32]/35 px-1"><span className="text-[9px] font-bold text-slate-500">{rowActionHeaderLabel}</span></th>
                 {headerGroupRuns.map((run) => {
                   if (run.type === 'group') {
+                    // Mismo divisor grueso dorado que separa los subgrupos
+                    // internos (ver headerSubgroupRuns) también en el borde
+                    // derecho del grupo completo, para marcarlo contra el
+                    // resto de la tabla.
+                    const runHasSubgroup = visible.slice(run.startIndex, run.startIndex + run.span).some(c => c.subgroup);
                     return (
-                      <th key={`group-${run.startIndex}`} colSpan={run.span} className="py-1.5 px-3 text-center font-black text-[10px] uppercase border-r border-b-2 border-[#621f32]/30 border-b-[#bc955c]/70 bg-[#3e131f] dark:bg-[#2b0d15] text-[#bc955c]">
+                      <th key={`group-${run.startIndex}`} colSpan={run.span} className={`py-1.5 px-3 text-center font-black text-[10px] uppercase border-b-2 border-b-[#bc955c]/70 bg-[#3e131f] dark:bg-[#2b0d15] text-[#bc955c] ${runHasSubgroup ? "border-r-4 border-[#bc955c]" : "border-r border-[#621f32]/30"}`}>
                         {run.label}
                       </th>
                     );
@@ -425,8 +454,12 @@ function DataTable({
                   const filterTitle = columnFilters[col.key]?.length > 0
                     ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
                     : "Filtrar columna";
+                  // Si la columna siguiente abre un grupo con subgrupos (ej.
+                  // "Niveles"), este borde derecho es el extremo izquierdo de
+                  // ese bloque: mismo divisor grueso dorado.
+                  const thickRight = !!visible[index + 1]?.subgroup;
                   return (
-                    <th key={col.key} rowSpan={2} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase border-r border-[#621f32]/30 transition-colors ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
+                    <th key={col.key} rowSpan={hasSubgroups ? 3 : 2} style={isSticky ? { position: 'sticky', left: leftOffset, zIndex: 35 } : {}} className={`relative py-2.5 px-4 font-black text-[10px] uppercase transition-colors ${thickRight ? "border-r-4 border-[#bc955c]" : "border-r border-[#621f32]/30"} ${bgClass} ${isSticky ? 'shadow-[4px_0_10px_-4px_rgba(0,0,0,0.3)]' : ''}`}>
                       {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
                       <div className="flex flex-col items-center gap-1 w-full">
                         <span className={`text-[9px] font-mono ${hasFilter ? 'text-[#3e131f]/70' : 'text-[#bc955c]'}`}>{getColumnLetter(index)}</span>
@@ -454,6 +487,19 @@ function DataTable({
                   );
                 })}
               </tr>
+              {hasSubgroups && (
+                <tr>
+                  {headerSubgroupRuns.map((run) => (
+                    // Divisor grueso dorado siempre a la derecha: entre
+                    // subgrupos y también en el extremo derecho del último
+                    // (el izquierdo del primero ya lo pone la columna previa
+                    // vía `thickRight`, y border-collapse funde ambos en uno).
+                    <th key={`subgroup-${run.startIndex}`} colSpan={run.span} className="py-1.5 px-3 text-center font-black text-[9px] uppercase border-b border-b-[#bc955c]/40 border-r-4 border-[#bc955c] bg-[#40121e] dark:bg-[#2b0d15] text-[#bc955c]/90">
+                      {run.label}
+                    </th>
+                  ))}
+                </tr>
+              )}
               <tr>
                 {headerGroupRuns.filter(r => r.type === 'group').flatMap((run) =>
                   Array.from({ length: run.span }).map((_, offset) => {
@@ -465,8 +511,20 @@ function DataTable({
                       ? `${columnFilters[col.key].length} valor(es) filtrado(s)`
                       : "Filtrar columna";
                     const isInternalSplit = offset < run.span - 1;
+                    // Extremo derecho del bloque de subgrupos (última columna
+                    // hoja del run) cuenta como corte de subgrupo igual que
+                    // los internos: mismo divisor grueso dorado.
+                    const isSubgroupEdge = col.subgroup && (isInternalSplit ? visible[index + 1]?.subgroup !== col.subgroup : true);
+                    const splitBorderClass = isSubgroupEdge ? "border-r-4 border-[#bc955c]" : (isInternalSplit ? "border-r-2 border-[#bc955c]/60" : "border-r border-[#621f32]/30");
+                    if (col.noFilter) {
+                      return (
+                        <th key={col.key} className={`relative py-2 px-3 font-black text-[10px] uppercase transition-colors text-center ${splitBorderClass} ${bgClass}`}>
+                          <span>{col.label}</span>
+                        </th>
+                      );
+                    }
                     return (
-                      <th key={col.key} className={`relative py-2 px-3 font-black text-[10px] uppercase transition-colors ${isInternalSplit ? "border-r-2 border-[#bc955c]/60" : "border-r border-[#621f32]/30"} ${bgClass}`}>
+                      <th key={col.key} className={`relative py-2 px-3 font-black text-[10px] uppercase transition-colors ${splitBorderClass} ${bgClass}`}>
                         {hasFilter && <div className="absolute top-1 right-1 size-2 bg-white rounded-full animate-pulse shadow-[0_0_5px_rgba(255,255,255,0.8)]" title="Filtro activo" />}
                         <div className="flex items-center justify-between w-full">
                           <div

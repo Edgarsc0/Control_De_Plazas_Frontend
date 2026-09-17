@@ -50,6 +50,42 @@ const DATE_COLUMN_KEYS = ['fechaRegistro'];
 const TEXT_FILTER_COLUMNS = { asuntoNoOficio: ['asuntoNoOficio', 'asuntoFolio'] };
 const getTextFilterKeys = (colKey) => TEXT_FILTER_COLUMNS[colKey] || [colKey];
 
+// Grid de conteo por nivel tabular (A212/S305/D312/P33/P13), repetido para
+// Solicitados/Autorizados/Ocupados — 15 columnas hoja bajo el grupo "Niveles"
+// (ver `col.group`/`col.subgroup` en DataTable). Sólo captura local: cada
+// celda es un <input type="number"> editable por el usuario, no vinculado a
+// ningún campo del backend (ver `nivelesValues` en el componente).
+const NIVEL_CODES = ['A212', 'S305', 'D312', 'P33', 'P13'];
+const NIVEL_SUBGRUPOS = ['Solicitados', 'Autorizados', 'Ocupados'];
+// Un color pastel por código de nivel, igual en los tres subgrupos (repetido
+// para Solicitados/Autorizados/Ocupados) — distingue la columna por código,
+// no por subgrupo (eso ya lo marca el divisor grueso dorado). Tiñe la celda
+// completa (`<td>`), nunca el encabezado (el nombre de columna A212/S305/...
+// se queda con el estilo default del header).
+const NIVEL_COLORS = {
+  A212: "bg-rose-50 dark:bg-rose-950/30",
+  S305: "bg-sky-50 dark:bg-sky-950/30",
+  D312: "bg-amber-50 dark:bg-amber-950/30",
+  P33: "bg-emerald-50 dark:bg-emerald-950/30",
+  P13: "bg-violet-50 dark:bg-violet-950/30",
+};
+const NIVELES_COLUMNS = NIVEL_SUBGRUPOS.flatMap((subgroup, subgroupIdx) => NIVEL_CODES.map((code, codeIdx) => ({
+  key: `niveles_${subgroup.toLowerCase()}_${code}`,
+  label: code,
+  group: 'Niveles',
+  subgroup,
+  width: 64,
+  visible: true,
+  noFilter: true,
+  // Primera/última columna de cada subgrupo: ahí va el mismo divisor grueso
+  // dorado, tanto en los cortes internos (Solicitados|Autorizados|Ocupados)
+  // como en los extremos del grupo "Niveles" completo contra el resto de la
+  // tabla (ver misma regla en el header de DataTable).
+  subgroupStart: codeIdx === 0,
+  subgroupEnd: codeIdx === NIVEL_CODES.length - 1,
+  pastelCell: NIVEL_COLORS[code],
+})));
+
 const COLUMNS = [
   { key: 'asuntoNoOficio', label: 'No. Oficio / Folio', width: 190, visible: true },
   { key: 'asuntoRemitente', label: 'Remitente', width: 190, visible: true },
@@ -58,9 +94,10 @@ const COLUMNS = [
   { key: 'asuntoTema', label: 'Tema', width: 180, visible: true },
   { key: 'statusTurnado', label: 'Estado Oficio', width: 140, visible: true },
   { key: 'fechaRegistro', label: 'Fecha Registro', width: 125, visible: true },
-  { key: 'estatusValuacionLabel', label: 'Estatus Valuación', width: 155, visible: true },
+  { key: 'valuacionLabel', label: 'Estatus Valuación', width: 155, visible: true },
   { key: 'resolucionLabel', label: 'Resolución', width: 125, visible: true },
   { key: 'notificacionOcupacionLabel', label: 'Oficio de Notificación de Ocupación', width: 190, visible: true },
+  ...NIVELES_COLUMNS,
   { key: 'acciones', label: 'Acciones', width: 90, visible: true, noFilter: true },
 ];
 
@@ -98,6 +135,15 @@ export default function SolicitudesOcupacionTable() {
 
   // Adjuntar oficio de notificación de ocupación (sólo asuntos Procedente)
   const [adjuntarNotificacionAsunto, setAdjuntarNotificacionAsunto] = useState(null);
+
+  // Conteo por nivel tabular (columnas "Niveles"): estado local por fila,
+  // llave `${rowId}:${colKey}`, sin persistencia — ver NIVELES_COLUMNS.
+  const [nivelesValues, setNivelesValues] = useState({});
+  const handleNivelChange = useCallback((rowId, colKey, rawValue) => {
+    const digitsOnly = rawValue.replace(/\D/g, '');
+    const parsed = digitsOnly === '' ? 0 : Math.max(0, parseInt(digitsOnly, 10) || 0);
+    setNivelesValues((prev) => ({ ...prev, [`${rowId}:${colKey}`]: parsed }));
+  }, []);
 
   const tableContainerRef = useRef(null);
   const tbodyRef = useRef(null);
@@ -146,7 +192,14 @@ export default function SolicitudesOcupacionTable() {
       statusTurnado: oInfo.statusTurnado || '',
       fechaRegistro: oInfo.fechaRegistro || '',
       estatusValuacionLabel,
-      resolucionLabel: item.oficio_resolucion ? 'Con resolución' : 'Sin resolución',
+      // Filtrable: la columna "Resolución" filtra por el dictamen
+      // Procedente/Improcedente/Pendiente (antes filtraba por "Con/Sin
+      // resolución", que no correspondía con lo que se ve en la celda).
+      resolucionLabel: estatusValuacionLabel,
+      // Filtrable: la columna "Estatus Valuación" filtra por si tiene o no
+      // una Valuación Presupuestaria guardada (antes usaba por error el
+      // mismo dictamen Procedente/Improcedente/Pendiente que "Resolución").
+      valuacionLabel: tieneValuacion(item) ? 'Valuado' : 'Sin Valuación',
       // El oficio de notificación de ocupación sólo aplica a asuntos ya
       // dictaminados como Procedente — en el resto ni se pide ni se muestra.
       notificacionOcupacionLabel: estatusValuacionLabel !== 'Procedente'
@@ -395,7 +448,7 @@ export default function SolicitudesOcupacionTable() {
       return (<td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={baseTdClass}>{formatDateEsMx(row.fechaRegistro) || <span className="text-slate-300">-</span>}</td>);
     }
 
-    if (col.key === 'estatusValuacionLabel') {
+    if (col.key === 'valuacionLabel') {
       const valuada = tieneValuacion(row);
       return (
         <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-4 text-xs border-r h-[37px] align-middle ${cellBgClass}`}>
@@ -486,6 +539,34 @@ export default function SolicitudesOcupacionTable() {
           {value ? (
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-black text-[10px] uppercase text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700">{value}</span>
           ) : <span className="text-slate-300">-</span>}
+        </td>
+      );
+    }
+
+    if (col.group === 'Niveles') {
+      const stateKey = `${row.id}:${col.key}`;
+      const inputValue = nivelesValues[stateKey] ?? 0;
+      const isZero = inputValue === 0;
+      const borderClass = `${col.subgroupEnd ? 'border-r-4 border-r-[#bc955c]' : 'border-r'} ${col.subgroupStart ? 'border-l-4 border-l-[#bc955c]' : ''}`;
+      // El pastel tiñe la celda completa (`<td>`), no sólo el input — cede
+      // ante el resaltado de selección de celda, igual que `cellBgClass`.
+      const nivelCellBg = isSelected ? cellBgClass : col.pastelCell;
+      return (
+        <td key={col.key} onClick={onClick} onContextMenu={onContextMenu} style={stickyStyle} className={`px-1.5 ${borderClass} h-[37px] align-middle ${nivelCellBg}`}>
+          <input
+            // `type="text"` (no "number"): controla el string mostrado a mano
+            // en `handleNivelChange`, así nunca se ve un cero a la izquierda
+            // mientras se escribe (el quirk típico de <input type="number">
+            // con value controlado por React).
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={inputValue}
+            onClick={(e) => e.stopPropagation()}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => handleNivelChange(row.id, col.key, e.target.value)}
+            className={`w-full bg-transparent border-0 rounded-md text-center text-xs font-bold outline-none ring-0 focus:outline-none focus:ring-0 focus:border-0 py-1 ${isZero ? "text-slate-400 dark:text-slate-500" : "text-black dark:text-white"}`}
+          />
         </td>
       );
     }
@@ -651,7 +732,7 @@ export default function SolicitudesOcupacionTable() {
               fields: [
                 { key: 'asuntoRemitente', label: 'Remitente' },
                 { key: 'asuntoRemitenteDependencia', label: 'Dependencia' },
-                { key: 'estatusValuacionLabel', label: 'Estatus Valuación' },
+                { key: 'valuacionLabel', label: 'Estatus Valuación' },
                 { key: 'resolucionLabel', label: 'Resolución' },
                 { key: 'notificacionOcupacionLabel', label: 'Notificación de Ocupación' },
                 { label: 'Fecha', render: (r) => formatDateEsMx(r.fechaRegistro) },
