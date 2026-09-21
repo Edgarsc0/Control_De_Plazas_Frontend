@@ -142,8 +142,17 @@ export function ZafiroUpdatesProvider({ children }) {
     listenersRef.current.forEach((callback) => callback(fecha));
   };
 
+  // Igual que `notifyLocalUpdate` pero SIN tocar el letrero de "última
+  // actualización": solo pide a los suscriptores que vuelvan a traer sus
+  // datos por red. Lo usa el Navbar tras borrar cachés a mano, donde no hay
+  // ningún dato nuevo de ZAFIRO que anunciar.
+  const refetchSubscribers = () => {
+    const fecha = lastUpdateRawRef.current || new Date().toISOString();
+    listenersRef.current.forEach((callback) => callback(fecha));
+  };
+
   return (
-    <ZafiroUpdatesContext.Provider value={{ lastUpdate, subscribe, notifyLocalUpdate }}>
+    <ZafiroUpdatesContext.Provider value={{ lastUpdate, subscribe, notifyLocalUpdate, refetchSubscribers }}>
       {children}
     </ZafiroUpdatesContext.Provider>
   );

@@ -8,6 +8,7 @@ import DashboardSubmenu from '@/components/ui/DashboardSubmenu';
 import { ChevronDown } from 'lucide-react';
 import { useZafiroUpdates } from '@/context/ZafiroUpdatesContext';
 import { SystemService } from '@/services/system.service';
+import CacheClearButtons from '@/components/layout/CacheClearButtons';
 
 function formatFecha(isoString) {
   const date = new Date(isoString);
@@ -72,7 +73,7 @@ export default function Navbar() {
     // top-0 en móvil: el Banner gob.mx está oculto ahí, así que este header
     // (el único visible) ocupa el espacio superior en vez de dejarlo en blanco.
     <nav className="fixed top-0 md:top-20 left-0 w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm h-16 flex items-center z-40">
-      <div className="w-full max-w-7xl mx-auto px-4 md:px-8 flex justify-between items-center">
+      <div className="w-full max-w-[1400px] mx-auto px-4 md:px-7 flex justify-between items-center">
         {/* Logo and System Name */}
         <div className="flex items-center gap-x-4">
           <Link href="/" className="flex items-center gap-x-3">
@@ -152,7 +153,7 @@ export default function Navbar() {
         </div>
 
         {/* Navigation Links (desktop) — en móvil viven en el BottomNav */}
-        <div className="hidden md:flex items-center gap-x-8">
+        <div className="hidden md:flex items-center gap-x-5 lg:gap-x-6">
           <Link
             href="/"
             className="text-gray-700 hover:text-[#621f32] font-medium transition-colors"
@@ -200,6 +201,8 @@ export default function Navbar() {
               Login
             </Link>
           )}
+
+          {isAuthenticated && <CacheClearButtons />}
         </div>
 
         {/* Móvil: solo Login si no hay sesión (el resto está en el BottomNav) */}

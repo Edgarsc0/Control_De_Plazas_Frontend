@@ -100,3 +100,25 @@ export async function clearDataset(key) {
     }
   });
 }
+
+/**
+ * Vacía TODOS los datasets cacheados (Plantilla Detalle, Mov. Posiciones,
+ * Bajas...). Regresa `true` si se pudo vaciar, `false` si IndexedDB no está
+ * disponible o falló. Lo usa Monitoreo ZAFIRO ("Borrar caché") para forzar
+ * que el próximo montaje de `/plantilla_empleados` haga fetch a red.
+ */
+export async function clearAllDatasets() {
+  const db = await openDb();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (err) {
+      console.error("plantillaBrowserCache: error vaciando datasets", err);
+      resolve(false);
+    }
+  });
+}

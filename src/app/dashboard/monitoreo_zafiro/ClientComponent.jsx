@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { apiFetch } from '@/lib/fetch-interceptor';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 import {
   Activity, Clock, Database, CheckCircle2, XCircle,
@@ -16,6 +16,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 function StatusBadge({ status, errorMessage }) {
@@ -114,6 +115,9 @@ export default function ClientComponent() {
   const [cacheLoading, setCacheLoading] = useState(false);
   const [cacheError, setCacheError] = useState(null);
   const [cacheResult, setCacheResult] = useState(null);
+  // Qué caché borrar (modular): Redis del backend y/o IndexedDB de ESTE navegador.
+  const [clearServerCache, setClearServerCache] = useState(true);
+  const [clearBrowserCache, setClearBrowserCache] = useState(true);
 
   useBodyScrollLock(showSyncConfirm || showCacheConfirm || !!selectedLog);
 
@@ -170,23 +174,33 @@ export default function ClientComponent() {
   const handleConfirmClearCache = async () => {
     setCacheLoading(true);
     setCacheError(null);
-    try {
-      const response = await apiFetch('/plantilla/bitacora/invalidar-cache-manual/', {
-        method: 'POST',
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCacheResult(data.cache_keys_borradas);
-      } else {
-        const errData = await response.json();
-        setCacheError(errData.error || 'Error al borrar la caché del servidor.');
+    const result = { server: null, browser: null };
+    const errors = [];
+    if (clearServerCache) {
+      try {
+        const response = await apiFetch('/plantilla/bitacora/invalidar-cache-manual/', {
+          method: 'POST',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          result.server = data.cache_keys_borradas;
+        } else {
+          const errData = await response.json();
+          errors.push(errData.error || 'Error al borrar la caché del servidor.');
+        }
+      } catch (error) {
+        console.error('Error clearing cache:', error);
+        errors.push('Error de red al conectar con el servidor.');
       }
-    } catch (error) {
-      console.error('Error clearing cache:', error);
-      setCacheError('Error de red al conectar con el servidor.');
-    } finally {
-      setCacheLoading(false);
     }
+    if (clearBrowserCache) {
+      const ok = await clearAllDatasets();
+      if (ok) result.browser = true;
+      else errors.push('No se pudo vaciar la caché del navegador (IndexedDB).');
+    }
+    if (errors.length) setCacheError(errors.join(' '));
+    if (result.server !== null || result.browser !== null) setCacheResult(result);
+    setCacheLoading(false);
   };
 
   const fetchLogs = async (showLoading = true) => {
@@ -466,7 +480,7 @@ export default function ClientComponent() {
                 className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black font-mono tracking-wider border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-900 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 shadow-sm hover:shadow active:scale-95 transition-all duration-300 cursor-pointer"
               >
                 <Trash2 className="size-3.5" />
-                BORRAR CACHÉ DEL SERVIDOR
+                BORRAR CACHÉ
               </button>
             </div>
           </div>
@@ -949,16 +963,37 @@ export default function ClientComponent() {
                 </div>
 
                 <h3 className="text-base font-black text-slate-850 dark:text-white uppercase tracking-wider font-mono">
-                  ¿Borrar Caché del Servidor?
+                  ¿Borrar Caché?
                 </h3>
 
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-3 space-y-2 leading-relaxed w-full">
-                  <p>
-                    Estás a punto de borrar <strong>toda la caché</strong> del servidor.
-                  </p>
-                  <div className="p-3.5 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/15 rounded-xl text-amber-600 dark:text-amber-400 font-mono text-[11px] text-left">
-                    <span className="font-bold">⚠️ ADVERTENCIA:</span> Los siguientes requests de cualquier usuario podrían ralentizarse temporalmente, ya que el sistema tendrá que recalcular y regenerar la caché desde cero con datos frescos.
-                  </div>
+                  <p>Elige qué caché borrar:</p>
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-left cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={clearServerCache}
+                      onChange={(e) => setClearServerCache(e.target.checked)}
+                      disabled={cacheLoading || cacheResult !== null}
+                      className="mt-0.5 accent-[#621f32]"
+                    />
+                    <span>
+                      <strong className="text-slate-700 dark:text-slate-200">Caché del servidor (Redis)</strong>
+                      <span className="block text-[11px]">Los siguientes requests de cualquier usuario serán más lentos mientras se regenera. También avisa a los consumidores externos suscritos.</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-left cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={clearBrowserCache}
+                      onChange={(e) => setClearBrowserCache(e.target.checked)}
+                      disabled={cacheLoading || cacheResult !== null}
+                      className="mt-0.5 accent-[#621f32]"
+                    />
+                    <span>
+                      <strong className="text-slate-700 dark:text-slate-200">Caché de este navegador (IndexedDB)</strong>
+                      <span className="block text-[11px]">Solo afecta a este navegador: la próxima vez que abras Plantilla de Empleados volverá a descargar los datos (~20 s).</span>
+                    </span>
+                  </label>
                   {cacheError && (
                     <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl font-mono text-[10px] text-left">
                       {cacheError}
@@ -966,7 +1001,8 @@ export default function ClientComponent() {
                   )}
                   {cacheResult !== null && (
                     <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl font-mono text-[10px] text-left">
-                      Caché borrada: {cacheResult} keys eliminadas.
+                      {cacheResult.server !== null && <div>Servidor: {cacheResult.server} keys eliminadas.</div>}
+                      {cacheResult.browser && <div>Navegador: IndexedDB vaciada.</div>}
                     </div>
                   )}
                   <p>
@@ -984,7 +1020,7 @@ export default function ClientComponent() {
                   {cacheResult === null && (
                     <button
                       onClick={handleConfirmClearCache}
-                      disabled={cacheLoading}
+                      disabled={cacheLoading || (!clearServerCache && !clearBrowserCache)}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black font-mono tracking-wider bg-red-600 text-white shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                     >
                       {cacheLoading ? (
