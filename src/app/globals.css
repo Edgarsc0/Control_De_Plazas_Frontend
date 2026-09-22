@@ -72,6 +72,14 @@ body {
 @utility top-stack-gap {
   top: calc(var(--stack-h) + 0.75rem);
 }
+/* Para elementos flotantes (campana/botón de movimientos de hoy) que en
+   desktop compartían el mismo `top` que PageTabBar (`top-40`, ver ahí) y
+   quedaban tapados por sus tabs de la derecha (p.ej. "Catálogos"). Baja el
+   contenido por debajo del pill de tabs: alto real de la barra (~2.75rem)
+   + un margen de aire. */
+@utility top-stack-bar-gap {
+  top: calc(var(--stack-h) + 3.5rem);
+}
 @utility bottom-nav-gap {
   bottom: calc(var(--bottomnav-h) + 0.5rem);
 }

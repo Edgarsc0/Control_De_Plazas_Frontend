@@ -3673,7 +3673,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           de arriba) para no taparla una vez que ya no hace falta tenerla a
           la vista. */}
       <div
-        className={`fixed top-stack-gap right-4 md:top-40 md:right-8 z-30 flex items-center gap-3 transition-opacity duration-200 ${showFloatingMobileActions ? "opacity-100" : "opacity-0 pointer-events-none"} md:opacity-100 md:pointer-events-auto`}
+        className={`fixed top-stack-gap right-4 md:top-stack-bar-gap md:right-8 z-30 flex items-center gap-3 transition-opacity duration-200 ${showFloatingMobileActions ? "opacity-100" : "opacity-0 pointer-events-none"} md:opacity-100 md:pointer-events-auto`}
       >
         <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
         <button
