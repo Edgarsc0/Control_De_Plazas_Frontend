@@ -72,8 +72,8 @@ export default function Navbar() {
   return (
     // top-0 en móvil: el Banner gob.mx está oculto ahí, así que este header
     // (el único visible) ocupa el espacio superior en vez de dejarlo en blanco.
-    <nav className="fixed top-0 md:top-20 left-0 w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm h-16 flex items-center z-40">
-      <div className="w-full max-w-[1400px] mx-auto px-4 md:px-7 flex justify-between items-center">
+    <nav className="fixed top-0 md:top-20 left-0 w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm h-16 md:h-20 flex items-center z-40">
+      <div className="w-full max-w-[1600px] mx-auto px-4 md:px-7 flex justify-between items-center">
         {/* Logo and System Name */}
         <div className="flex items-center gap-x-4">
           <Link href="/" className="flex items-center gap-x-3">
@@ -90,8 +90,17 @@ export default function Navbar() {
                 pintaba por encima del banner gob.mx y por debajo, sobre la
                 página. */}
             <div className="flex flex-col min-w-0">
-              <span className="text-[#621f32] font-semibold text-[13px] md:text-lg leading-tight max-w-[200px] md:max-w-none">
-                Sistema de Control de Plazas
+              {/* El título debe verse COMPLETO siempre (sin truncar): en
+                  desktop envuelve a 2 líneas dentro de un ancho acotado
+                  (`md:max-w-[420px]`) — la barra creció a `md:h-20` (ver
+                  arriba) específicamente para darle espacio a esas 2 líneas
+                  + las 2 líneas de "última actualización" de abajo, sin
+                  aplastar "Página de inicio"/"Dashboard" a la derecha
+                  (blindados con `shrink-0`/`whitespace-nowrap`, ver el bloque
+                  de la derecha). En móvil se mantiene en una sola línea
+                  acotada a 200px, como ya funcionaba. */}
+              <span className="text-[#621f32] font-semibold text-[13px] md:text-base leading-tight truncate md:whitespace-normal md:[overflow:visible] md:[text-overflow:clip] max-w-[200px] md:max-w-[420px]">
+                Sistema de Control de Plazas - Unidad de Administración y Finanzas - Recursos Humanos 2026
               </span>
               {lastUpdate && (
                 <span className="hidden md:block text-[10px] text-gray-500 font-light mt-0.5 leading-normal">
@@ -152,20 +161,23 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Navigation Links (desktop) — en móvil viven en el BottomNav */}
-        <div className="hidden md:flex items-center gap-x-5 lg:gap-x-6">
+        {/* Navigation Links (desktop) — en móvil viven en el BottomNav.
+            `shrink-0` + `whitespace-nowrap` en cada texto: con el título de
+            la izquierda ya acotado (ver arriba), este bloque conserva su
+            ancho natural y nunca se comprime ni envuelve palabras. */}
+        <div className="hidden md:flex items-center gap-x-5 lg:gap-x-6 shrink-0">
           <Link
             href="/"
-            className="text-gray-700 hover:text-[#621f32] font-medium transition-colors"
+            className="text-gray-700 hover:text-[#621f32] font-medium transition-colors whitespace-nowrap"
           >
             Página de inicio
           </Link>
 
           {isAuthenticated && (
-            <div className="relative" ref={menuRef}>
-              <button 
+            <div className="relative shrink-0" ref={menuRef}>
+              <button
                 onClick={() => setIsDashboardMenuOpen(!isDashboardMenuOpen)}
-                className={`flex items-center gap-1 text-gray-700 hover:text-[#621f32] font-medium transition-colors cursor-pointer outline-none ${isDashboardMenuOpen ? 'text-[#621f32]' : ''}`}
+                className={`flex items-center gap-1 text-gray-700 hover:text-[#621f32] font-medium transition-colors cursor-pointer outline-none whitespace-nowrap ${isDashboardMenuOpen ? 'text-[#621f32]' : ''}`}
               >
                 Dashboard
                 <ChevronDown className={`size-4 transition-transform duration-300 ${isDashboardMenuOpen ? 'rotate-180' : ''}`} />
@@ -180,23 +192,23 @@ export default function Navbar() {
           )}
 
           {isAuthenticated && email && (
-            <div className="hidden lg:flex flex-col items-end leading-tight">
-              <span className="text-xs font-semibold text-[#621f32]">{email}</span>
-              {role && <span className="text-[11px] text-[#621f32]/70">{role}</span>}
+            <div className="hidden lg:flex flex-col items-end leading-tight shrink-0">
+              <span className="text-xs font-semibold text-[#621f32] whitespace-nowrap">{email}</span>
+              {role && <span className="text-[11px] text-[#621f32]/70 whitespace-nowrap">{role}</span>}
             </div>
           )}
 
           {isAuthenticated ? (
             <button
               onClick={logout}
-              className="bg-[#621f32] text-white px-4 py-2 rounded-md hover:bg-[#4d1827] transition-colors font-medium cursor-pointer"
+              className="bg-[#621f32] text-white px-4 py-2 rounded-md hover:bg-[#4d1827] transition-colors font-medium cursor-pointer shrink-0 whitespace-nowrap"
             >
               Cerrar Sesión
             </button>
           ) : (
             <Link
               href="/login"
-              className="bg-[#621f32] text-white px-4 py-2 rounded-md hover:bg-[#4d1827] transition-colors font-medium"
+              className="bg-[#621f32] text-white px-4 py-2 rounded-md hover:bg-[#4d1827] transition-colors font-medium shrink-0 whitespace-nowrap"
             >
               Login
             </Link>

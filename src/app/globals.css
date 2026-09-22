@@ -17,9 +17,14 @@ body {
 
 /* Alturas de la navegación fija — fuente única (evita el 144px mágico repetido) */
 :root {
+  /* Banner adelgazado de h-28 a h-20 (2026-09-22): stack pasó de 192px a
+     160px. Todo lugar que dependía del 192px mágico (top-48, calc(100vh-192px))
+     se actualizó junto con esto (ver Navbar, ModalShell, PageTabBar,
+     PlantillaEmpleadosSkeleton, MovimientosTab, PlantillaDetalleTab, y
+     plantilla_empleados/ClientComponent.jsx). */
   --banner-h: 5rem; /* Banner gob.mx: h-20 */
-  --navbar-h: 4rem; /* Navbar: h-16 */
-  --stack-h: 9rem; /* banner + navbar = 144px */
+  --navbar-h: 5rem; /* Navbar: h-20 */
+  --stack-h: 10rem; /* banner + navbar = 160px */
   --bottomnav-h: 4rem; /* BottomNav móvil: h-16 */
 }
 
@@ -62,7 +67,7 @@ body {
 }
 /* Tarjeta de Parámetros de Valuación: descuenta además la barra de acciones. */
 @utility max-h-stack-barra-vh {
-  max-height: calc(100vh - var(--stack-h, 9rem) - 3.5rem);
+  max-height: calc(100vh - var(--stack-h, 10rem) - 3.5rem);
 }
 @utility top-stack-gap {
   top: calc(var(--stack-h) + 0.75rem);
@@ -88,9 +93,14 @@ body {
 }
 
 /* Banner gob.mx oculto en móvil (Banner.jsx: hidden md:flex) — el contenido
-   solo necesita despejar el Navbar, que ahí ocupa top-0. */
+   solo necesita despejar el Navbar, que ahí ocupa top-0. En móvil el Navbar
+   NO creció (sigue en h-16: el título se colapsa a una línea + un solo
+   renglón de "Actualizado", ver Navbar.jsx) — solo el desktop (`md:h-20`)
+   necesita el `--navbar-h` más grande definido en `:root`, así que aquí se
+   revierte a su valor original para este breakpoint. */
 @media (max-width: 767px) {
   :root {
+    --navbar-h: 4rem;
     --stack-h: var(--navbar-h);
   }
 }

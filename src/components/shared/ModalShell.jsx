@@ -206,10 +206,10 @@ export default function ModalShell({
         isRight
           ? `fixed inset-0 z-[10000] ${showBackdrop ? "" : "pointer-events-none"}`
           : isEdge
-          ? // top-16/md:top-36 + overflow-hidden: recorta TODO lo del sidebar
+          ? // top-16/md:top-40 + overflow-hidden: recorta TODO lo del sidebar
             // (panel + su boxShadow) por debajo del Navbar, para que la sombra
             // no sangre hacia arriba encima de la barra (mismo z-40).
-            `fixed inset-x-0 top-16 md:top-36 bottom-0 z-40 overflow-hidden ${showBackdrop ? "" : "pointer-events-none"}`
+            `fixed inset-x-0 top-16 md:top-40 bottom-0 z-40 overflow-hidden ${showBackdrop ? "" : "pointer-events-none"}`
           : "fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-6"
       }
     >
@@ -230,7 +230,7 @@ export default function ModalShell({
           isRight
             ? `absolute flex flex-col bg-white dark:bg-slate-950 rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden pointer-events-auto`
             : isEdge
-            ? // absolute dentro del root ya recortado (top-16/md:top-36):
+            ? // absolute dentro del root ya recortado (top-16/md:top-40):
               // ocupa todo ese alto, pegado al borde derecho. Sin bordes
               // redondeados — es un panel a ras del viewport, no una tarjeta.
               `absolute inset-y-0 right-0 flex flex-col bg-white dark:bg-slate-950 border-l border-slate-200/80 dark:border-slate-800 overflow-hidden pointer-events-auto`

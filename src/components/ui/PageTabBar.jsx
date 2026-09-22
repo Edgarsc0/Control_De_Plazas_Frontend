@@ -122,7 +122,7 @@ const PageTabBar = forwardRef(function PageTabBar({ tabs, activeTab, onSelect, s
     }, [openSubtabId, openDropdown]);
 
     return (
-        <div ref={ref} className="fixed top-36 inset-x-0 z-30 hidden md:flex justify-center">
+        <div ref={ref} className="fixed top-40 inset-x-0 z-30 hidden md:flex justify-center">
             <div
                 ref={barRef}
                 className="relative flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none [&::-webkit-scrollbar]:hidden"

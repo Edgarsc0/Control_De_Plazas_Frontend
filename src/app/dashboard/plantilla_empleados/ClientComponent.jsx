@@ -684,7 +684,7 @@ export default function PlantillaEmpleadosDetalle({
       <div className="absolute -top-40 -right-40 size-[32rem] bg-gradient-to-br from-[#621f32]/8 to-transparent rounded-full blur-[100px] -z-10 animate-pulse duration-[8000ms]" />
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
-      {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-16 = top-36 = 144px) */}
+      {/* Barra de tabs fija: esquina superior derecha bajo Navbar (top-20 + h-20 = top-40 = 160px) */}
       <PageTabBar
         ref={pageTabBarRef}
         tabs={visibleTabs}
@@ -911,7 +911,7 @@ export default function PlantillaEmpleadosDetalle({
             />
           )}
           {activeTab === "mapa" && activeMapaSubTab === "caballito" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) && (
-            <div className="w-full h-[calc(100vh-144px)] min-h-[500px] overflow-hidden relative">
+            <div className="w-full h-[calc(100vh-160px)] min-h-[500px] overflow-hidden relative">
               <TorreCaballito3DTab />
             </div>
           )}

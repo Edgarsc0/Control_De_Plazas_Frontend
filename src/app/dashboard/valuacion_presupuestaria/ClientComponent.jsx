@@ -161,7 +161,7 @@ export default function ValuacionPresupuestaria({
     return (
         <div
             className="w-full font-sans flex flex-col"
-            style={{ minHeight: 'calc(100vh - var(--stack-h,9rem))' }}
+            style={{ minHeight: 'calc(100vh - var(--stack-h,10rem))' }}
         >
             {/* ── Fixed tab bar ─────────────────────────────────────────────── */}
             <PageTabBar

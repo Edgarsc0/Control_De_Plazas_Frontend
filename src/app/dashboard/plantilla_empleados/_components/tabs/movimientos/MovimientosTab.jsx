@@ -2162,7 +2162,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       {/* Campana de notificaciones de posición: esquina superior derecha,
           debajo del Navbar (mismo anclaje fijo que su contraparte en
           PlantillaDetalleTab.jsx). */}
-      <div className="fixed bottom-nav-gap-lg right-4 md:bottom-auto md:top-48 md:right-8 z-30 flex items-center gap-3">
+      <div className="fixed bottom-nav-gap-lg right-4 md:bottom-auto md:top-40 md:right-8 z-30 flex items-center gap-3">
         <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
       </div>
 

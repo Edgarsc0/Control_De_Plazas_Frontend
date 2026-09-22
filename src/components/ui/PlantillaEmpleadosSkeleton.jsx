@@ -19,7 +19,7 @@ export default function PlantillaEmpleadosSkeleton() {
       <div className="absolute bottom-0 -left-40 size-[40rem] bg-gradient-to-tr from-[#bc955c]/8 to-transparent rounded-full blur-[120px] -z-10" />
 
       {/* Barra de tabs fija: pill flotante centrada, igual layout que PageTabBar */}
-      <div className="fixed top-36 inset-x-0 z-30 hidden sm:flex justify-center">
+      <div className="fixed top-40 inset-x-0 z-30 hidden sm:flex justify-center">
         <div
           className="flex items-center justify-between gap-1 p-1 w-full max-w-full overflow-x-auto rounded-none bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: 'none' }}
