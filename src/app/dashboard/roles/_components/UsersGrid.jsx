@@ -137,13 +137,14 @@ export default function UsersGrid({
                         className={cellClassName({ isSelected, muted: !first })}
                     >
                         {first ? (
-                            <>
-                                {pageLabel(first)}
-                                <span className="font-normal text-slate-400 dark:text-slate-500"> · {timeAgoLabel(first.ts)}</span>
-                                {sessions.length > 1 && (
-                                    <span className="ml-1.5 font-bold text-[#621f32] dark:text-[#bc955c]">+{sessions.length - 1}</span>
-                                )}
-                            </>
+                            <ul className="flex flex-col gap-0.5">
+                                {sessions.map((s, i) => (
+                                    <li key={i}>
+                                        {pageLabel(s)}
+                                        <span className="font-normal text-slate-400 dark:text-slate-500"> · {timeAgoLabel(s.ts)}</span>
+                                    </li>
+                                ))}
+                            </ul>
                         ) : '—'}
                     </td>
                 );
