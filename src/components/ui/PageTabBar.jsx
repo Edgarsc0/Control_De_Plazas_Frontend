@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import { useZafiroRefreshing } from '@/context/ZafiroUpdatesContext';
+import { useBrowserCacheStatus } from '@/lib/plantillaBrowserCache';
 
 /**
  * Barra de tabs fija (desktop) tipo pill flotante con indicador animado.
@@ -27,7 +28,9 @@ import { useZafiroRefreshing } from '@/context/ZafiroUpdatesContext';
  *   en vez de adivinarlo con un padding-top fijo (ver CuadrosVacanciaTab en plantilla_empleados).
  */
 const PageTabBar = forwardRef(function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = {}, layoutId = 'pageTabActivePill', forceOpenTabId = null }, ref) {
-    const isRefreshing = useZafiroRefreshing();
+    const isRefreshingData = useZafiroRefreshing();
+    const cacheStatus = useBrowserCacheStatus();
+    const isRefreshing = isRefreshingData || !!cacheStatus;
     const [openSubtabId, setOpenSubtabId] = useState(null);
     const [dropdownPos, setDropdownPos] = useState(null);
     const barRef = useRef(null);
@@ -195,10 +198,13 @@ const PageTabBar = forwardRef(function PageTabBar({ tabs, activeTab, onSelect, s
                         transition={{ duration: 0.15 }}
                         role="status"
                         aria-label="Actualizando datos"
-                        title="Actualizando datos..."
-                        className="absolute top-full left-2 mt-1 flex size-5 items-center justify-center rounded-full bg-white/95 shadow-md border border-slate-200"
+                        title={cacheStatus || "Actualizando datos..."}
+                        className="absolute top-full left-2 mt-1 flex h-5 min-w-5 items-center justify-center gap-1.5 rounded-full bg-white/95 px-1 shadow-md border border-slate-200"
                     >
                         <Loader2 className="size-3 animate-spin text-[#621f32]" />
+                        {cacheStatus && (
+                            <span className="pr-1.5 text-[10px] font-bold text-[#621f32] whitespace-nowrap">{cacheStatus}</span>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

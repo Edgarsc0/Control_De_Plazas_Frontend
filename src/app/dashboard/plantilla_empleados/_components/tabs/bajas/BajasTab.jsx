@@ -45,7 +45,7 @@ import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { isNivelTabularColumn, compareNivelTabular } from "@/utils/nivelTabular";
-import { getDataset, setDataset } from "@/lib/plantillaBrowserCache";
+import { getDataset, setDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 
 const MOV_STATUS_BADGE_STYLES = {
@@ -103,7 +103,7 @@ function useCachedBajasDataset(key) {
         setData(cached);
         return;
       }
-      const fresh = await BAJAS_FETCHERS[key]();
+      const fresh = await trackEndpointFetch(key, () => BAJAS_FETCHERS[key]());
       if (!cancelled) setData(fresh);
       await setDataset(key, fresh);
     })();
@@ -129,9 +129,9 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
   const { subscribe } = useZafiroUpdates();
   useEffect(() => subscribe(async () => {
     const [freshBajas, freshMotivos, freshHistorico] = await Promise.all([
-      BAJAS_FETCHERS.bajas_sig(),
-      BAJAS_FETCHERS.bajas_motivos(),
-      BAJAS_FETCHERS.bajas_historico(),
+      trackEndpointFetch("bajas_sig", () => BAJAS_FETCHERS.bajas_sig()),
+      trackEndpointFetch("bajas_motivos", () => BAJAS_FETCHERS.bajas_motivos()),
+      trackEndpointFetch("bajas_historico", () => BAJAS_FETCHERS.bajas_historico()),
     ]);
     setBajasData(freshBajas);
     setBajasMotivos(freshMotivos);

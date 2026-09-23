@@ -46,7 +46,7 @@ import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-
 import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
 import { useAnuenciaAnexoUpdatesRealtime } from "./_hooks/useAnuenciaAnexoUpdatesRealtime";
 import { VacantesService } from "@/services/vacantes.service";
-import { getDataset, setDataset, patchDataset, clearDataset } from "@/lib/plantillaBrowserCache";
+import { getDataset, setDataset, patchDataset, clearDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
@@ -174,7 +174,10 @@ export default function PlantillaEmpleadosDetalle({
   const refetchDetalle = useCallback(async () => {
     if (!detalleCacheKey) return; // identidad aún no resuelta — el efecto de abajo reintenta
     try {
-      const response = await VacantesService.getEmpleadosCompletosActivosDetalle();
+      const { response, fresh } = await trackEndpointFetch(detalleCacheKey, async () => {
+        const res = await VacantesService.getEmpleadosCompletosActivosDetalle();
+        return { response: res, fresh: res.ok ? ((await res.json()) || []) : null };
+      });
       if (response.ok) {
         const fresh = (await response.json()) || [];
         setDetalleData(fresh);

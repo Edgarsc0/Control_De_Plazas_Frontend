@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { PlantillaService } from "@/services/plantilla.service";
 
 /**
@@ -81,6 +82,94 @@ function ensureLatestFecha() {
   return fechaPromise;
 }
 
+// Estado de actividad de cache/red de los datasets, para el letrero de
+// depuración del PageTabBar (ver `useBrowserCacheStatus`). Fases:
+//  - "stale": el cache de IndexedDB era anterior a la última corrida exitosa de
+//    ZAFIRO (se borró y toca re-descargar). Se libera al guardar el dataset
+//    fresco (`setDataset`).
+//  - "reading": leyendo IndexedDB (`getDataset`).
+//  - "fetching": pidiendo datos al endpoint (`trackEndpointFetch`).
+// Cada fase se mantiene visible al menos `MIN_VISIBLE_MS` para que una lectura
+// de pocos ms alcance a leerse, y tiene un tope de seguridad (`SAFETY_MS`) por
+// si el fetch falla y nunca llega el guardado que la libera.
+const MIN_VISIBLE_MS = 900;
+const SAFETY_MS = 120000;
+const PHASE_LABELS = {
+  stale: "Actualizando cache del navegador",
+  reading: "Recuperando datos del cache del navegador...",
+  fetching: "Pidiendo datos al endpoint...",
+};
+const activity = new Map(); // `${fase}:${key}` -> { count, startedAt, safety, hideTimer }
+const statusListeners = new Set();
+let statusSnapshot = "";
+
+function emitStatus() {
+  const active = new Set();
+  activity.forEach((_, id) => active.add(id.split(":")[0]));
+  statusSnapshot = Object.keys(PHASE_LABELS)
+    .filter((phase) => active.has(phase))
+    .map((phase) => PHASE_LABELS[phase])
+    .join(" · ");
+  statusListeners.forEach((l) => l());
+}
+
+function beginPhase(phase, key) {
+  const id = `${phase}:${key}`;
+  const cur = activity.get(id);
+  if (cur) {
+    clearTimeout(cur.hideTimer);
+    cur.hideTimer = null;
+    cur.count += 1;
+    return;
+  }
+  const entry = { count: 1, startedAt: Date.now(), hideTimer: null };
+  entry.safety = setTimeout(() => dropPhase(id), SAFETY_MS);
+  activity.set(id, entry);
+  emitStatus();
+}
+
+function dropPhase(id) {
+  const cur = activity.get(id);
+  if (!cur) return;
+  clearTimeout(cur.safety);
+  clearTimeout(cur.hideTimer);
+  activity.delete(id);
+  emitStatus();
+}
+
+function endPhase(phase, key) {
+  const id = `${phase}:${key}`;
+  const cur = activity.get(id);
+  if (!cur) return;
+  cur.count -= 1;
+  if (cur.count > 0) return;
+  const remaining = Math.max(0, MIN_VISIBLE_MS - (Date.now() - cur.startedAt));
+  cur.hideTimer = setTimeout(() => dropPhase(id), remaining);
+}
+
+function subscribeStatus(listener) {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+
+/** Texto de lo que el cache/red están haciendo ahora ("" si nada). */
+export function useBrowserCacheStatus() {
+  return useSyncExternalStore(subscribeStatus, () => statusSnapshot, () => "");
+}
+
+/**
+ * Envuelve un pedido de datos al endpoint para que el letrero muestre
+ * "Pidiendo datos al endpoint..." mientras `fn` (fetch + parseo) no termine.
+ */
+export async function trackEndpointFetch(key, fn) {
+  beginPhase("fetching", key);
+  try {
+    return await fn();
+  } finally {
+    endPhase("fetching", key);
+  }
+}
+
 function idbGet(db, key) {
   return new Promise((resolve) => {
     try {
@@ -126,16 +215,22 @@ async function readEntry(key) {
  * Lee un dataset cacheado. `null` si no existe, si IndexedDB falló o si es
  * anterior a la última corrida exitosa de ZAFIRO (en ese caso se elimina).
  */
-export async function getDataset(key) {
+export async function getDataset(key, { track = true } = {}) {
   const db = await openDb();
   if (!db) return null;
-  const [entry, serverFecha] = await Promise.all([idbGet(db, key), ensureLatestFecha()]);
-  if (entry === null) return null;
-  if (isStale(entry, serverFecha)) {
-    await clearDataset(key);
-    return null;
+  if (track) beginPhase("reading", key);
+  try {
+    const [entry, serverFecha] = await Promise.all([idbGet(db, key), ensureLatestFecha()]);
+    if (entry === null) return null;
+    if (isStale(entry, serverFecha)) {
+      if (track) beginPhase("stale", key);
+      await clearDataset(key);
+      return null;
+    }
+    return entry.data;
+  } finally {
+    if (track) endPhase("reading", key);
   }
-  return entry.data;
 }
 
 /** Sobreescribe por completo un dataset (señal a: refetch tras evento ZAFIRO). */
@@ -144,6 +239,7 @@ export async function setDataset(key, data) {
   if (!db) return;
   const fecha = await ensureLatestFecha();
   await idbPut(db, key, { v: ENTRY_VERSION, fecha: fecha ?? null, savedAt: Date.now(), data });
+  endPhase("stale", key);
 }
 
 /**
@@ -154,7 +250,7 @@ export async function setDataset(key, data) {
  * parche no vuelve "más fresca" la entrada respecto a ZAFIRO.
  */
 export async function patchDataset(key, updater) {
-  const current = await getDataset(key);
+  const current = await getDataset(key, { track: false });
   if (current === null) return;
   const entry = await readEntry(key);
   const db = await openDb();

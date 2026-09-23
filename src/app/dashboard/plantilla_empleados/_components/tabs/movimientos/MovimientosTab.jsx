@@ -52,7 +52,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { getDataset, setDataset, patchDataset } from "@/lib/plantillaBrowserCache";
+import { getDataset, setDataset, patchDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 
 const TUVO_INSUBSISTENCIA_BADGE = {
@@ -646,8 +646,10 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   // `refreshTick` fuerza a que el efecto de más abajo repinte con lo fresco.
   const refetchFullMovPosDataset = useCallback(async () => {
     try {
-      const res = await VacantesService.getMovPosDetalle({ is_latest: "true" });
-      const resData = res.ok ? await res.json() : null;
+      const resData = await trackEndpointFetch(MOV_POS_CACHE_KEY, async () => {
+        const res = await VacantesService.getMovPosDetalle({ is_latest: "true" });
+        return res.ok ? res.json() : null;
+      });
       if (!resData) return;
       const rawList = extractRawList(resData);
       fullLatestDataRef.current = { list: rawList, stats: resData.stats || null };
@@ -728,8 +730,10 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
           return;
         }
         try {
-          const res = await VacantesService.getMovPosDetalle({ is_latest: "true" }, { signal: toggleCtrl.signal });
-          const resData = await res.json();
+          const resData = await trackEndpointFetch(MOV_POS_CACHE_KEY, async () => {
+            const res = await VacantesService.getMovPosDetalle({ is_latest: "true" }, { signal: toggleCtrl.signal });
+            return res.json();
+          });
           if (cancelled) return;
           const rawList = extractRawList(resData);
           fullLatestDataRef.current = { list: rawList, stats: resData.stats || null };
