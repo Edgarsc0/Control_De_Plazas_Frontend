@@ -179,7 +179,6 @@ export default function PlantillaEmpleadosDetalle({
         return { response: res, fresh: res.ok ? ((await res.json()) || []) : null };
       });
       if (response.ok) {
-        const fresh = (await response.json()) || [];
         setDetalleData(fresh);
         await setDataset(detalleCacheKey, fresh);
       }
