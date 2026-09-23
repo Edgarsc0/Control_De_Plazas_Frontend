@@ -214,6 +214,9 @@ function DataTable({
   renderColumnHeaderExtra,
   centerTable = false,
   fillWidth = false,
+  // Encabezado translúcido (vidrio) en vez del guinda sólido; el estilo vive
+  // en globals.css bajo [data-glass-header].
+  glassHeader = false,
   fillHeight = false,
   edgeToEdge = false,
   stickyColumnKeys = null,
@@ -419,7 +422,7 @@ function DataTable({
   }, { scope: tbodyRef, dependencies: [isLoading, hasRows] });
 
   return (
-    <div ref={containerRef} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
+    <div ref={containerRef} data-glass-header={glassHeader ? "" : undefined} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
       <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
       <table className={`text-left text-gray-500 border-collapse ${centerTable && !fillWidth ? "mx-auto" : ""}`} style={{ tableLayout: "fixed", width: fillWidth ? "100%" : columnsWidth, minWidth: columnsWidth }}>
         {/* `data-col-key` en cada <col>: localiza el nodo real para animar su

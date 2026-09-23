@@ -1,14 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import {
     Activity,
     ShieldCheck,
-    Plus,
     Pencil,
     Trash2,
     Users as UsersIcon,
-    UserPlus,
     Search,
     X,
     ChevronLeft,
@@ -42,11 +42,17 @@ import { PERMISSIONS } from '@/config/permissions';
 import { PERMISSION_PREVIEWS } from '@/config/permissionPreviews';
 import { PERMISSION_TREE, getTreeCodenameSet } from '@/config/permissionTree';
 import PermissionTreeSection from './_components/PermissionTreeSection';
+import RolesGrid from './_components/RolesGrid';
+import UsersGrid from './_components/UsersGrid';
 import UnScopeSelector from './_components/UnScopeSelector';
 import ColumnScopeSelector from './_components/ColumnScopeSelector';
+import RolesHero from './_components/RolesHero';
+import AnimatedTabs from './_components/AnimatedTabs';
+import StaggerIn from './_components/StaggerIn';
+import { prefersReducedMotion } from './_components/motion';
 
-const ROLE_PAGE_SIZE = 8;
-const USER_PAGE_SIZE = 10;
+gsap.registerPlugin(useGSAP);
+
 const PRESENCE_POLL_MS = 15000;
 
 // Mismo catálogo que TABLERO_CHOICES en el backend (authentication/models.py)
@@ -78,37 +84,12 @@ async function parseJson(response) {
     }
 }
 
-function Pagination({ page, totalPages, onChange }) {
-    if (totalPages <= 1) return null;
-    return (
-        <div className="flex items-center justify-between gap-3 pt-3">
-            <button
-                onClick={() => onChange(Math.max(1, page - 1))}
-                disabled={page === 1}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none"
-            >
-                <ChevronLeft className="size-3.5" /> Anterior
-            </button>
-            <span className="text-xs font-bold text-slate-400">
-                Página {page} de {totalPages}
-            </span>
-            <button
-                onClick={() => onChange(Math.min(totalPages, page + 1))}
-                disabled={page === totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none"
-            >
-                Siguiente <ChevronRight className="size-3.5" />
-            </button>
-        </div>
-    );
-}
-
 const SKELETON_BG = 'bg-slate-200/70 dark:bg-slate-700/50';
 const SKELETON_BG_LIGHT = 'bg-slate-200/40 dark:bg-slate-700/30';
 
 function RolesSkeleton() {
     return (
-        <div className="max-w-5xl mx-auto px-4 py-10 space-y-6 w-full animate-pulse">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-7 py-8 space-y-5 w-full animate-pulse">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                     <div className={`size-11 rounded-2xl ${SKELETON_BG}`} />
@@ -125,7 +106,7 @@ function RolesSkeleton() {
             <div className="space-y-3">
                 <div className={`h-10 w-full rounded-xl ${SKELETON_BG_LIGHT}`} />
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
-                    {Array.from({ length: ROLE_PAGE_SIZE }).map((_, i) => (
+                    {Array.from({ length: 8 }).map((_, i) => (
                         <div key={i} className="flex items-center gap-3 px-4 py-3.5">
                             <div className={`size-8 rounded-xl shrink-0 ${SKELETON_BG_LIGHT}`} />
                             <div className="flex-1 min-w-0 space-y-2">
@@ -143,6 +124,23 @@ function RolesSkeleton() {
             </div>
         </div>
     );
+}
+
+// Entrada del panel de la pestaña activa. Sólo anima opacity: un transform en
+// un ancestro de la tabla rompería los dropdowns `position: fixed` de filtros.
+function TabPanel({ tab, panelRef, children }) {
+    useGSAP(
+        () => {
+            if (prefersReducedMotion() || !panelRef.current) return;
+            gsap.fromTo(
+                panelRef.current,
+                { opacity: 0 },
+                { opacity: 1, duration: 0.35, ease: 'power2.out', clearProps: 'opacity' }
+            );
+        },
+        { dependencies: [tab] }
+    );
+    return <div ref={panelRef}>{children}</div>;
 }
 
 function RolesAdminContent() {
@@ -174,14 +172,30 @@ function RolesAdminContent() {
     const [isCreatingUser, setIsCreatingUser] = useState(false);
 
     const [activeTab, setActiveTab] = useState('roles');
-    const [roleSearch, setRoleSearch] = useState('');
-    const [roleSort, setRoleSort] = useState('name');
-    const [rolePage, setRolePage] = useState(1);
-    const [userSearch, setUserSearch] = useState('');
     const [userRoleFilter, setUserRoleFilter] = useState('');
-    const [userPage, setUserPage] = useState(1);
     const [activeSessionsByEmail, setActiveSessionsByEmail] = useState({});
     const [activityEntry, setActivityEntry] = useState(null);
+    const panelRef = useRef(null);
+
+    // Salida del panel actual (fade) y luego cambio de pestaña; TabPanel hace la entrada.
+    const changeTab = useCallback(
+        (id) => {
+            if (id === activeTab) return;
+            const el = panelRef.current;
+            if (!el || prefersReducedMotion()) {
+                setActiveTab(id);
+                return;
+            }
+            gsap.killTweensOf(el);
+            gsap.to(el, {
+                opacity: 0,
+                duration: 0.16,
+                ease: 'power1.in',
+                onComplete: () => setActiveTab(id),
+            });
+        },
+        [activeTab]
+    );
 
     const loadAll = useCallback(async () => {
         setIsLoading(true);
@@ -235,22 +249,6 @@ function RolesAdminContent() {
             clearInterval(interval);
         };
     }, []);
-
-    useEffect(() => {
-        setRolePage(1);
-    }, [roleSearch, roleSort]);
-
-    useEffect(() => {
-        setUserPage(1);
-    }, [userSearch, userRoleFilter]);
-
-    useEffect(() => {
-        setRolePage((p) => Math.min(p, Math.max(1, Math.ceil(roles.length / ROLE_PAGE_SIZE))));
-    }, [roles]);
-
-    useEffect(() => {
-        setUserPage((p) => Math.min(p, Math.max(1, Math.ceil(whitelist.length / USER_PAGE_SIZE))));
-    }, [whitelist]);
 
     const openNewRole = () => {
         setEditingRole('new');
@@ -471,39 +469,6 @@ function RolesAdminContent() {
         }
     };
 
-    // --- Roles: búsqueda, orden y paginación ---
-    const filteredRoles = useMemo(() => {
-        const q = roleSearch.trim().toLowerCase();
-        const base = q ? roles.filter((r) => r.name.toLowerCase().includes(q)) : roles;
-        const sorted = [...base];
-        if (roleSort === 'users') sorted.sort((a, b) => b.user_count - a.user_count);
-        else sorted.sort((a, b) => a.name.localeCompare(b.name));
-        return sorted;
-    }, [roles, roleSearch, roleSort]);
-
-    const roleTotalPages = Math.max(1, Math.ceil(filteredRoles.length / ROLE_PAGE_SIZE));
-    const paginatedRoles = filteredRoles.slice((rolePage - 1) * ROLE_PAGE_SIZE, rolePage * ROLE_PAGE_SIZE);
-
-    // --- Usuarios: búsqueda, filtro por rol y paginación ---
-    const roleNameById = useMemo(() => new Map(roles.map((r) => [String(r.id), r.name])), [roles]);
-
-    const filteredWhitelist = useMemo(() => {
-        const q = userSearch.trim().toLowerCase();
-        return whitelist.filter((entry) => {
-            if (userRoleFilter && String(entry.rol) !== userRoleFilter) return false;
-            if (!q) return true;
-            const roleName = roleNameById.get(String(entry.rol)) || '';
-            return (
-                entry.email.toLowerCase().includes(q) ||
-                (entry.ua_nombre || '').toLowerCase().includes(q) ||
-                roleName.toLowerCase().includes(q)
-            );
-        });
-    }, [whitelist, userSearch, userRoleFilter, roleNameById]);
-
-    const userTotalPages = Math.max(1, Math.ceil(filteredWhitelist.length / USER_PAGE_SIZE));
-    const paginatedWhitelist = filteredWhitelist.slice((userPage - 1) * USER_PAGE_SIZE, userPage * USER_PAGE_SIZE);
-
     // --- Permisos del dialog: árbol módulo > tab > sub-permiso + búsqueda ---
     const permsByCodename = useMemo(
         () => new Map(permissions.map((p) => [p.full_codename, p])),
@@ -568,325 +533,57 @@ function RolesAdminContent() {
             return perm && selectedPermissionIds.has(perm.id);
         });
 
+    const heroStats = {
+        roles: roles.length,
+        usuarios: whitelist.length,
+        online: whitelist.filter((e) => (activeSessionsByEmail[e.email]?.sessions?.length || 0) > 0).length,
+        sinPassword: whitelist.filter((e) => !e.tiene_password).length,
+    };
+
     if (isLoading) {
         return <RolesSkeleton />;
     }
 
     return (
-        <div className="max-w-5xl mx-auto px-4 py-10 space-y-6 w-full">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-2xl bg-[#0f766e]/10 dark:bg-[#0f766e]/20">
-                        <ShieldCheck className="size-6 text-[#0f766e] dark:text-[#2dd4bf]" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-black text-slate-800 dark:text-slate-100">Roles y Permisos</h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                            Crea roles y decide qué módulos puede ver o editar cada usuario.
-                        </p>
-                    </div>
-                </div>
-                <Button
-                    onClick={activeTab === 'roles' ? openNewRole : openNewUser}
-                    className="bg-[#621f32] hover:bg-[#4d1827] text-white"
-                >
-                    {activeTab === 'roles' ? (
-                        <>
-                            <Plus className="size-4" /> Nuevo rol
-                        </>
-                    ) : (
-                        <>
-                            <UserPlus className="size-4" /> Nuevo usuario
-                        </>
-                    )}
-                </Button>
-            </div>
+        <div className="max-w-[1600px] mx-auto px-4 md:px-7 py-8 space-y-5 w-full">
+            <RolesHero
+                stats={heroStats}
+                activeTab={activeTab}
+                onCreate={activeTab === 'roles' ? openNewRole : openNewUser}
+                onSelectTab={changeTab}
+            />
 
-            <div className="inline-flex p-1 gap-1 rounded-2xl bg-slate-100 dark:bg-slate-800/60">
-                <button
-                    onClick={() => setActiveTab('roles')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer ${
-                        activeTab === 'roles'
-                            ? 'bg-white dark:bg-slate-900 text-[#621f32] dark:text-[#bc955c] shadow-sm'
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                >
-                    <ShieldCheck className="size-4" /> Roles
-                    <span className="text-xs font-black text-slate-400">{roles.length}</span>
-                </button>
-                <button
-                    onClick={() => setActiveTab('usuarios')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer ${
-                        activeTab === 'usuarios'
-                            ? 'bg-white dark:bg-slate-900 text-[#621f32] dark:text-[#bc955c] shadow-sm'
-                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                    }`}
-                >
-                    <UsersIcon className="size-4" /> Usuarios
-                    <span className="text-xs font-black text-slate-400">{whitelist.length}</span>
-                </button>
-            </div>
+            <AnimatedTabs
+                tabs={[
+                    { id: 'roles', label: 'Roles', icon: ShieldCheck, count: roles.length },
+                    { id: 'usuarios', label: 'Usuarios', icon: UsersIcon, count: whitelist.length },
+                ]}
+                active={activeTab}
+                onChange={changeTab}
+            />
 
+            <TabPanel tab={activeTab} panelRef={panelRef}>
             {activeTab === 'roles' && (
-                <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative flex-1 min-w-[200px] flex items-center pl-3 pr-2 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus-within:ring-2 focus-within:ring-[#621f32]/10 focus-within:border-[#621f32]/40">
-                            <Search className="size-4 text-slate-400 mr-2 shrink-0" />
-                            <input
-                                value={roleSearch}
-                                onChange={(e) => setRoleSearch(e.target.value)}
-                                placeholder="Buscar rol..."
-                                className="flex-1 bg-transparent text-sm outline-none placeholder-slate-400 text-slate-700 dark:text-slate-100"
-                            />
-                            {roleSearch && (
-                                <button onClick={() => setRoleSearch('')} aria-label="Limpiar búsqueda">
-                                    <X className="size-4 text-slate-400" />
-                                </button>
-                            )}
-                        </div>
-                        <Select value={roleSort} onValueChange={setRoleSort}>
-                            <SelectTrigger className={`w-[180px] ${SELECT_TRIGGER_CLASS}`}>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="name">Nombre (A-Z)</SelectItem>
-                                <SelectItem value="users">Más usuarios</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
-                        {paginatedRoles.map((role) => (
-                            <div
-                                key={role.id}
-                                className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                            >
-                                <div className="p-2 rounded-xl bg-[#621f32]/8 dark:bg-[#bc955c]/10 shrink-0">
-                                    <ShieldCheck className="size-4 text-[#621f32] dark:text-[#bc955c]" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 truncate">
-                                        {role.name}
-                                    </h3>
-                                    <p className="text-xs text-slate-400 flex items-center gap-1">
-                                        <KeyRound className="size-3" /> {role.permissions.length} permiso
-                                        {role.permissions.length === 1 ? '' : 's'}
-                                        {Array.isArray(role.un_scope) && (
-                                            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-bold">
-                                                Alcance: {role.un_scope.length} UN
-                                            </span>
-                                        )}
-                                    </p>
-                                </div>
-                                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-300 shrink-0">
-                                    <UsersIcon className="size-3.5" /> {role.user_count}
-                                </span>
-                                <div className="flex gap-1 shrink-0">
-                                    <Button variant="ghost" size="icon-sm" onClick={() => openEditRole(role)}>
-                                        <Pencil className="size-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteRole(role)}>
-                                        <Trash2 className="size-4 text-red-500" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                        {paginatedRoles.length === 0 && (
-                            <p className="text-sm text-slate-400 px-4 py-10 text-center">
-                                {roles.length === 0
-                                    ? 'Aún no hay roles creados.'
-                                    : 'Sin roles que coincidan con la búsqueda.'}
-                            </p>
-                        )}
-                    </div>
-
-                    <Pagination page={rolePage} totalPages={roleTotalPages} onChange={setRolePage} />
-                </div>
+                <RolesGrid roles={roles} isLoading={isLoading} onEdit={openEditRole} onDelete={handleDeleteRole} />
             )}
 
             {activeTab === 'usuarios' && (
-                <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative flex-1 min-w-[200px] flex items-center pl-3 pr-2 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus-within:ring-2 focus-within:ring-[#621f32]/10 focus-within:border-[#621f32]/40">
-                            <Search className="size-4 text-slate-400 mr-2 shrink-0" />
-                            <input
-                                value={userSearch}
-                                onChange={(e) => setUserSearch(e.target.value)}
-                                placeholder="Buscar por correo, UA o rol..."
-                                className="flex-1 bg-transparent text-sm outline-none placeholder-slate-400 text-slate-700 dark:text-slate-100"
-                            />
-                            {userSearch && (
-                                <button onClick={() => setUserSearch('')} aria-label="Limpiar búsqueda">
-                                    <X className="size-4 text-slate-400" />
-                                </button>
-                            )}
-                        </div>
-                        <Select
-                            value={userRoleFilter || 'all'}
-                            onValueChange={(value) => setUserRoleFilter(value === 'all' ? '' : value)}
-                        >
-                            <SelectTrigger className={`w-[180px] ${SELECT_TRIGGER_CLASS}`}>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todos los roles</SelectItem>
-                                {roles.map((role) => (
-                                    <SelectItem key={role.id} value={String(role.id)}>
-                                        {role.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <span className="text-xs font-bold text-slate-400 whitespace-nowrap">
-                            {filteredWhitelist.length} usuario{filteredWhitelist.length === 1 ? '' : 's'}
-                        </span>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
-                                <tr>
-                                    <th className="text-left px-4 py-2.5">Correo</th>
-                                    <th className="text-left px-4 py-2.5">Acceso</th>
-                                    <th className="text-left px-4 py-2.5">UA</th>
-                                    <th className="text-left px-4 py-2.5">Estado</th>
-                                    <th className="text-left px-4 py-2.5">Página actual</th>
-                                    <th className="text-left px-4 py-2.5">Rol</th>
-                                    <th className="text-left px-4 py-2.5">Tablero</th>
-                                    <th className="text-left px-4 py-2.5">Actividad</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {paginatedWhitelist.map((entry) => {
-                                    const sessions = activeSessionsByEmail[entry.email]?.sessions || [];
-                                    return (
-                                        <tr
-                                            key={entry.id}
-                                            className="border-t border-slate-100 dark:border-slate-800"
-                                        >
-                                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200">
-                                                {entry.email}
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                {!entry.tiene_password ? (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-bold whitespace-nowrap">
-                                                        Sin contraseña
-                                                    </span>
-                                                ) : entry.debe_cambiar_password ? (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 text-xs font-bold whitespace-nowrap">
-                                                        Debe cambiarla
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-300 text-xs font-bold whitespace-nowrap">
-                                                        Definida
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
-                                                {entry.ua_nombre || '—'}
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                {sessions.length > 0 ? (
-                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold whitespace-nowrap">
-                                                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                        Activo{sessions.length > 1 ? ` · ${sessions.length} pestañas` : ''}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-xs font-bold text-slate-300 dark:text-slate-600">—</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
-                                                {sessions.length > 0 ? (
-                                                    <div className="flex flex-col gap-0.5">
-                                                        {sessions.map((s) => (
-                                                            <span key={`${s.path}-${s.ts}`} className="whitespace-nowrap">
-                                                                {s.title}
-                                                                {s.subtab ? ` › ${s.subtab}` : ''}
-                                                                <span className="text-slate-300 dark:text-slate-600"> · {timeAgoLabel(s.ts)}</span>
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    '—'
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                <Select
-                                                    defaultValue={String(entry.rol)}
-                                                    onValueChange={(value) => handleReassignRole(entry, value)}
-                                                >
-                                                    <SelectTrigger className={`w-[160px] ${SELECT_TRIGGER_CLASS}`}>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {roles.map((role) => (
-                                                            <SelectItem key={role.id} value={String(role.id)}>
-                                                                {role.name}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                <Select
-                                                    defaultValue={entry.tablero || 'none'}
-                                                    onValueChange={(value) => handleReassignTablero(entry, value)}
-                                                >
-                                                    <SelectTrigger className={`w-[140px] ${SELECT_TRIGGER_CLASS}`}>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {TABLERO_OPTIONS.map((opt) => (
-                                                            <SelectItem key={opt.value} value={opt.value}>
-                                                                {opt.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                <div className="flex items-center gap-0.5">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon-sm"
-                                                        onClick={() => setActivityEntry(entry)}
-                                                        title="Ver actividad"
-                                                    >
-                                                        <Activity className="size-4 text-[#621f32]" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon-sm"
-                                                        onClick={() => openPasswordDialog(entry)}
-                                                        title={
-                                                            entry.tiene_password
-                                                                ? 'Restablecer contraseña'
-                                                                : 'Asignar contraseña'
-                                                        }
-                                                    >
-                                                        <KeyRound className="size-4 text-[#621f32]" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {paginatedWhitelist.length === 0 && (
-                                    <tr>
-                                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
-                                            {whitelist.length === 0
-                                                ? 'Sin usuarios en la whitelist.'
-                                                : 'Sin usuarios que coincidan con la búsqueda.'}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <Pagination page={userPage} totalPages={userTotalPages} onChange={setUserPage} />
-                </div>
+                <UsersGrid
+                    entries={userRoleFilter ? whitelist.filter((e) => String(e.rol) === userRoleFilter) : whitelist}
+                    roles={roles}
+                    tableroOptions={TABLERO_OPTIONS}
+                    activeSessionsByEmail={activeSessionsByEmail}
+                    timeAgoLabel={timeAgoLabel}
+                    isLoading={isLoading}
+                    roleFilter={userRoleFilter}
+                    onRoleFilterChange={setUserRoleFilter}
+                    onReassignRole={handleReassignRole}
+                    onReassignTablero={handleReassignTablero}
+                    onOpenActivity={setActivityEntry}
+                    onOpenPassword={openPasswordDialog}
+                />
             )}
+            </TabPanel>
 
             <Dialog
                 open={!!editingRole}
@@ -907,7 +604,7 @@ function RolesAdminContent() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 overflow-y-auto pr-1 -mr-1">
+                    <StaggerIn className="space-y-4 overflow-y-auto pr-1 -mr-1">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Nombre del rol
@@ -1075,7 +772,7 @@ function RolesAdminContent() {
                             </p>
                             <ColumnScopeSelector value={columnasDetalle} onChange={setColumnasDetalle} />
                         </div>
-                    </div>
+                    </StaggerIn>
 
                     <DialogFooter>
                         <Button variant="outline" onClick={closeDialog} disabled={isSaving}>
@@ -1102,7 +799,7 @@ function RolesAdminContent() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4">
+                    <StaggerIn className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Correo</label>
                             <input
@@ -1182,7 +879,7 @@ function RolesAdminContent() {
                             />
                             Activo
                         </label>
-                    </div>
+                    </StaggerIn>
 
                     <DialogFooter>
                         <Button variant="outline" onClick={closeNewUser} disabled={isCreatingUser}>

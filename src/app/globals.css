@@ -350,3 +350,68 @@ body::before {
 .text-rotate-space {
   white-space: pre;
 }
+/* ---- DataTable con encabezado translúcido (prop glassHeader) ----
+   Sobrescribe el guinda sólido del thead. Se respetan la columna activa
+   (bg-[#621f32]) y las que tienen filtro aplicado (bg-[#bc955c]). */
+[data-glass-header] thead {
+  background: transparent;
+  box-shadow: 0 1px 0 rgba(98, 31, 50, 0.12);
+}
+[data-glass-header] thead tr {
+  background: transparent !important;
+}
+[data-glass-header] thead th:not(.bg-\[\#bc955c\]):not(.bg-\[\#621f32\]) {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #475569 !important;
+  border-color: rgba(98, 31, 50, 0.12) !important;
+}
+.dark [data-glass-header] thead th:not(.bg-\[\#bc955c\]):not(.bg-\[\#621f32\]) {
+  background-color: rgba(15, 23, 42, 0.7) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+[data-glass-header] thead .text-white\/60,
+[data-glass-header] thead .text-white\/40 {
+  color: rgba(71, 85, 105, 0.7);
+}
+.dark [data-glass-header] thead .text-white\/60,
+.dark [data-glass-header] thead .text-white\/40 {
+  color: rgba(203, 213, 225, 0.6);
+}
+[data-glass-header] thead .text-\[\#bc955c\] {
+  color: #9a7640;
+}
+[data-glass-header] thead input {
+  background-color: rgba(98, 31, 50, 0.05);
+  border-color: rgba(98, 31, 50, 0.15);
+  color: #334155;
+}
+[data-glass-header] thead input::placeholder {
+  color: rgba(71, 85, 105, 0.55);
+}
+[data-glass-header] thead input:focus {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+[data-glass-header] thead button.bg-white\/10 {
+  background-color: rgba(98, 31, 50, 0.08);
+  border-color: rgba(98, 31, 50, 0.2);
+  color: #621f32;
+}
+.dark [data-glass-header] thead input {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+}
+.dark [data-glass-header] thead input::placeholder {
+  color: rgba(203, 213, 225, 0.4);
+}
+.dark [data-glass-header] thead input:focus {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+.dark [data-glass-header] thead button.bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+}
