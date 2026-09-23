@@ -897,7 +897,7 @@ function RolesAdminContent() {
                     }
                 }}
             >
-                <DialogContent className="lg:max-w-5xl">
+                <DialogContent className="lg:max-w-5xl max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]">
                     <DialogHeader>
                         <DialogTitle>
                             {editingRole === 'new' ? 'Nuevo rol' : `Editar rol: ${editingRole?.name || ''}`}
@@ -907,7 +907,7 @@ function RolesAdminContent() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4">
+                    <div className="space-y-4 overflow-y-auto pr-1 -mr-1">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Nombre del rol
