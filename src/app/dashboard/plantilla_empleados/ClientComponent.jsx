@@ -46,7 +46,7 @@ import { CATALOGOS_CONFIG, CATALOGOS_ORDER } from "./_components/tabs/catalogos-
 import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
 import { useAnuenciaAnexoUpdatesRealtime } from "./_hooks/useAnuenciaAnexoUpdatesRealtime";
 import { VacantesService } from "@/services/vacantes.service";
-import { getDataset, setDataset, patchDataset } from "@/lib/plantillaBrowserCache";
+import { getDataset, setDataset, patchDataset, clearDataset } from "@/lib/plantillaBrowserCache";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
@@ -104,7 +104,14 @@ function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal
 // plan: además del ciclo ETL de ~30 min, cualquier usuario puede editar una
 // celda en cualquier momento y esa edición se difunde en vivo por SSE a
 // todos los navegadores conectados (ver useCeldaUpdatesRealtime más abajo).
-const DETALLE_CACHE_KEY = "plantilla_detalle";
+//
+// La clave se namespacea por email + un_scope_fingerprint (ver useAuth) y
+// NO es solo el nombre base: en un navegador/perfil compartido, sin esto un
+// usuario con rol restringido por Unidad de Negocio podría heredar el
+// dataset completo cacheado por un usuario sin restricción que usó el mismo
+// perfil antes — la restricción real la aplica el backend, pero de nada
+// sirve si el navegador nunca vuelve a pedirle los datos.
+const DETALLE_CACHE_BASE_KEY = "plantilla_detalle";
 
 export default function PlantillaEmpleadosDetalle({
   resumen,
@@ -112,7 +119,20 @@ export default function PlantillaEmpleadosDetalle({
   distribucionGeografica = [],
   secondaryDataPromise
 }) {
-  const { isLoading: authLoading, hasPermission, email } = useAuth();
+  const { isLoading: authLoading, hasPermission, email, unScopeFingerprint } = useAuth();
+  // null mientras no se conozca la identidad todavía (evita computar una
+  // clave sin namespacear que luego habría que migrar). Cambia si el admin
+  // reduce/amplía el scope del rol (fingerprint distinto), invalidando el
+  // cache viejo automáticamente sin tener que borrarlo a mano.
+  const detalleCacheKey = useMemo(
+    () => (email ? `${DETALLE_CACHE_BASE_KEY}::${email}::${unScopeFingerprint ?? "all"}` : null),
+    [email, unScopeFingerprint]
+  );
+  // Purga de una sola vez de la clave vieja sin namespacear (compartida por
+  // todos los usuarios de este navegador antes de este cambio).
+  useEffect(() => {
+    clearDataset(DETALLE_CACHE_BASE_KEY);
+  }, []);
   // Ya no hay dato inicial síncrono por prop: arranca vacío y se llena en el
   // efecto cache-first de abajo (IndexedDB, casi instantáneo si ya había
   // cache; red solo en frío). Estado local (no una prop cruda) porque
@@ -152,12 +172,13 @@ export default function PlantillaEmpleadosDetalle({
   // como "aplicar prioridad"/bulk-assign de nivel jerárquico, que cambian
   // EMPLEADOS_COMPLETOS_SIG fuera del ciclo del ETL).
   const refetchDetalle = useCallback(async () => {
+    if (!detalleCacheKey) return; // identidad aún no resuelta — el efecto de abajo reintenta
     try {
       const response = await VacantesService.getEmpleadosCompletosActivosDetalle();
       if (response.ok) {
         const fresh = (await response.json()) || [];
         setDetalleData(fresh);
-        await setDataset(DETALLE_CACHE_KEY, fresh);
+        await setDataset(detalleCacheKey, fresh);
       }
     } catch (err) {
       console.error("Error al refrescar plantilla_detalle:", err);
@@ -166,14 +187,18 @@ export default function PlantillaEmpleadosDetalle({
       setIsCargandoDetalleInicial(false);
       clearTimeout(refrescoNivelJerarquicoTimeoutRef.current);
     }
-  }, []);
+  }, [detalleCacheKey]);
 
   // Cache-first (IndexedDB, sin TTL): solo pega a red si este navegador
-  // nunca cacheó `plantilla_detalle` todavía.
+  // nunca cacheó `plantilla_detalle` todavía para ESTE usuario+scope. Espera
+  // a que `authLoading` resuelva (y por lo tanto `detalleCacheKey` ya esté
+  // namespaceado) para no arriesgarse a leer/escribir con una clave sin
+  // identidad.
   useEffect(() => {
+    if (authLoading || !detalleCacheKey) return;
     let cancelled = false;
     (async () => {
-      const cached = await getDataset(DETALLE_CACHE_KEY);
+      const cached = await getDataset(detalleCacheKey);
       if (cached && !cancelled) {
         setDetalleData(cached);
         setIsCargandoDetalleInicial(false);
@@ -182,7 +207,7 @@ export default function PlantillaEmpleadosDetalle({
       if (!cancelled) await refetchDetalle();
     })();
     return () => { cancelled = true; };
-  }, [refetchDetalle]);
+  }, [authLoading, detalleCacheKey, refetchDetalle]);
 
   // Señal (a) del plan: evento real de ZAFIRO (o `notifyLocalUpdate` manual)
   // → refetch completo, siempre por red (nunca sirve la copia de IndexedDB,
@@ -198,10 +223,12 @@ export default function PlantillaEmpleadosDetalle({
     // handleRemoteCellUpdate, que reusa este mismo reducer) — parche
     // quirúrgico sin refetch, para que una recarga posterior ya vea el
     // cambio aunque no haya llegado el próximo evento de ZAFIRO.
-    patchDataset(DETALLE_CACHE_KEY, (rows) => rows.map((row) =>
-      row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
-    ));
-  }, []);
+    if (detalleCacheKey) {
+      patchDataset(detalleCacheKey, (rows) => rows.map((row) =>
+        row.posicion === posicion ? { ...row, [columna]: valorNuevo } : row
+      ));
+    }
+  }, [detalleCacheKey]);
   // Avisa al usuario (badge en "Historial de Cambios") cuando otra persona edita
   // una celda mientras tiene la tabla abierta — se resetea al abrir ese modal
   // (ver PlantillaDetalleTab). `usuario` viaje en el mensaje SSE (username =

@@ -40,7 +40,10 @@ import { PresenceService } from '@/services/presence.service';
 import UserActivityDialog from './_components/UserActivityDialog';
 import { PERMISSIONS } from '@/config/permissions';
 import { PERMISSION_PREVIEWS } from '@/config/permissionPreviews';
-import { PERMISSION_CATEGORY_ORDER, getPermissionCategory } from '@/config/permissionCategories';
+import { PERMISSION_TREE, getTreeCodenameSet } from '@/config/permissionTree';
+import PermissionTreeSection from './_components/PermissionTreeSection';
+import UnScopeSelector from './_components/UnScopeSelector';
+import ColumnScopeSelector from './_components/ColumnScopeSelector';
 
 const ROLE_PAGE_SIZE = 8;
 const USER_PAGE_SIZE = 10;
@@ -155,6 +158,12 @@ function RolesAdminContent() {
     const [isSaving, setIsSaving] = useState(false);
     const [previewCodename, setPreviewCodename] = useState(null);
     const [permSearch, setPermSearch] = useState('');
+    // null = sin restricción (ve todo); string[] = restringido a esos códigos
+    // de Unidad de Negocio (ver RolUnScope en el backend).
+    const [unScope, setUnScope] = useState(null);
+    // null = sin restricción (ve todas las columnas de Plantilla Detalle);
+    // string[] = restringido a esas columnas (ver RolColumnScope).
+    const [columnasDetalle, setColumnasDetalle] = useState(null);
     const [isNewUserOpen, setIsNewUserOpen] = useState(false);
     const [newUser, setNewUser] = useState({ email: '', rol: '', ua: '', activo: true, password: '' });
     // Restablecimiento de contraseña: sin correo institucional disponible no hay
@@ -248,6 +257,8 @@ function RolesAdminContent() {
         setRoleName('');
         setSelectedPermissionIds(new Set());
         setPermSearch('');
+        setUnScope(null);
+        setColumnasDetalle(null);
     };
 
     const openEditRole = (role) => {
@@ -255,6 +266,8 @@ function RolesAdminContent() {
         setRoleName(role.name);
         setSelectedPermissionIds(new Set(role.permissions.map((p) => p.id)));
         setPermSearch('');
+        setUnScope(role.un_scope ?? null);
+        setColumnasDetalle(role.columnas_detalle ?? null);
     };
 
     const closeDialog = () => setEditingRole(null);
@@ -290,12 +303,21 @@ function RolesAdminContent() {
                 response = await RoleService.createRole(roleName.trim());
                 if (response.ok) {
                     const created = await response.json();
-                    response = await RoleService.setRolePermissions(created.id, permission_ids);
+                    // Permisos y alcance de datos en UNA sola llamada — evita
+                    // una ventana donde el rol ya existe con permisos pero
+                    // sin su scope todavía.
+                    response = await RoleService.updateRole(created.id, {
+                        permission_ids,
+                        un_scope: unScope,
+                        columnas_detalle: columnasDetalle,
+                    });
                 }
             } else {
                 response = await RoleService.updateRole(editingRole.id, {
                     name: roleName.trim(),
                     permission_ids,
+                    un_scope: unScope,
+                    columnas_detalle: columnasDetalle,
                 });
             }
             if (!response.ok) {
@@ -482,30 +504,69 @@ function RolesAdminContent() {
     const userTotalPages = Math.max(1, Math.ceil(filteredWhitelist.length / USER_PAGE_SIZE));
     const paginatedWhitelist = filteredWhitelist.slice((userPage - 1) * USER_PAGE_SIZE, userPage * USER_PAGE_SIZE);
 
-    // --- Permisos del dialog: agrupados por módulo + búsqueda ---
-    const groupedPermissions = useMemo(() => {
-        const groups = new Map();
-        permissions.forEach((perm) => {
-            const cat = getPermissionCategory(perm.full_codename);
-            if (!groups.has(cat)) groups.set(cat, []);
-            groups.get(cat).push(perm);
-        });
-        return PERMISSION_CATEGORY_ORDER.filter((cat) => groups.has(cat)).map((cat) => ({
-            category: cat,
-            perms: groups.get(cat),
-        }));
+    // --- Permisos del dialog: árbol módulo > tab > sub-permiso + búsqueda ---
+    const permsByCodename = useMemo(
+        () => new Map(permissions.map((p) => [p.full_codename, p])),
+        [permissions]
+    );
+
+    // Permisos del catálogo que ya no tienen lugar en el árbol (ej. los
+    // `view_ocupacion_sankey/tabla/estadisticas`, dejados de usar en el
+    // rediseño 2026-09 pero que algún rol viejo puede seguir teniendo
+    // asignados) — se muestran aparte, en "Otros", para no ocultarlos.
+    const orphanPermissions = useMemo(() => {
+        const treeCodenames = getTreeCodenameSet();
+        return permissions.filter((p) => !treeCodenames.has(p.full_codename));
     }, [permissions]);
 
-    const filteredPermissionGroups = useMemo(() => {
+    const filteredTree = useMemo(() => {
         const q = permSearch.trim().toLowerCase();
-        if (!q) return groupedPermissions;
-        return groupedPermissions
-            .map(({ category, perms }) => ({
-                category,
-                perms: perms.filter((p) => p.name.toLowerCase().includes(q)),
-            }))
-            .filter((g) => g.perms.length > 0);
-    }, [groupedPermissions, permSearch]);
+        if (!q) return PERMISSION_TREE;
+
+        const filterNode = (node) => {
+            const perm = node.codename ? permsByCodename.get(node.codename) : null;
+            const selfMatches = Boolean(perm && perm.name.toLowerCase().includes(q));
+            // Si el propio nodo matchea, se conservan sus hijos completos
+            // (dan contexto); si no, solo los hijos que a su vez matcheen.
+            const children = selfMatches
+                ? (node.children || [])
+                : (node.children || []).map(filterNode).filter(Boolean);
+            if (!selfMatches && children.length === 0) return null;
+            return { ...node, children };
+        };
+
+        return PERMISSION_TREE
+            .map((moduleNode) => {
+                const children = (moduleNode.children || []).map(filterNode).filter(Boolean);
+                return children.length > 0 ? { ...moduleNode, children } : null;
+            })
+            .filter(Boolean);
+    }, [permSearch, permsByCodename]);
+
+    const filteredOrphanPermissions = useMemo(() => {
+        const q = permSearch.trim().toLowerCase();
+        if (!q) return orphanPermissions;
+        return orphanPermissions.filter((p) => p.name.toLowerCase().includes(q));
+    }, [orphanPermissions, permSearch]);
+
+    // El alcance por Unidad de Negocio hoy solo cubre los datos alcanzables
+    // con view_plantilla_detalle/_foto (ver comentario en plantilla/views.py
+    // junto a _scope_un_filas) — si el rol restringido también tiene alguno
+    // de estos otros permisos, esos tabs devolverían datos SIN filtrar.
+    const CODENAMES_FUERA_DE_COBERTURA_SCOPE = [
+        PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA,
+        PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES,
+        PERMISSIONS.VIEW_PLANTILLA_HISTORICO,
+        PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS,
+        PERMISSIONS.VIEW_PLANTILLA_BAJAS,
+        PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA,
+    ];
+    const scopeTieneHuecoDeCobertura =
+        Array.isArray(unScope) &&
+        CODENAMES_FUERA_DE_COBERTURA_SCOPE.some((codename) => {
+            const perm = permsByCodename.get(codename);
+            return perm && selectedPermissionIds.has(perm.id);
+        });
 
     if (isLoading) {
         return <RolesSkeleton />;
@@ -610,6 +671,11 @@ function RolesAdminContent() {
                                     <p className="text-xs text-slate-400 flex items-center gap-1">
                                         <KeyRound className="size-3" /> {role.permissions.length} permiso
                                         {role.permissions.length === 1 ? '' : 's'}
+                                        {Array.isArray(role.un_scope) && (
+                                            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 font-bold">
+                                                Alcance: {role.un_scope.length} UN
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
                                 <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-300 shrink-0">
@@ -883,58 +949,78 @@ function RolesAdminContent() {
                                     className="space-y-4 max-h-80 overflow-y-auto pr-1"
                                     onMouseLeave={() => setPreviewCodename(null)}
                                 >
-                                    {filteredPermissionGroups.map(({ category, perms }) => {
-                                        const catIds = perms.map((p) => p.id);
-                                        const allSelected = catIds.every((id) => selectedPermissionIds.has(id));
-                                        return (
-                                            <div key={category}>
-                                                <div className="flex items-center justify-between px-2 mb-1">
-                                                    <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-                                                        {category}
-                                                    </h4>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => toggleCategoryAll(catIds, allSelected)}
-                                                        className="text-[11px] font-bold text-[#621f32] hover:underline cursor-pointer"
-                                                    >
-                                                        {allSelected ? 'Quitar todos' : 'Seleccionar todos'}
-                                                    </button>
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    {perms.map((perm) => {
-                                                        const hasPreview = Boolean(
-                                                            PERMISSION_PREVIEWS[perm.full_codename]
+                                    {filteredTree.map((moduleNode) => (
+                                        <PermissionTreeSection
+                                            key={moduleNode.id}
+                                            moduleNode={moduleNode}
+                                            permsByCodename={permsByCodename}
+                                            selectedPermissionIds={selectedPermissionIds}
+                                            togglePermission={togglePermission}
+                                            toggleManyIds={toggleCategoryAll}
+                                            previewCodename={previewCodename}
+                                            setPreviewCodename={setPreviewCodename}
+                                        />
+                                    ))}
+
+                                    {filteredOrphanPermissions.length > 0 && (
+                                        <div>
+                                            <div className="flex items-center justify-between px-2 mb-1">
+                                                <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                                                    Otros
+                                                </h4>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const ids = filteredOrphanPermissions.map((p) => p.id);
+                                                        const allSelected = ids.every((id) =>
+                                                            selectedPermissionIds.has(id)
                                                         );
-                                                        return (
-                                                            <label
-                                                                key={perm.id}
-                                                                onMouseEnter={() =>
-                                                                    hasPreview &&
-                                                                    setPreviewCodename(perm.full_codename)
-                                                                }
-                                                                onFocus={() =>
-                                                                    hasPreview &&
-                                                                    setPreviewCodename(perm.full_codename)
-                                                                }
-                                                                className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedPermissionIds.has(perm.id)}
-                                                                    onChange={() => togglePermission(perm.id)}
-                                                                    className="mt-0.5 accent-[#621f32]"
-                                                                />
-                                                                <span className="text-sm text-slate-700">
-                                                                    {perm.name}
-                                                                </span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
+                                                        toggleCategoryAll(ids, allSelected);
+                                                    }}
+                                                    className="text-[11px] font-bold text-[#621f32] hover:underline cursor-pointer"
+                                                >
+                                                    {filteredOrphanPermissions.every((p) =>
+                                                        selectedPermissionIds.has(p.id)
+                                                    )
+                                                        ? 'Quitar todos'
+                                                        : 'Seleccionar todos'}
+                                                </button>
                                             </div>
-                                        );
-                                    })}
-                                    {filteredPermissionGroups.length === 0 && (
+                                            <div className="space-y-0.5">
+                                                {filteredOrphanPermissions.map((perm) => {
+                                                    const hasPreview = Boolean(
+                                                        PERMISSION_PREVIEWS[perm.full_codename]
+                                                    );
+                                                    return (
+                                                        <label
+                                                            key={perm.id}
+                                                            onMouseEnter={() =>
+                                                                hasPreview &&
+                                                                setPreviewCodename(perm.full_codename)
+                                                            }
+                                                            onFocus={() =>
+                                                                hasPreview &&
+                                                                setPreviewCodename(perm.full_codename)
+                                                            }
+                                                            className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedPermissionIds.has(perm.id)}
+                                                                onChange={() => togglePermission(perm.id)}
+                                                                className="mt-0.5 accent-[#621f32]"
+                                                            />
+                                                            <span className="text-sm text-slate-700">
+                                                                {perm.name}
+                                                            </span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {filteredTree.length === 0 && filteredOrphanPermissions.length === 0 && (
                                         <p className="text-sm text-slate-400">
                                             {permissions.length === 0
                                                 ? 'No hay permisos en el catálogo.'
@@ -957,6 +1043,37 @@ function RolesAdminContent() {
                                     )}
                                 </div>
                             </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Alcance de datos (Unidad de Negocio)
+                            </label>
+                            <p className="text-xs text-slate-400 mb-2">
+                                Aplica a los tabs Plantilla Detalle, Estatus Nómina y Mov. Posiciones
+                                (comparten el mismo conjunto de datos).
+                            </p>
+                            <UnScopeSelector value={unScope} onChange={setUnScope} />
+                            {scopeTieneHuecoDeCobertura && (
+                                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    El alcance por UN aún no se aplica a los datos propios de Estatus
+                                    Nómina, Mov. Posiciones, Histórico, Movimientos, Empleados Bajas o
+                                    Distribución Geográfica — este rol podría ver registros fuera de su
+                                    UN en esos tabs.
+                                </p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Columnas visibles (Plantilla Detalle)
+                            </label>
+                            <p className="text-xs text-slate-400 mb-2">
+                                Las columnas no permitidas ni siquiera llegan al navegador de este rol
+                                (no es solo ocultarlas en pantalla). Las que sí se permiten, el usuario
+                                las puede mostrar/ocultar libremente para personalizar su vista y su Excel.
+                            </p>
+                            <ColumnScopeSelector value={columnasDetalle} onChange={setColumnasDetalle} />
                         </div>
                     </div>
 

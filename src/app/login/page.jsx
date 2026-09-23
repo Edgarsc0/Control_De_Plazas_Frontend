@@ -5,6 +5,7 @@ import CambiarPasswordDrawer from '@/components/shared/CambiarPasswordDrawer';
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthService } from '@/services/auth.service';
+import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import DriftWall from '@/components/ui/DriftWall';
 
@@ -62,6 +63,13 @@ export default function Login() {
       }
 
       AuthService.saveToken(data.token);
+
+      // Blindaje adicional a la clave namespaceada por usuario en
+      // ClientComponent.jsx: en un navegador/perfil compartido, un cambio de
+      // usuario nunca debe heredar datasets cacheados de la sesión anterior
+      // (Plantilla Detalle, Mov. Posiciones, Bajas) — se vacía por completo
+      // en cada login, no solo se namespacea.
+      await clearAllDatasets();
 
       // Contraseña puesta por un administrador: alguien más la conoce, así que
       // el titular la cambia antes de entrar (el drawer no se puede cerrar).

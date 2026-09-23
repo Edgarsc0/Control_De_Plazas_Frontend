@@ -12,6 +12,16 @@ const EMPTY_SESSION = {
     ua: null,
     isSuperuser: false,
     permissions: [],
+    // null = sin restricción de datos por Unidad de Negocio; string[] = solo
+    // ve esos códigos (ver RolUnScope en el backend). Puramente informativo
+    // en el front — la restricción real la aplica siempre el servidor.
+    unScope: null,
+    unScopeFingerprint: 'all',
+    // null = sin restricción de columnas en Plantilla Detalle; string[] =
+    // solo esas columnas (ver RolColumnScope en el backend). También
+    // informativo — el backend ya recorta los campos reales de la
+    // respuesta, esto solo decide qué ofrecer en "Configurar Columnas".
+    columnasDetallePermitidas: null,
 };
 
 /**
@@ -44,6 +54,9 @@ export function AuthProvider({ children }) {
                 ua: data.ua,
                 isSuperuser: !!data.is_superuser,
                 permissions: data.permissions || [],
+                unScope: data.un_scope ?? null,
+                unScopeFingerprint: data.un_scope_fingerprint || 'all',
+                columnasDetallePermitidas: data.columnas_detalle_permitidas ?? null,
             });
         } catch (error) {
             console.error('Error al obtener el perfil de usuario:', error);
@@ -91,6 +104,9 @@ export function AuthProvider({ children }) {
             ua: session.ua,
             isSuperuser: session.isSuperuser,
             permissions: session.permissions,
+            unScope: session.unScope,
+            unScopeFingerprint: session.unScopeFingerprint,
+            columnasDetallePermitidas: session.columnasDetallePermitidas,
             hasPermission,
             hasAnyPermission,
             refresh,

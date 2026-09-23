@@ -57,6 +57,7 @@ import { useAccionesMotivosCatalog } from "../../../_hooks/useAccionesMotivosCat
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { daysUntil, getAnuenciaColorClasses, FECHA_ANUENCIA_CATEGORIAS } from "@/utils/anuencia";
 import { useAuth } from "@/hooks/useAuth";
+import { PLANTILLA_DETALLE_COLUMNS_CATALOG } from "@/config/plantillaDetalleColumns";
 import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
 
@@ -599,6 +600,28 @@ function CadenaTreeNode({
 }
 
 export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates, isActiveTab = true }) {
+  const { hasPermission, isLoading: authLoading, unScope, columnasDetallePermitidas } = useAuth();
+  // Un rol con alcance de datos por Unidad de Negocio (ver RolUnScope en el
+  // backend) solo debe operar sobre su propia UN, así que se le ocultan los
+  // controles que implican ver/editar la plantilla completa: el resumen de
+  // movimientos de Dirección Operativa (agregado de TODAS las UN), el switch
+  // "Plantilla Oficial" (debe quedar siempre encendido para él, sin poder
+  // apagarlo) y el Historial de Cambios (no edita nada, no le aplica).
+  // `!authLoading` evita un parpadeo: mientras la sesión resuelve, `unScope`
+  // todavía trae el valor por defecto `null` ("sin restricción"), que se
+  // vería como falso negativo (mostrar de más un instante) si no se espera.
+  const sinRestriccionUN = !authLoading && unScope === null;
+  // Alcance por columnas (ver RolColumnScope en el backend): las columnas no
+  // permitidas ya NO llegan en los datos (el backend las recorta), pero el
+  // catálogo de "Configurar Columnas" es estático — sin este filtro, esas
+  // columnas seguirían apareciendo como opción (vacías al activarlas). Set
+  // memoizado para no reconstruirlo en cada render de los filtros de abajo.
+  // `null` mientras carga la sesión = no filtra nada todavía (mismo criterio
+  // que `sinRestriccionUN`, para no ocultar de más durante un instante).
+  const columnasPermitidasSet = useMemo(
+    () => (authLoading || columnasDetallePermitidas === null ? null : new Set(columnasDetallePermitidas)),
+    [authLoading, columnasDetallePermitidas]
+  );
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
@@ -631,10 +654,20 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // etc. — así que todos respetan este universo automáticamente, sin tocar
   // ningún otro sitio.
   const [soloPlantillaOficial, setSoloPlantillaOficial] = useState(true);
+  // El switch está oculto para roles con alcance de datos por Unidad de
+  // Negocio (ver más abajo), pero el estado por defecto ya nace en `true` y
+  // no hay ningún otro punto que lo pueda apagar sin el switch visible — el
+  // `|| !sinRestriccionUN` de abajo es una segunda capa de defensa (nunca se
+  // aplica el universo completo a un usuario restringido, sin importar el
+  // valor de este estado).
   const detalleSinFiltroOficial = historicoActivo ? historicoFilas : detalleLive;
   const detalle = useMemo(
-    () => (soloPlantillaOficial ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial) : detalleSinFiltroOficial),
-    [detalleSinFiltroOficial, soloPlantillaOficial]
+    () => (
+      (soloPlantillaOficial || !sinRestriccionUN)
+        ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial)
+        : detalleSinFiltroOficial
+    ),
+    [detalleSinFiltroOficial, soloPlantillaOficial, sinRestriccionUN]
   );
   const isLoading = historicoActivo ? historicoLoading : isLoadingLive;
   // El donut de arriba (Activo/Vacante/Suspendido...) SÍ se conserva en modo
@@ -1142,7 +1175,6 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
 
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
-  const { hasPermission } = useAuth();
   // Bloqueada en modo histórico: una plaza reconstruida a una fecha pasada no
   // es editable (no hay "celda en vivo" que actualizar). La foto SÍ se
   // mantiene igual que en la plantilla en vivo (a pedido del usuario) — se
@@ -1178,101 +1210,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const { toast } = useToast();
   const { columns, setColumns, toggleVisibility: toggleColumnVisibility, resetWidth, isColumnsModalOpen, setColumnsModalOpen: setIsColumnsModalOpen } = useColumnState([
     { key: FOTO_COLUMN_KEY, label: "Foto", width: 64, visible: true, isBasic: true, noFilter: true },
-    { key: "posicion", label: "Posición", width: 110, visible: true, isBasic: true },
-    // Sólo trae dato en modo histórico (`sp_plantilla_historica` la agrega;
-    // no existe en `detalle` en vivo) — oculta por default para no dejar una
-    // columna siempre vacía en el uso diario; se fuerza visible al activar
-    // "Consultar plantillas pasadas" (ver `activarHistorico`).
-    { key: "estado_plaza", label: "Estado de la Plaza", width: 130, visible: false, isBasic: true, greenHeader: true },
-    // Idem estado_plaza: sólo traen dato en modo histórico (sp_periodo_plaza_masivo,
-    // ver PlantillaHistoricaView) — fecha_vacancia sólo en plazas vacantes,
-    // fecha_ocupacion sólo en ocupadas.
-    { key: "fecha_vacancia", label: "Fecha de Vacancia", width: 150, visible: false, isBasic: true, greenHeader: true },
-    { key: "fecha_ocupacion", label: "Fecha de Ocupación", width: 150, visible: false, isBasic: true, greenHeader: true },
-    { key: "estado_nomina", label: "Estado Nómina", width: 120, visible: true, isBasic: true },
-    { key: "solicitante", label: "Solicitante", width: 200, visible: false, isBasic: false, yellowHeader: true },
-    { key: "nombre_candidato", label: "Nombre del candidato", width: 200, visible: false, isBasic: false, yellowHeader: true },
-    { key: "motivo_solicitud", label: "Motivo de solicitud", width: 200, visible: false, isBasic: false, yellowHeader: true },
-    { key: "id_empleado", label: "Número de Empleado", width: 115, visible: true, isBasic: true },
-    { key: "rfc", label: "RFC", width: 140, visible: false, isBasic: true },
-    { key: "curp", label: "CURP", width: 185, visible: false, isBasic: true },
-    { key: "nombres", label: "Nombres", width: 280, visible: true, isBasic: true },
-    { key: "motivo", label: "Motivo", width: 200, visible: true, isBasic: true },
-    { key: "fecha_efectiva_personal", label: "Fecha efectiva (Personal)", width: 180, visible: true, isBasic: true },
-    { key: "fecha_de_captura", label: "Fecha de captura", width: 150, visible: true, isBasic: true },
-    { key: "qna", label: "Qna #", width: 80, visible: true, isBasic: true },
-    { key: "fecha_prevista_de_salida", label: "Fecha prevista de salida", width: 180, visible: true, isBasic: true },
-    { key: "nj", label: "Nivel Jerárquico", width: 120, visible: true, isBasic: true },
-    { key: "codigo_presupuestal", label: "Código Presupuestal", width: 150, visible: true, isBasic: true },
-    { key: "nivel", label: "Nivel", width: 85, visible: true, isBasic: true },
-    { key: "escala", label: "Escala", width: 120, visible: true, isBasic: true },
-    { key: "smb", label: "SMB", width: 150, visible: true, isBasic: true },
-    { key: "smn", label: "SMN", width: 150, visible: true, isBasic: true },
-    { key: "partida", label: "Partida", width: 100, visible: true, isBasic: true },
-    { key: "tipo_de_contratacion", label: "TIpo de Contratación", width: 180, visible: true, isBasic: true },
-    { key: "cd_un", label: "Cd UN", width: 100, visible: true, isBasic: true },
-    { key: "unidad_de_negocio", label: "Unidad de Negocio", width: 250, visible: true, isBasic: true },
-    { key: "cd_ua", label: "Cd UA", width: 100, visible: true, isBasic: true },
-    { key: "unidad_administrativa", label: "Unidad Administrativa", width: 280, visible: true, isBasic: true },
-    { key: "cd_pto_funcional", label: "Cd Pto Funcional", width: 120, visible: true, isBasic: true },
-    { key: "nombre_puesto_funcional", label: "Nombre Puesto Funcional", width: 250, visible: true, isBasic: true },
-    { key: "id_departamento", label: "Id Departamento", width: 120, visible: true, isBasic: true },
-    { key: "departamento", label: "Departamento", width: 200, visible: true, isBasic: true },
-    { key: "dependencia_directa", label: "Dependencia Directa", width: 250, visible: true, isBasic: true },
-    { key: "codigo", label: "Código", width: 200, visible: true, isBasic: true, greenHeader: true },
-    { key: "entidad_federativa", label: "Entidad Federativa", width: 180, visible: true, isBasic: true, greenHeader: true },
-    { key: "tipo_de_aduana", label: "Tipo de Aduana", width: 130, visible: true, isBasic: true, greenHeader: true },
-    { key: "ubicacion", label: "Ubicación", width: 200, visible: true, isBasic: true, greenHeader: true },
-    { key: "descripcion_ubicacion", label: "Descripción ubicación", width: 200, visible: true, isBasic: true, greenHeader: true },
-    { key: "tipo_de_personal_sedena_semar", label: "Tipo de personal SEDENA / SEMAR", width: 220, visible: true, isBasic: true },
-    { key: "rango", label: "Rango", width: 150, visible: true, isBasic: true },
-    { key: "fecha_de_ingreso", label: "Fecha de ingreso", width: 130, visible: true, isBasic: true },
-    { key: "dg_o_aduana_compactada", label: "DG o Aduana compactada", width: 200, visible: true, isBasic: true },
-    { key: "fecha_anuencia_detalle", label: "Fecha de Anuencia", width: 150, visible: true, isBasic: true, greenHeader: true },
-    { key: "oficios_autorizacion_shcp", label: "Oficios de Autorización SHCP", width: 200, visible: true, isBasic: true, greenHeader: true },
-    { key: "plazas_eventuales_autorizacion_2026", label: "Plazas eventuales registradas para autorización 2026", width: 350, visible: true, isBasic: true, greenHeader: true },
-    { key: "candidato", label: "Candidato", width: 150, visible: true, isBasic: true, greenHeader: true },
-    { key: "reportada", label: "Reportada", width: 120, visible: true, isBasic: true, greenHeader: true },
-    { key: "fecha_genera_vacante", label: "Fecha que se genera la vacante", width: 220, visible: true, isBasic: true, greenHeader: true },
-    { key: "cap_anual", label: "CAP ANUAL", width: 120, visible: true, isBasic: true, greenHeader: true },
-    { key: "cap_mensual", label: "CAP MENSUAL", width: 120, visible: true, isBasic: true, greenHeader: true },
-    { key: "observaciones_plantillas_do", label: "Observaciones - Plantillas DO", width: 250, visible: true, isBasic: true, greenHeader: true },
-    { key: "observaciones_proyectos_alineaciones", label: "Observaciones - Proyectos y Alineaciones", width: 280, visible: true, isBasic: true, greenHeader: true },
-    { key: "anno_vacancia", label: "Año de Vacancia (Nuevo Reporte)", width: 220, visible: true, isBasic: true, greenHeader: true },
-    { key: "id_field", label: "Id Campo", width: 90, visible: false, isBasic: false },
-    { key: "numeral", label: "Numeral", width: 100, visible: false, isBasic: false },
-    { key: "ua", label: "UA (Código)", width: 150, visible: false, isBasic: false },
-    { key: "cent", label: "Centro (Código)", width: 80, visible: false, isBasic: false },
-    { key: "dir", label: "Dirección (Código)", width: 80, visible: false, isBasic: false },
-    { key: "subd", label: "Subdirección (Código)", width: 80, visible: false, isBasic: false },
-    { key: "jd", label: "Jefatura Depto. (Código)", width: 80, visible: false, isBasic: false },
-    { key: "depto", label: "Departamento (Código)", width: 120, visible: false, isBasic: false },
-    { key: "aduana", label: "Aduana", width: 200, visible: false, isBasic: false },
-    { key: "id_tipo", label: "Id Tipo (Código)", width: 90, visible: false, isBasic: false },
-    { key: "tipo", label: "Tipo", width: 130, visible: false, isBasic: false },
-    { key: "estado", label: "Estado", width: 150, visible: false, isBasic: false },
-    { key: "municipio", label: "Municipio", width: 180, visible: false, isBasic: false },
-    { key: "latitud", label: "Latitud", width: 110, visible: false, isBasic: false },
-    { key: "longitud", label: "Longitud", width: 110, visible: false, isBasic: false },
-    { key: "ua2", label: "UA (Nombre)", width: 200, visible: false, isBasic: false },
-    { key: "observaciones", label: "OBSERVACIONES", width: 200, visible: false, isBasic: false },
-    { key: "posicion_civil_sedena_semar", label: "Posición _Civil / SEDENA / SEMAR", width: 250, visible: false, isBasic: false },
-    { key: "personal_militar_o_civil", label: "Personal Militar o Civil", width: 180, visible: false, isBasic: false },
-    { key: "val_estat", label: "Val_estat", width: 100, visible: false, isBasic: false },
-    { key: "val_estatx", label: "Val_estatx", width: 100, visible: false, isBasic: false },
-    { key: "status_jefe_inm_posicion", label: "Status Jefe Inm Posición", width: 180, visible: false, isBasic: false },
-    { key: "numempleado", label: "Numempleado", width: 120, visible: false, isBasic: false },
-    { key: "sindicato", label: "Sindicato", width: 150, visible: false, isBasic: false },
-    { key: "estado_en_nomina", label: "Estado en nomina", width: 150, visible: false, isBasic: false },
-    { key: "ua_validacion", label: "UA Validación", width: 180, visible: false, isBasic: false },
-    { key: "validando_posicion_por_documento", label: "Validando de posición por documento", width: 250, visible: false, isBasic: false },
-    { key: "nj_comp", label: "NJ COMP", width: 150, visible: false, isBasic: false },
-    { key: "nj_ok", label: "NJ OK", width: 150, visible: false, isBasic: false },
-    { key: "columna", label: "Columna", width: 150, visible: false, isBasic: false },
-    { key: "nombre_nj", label: "Nombre NJ", width: 150, visible: false, isBasic: false },
-    { key: "nj_operativo_comb", label: "NJ Operativo Combinado", width: 150, visible: false, isBasic: false },
-    { key: "proyecto_2024_reduccion_plazas_eventuales", label: "Proyecto 2024 Reducción de plazas Eventuales", width: 260, visible: false, isBasic: false },
-    { key: "salario_base_mov", label: "Salario Base (Movimiento)", width: 160, visible: false, isBasic: false },
+    ...PLANTILLA_DETALLE_COLUMNS_CATALOG,
   ], "plantilla_detalle_columns");
 
   // `columns` es el estado persistido completo; para lo demás se usan dos vistas:
@@ -1330,20 +1268,33 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     });
     return vacias;
   }, [historicoActivo, historicoFilas, columns, LIVE_ONLY_COLUMN_KEYS]);
+  // Columnas fuera del alcance del rol (ver `columnasPermitidasSet` arriba):
+  // ni siquiera se listan como opción en "Configurar Columnas" — el usuario
+  // no debe enterarse de que existen, no solo verlas desactivadas.
+  // "foto" queda exenta a propósito: no vive en el catálogo de columnas (no es
+  // un campo de datos) y su visibilidad ya la decide `canViewFotoDetalle`
+  // (permiso view_plantilla_detalle_foto), aplicado antes de esta función —
+  // sin esta excepción, cualquier rol con alcance de columnas activo perdía
+  // la foto aunque sí tuviera ese permiso, porque "foto" nunca puede aparecer
+  // en `columnasDetallePermitidas`.
+  const filtrarPorScopeColumnas = useCallback(
+    (cols) => (columnasPermitidasSet ? cols.filter(c => c.key === FOTO_COLUMN_KEY || columnasPermitidasSet.has(c.key)) : cols),
+    [columnasPermitidasSet]
+  );
   const tableColumns = useMemo(() => {
     let cols = canViewFotoDetalle ? columns : columns.filter(c => c.key !== FOTO_COLUMN_KEY);
     cols = historicoActivo
       ? cols.filter(c => !LIVE_ONLY_COLUMN_KEYS.has(c.key) && !historicoColumnasVacias.has(c.key))
       : cols.filter(c => !HISTORICO_ONLY_COLUMN_KEYS.has(c.key));
-    return cols;
-  }, [columns, canViewFotoDetalle, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias, HISTORICO_ONLY_COLUMN_KEYS]);
+    return filtrarPorScopeColumnas(cols);
+  }, [columns, canViewFotoDetalle, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias, HISTORICO_ONLY_COLUMN_KEYS, filtrarPorScopeColumnas]);
   const dataColumns = useMemo(() => {
     let cols = columns.filter(c => c.key !== FOTO_COLUMN_KEY);
     cols = historicoActivo
       ? cols.filter(c => !LIVE_ONLY_COLUMN_KEYS.has(c.key) && !historicoColumnasVacias.has(c.key))
       : cols.filter(c => !HISTORICO_ONLY_COLUMN_KEYS.has(c.key));
-    return cols;
-  }, [columns, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias, HISTORICO_ONLY_COLUMN_KEYS]);
+    return filtrarPorScopeColumnas(cols);
+  }, [columns, historicoActivo, LIVE_ONLY_COLUMN_KEYS, historicoColumnasVacias, HISTORICO_ONLY_COLUMN_KEYS, filtrarPorScopeColumnas]);
 
   const [searchQuery, setSearchQuery] = useState("");
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
@@ -2140,12 +2091,21 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         let val = getFilterCellValue(row, key);
         counts[val] = (counts[val] || 0) + 1;
       });
-      valuesMap[key] = Object.entries(counts)
-        .map(([value, count]) => ({ value, count }))
-        .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
+      let entries = Object.entries(counts).map(([value, count]) => ({ value, count }));
+      // Un rol con alcance por Unidad de Negocio no debe ver "Solicitada" ni
+      // "No Disponible" como opciones del filtro de Estado Nómina — son
+      // sub-estatus de Vacante que no le corresponde distinguir (solicitud de
+      // personal es exclusiva de RH; "No Disponible" son plazas PASEM que ya
+      // se ocultan forzosamente vía "Plantilla oficial"). El filtrado real
+      // (handleVacanteCardClick sigue combinando las 3 etiquetas) no cambia,
+      // solo se ocultan como opción seleccionable en este dropdown.
+      if (key === "estado_nomina" && !sinRestriccionUN) {
+        entries = entries.filter((e) => e.value !== "Solicitada" && e.value !== "No Disponible");
+      }
+      valuesMap[key] = entries.sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
     });
     return valuesMap;
-  }, [detalle, datosParaColumnaActiva, activeFilterDropdown]);
+  }, [detalle, datosParaColumnaActiva, activeFilterDropdown, sinRestriccionUN]);
 
   const toggleDateNode = (path) => {
     setExpandedDateNodes(prev => ({ ...prev, [path]: !prev[path] }));
@@ -3481,6 +3441,13 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
 
   const activeHoverData = hoveredSlice !== null ? donutData[hoveredSlice] : null;
   const activeStatusFilter = columnFilters["estado_nomina"] || [];
+  // El filtro real sigue combinando Vacante+Solicitada+No Disponible (ver
+  // handleVacanteCardClick) — esto solo decide qué chips de estatus se
+  // muestran para un rol con alcance por Unidad de Negocio, que no debe ver
+  // esas dos palabras en pantalla (ver comentario en `uniqueColumnValues`).
+  const statusFilterChipsVisibles = sinRestriccionUN
+    ? activeStatusFilter
+    : activeStatusFilter.filter((s) => s !== "Solicitada" && s !== "No Disponible");
 
   // "Solicitada" es un sub-estatus DERIVADO de Vacante (ver getEstadoNominaDisplay),
   // no un valor propio en `resumen` (el resumen agregado del backend no lo conoce) —
@@ -3676,25 +3643,32 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         className={`fixed top-stack-gap right-4 md:top-stack-bar-gap md:right-8 z-30 flex items-center gap-3 transition-opacity duration-200 ${showFloatingMobileActions ? "opacity-100" : "opacity-0 pointer-events-none"} md:opacity-100 md:pointer-events-auto`}
       >
         <NotificacionesPosicionBell suscripciones={suscripcionesPosicion.suscripciones} onCancel={suscripcionesPosicion.cancelar} />
-        <button
-          type="button"
-          onClick={() => setIsMovimientosHoyModalOpen(true)}
-          title="Ver resumen de movimientos de hoy"
-          aria-label="Movimientos realizados por dirección operativa"
-          className="flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
-        >
-          <div className="relative shrink-0 flex items-center justify-center size-8 rounded-xl bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[#621f32] dark:text-[#bc955c]">
-            <ArrowUpDown className="size-4" />
-            <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950">
-              {movimientosHoyCount > 99 ? "99+" : movimientosHoyCount}
+        {/* Resumen agregado de TODAS las UN — oculto para un rol con alcance
+            por Unidad de Negocio, ver `sinRestriccionUN`. La campanita de
+            arriba sí se conserva: solo deja suscribirse a vacantes de
+            posiciones que ya están dentro de su `detalle` (ya filtrado por
+            UN del lado servidor), así que no hay nada que ocultarle ahí. */}
+        {sinRestriccionUN && (
+          <button
+            type="button"
+            onClick={() => setIsMovimientosHoyModalOpen(true)}
+            title="Ver resumen de movimientos de hoy"
+            aria-label="Movimientos realizados por dirección operativa"
+            className="flex items-center gap-2.5 pl-2.5 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm shadow-md hover:shadow-lg hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 active:scale-95 transition-all cursor-pointer"
+          >
+            <div className="relative shrink-0 flex items-center justify-center size-8 rounded-xl bg-[#621f32]/8 dark:bg-[#621f32]/20 text-[#621f32] dark:text-[#bc955c]">
+              <ArrowUpDown className="size-4" />
+              <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950">
+                {movimientosHoyCount > 99 ? "99+" : movimientosHoyCount}
+              </span>
+            </div>
+            {/* En móvil es un FAB compacto (el texto largo lo aporta el title y el
+                aria-label): a ancho completo tapaba media pantalla. */}
+            <span className="hidden md:block text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
+              Movimientos realizados por dirección operativa
             </span>
-          </div>
-          {/* En móvil es un FAB compacto (el texto largo lo aporta el title y el
-              aria-label): a ancho completo tapaba media pantalla. */}
-          <span className="hidden md:block text-[10px] font-black uppercase leading-tight text-slate-600 dark:text-slate-300 max-w-[130px] text-left">
-            Movimientos realizados por dirección operativa
-          </span>
-        </button>
+          </button>
+        )}
       </div>
 
       <ModalShell
@@ -4007,24 +3981,30 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           `useGSAP` de arriba). */}
       <div ref={distribCardsRef}>
       <div className="w-full md:hidden mb-6">
-        <div className="px-4 mb-3">
-          <label
-            title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia."
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none"
-          >
-            <span className="relative inline-flex items-center shrink-0">
-              <input
-                type="checkbox"
-                checked={soloPlantillaOficial}
-                onChange={(e) => startTransition(() => setSoloPlantillaOficial(e.target.checked))}
-                className="peer sr-only"
-              />
-              <span className="w-8 h-4.5 rounded-full bg-slate-300 dark:bg-slate-700 peer-checked:bg-[#621f32] dark:peer-checked:bg-[#bc955c] transition-colors" />
-              <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3.5" />
-            </span>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
-          </label>
-        </div>
+        {/* Oculto para un rol con alcance por Unidad de Negocio: siempre debe
+            ver la plantilla oficial, sin poder apagar el filtro (ver
+            `sinRestriccionUN` y el `|| !sinRestriccionUN` en el useMemo de
+            `detalle` más arriba, que lo refuerza aunque este switch faltara). */}
+        {sinRestriccionUN && (
+          <div className="px-4 mb-3">
+            <label
+              title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia."
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none"
+            >
+              <span className="relative inline-flex items-center shrink-0">
+                <input
+                  type="checkbox"
+                  checked={soloPlantillaOficial}
+                  onChange={(e) => startTransition(() => setSoloPlantillaOficial(e.target.checked))}
+                  className="peer sr-only"
+                />
+                <span className="w-8 h-4.5 rounded-full bg-slate-300 dark:bg-slate-700 peer-checked:bg-[#621f32] dark:peer-checked:bg-[#bc955c] transition-colors" />
+                <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3.5" />
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
+            </label>
+          </div>
+        )}
         <Zoom triggerOnce>
           <div className="flex gap-3 overflow-x-auto px-4 pb-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: "none" }}>
             {isLoading ? (
@@ -4070,7 +4050,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                   );
                   // "Solicitada" depende de columnas quincenal (solicitante) ausentes
                   // en la reconstrucción histórica — se omite mientras `historicoActivo`.
-                  if (slice.label !== "Vacante" || historicoActivo) return [card];
+                  // También se omite para un rol con alcance por Unidad de Negocio: la
+                  // solicitud de personal es funcionalidad exclusiva de RH, no de las
+                  // direcciones operativas que solo consultan sus propias vacantes.
+                  if (slice.label !== "Vacante" || historicoActivo || !sinRestriccionUN) return [card];
                   const isSolicitadaFilter = activeStatusFilter.includes("Solicitada");
                   const solicitadaCard = (
                     <button
@@ -4125,7 +4108,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 ))
               ) : (
                 <>
-                  {donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`distrib-card-anim rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante" || historicoActivo) return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumenEfectivo?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`distrib-card-anim rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}
+                  {donutData.flatMap((slice, index) => { const IconComponent = STATUS_ICONS[slice.label] || Users; const isActiveFilter = activeStatusFilter.includes(slice.label); const card = (<motion.div key={slice.label} onMouseEnter={() => setHoveredSlice(index)} onPointerDown={() => setHoveredSlice(index)} onMouseLeave={() => setHoveredSlice(null)} onClick={() => (slice.label === "Vacante" ? handleVacanteCardClick() : handleStatusFilter(slice.label))} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`distrib-card-anim rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isActiveFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : hoveredSlice === index ? "border-[#621f32]/40 dark:border-[#bc955c]/40 shadow-md bg-white dark:bg-slate-900" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: slice.color }} />{isActiveFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: slice.color }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: slice.color }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${slice.color}15`, color: slice.color }}><IconComponent className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">{slice.label}</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(slice.count)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: slice.color }} initial={{ width: 0 }} animate={{ width: `${slice.percent * 100}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{(slice.percent * 100).toFixed(1)}%</p></div></motion.div>); if (slice.label !== "Vacante" || historicoActivo || !sinRestriccionUN) return [card]; const isSolicitadaFilter = activeStatusFilter.includes("Solicitada"); const solicitadaPercent = (solicitadaCount / (resumenEfectivo?.total_registros || 11957)) * 100; const solicitadaCard = (<motion.div key="solicitada-shortcut" onClick={() => handleStatusFilter("Solicitada")} whileHover={{ scale: 1.03, y: -2 }} transition={{ type: "spring", stiffness: 400, damping: 28 }} title="Acceso rápido: filtrar solo las plazas vacantes con un candidato solicitado" className={`distrib-card-anim rounded-xl px-3 py-3 border-2 transition-all duration-200 shadow-sm flex flex-col justify-between group cursor-pointer relative overflow-hidden ${isSolicitadaFilter ? "border-[#621f32] dark:border-[#bc955c] shadow-md bg-white dark:bg-slate-900" : activeStatusFilter.length > 0 ? "border-slate-200/50 dark:border-slate-800/80 opacity-55 hover:opacity-85 bg-white/60 dark:bg-slate-900/60" : "border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60"}`}><div className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-200 pointer-events-none" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} />{isSolicitadaFilter && (<div className="absolute top-2 right-2 z-20"><span className="relative flex size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }}><span className="animate-ping absolute inline-flex size-1.5 rounded-full opacity-75" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} /></span></div>)}<div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${STATUS_COLORS["Solicitada"]}15`, color: STATUS_COLORS["Solicitada"] }}><UserPlus className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-500 truncate">Solicitada</span></div><div><h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">{formatNumber(solicitadaCount)}</h4><div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2"><motion.div className="h-full rounded-full" style={{ backgroundColor: STATUS_COLORS["Solicitada"] }} initial={{ width: 0 }} animate={{ width: `${solicitadaPercent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} /></div><p className="text-[8px] font-bold text-slate-400 mt-1">{solicitadaPercent.toFixed(1)}%</p></div></motion.div>); return [card, solicitadaCard]; })}
                   <motion.div whileHover={{ scale: 1.03, y: -2 }} onClick={() => { startTransition(() => setColumnFilters({})); }} transition={{ type: "spring", stiffness: 400, damping: 28 }} className={`distrib-card-anim bg-gradient-to-br from-[#621f32] via-[#4d1827] to-[#bc955c] rounded-xl px-3 py-3 shadow-md flex flex-col justify-between text-white relative overflow-hidden group cursor-pointer transition-all duration-200 ${activeStatusFilter.length === 0 ? "ring-2 ring-white/30 shadow-lg" : ""}`}><div className="absolute -top-8 -right-8 size-24 bg-[#bc955c]/15 rounded-full blur-xl group-hover:bg-[#bc955c]/25 transition-colors duration-300 pointer-events-none" /><div className="flex items-center gap-2 mb-1.5"><div className="p-1.5 bg-white/10 text-white rounded-lg flex items-center justify-center flex-shrink-0"><Briefcase className="size-3.5" /></div><span className="text-[9px] font-black uppercase tracking-wider text-white/70 truncate">Posiciones Totales</span></div><div><h4 className="text-xl font-black tracking-tight text-white leading-none">{formatNumber(resumenEfectivo?.total_registros || 11957)}</h4><div className="w-full bg-white/15 h-1 rounded-full overflow-hidden mt-2"><div className="h-full bg-white/60 rounded-full w-full" /></div><p className="text-[8px] font-bold text-white/60 mt-1">100%</p></div></motion.div>
                 </>
               )}
@@ -4151,9 +4134,13 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               // Idem: el embudo por columna sólo existía en el encabezado.
               { icon: ListFilter, label: "Filtrar por columna", onClick: () => setIsColumnPickerOpen(true), badge: Object.keys(columnFilters).length + Object.values(textFilters).filter(f => f?.value).length },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
-              { icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) },
+              // Oculto para un rol con alcance por Unidad de Negocio: la cadena de
+              // mando recorre la estructura completa fuera de su UN autorizada.
+              ...(sinRestriccionUN ? [{ icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) }] : []),
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
-              { icon: History, label: "Historial de Cambios", onClick: openHistorialModal, badge: remoteUpdatesCount },
+              // Oculto para un rol con alcance por Unidad de Negocio: no edita
+              // celdas, así que no tiene sentido que consulte el historial.
+              ...(sinRestriccionUN ? [{ icon: History, label: "Historial de Cambios", onClick: openHistorialModal, badge: remoteUpdatesCount }] : []),
               ...(canViewHistorico ? (historicoActivo
                 ? [
                   { icon: CalendarDays, label: "Consultar otra fecha", onClick: () => setIsPlantillaHistoricaPickerOpen(true) },
@@ -4163,7 +4150,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               ) : []),
             ]}
             chips={<>
-              {activeStatusFilter.map(status => (
+              {statusFilterChipsVisibles.map(status => (
                 <button key={status} onClick={() => handleStatusFilter(status)} className="shrink-0 flex items-center gap-1.5 px-3 min-h-11 py-2 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
                   {STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-3" })}
                   <span>{status}</span><X className="size-3" />
@@ -4223,28 +4210,36 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                   <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
                   <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
                 </div>
-                <label
-                  title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia. Apagado, se ve la relación completa."
-                  className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none shrink-0"
-                >
-                  <span className="relative inline-flex items-center shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={soloPlantillaOficial}
-                      onChange={(e) => startTransition(() => setSoloPlantillaOficial(e.target.checked))}
-                      className="peer sr-only"
-                    />
-                    <span className="w-8 h-4.5 rounded-full bg-slate-300 dark:bg-slate-700 peer-checked:bg-[#621f32] dark:peer-checked:bg-[#bc955c] transition-colors" />
-                    <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3.5" />
-                  </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
-                </label>
+                {/* Oculto para un rol con alcance por Unidad de Negocio — ver
+                    comentario en la copia móvil de este mismo switch. */}
+                {sinRestriccionUN && (
+                  <label
+                    title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia. Apagado, se ve la relación completa."
+                    className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none shrink-0"
+                  >
+                    <span className="relative inline-flex items-center shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={soloPlantillaOficial}
+                        onChange={(e) => startTransition(() => setSoloPlantillaOficial(e.target.checked))}
+                        className="peer sr-only"
+                      />
+                      <span className="w-8 h-4.5 rounded-full bg-slate-300 dark:bg-slate-700 peer-checked:bg-[#621f32] dark:peer-checked:bg-[#bc955c] transition-colors" />
+                      <span className="absolute left-0.5 top-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-3.5" />
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 whitespace-nowrap">Plantilla oficial</span>
+                  </label>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3 min-w-0 w-full lg:w-auto overflow-x-auto overflow-y-hidden pb-1 -mb-1">
               <button onClick={resetAllFilters} disabled={Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0} className="flex items-center gap-2 h-12 px-5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-900/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
-              <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
+              {/* Oculto para un rol con alcance por Unidad de Negocio — ver
+                  comentario en la entrada equivalente del toolbar móvil. */}
+              {sinRestriccionUN && (
+                <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
+              )}
               {canViewHistorico && (
                 historicoActivo ? (
                   <>
@@ -4283,15 +4278,19 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                   <button data-tour="plantilla-historica-btn" onClick={() => setIsPlantillaHistoricaPickerOpen(true)} title="Reconstruir la plantilla completa a una fecha pasada" className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><CalendarDays className="size-3.5" /><span>Consultar plantillas pasadas</span></button>
                 )
               )}
-              <button onClick={openHistorialModal} title={remoteUpdatesCount > 0 ? `${remoteUpdatesCount} cambio${remoteUpdatesCount === 1 ? "" : "s"} de otros usuarios sin ver` : "Ver historial de cambios de la tabla"} className="relative flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
-                <History className="size-3.5" />
-                <span>Historial de Cambios</span>
-                {remoteUpdatesCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950 animate-pulse">
-                    {remoteUpdatesCount > 99 ? "99+" : remoteUpdatesCount}
-                  </span>
-                )}
-              </button>
+              {/* Oculto para un rol con alcance por Unidad de Negocio — ver
+                  comentario en la entrada equivalente del toolbar móvil. */}
+              {sinRestriccionUN && (
+                <button onClick={openHistorialModal} title={remoteUpdatesCount > 0 ? `${remoteUpdatesCount} cambio${remoteUpdatesCount === 1 ? "" : "s"} de otros usuarios sin ver` : "Ver historial de cambios de la tabla"} className="relative flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
+                  <History className="size-3.5" />
+                  <span>Historial de Cambios</span>
+                  {remoteUpdatesCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-slate-950 animate-pulse">
+                      {remoteUpdatesCount > 99 ? "99+" : remoteUpdatesCount}
+                    </span>
+                  )}
+                </button>
+              )}
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer flex-shrink-0"><Columns className="size-3.5" /><span>Columnas</span></button>
               <button
                 onClick={handleOpenExportClick}
@@ -4314,7 +4313,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           {(activeStatusFilter.length > 0 || globalSearch || Object.keys(columnFilters).length > 0 || Object.values(textFilters).some(v => v?.value) || appliedAdvancedFilters.length > 0) && (
             <div className="hidden md:flex flex-wrap items-center gap-2 px-6 py-3 border-b border-slate-200/50 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/20">
               <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest shrink-0">Filtros activos:</span>
-              {activeStatusFilter.map(status => (
+              {statusFilterChipsVisibles.map(status => (
                 <button key={`status-${status}`} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border transition-colors hover:opacity-80 cursor-pointer" style={{ backgroundColor: `${STATUS_COLORS[status]}12`, color: STATUS_COLORS[status], borderColor: `${STATUS_COLORS[status]}30` }}>
                   {STATUS_ICONS[status] && React.createElement(STATUS_ICONS[status], { className: "size-2.5" })}
                   <span>{status}</span><X className="size-2.5" />
