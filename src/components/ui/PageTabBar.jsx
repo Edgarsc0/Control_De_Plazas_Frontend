@@ -4,6 +4,8 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Loader2 } from 'lucide-react';
+import { useZafiroRefreshing } from '@/context/ZafiroUpdatesContext';
 
 /**
  * Barra de tabs fija (desktop) tipo pill flotante con indicador animado.
@@ -25,6 +27,7 @@ import { motion, AnimatePresence } from 'motion/react';
  *   en vez de adivinarlo con un padding-top fijo (ver CuadrosVacanciaTab en plantilla_empleados).
  */
 const PageTabBar = forwardRef(function PageTabBar({ tabs, activeTab, onSelect, subtabConfigs = {}, layoutId = 'pageTabActivePill', forceOpenTabId = null }, ref) {
+    const isRefreshing = useZafiroRefreshing();
     const [openSubtabId, setOpenSubtabId] = useState(null);
     const [dropdownPos, setDropdownPos] = useState(null);
     const barRef = useRef(null);
@@ -183,6 +186,22 @@ const PageTabBar = forwardRef(function PageTabBar({ tabs, activeTab, onSelect, s
                     );
                 })}
             </div>
+            <AnimatePresence>
+                {isRefreshing && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.6 }}
+                        transition={{ duration: 0.15 }}
+                        role="status"
+                        aria-label="Actualizando datos"
+                        title="Actualizando datos..."
+                        className="absolute top-full left-2 mt-1 flex size-5 items-center justify-center rounded-full bg-white/95 shadow-md border border-slate-200"
+                    >
+                        <Loader2 className="size-3 animate-spin text-[#621f32]" />
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {typeof document !== 'undefined' && createPortal(
                 <AnimatePresence>
                     {openSubtabId && dropdownPos && subtabConfigs[openSubtabId] && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState, useTransition } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlantillaService } from '@/services/plantilla.service';
 import { setLatestZafiroFecha } from '@/lib/plantillaBrowserCache';
@@ -16,6 +16,28 @@ export function ZafiroUpdatesProvider({ children }) {
   // ya formateado para mostrar) — permite detectar si el timestamp cambió
   // entre dos llamadas a fetchLastUpdate, ver comentario en 'init' más abajo.
   const lastUpdateRawRef = useRef(null);
+  // Cantidad de refetch de suscriptores en vuelo (evento SSE real o aviso
+  // local): alimenta el spinner "actualizando" bajo el PageTabBar.
+  const [refreshingCount, setRefreshingCount] = useState(0);
+
+  // Llama a todos los suscriptores y mantiene `refreshingCount` > 0 hasta que
+  // las promesas que devolvieron terminan (bien o mal). Los que no devuelven
+  // promesa (ej. un `tick`) no prenden el spinner. Estable (sólo refs/setState)
+  // para poder usarlo dentro del effect del SSE.
+  const notifyListeners = useCallback((fecha) => {
+    const pending = [];
+    listenersRef.current.forEach((callback) => {
+      try {
+        const result = callback(fecha);
+        if (result && typeof result.then === 'function') pending.push(result);
+      } catch (err) {
+        console.error('Error en suscriptor de ZAFIRO:', err);
+      }
+    });
+    if (!pending.length) return;
+    setRefreshingCount((c) => c + 1);
+    Promise.allSettled(pending).finally(() => setRefreshingCount((c) => Math.max(0, c - 1)));
+  }, []);
 
   const formatAndSetDate = (isoString) => {
     const date = new Date(isoString);
@@ -58,7 +80,7 @@ export function ZafiroUpdatesProvider({ children }) {
             setLatestZafiroFecha(res.fecha);
             formatAndSetDate(res.fecha);
             if (notifyIfChanged && changed) {
-              listenersRef.current.forEach((callback) => callback(res.fecha));
+              notifyListeners(res.fecha);
             }
           }
         }
@@ -98,7 +120,7 @@ export function ZafiroUpdatesProvider({ children }) {
           lastUpdateRawRef.current = event.data;
           setLatestZafiroFecha(event.data);
           formatAndSetDate(event.data);
-          listenersRef.current.forEach((callback) => callback(event.data));
+          notifyListeners(event.data);
         }
       };
 
@@ -124,7 +146,7 @@ export function ZafiroUpdatesProvider({ children }) {
         eventSource.close();
       }
     };
-  }, []);
+  }, [notifyListeners]);
 
   const subscribe = (callback) => {
     listenersRef.current.add(callback);
@@ -144,7 +166,7 @@ export function ZafiroUpdatesProvider({ children }) {
     const fecha = new Date().toISOString();
     lastUpdateRawRef.current = fecha;
     formatAndSetDate(fecha);
-    listenersRef.current.forEach((callback) => callback(fecha));
+    notifyListeners(fecha);
   };
 
   // Igual que `notifyLocalUpdate` pero SIN tocar el letrero de "última
@@ -173,7 +195,7 @@ export function ZafiroUpdatesProvider({ children }) {
   };
 
   return (
-    <ZafiroUpdatesContext.Provider value={{ lastUpdate, subscribe, notifyLocalUpdate, refetchSubscribers }}>
+    <ZafiroUpdatesContext.Provider value={{ lastUpdate, isRefreshing: refreshingCount > 0, subscribe, notifyLocalUpdate, refetchSubscribers }}>
       {children}
     </ZafiroUpdatesContext.Provider>
   );
@@ -185,6 +207,12 @@ export function useZafiroUpdates() {
     throw new Error('useZafiroUpdates debe usarse dentro de ZafiroUpdatesProvider');
   }
   return ctx;
+}
+
+// Versión tolerante de `useZafiroUpdates().isRefreshing`: false fuera del
+// provider (componentes de UI genéricos como PageTabBar).
+export function useZafiroRefreshing() {
+  return useContext(ZafiroUpdatesContext)?.isRefreshing ?? false;
 }
 
 // Refresca los Server Components de la página actual cuando llega una
