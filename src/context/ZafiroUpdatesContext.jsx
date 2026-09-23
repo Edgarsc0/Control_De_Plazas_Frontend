@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlantillaService } from '@/services/plantilla.service';
+import { setLatestZafiroFecha } from '@/lib/plantillaBrowserCache';
 
 const ZafiroUpdatesContext = createContext(null);
 
@@ -52,6 +53,7 @@ export function ZafiroUpdatesProvider({ children }) {
           if (res && res.fecha) {
             const changed = lastUpdateRawRef.current !== null && lastUpdateRawRef.current !== res.fecha;
             lastUpdateRawRef.current = res.fecha;
+            setLatestZafiroFecha(res.fecha);
             formatAndSetDate(res.fecha);
             if (notifyIfChanged && changed) {
               listenersRef.current.forEach((callback) => callback(res.fecha));
@@ -92,6 +94,7 @@ export function ZafiroUpdatesProvider({ children }) {
           fetchLastUpdate({ notifyIfChanged: true });
         } else if (event.data !== 'ping' && event.data) {
           lastUpdateRawRef.current = event.data;
+          setLatestZafiroFecha(event.data);
           formatAndSetDate(event.data);
           listenersRef.current.forEach((callback) => callback(event.data));
         }
