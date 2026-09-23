@@ -7,6 +7,8 @@ import { setLatestZafiroFecha } from '@/lib/plantillaBrowserCache';
 
 const ZafiroUpdatesContext = createContext(null);
 
+const REFRESH_WAIT_CAP_MS = 20000;
+
 export function ZafiroUpdatesProvider({ children }) {
   const [lastUpdate, setLastUpdate] = useState(null);
   const listenersRef = useRef(new Set());
@@ -149,9 +151,25 @@ export function ZafiroUpdatesProvider({ children }) {
   // actualización": solo pide a los suscriptores que vuelvan a traer sus
   // datos por red. Lo usa el Navbar tras borrar cachés a mano, donde no hay
   // ningún dato nuevo de ZAFIRO que anunciar.
-  const refetchSubscribers = () => {
+  //
+  // Devuelve una promesa que resuelve cuando TODOS los suscriptores que
+  // devolvieron una promesa terminaron (bien o mal) — así el Navbar puede
+  // avisar "datos recargados" en vez de que el usuario adivine cuándo acabó.
+  // Los suscriptores que no devuelven nada (p. ej. los que solo suben un
+  // `tick`) cuentan como ya resueltos. Un callback que lanza síncrono o
+  // rechaza no rompe a los demás; `failed` cuenta cuántos fallaron.
+  const refetchSubscribers = async () => {
     const fecha = lastUpdateRawRef.current || new Date().toISOString();
-    listenersRef.current.forEach((callback) => callback(fecha));
+    const pending = [...listenersRef.current].map((callback) => {
+      try {
+        return Promise.resolve(callback(fecha));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    });
+    const results = await Promise.allSettled(pending);
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    return { total: results.length, failed };
   };
 
   return (
@@ -176,12 +194,33 @@ export function useRefreshOnZafiroUpdate() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  // `startTransition` no devuelve promesa: los resolvers se guardan y se
+  // liberan cuando `isPending` vuelve a false (el refresh ya pintó). El tope
+  // evita que `refetchSubscribers` quede colgado si el refresh no llega a
+  // marcar la transición como pendiente.
+  const resolversRef = useRef([]);
+  const sawPendingRef = useRef(false);
+
   useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      startTransition(() => {
-        router.refresh();
-      });
-    });
+    if (isPending) {
+      sawPendingRef.current = true;
+    } else if (sawPendingRef.current) {
+      sawPendingRef.current = false;
+      resolversRef.current.splice(0).forEach((resolve) => resolve());
+    }
+  }, [isPending]);
+
+  useEffect(() => {
+    const unsubscribe = subscribe(
+      () =>
+        new Promise((resolve) => {
+          resolversRef.current.push(resolve);
+          setTimeout(resolve, REFRESH_WAIT_CAP_MS);
+          startTransition(() => {
+            router.refresh();
+          });
+        })
+    );
     return unsubscribe;
   }, [subscribe, router]);
 
