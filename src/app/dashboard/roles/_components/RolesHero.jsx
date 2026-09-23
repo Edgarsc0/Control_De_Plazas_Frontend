@@ -145,6 +145,7 @@ export default function RolesHero({ stats, activeTab, onCreate, onSelectTab }) {
                         </div>
                     </div>
 
+                    {activeTab !== 'mantenimiento' && (
                     <button
                         type="button"
                         onClick={onCreate}
@@ -162,6 +163,7 @@ export default function RolesHero({ stats, activeTab, onCreate, onSelectTab }) {
                             )}
                         </span>
                     </button>
+                    )}
                 </div>
 
                 <div className="relative mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -14,6 +14,7 @@ import {
     ChevronLeft,
     ChevronRight,
     KeyRound,
+    Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +32,8 @@ import {
     DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog';
+import { useAuth } from '@/hooks/useAuth';
+import MaintenancePanel from './_components/MaintenancePanel';
 import RequirePermission from '@/components/auth/RequirePermission';
 import { useToast } from '@/hooks/useToast';
 import { RoleService } from '@/services/role.service';
@@ -145,6 +148,7 @@ function TabPanel({ tab, panelRef, children }) {
 
 function RolesAdminContent() {
     const { toast } = useToast();
+    const { isSuperuser } = useAuth();
     const [roles, setRoles] = useState([]);
     const [permissions, setPermissions] = useState([]);
     const [whitelist, setWhitelist] = useState([]);
@@ -557,6 +561,7 @@ function RolesAdminContent() {
                 tabs={[
                     { id: 'roles', label: 'Roles', icon: ShieldCheck, count: roles.length },
                     { id: 'usuarios', label: 'Usuarios', icon: UsersIcon, count: whitelist.length },
+                    ...(isSuperuser ? [{ id: 'mantenimiento', label: 'Mantenimiento', icon: Wrench }] : []),
                 ]}
                 active={activeTab}
                 onChange={changeTab}
@@ -583,6 +588,8 @@ function RolesAdminContent() {
                     onOpenPassword={openPasswordDialog}
                 />
             )}
+
+            {activeTab === 'mantenimiento' && isSuperuser && <MaintenancePanel whitelist={whitelist} />}
             </TabPanel>
 
             <Dialog

@@ -10,6 +10,8 @@ import { PageTabsProvider } from "@/context/PageTabsContext"
 import { ToastProvider } from "@/hooks/useToast"
 import { AuthProvider } from "@/hooks/useAuth"
 import Toaster from "@/components/ui/Toaster"
+import { MaintenanceProvider, MaintenanceGate } from "@/context/MaintenanceContext"
+import MaintenanceScreen from "@/components/system/MaintenanceScreen"
 import PresenceHeartbeat from "@/components/system/PresenceHeartbeat"
 
 
@@ -66,6 +68,7 @@ export default function RootLayout({ children }) {
         <Banner />
         <AuthProvider>
           <ToastProvider>
+            <MaintenanceProvider>
             <PageTabsProvider>
               <PresenceHeartbeat />
               <Fade>
@@ -85,7 +88,9 @@ export default function RootLayout({ children }) {
                   <ZafiroUpdatesProvider>
                     <Navbar />
                     <TooltipProvider>
-                      {children}
+                      <MaintenanceGate screen={<MaintenanceScreen />}>
+                        {children}
+                      </MaintenanceGate>
                     </TooltipProvider>
                   </ZafiroUpdatesProvider>
                 </main>
@@ -93,6 +98,7 @@ export default function RootLayout({ children }) {
               <BottomNav />
               <Toaster position="top-right" />
             </PageTabsProvider>
+            </MaintenanceProvider>
           </ToastProvider>
         </AuthProvider>
       </body>
