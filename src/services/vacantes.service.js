@@ -251,7 +251,7 @@ export const VacantesService = {
         // no en el backend local de desarrollo.
         return apiFetch(`/plantilla/empleado_foto/${encodeURIComponent(numempleado)}/`, {
             method: 'GET',
-            baseUrl: 'http://89.116.51.124:3030',
+            baseUrl: 'https://scp-anam.theworkpc.com',
             ...options
         });
     },

@@ -69,14 +69,19 @@ export default function RootLayout({ children }) {
             <PageTabsProvider>
               <PresenceHeartbeat />
               <Fade>
-                {/* pt-[var(--navbar-h)] fijo: el override móvil de --stack-h
-                    en globals.css (@media max-width:767px) se pierde en la
-                    build de Tailwind v4 y nunca llega a aplicarse, así que
-                    --stack-h se queda en 9rem (banner+navbar) también en
-                    móvil aunque el Banner esté oculto ahí — dejaba 80px de
-                    hueco fantasma bajo el Navbar. Aquí se resuelve el
-                    breakpoint con clases de Tailwind, que sí funcionan. */}
-                <main className="flex-grow relative z-10 flex flex-col pt-[var(--navbar-h)] md:pt-[var(--stack-h)] pb-nav-safe md:pb-0">
+                {/* pt-16 fijo (no pt-[var(--navbar-h)]): el override móvil de
+                    --stack-h/--navbar-h en globals.css (@media
+                    max-width:767px) se pierde en la build de Tailwind v4 y
+                    nunca llega a aplicarse, así que esas variables se quedan
+                    en su valor de :root (el de escritorio) también en móvil
+                    — dejaba hueco fantasma bajo el Navbar. El Navbar en
+                    móvil NUNCA creció (sigue en h-16 = 4rem, ver Navbar.jsx,
+                    solo `md:h-20` cambió), así que hardcodear `pt-16` aquí
+                    es siempre correcto y no depende de que ese override
+                    llegue a aplicarse. Escritorio sí puede usar
+                    md:pt-[var(--stack-h)] normal: el breakpoint ahí lo pone
+                    Tailwind (`md:`), no una media query sobre la variable. */}
+                <main className="flex-grow relative z-10 flex flex-col pt-16 md:pt-[var(--stack-h)] pb-nav-safe md:pb-0">
                   <ZafiroUpdatesProvider>
                     <Navbar />
                     <TooltipProvider>
