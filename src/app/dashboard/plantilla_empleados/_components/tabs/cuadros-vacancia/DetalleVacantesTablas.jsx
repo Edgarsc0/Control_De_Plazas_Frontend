@@ -183,22 +183,44 @@ const PLAZA_GROUPS = [
 // par Ocup/Vac contiguo — reemplaza al antiguo par VacanciaTable/
 // VacanciaTableK (Vacancia y Ocupación ya no van en tablas separadas lado a
 // lado, sino fundidas en una sola).
-function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
+// Número de celda de las tablas por nivel: texto plano tabular (sin badge ni
+// fondo); si es clicable se subraya al pasar el cursor. `strong` para la fila
+// de totales.
+function CellNum({ value, onClick, tone, strong = false }) {
+  if (!(value > 0)) return <span className="text-slate-300 dark:text-slate-600">–</span>;
+  const color = tone === "vac" ? "text-amber-700 dark:text-amber-400" : "text-slate-900 dark:text-slate-100";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`tabular-nums text-sm ${strong ? "font-bold" : "font-medium"} ${color} hover:underline underline-offset-4 decoration-1 focus-visible:outline focus-visible:outline-1 focus-visible:outline-slate-400 cursor-pointer`}
+    >
+      {formatNumber(value)}
+    </button>
+  );
+}
+
+// `fill`: modo widget — la tabla ocupa todo el alto del widget (las filas se
+// reparten el espacio sobrante) y solo hace scroll si no caben.
+function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false }) {
   if (rows.length === 0) return null;
 
+  // Separador vertical entre grupos (Eventuales | Evt. N.C. | Permanentes | Total).
+  const sepGrupo = (i) => (i > 0 ? "border-l border-slate-300 dark:border-slate-700" : "");
+  const celda = "px-3 py-2 text-right";
+
   return (
-    <div className="flex flex-col">
-      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
-        <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
+    <div className={`flex flex-col ${fill ? "h-full min-h-0" : ""}`}>
+      <h4 className={`text-sm font-semibold text-slate-800 dark:text-slate-200 ${fill ? "mb-1 shrink-0" : "mb-2"}`}>
         {levelLabel}
       </h4>
-      <div className="overflow-auto custom-scrollbar max-h-[420px] rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-md bg-white dark:bg-slate-900">
-        <table className="w-full text-sm text-left border-collapse">
-          <thead className="text-white sticky top-0 z-30">
+      <div className={`overflow-auto custom-scrollbar ${fill ? "flex-1 min-h-0" : "max-h-[420px]"} rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950`}>
+        <table className={`w-full text-sm border-collapse ${fill ? "h-full" : ""}`}>
+          <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
             <tr>
               <th
                 rowSpan={2}
-                className="sticky left-0 top-0 z-40 bg-[#40121e] border border-[#621f32]/35 p-3 text-center font-bold text-[11px] uppercase tracking-wider"
+                className="sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-3 py-2 text-left font-semibold text-[11px] uppercase tracking-wide"
               >
                 Nivel
               </th>
@@ -206,98 +228,54 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
                 <th
                   key={g.key}
                   colSpan={2}
-                  className={`bg-[#501929] border border-[#621f32]/35 p-2 text-center font-bold text-[11px] uppercase tracking-wider whitespace-nowrap ${
-                    i > 0 ? "border-l-4 border-l-[#bc955c]/60" : ""
-                  }`}
+                  className={`px-3 py-1.5 text-center font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap border-b border-slate-200 dark:border-slate-800 ${sepGrupo(i)}`}
                 >
                   {g.label}
                 </th>
               ))}
             </tr>
-            <tr>
+            <tr className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {PLAZA_GROUPS.flatMap((g, i) => [
-                <th
-                  key={`${g.key}|ocup`}
-                  className={`bg-[#2b0d15] border border-[#621f32]/35 p-1.5 text-center font-semibold text-[10px] text-[#f2e5d0] ${
-                    i > 0 ? "border-l-4 border-l-[#bc955c]/60" : ""
-                  }`}
-                >
+                <th key={`${g.key}|ocup`} className={`px-3 py-1 text-right border-b border-slate-300 dark:border-slate-700 ${sepGrupo(i)}`}>
                   Ocup
                 </th>,
-                <th
-                  key={`${g.key}|vac`}
-                  className="bg-[#2b0d15] border border-[#621f32]/35 p-1.5 text-center font-semibold text-[10px] text-[#bc955c] border-l border-l-slate-500/40"
-                >
+                <th key={`${g.key}|vac`} className="px-3 py-1 text-right border-b border-slate-300 dark:border-slate-700 text-amber-700 dark:text-amber-400">
                   Vac
                 </th>,
               ])}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx) => (
+            {rows.map((row) => (
               <tr
                 key={row.nivel}
-                className={`transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-[#bc955c]/5 ${
-                  idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/20 dark:bg-slate-800/10"
-                }`}
+                className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors"
               >
-                <td
-                  className={`sticky left-0 z-10 p-3 text-center font-extrabold text-[#621f32] dark:text-[#bc955c] border-r border-slate-100 dark:border-slate-800/60 ${
-                    idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50 dark:bg-slate-800"
-                  }`}
-                >
+                <td className="sticky left-0 z-10 bg-white dark:bg-slate-950 px-3 py-2 text-left font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
                   {row.nivel}
                 </td>
                 {PLAZA_GROUPS.flatMap((g, i) => [
-                  <td
-                    key={`${row.nivel}|${g.key}|ocup`}
-                    className={`p-2 text-center border-r border-slate-100 dark:border-slate-800/60 ${i > 0 ? "border-l-2 border-l-slate-200 dark:border-l-slate-800" : ""} ${
-                      g.key === "total" ? "bg-slate-50/50 dark:bg-slate-800/20" : ""
-                    }`}
-                  >
-                    <ClickableNum value={row[g.key].ocup} tone="ocup" onClick={() => onCellClick(row.nivel, g.key, "ocup")} />
+                  <td key={`${row.nivel}|${g.key}|ocup`} className={`${celda} ${sepGrupo(i)} ${g.key === "total" ? "bg-slate-50 dark:bg-slate-900/50" : ""}`}>
+                    <CellNum value={row[g.key].ocup} tone="ocup" onClick={() => onCellClick(row.nivel, g.key, "ocup")} />
                   </td>,
-                  <td
-                    key={`${row.nivel}|${g.key}|vac`}
-                    className={`p-2 text-center border-r border-slate-100 dark:border-slate-800/60 ${
-                      g.key === "total" ? "bg-slate-50/50 dark:bg-slate-800/20" : ""
-                    }`}
-                  >
-                    <ClickableNum value={row[g.key].vac} tone="vac" onClick={() => onCellClick(row.nivel, g.key, "vac")} />
+                  <td key={`${row.nivel}|${g.key}|vac`} className={`${celda} ${g.key === "total" ? "bg-slate-50 dark:bg-slate-900/50" : ""}`}>
+                    <CellNum value={row[g.key].vac} tone="vac" onClick={() => onCellClick(row.nivel, g.key, "vac")} />
                   </td>,
                 ])}
               </tr>
             ))}
           </tbody>
-          <tfoot>
-            <tr className="bg-[#40121e] text-white font-bold border-t-2 border-[#bc955c]/45">
-              <td className="sticky left-0 z-10 bg-[#40121e] p-3 text-center border-r border-[#621f32]/35 uppercase text-[10px] tracking-wider font-black">
+          <tfoot className="sticky bottom-0 z-20">
+            <tr className="bg-slate-100 dark:bg-slate-900 border-t-2 border-slate-300 dark:border-slate-700">
+              <td className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-900 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
                 Total
               </td>
               {PLAZA_GROUPS.flatMap((g, i) => [
-                <td key={`total|${g.key}|ocup`} className={`p-2 text-center border-r border-[#621f32]/35 ${i > 0 ? "border-l-4 border-l-[#bc955c]/45" : ""} ${g.key === "total" ? "bg-[#621f32]" : ""}`}>
-                  <button
-                    onClick={() => onCellClick("__ALL__", g.key, "ocup")}
-                    className={`text-xs font-black rounded-lg border transition-all active:scale-95 cursor-pointer ${
-                      g.key === "total"
-                        ? "px-3.5 py-1.5 bg-[#bc955c] text-[#621f32] hover:bg-[#d0ab75] hover:text-white border-[#bc955c] shadow-md shadow-[#bc955c]/20"
-                        : "px-3 py-1 bg-white/10 hover:bg-white hover:text-[#621f32] text-white border-white/20"
-                    }`}
-                  >
-                    {formatNumber(totalRow[g.key].ocup)}
-                  </button>
+                <td key={`total|${g.key}|ocup`} className={`${celda} ${sepGrupo(i)}`}>
+                  <CellNum strong value={totalRow[g.key].ocup} tone="ocup" onClick={() => onCellClick("__ALL__", g.key, "ocup")} />
                 </td>,
-                <td key={`total|${g.key}|vac`} className={`p-2 text-center border-r border-[#621f32]/35 ${g.key === "total" ? "bg-[#621f32]" : ""}`}>
-                  <button
-                    onClick={() => onCellClick("__ALL__", g.key, "vac")}
-                    className={`text-xs font-black rounded-lg border transition-all active:scale-95 cursor-pointer ${
-                      g.key === "total"
-                        ? "px-3.5 py-1.5 bg-[#bc955c] text-[#621f32] hover:bg-[#d0ab75] hover:text-white border-[#bc955c] shadow-md shadow-[#bc955c]/20"
-                        : "px-3 py-1 bg-white/10 hover:bg-white hover:text-[#621f32] text-white border-white/20"
-                    }`}
-                  >
-                    {formatNumber(totalRow[g.key].vac)}
-                  </button>
+                <td key={`total|${g.key}|vac`} className={celda}>
+                  <CellNum strong value={totalRow[g.key].vac} tone="vac" onClick={() => onCellClick("__ALL__", g.key, "vac")} />
                 </td>,
               ])}
             </tr>
@@ -308,7 +286,10 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick }) {
   );
 }
 
-export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) {
+// `only`: id de una sola tabla a renderizar (modo widget del tablero
+// personalizable): nivel_J | nivel_K | nivel_A | nivel_S | nivel_D | nivel_P |
+// nivel_OPERATIVOS | obs_vacancia | obs_ocupacion. Sin `only`, bloque completo.
+export default function DetalleVacantesTablas({ data = [], ocupadosData = [], only = null }) {
   const { hasPermission } = useAuth();
   const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
   const [modalOpen, setModalOpen] = useState(false);
@@ -423,8 +404,9 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
   if (!data || data.length === 0) return null;
 
   return (
-    <div className="w-full px-0 sm:px-4 lg:px-6 mt-8">
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+    <div className={only ? 'w-full h-full' : 'w-full px-0 sm:px-4 lg:px-6 mt-8'}>
+      <div className={only ? 'h-full' : 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden'}>
+        {!only && (<>
         {/* Blobs */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-[#bc955c]/15 to-[#621f32]/15 blur-3xl -z-10 rounded-full" />
         <div className="absolute bottom-0 left-0 w-72 h-72 bg-gradient-to-tr from-[#621f32]/15 to-[#bc955c]/15 blur-3xl -z-10 rounded-full" />
@@ -444,18 +426,22 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
           </div>
         </div>
 
+        </>)}
+
         {/* Una tabla fundida por nivel (Vacancia + Ocupación en el mismo
             renglón, columnas Ocup/Vac pareadas) — orden J, K, A, S, D, P,
             Operativos, seguido de Observaciones (Vacancia | Ocupación). */}
-        <div className="flex flex-col gap-8 relative z-10">
+        <div className={`flex flex-col relative z-10 ${only ? "h-full" : "gap-8"}`}>
           {levelRows.map(lvl => {
             if (lvl.mergedRows.length === 0) return null;
+            if (only && only !== `nivel_${lvl.key}`) return null;
             return (
               <NivelPlazaTable
                 key={lvl.key}
                 levelLabel={lvl.label}
                 rows={lvl.mergedRows}
                 totalRow={lvl.mergedTotal}
+                fill={!!only}
                 onCellClick={(nivel, tipo, estatus) => {
                   const estatusLabel = estatus === 'ocup' ? 'Ocupación' : 'Vacancia';
                   if (estatus === 'ocup') {
@@ -471,9 +457,9 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
           {/* Observaciones Vacancia (izquierda) | Observaciones Ocupación (derecha) —
               mismo criterio (Contratación Base / OIC / Titulares de Aduanas),
               una sobre plazas vacantes y otra sobre plazas ocupadas. */}
-          {(observaciones.total > 0 || observacionesOcup.total > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {observaciones.total > 0 ? (
+          {(observaciones.total > 0 || observacionesOcup.total > 0) && (!only || only.startsWith('obs_')) && (
+            <div className={`grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-8`}>
+              {observaciones.total > 0 && (!only || only === 'obs_vacancia') ? (
                 <div className="flex flex-col">
                   <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
                     <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />
@@ -566,7 +552,7 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [] }) 
                 </div>
               ) : <div />}
 
-              {observacionesOcup.total > 0 ? (
+              {observacionesOcup.total > 0 && (!only || only === 'obs_ocupacion') ? (
                 <div className="flex flex-col">
                   <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
                     <span className="w-1.5 h-5 bg-gradient-to-b from-[#621f32] to-[#8c2d4a] rounded-full inline-block" />

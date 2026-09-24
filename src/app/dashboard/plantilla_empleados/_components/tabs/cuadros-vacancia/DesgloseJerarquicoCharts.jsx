@@ -373,7 +373,11 @@ const formatAxisTick = (v) => {
   return String(n);
 };
 
-export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false }) {
+// `only`: id de una sola gráfica a renderizar (modo widget del tablero
+// personalizable): vac_nj | ocup_nj | vac_tabular | ocup_tabular | familia.
+// Sin `only`, se renderiza el bloque completo de siempre.
+export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false, only = null }) {
+  const show = (id) => !only || only === id;
   const { hasPermission } = useAuth();
   const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
   const [drillFamily, setDrillFamily] = useState(null);
@@ -981,8 +985,9 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   };
 
   return (
-    <div className="w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+    <div className={only ? 'w-full h-full' : 'w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700'}>
+      <div className={only ? 'h-full' : 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden'}>
+        {!only && (<>
         {/* Blobs decorativos */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-br from-[#bc955c]/15 to-[#621f32]/15 blur-3xl -z-10 rounded-full" />
         <div className="absolute bottom-0 left-0 w-72 h-72 bg-gradient-to-tr from-[#621f32]/15 to-[#bc955c]/15 blur-3xl -z-10 rounded-full" />
@@ -1006,11 +1011,14 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-2 gap-6 sm:gap-8 relative z-10">
+        </>)}
+
+        <div className={only ? 'grid grid-cols-1 h-full relative z-10' : 'grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-2 gap-6 sm:gap-8 relative z-10'}>
 
           {/* ── Gráfica 1: Vacantes por Nivel Jerárquico (fila 1, col 1) ── */}
-          <div ref={chart1ContainerRef} data-pdf-chart className="lg:col-start-1 lg:row-start-1 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
-            <div className="mb-6">
+          {show('vac_nj') && (
+          <div ref={chart1ContainerRef} data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-1 lg:row-start-1'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={only ? 'mb-1' : 'mb-6'}>
               <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
                 Vacantes por Nivel Jerárquico
               </h4>
@@ -1018,7 +1026,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                 Distribución por NJ
               </p>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart1Data}
@@ -1108,10 +1116,12 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </div>
             </div>
           </div>
+          )}
 
           {/* ── Gráfica NJ-Ocupación: Ocupación por Nivel Jerárquico (fila 1, col 2) ── */}
-          <div ref={chart1bContainerRef} data-pdf-chart className="lg:col-start-2 lg:row-start-1 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
-            <div className="mb-6">
+          {show('ocup_nj') && (
+          <div ref={chart1bContainerRef} data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-2 lg:row-start-1'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={only ? 'mb-1' : 'mb-6'}>
               <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
                 Ocupación por Nivel Jerárquico
               </h4>
@@ -1119,7 +1129,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                 Distribución por NJ
               </p>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart1bData}
@@ -1205,10 +1215,12 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </div>
             </div>
           </div>
+          )}
 
           {/* ── Gráfica 2: Familia con Drill-Down ── */}
-          <div data-pdf-chart className="lg:col-start-1 lg:row-start-2 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
-            <div className="mb-6 flex items-start justify-between">
+          {show('vac_tabular') && (
+          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-1 lg:row-start-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={`${only ? 'mb-1' : 'mb-6'} flex items-start justify-between`}>
               <div>
                 {drillFamily ? (
                   <div className="flex items-center gap-2">
@@ -1235,7 +1247,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                 </p>
               </div>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2Data}
@@ -1413,10 +1425,12 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </div>
             )}
           </div>
+          )}
 
           {/* ── Gráfica Tabular-Ocupación: Ocupación por Nivel Tabular (fila 2, col 2) ── */}
-          <div data-pdf-chart className="lg:col-start-2 lg:row-start-2 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
-            <div className="mb-6 flex items-start justify-between">
+          {show('ocup_tabular') && (
+          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-2 lg:row-start-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={`${only ? 'mb-1' : 'mb-6'} flex items-start justify-between`}>
               <div>
                 {drillFamilyOcup ? (
                   <div className="flex items-center gap-2">
@@ -1443,7 +1457,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                 </p>
               </div>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2bData}
@@ -1612,10 +1626,12 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </div>
             )}
           </div>
+          )}
 
           {/* ── Gráfica 3: Posiciones Totales (fila 1-2, col 3) ── */}
-          <div data-pdf-chart className="lg:col-start-3 lg:row-start-1 lg:row-span-2 bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl p-4 sm:p-7 shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col">
-            <div className="mb-6">
+          {show('familia') && (
+          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-3 lg:row-start-1 lg:row-span-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={only ? 'mb-1' : 'mb-6'}>
               {drillFamily3 ? (
                 <div className="flex items-center gap-2">
                   <button
@@ -1640,7 +1656,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   : 'Posiciones totales por familia de nivel (vacantes + ocupadas) · Clic para explorar'}
               </p>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart3Data}
@@ -1802,6 +1818,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </span>
             </div>
           </div>
+          )}
 
         </div>
       </div>

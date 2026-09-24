@@ -340,6 +340,10 @@ export default function PosicionArbolModal({
     // misma plaza. Ver MovimientosPersonalTab (clic en columna "Posición").
     focoNumEmpleado = null,
     focoFecha = null,
+    // Modo widget del tablero personalizable: se pinta el mismo contenido
+    // (resumen + canvas) sin ModalShell — ocupa todo el alto de su contenedor.
+    // Se usa con `open` siempre en true.
+    embedded = false,
 }) {
     const [plaza, setPlaza] = useState(null);
     const [cargando, setCargando] = useState(false);
@@ -736,44 +740,8 @@ export default function PosicionArbolModal({
         });
     }, []);
 
-    return (
-        <ModalShell
-            open={open}
-            onClose={() => onOpenChange(false)}
-            size={dock || sidebar ? "sm" : "xl"}
-            resizable={!dock && !sidebar}
-            minWidth={900}
-            maxWidth={1500}
-            fixedHeight
-            anchor={dock ? "right" : sidebar ? "right-edge" : "center"}
-            width={dock ? 440 : sidebar ? 560 : undefined}
-            // (512 + gap12 - 440) / 2 = 42 — ver ModalShell `dockOffset` y
-            // VacanciaDetalleModal/OcupacionDetalleModal `shiftLeftPx` (226),
-            // que juntos centran el PAR completo en vez de sólo este panel.
-            dockOffset={dock ? 42 : undefined}
-            showBackdrop={!dock && !sidebar}
-            contentKey={posicion}
-            icon={Building2}
-            eyebrow="Árbol de movimientos"
-            title={`Posición ${posActual || ""}`}
-            subtitle="Tronco de la plaza: creación, ocupaciones, vacancias e insubsistencias"
-            bodyClassName="p-0 flex flex-col"
-            headerExtra={
-                plaza && (
-                    <>
-                        <Pill tone={plaza.ocupada ? "emerald" : "amber"} className="hidden sm:inline-flex">
-                            {plaza.ocupada ? "Ocupada" : "Vacante"}
-                        </Pill>
-                        {plaza.tiene_inconsistencias && (
-                            <Pill tone="rose" className="hidden sm:inline-flex">
-                                <AlertTriangle className="mr-1 size-3" />
-                                Inconsistencias
-                            </Pill>
-                        )}
-                    </>
-                )
-            }
-        >
+    const cuerpo = (
+        <>
             {/* Navegación entre plazas: sólo aparece tras seguir al menos un
                 badge de plaza entrante/saliente. "<<" salta hasta la plaza con
                 la que se abrió el modal; "<" retrocede un solo paso. */}
@@ -942,6 +910,68 @@ export default function PosicionArbolModal({
                     </>
                 )}
             </div>
+        </>
+    );
+
+    if (embedded) {
+        return (
+            <div className="flex h-full min-h-0 flex-col">
+                {plaza && (
+                    <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-3 py-1.5 dark:border-slate-800/60">
+                        <span className="font-mono text-xs font-black text-slate-800 dark:text-white">{posActual}</span>
+                        <Pill tone={plaza.ocupada ? "emerald" : "amber"}>{plaza.ocupada ? "Ocupada" : "Vacante"}</Pill>
+                        {plaza.tiene_inconsistencias && (
+                            <Pill tone="rose">
+                                <AlertTriangle className="mr-1 size-3" />
+                                Inconsistencias
+                            </Pill>
+                        )}
+                    </div>
+                )}
+                {cuerpo}
+            </div>
+        );
+    }
+
+    return (
+        <ModalShell
+            open={open}
+            onClose={() => onOpenChange(false)}
+            size={dock || sidebar ? "sm" : "xl"}
+            resizable={!dock && !sidebar}
+            minWidth={900}
+            maxWidth={1500}
+            fixedHeight
+            anchor={dock ? "right" : sidebar ? "right-edge" : "center"}
+            width={dock ? 440 : sidebar ? 560 : undefined}
+            // (512 + gap12 - 440) / 2 = 42 — ver ModalShell `dockOffset` y
+            // VacanciaDetalleModal/OcupacionDetalleModal `shiftLeftPx` (226),
+            // que juntos centran el PAR completo en vez de sólo este panel.
+            dockOffset={dock ? 42 : undefined}
+            showBackdrop={!dock && !sidebar}
+            contentKey={posicion}
+            icon={Building2}
+            eyebrow="Árbol de movimientos"
+            title={`Posición ${posActual || ""}`}
+            subtitle="Tronco de la plaza: creación, ocupaciones, vacancias e insubsistencias"
+            bodyClassName="p-0 flex flex-col"
+            headerExtra={
+                plaza && (
+                    <>
+                        <Pill tone={plaza.ocupada ? "emerald" : "amber"} className="hidden sm:inline-flex">
+                            {plaza.ocupada ? "Ocupada" : "Vacante"}
+                        </Pill>
+                        {plaza.tiene_inconsistencias && (
+                            <Pill tone="rose" className="hidden sm:inline-flex">
+                                <AlertTriangle className="mr-1 size-3" />
+                                Inconsistencias
+                            </Pill>
+                        )}
+                    </>
+                )
+            }
+        >
+            {cuerpo}
         </ModalShell>
     );
 }

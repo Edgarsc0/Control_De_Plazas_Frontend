@@ -935,6 +935,20 @@ export const VacantesService = {
     },
 
     /**
+     * Autocompletado de número de plaza mientras se escribe (widget "Árbol de
+     * Movimientos"). Cada sugerencia: { posicion, puesto, ocupada, ocupante, activa }.
+     * @param {string} q - Prefijo de la posición (mínimo 2 caracteres).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getPlazaSugerencias: (q, options = {}) => {
+        return apiFetch(`/plantilla/plazas/sugerencias/?q=${encodeURIComponent(q)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Pila cronológica de una plaza (tronco de su árbol de movimientos, ver
      * PosicionArbolModal.jsx): creación, ocupaciones, vacancias,
      * insubsistencias y tránsitos, continua y sin huecos.

@@ -1,19 +1,21 @@
 // Geometría de la cuadrícula del tablero personalizable.
 //
-// El tablero se organiza en "escritorios": cada uno ocupa exactamente el área
-// visible (ni más ni menos) y se navega horizontalmente entre ellos. De ahí que
-// la cuadrícula tenga un número FIJO de filas y que la altura de fila se derive
-// del alto disponible en vez de ser una constante: así el contenido siempre
-// cabe completo, sin scroll vertical, a cualquier nivel de zoom o tamaño de
-// ventana. Un widget guarda su alto en filas (1..GRID_ROWS), que es una medida
-// relativa; al cambiar el zoom se recalculan los píxeles, no las filas.
+// El tablero se organiza en "escritorios": cada uno ocupa el ancho visible y se
+// navega horizontalmente entre ellos. Verticalmente un escritorio crece con su
+// contenido y tiene scroll propio: la altura de fila es FIJA (ROW_HEIGHT), así
+// que un widget de `h` filas mide lo mismo sin importar el tamaño de la
+// ventana, y colocar más módulos solo alarga el escritorio hacia abajo en vez
+// de comprimirlos o mandarlos a otro escritorio.
 //
 // Las fórmulas de píxeles son una réplica exacta de `calcGridColWidth`,
 // `calcGridItemWHPx`, `calcXY` y `calcGridItemPosition` de react-grid-layout
 // v2 — si se actualiza la librería y cambia su matemática, el preview y la
 // posición final se desalinearían, así que conviene revisarlas juntas.
 export const GRID_COLS = 12;
-export const GRID_ROWS = 8;
+export const ROW_HEIGHT = 80;
+// Tope de seguridad de filas por escritorio (no es un límite de diseño: con
+// 80px por fila son 16,000px de alto).
+export const GRID_MAX_ROWS = 200;
 export const GRID_MARGIN = [12, 12];
 // react-grid-layout usa `containerPadding ?? margin` cuando no se le pasa
 // `containerPadding` explícito (default `null`), así que el padding efectivo
@@ -22,15 +24,9 @@ export const GRID_PADDING = GRID_MARGIN;
 
 const clamp = (valor, min, max) => Math.max(min, Math.min(valor, max));
 
-/**
- * Altura de fila para que GRID_ROWS filas ocupen exactamente `alturaDisponible`.
- * Es la inversa de la fórmula con la que react-grid-layout calcula el alto
- * total del contenedor, así que la cuadrícula acaba midiendo justo el alto del
- * escritorio y nunca desborda.
- */
-export function alturaFila(alturaDisponible) {
-  const util = alturaDisponible - GRID_PADDING[1] * 2 - GRID_MARGIN[1] * (GRID_ROWS - 1);
-  return Math.max(1, util / GRID_ROWS);
+/** Alto en píxeles de un contenido de `filas` filas (incluye el padding del contenedor). */
+export function alturaParaFilas(filas) {
+  return GRID_PADDING[1] * 2 + filas * ROW_HEIGHT + Math.max(0, filas - 1) * GRID_MARGIN[1];
 }
 
 /** Ancho en píxeles de una columna, dado el ancho del escritorio. */
@@ -69,7 +65,7 @@ export function celdaDesdePuntero(anchoEscritorio, rowHeight, offsetX, offsetY, 
 
   return {
     x: clamp(Math.round((left - GRID_PADDING[0]) / (colW + GRID_MARGIN[0])), 0, GRID_COLS - w),
-    y: clamp(Math.round((top - GRID_PADDING[1]) / (rowHeight + GRID_MARGIN[1])), 0, GRID_ROWS - h),
+    y: clamp(Math.round((top - GRID_PADDING[1]) / (rowHeight + GRID_MARGIN[1])), 0, GRID_MAX_ROWS - h),
   };
 }
 
@@ -89,7 +85,7 @@ export function colisiona(items, x, y, w, h, ignorarId = null) {
  * considera lleno y el widget pasa al siguiente.
  */
 export function buscarHueco(items, w, h) {
-  for (let y = 0; y <= GRID_ROWS - h; y += 1) {
+  for (let y = 0; y <= GRID_MAX_ROWS - h; y += 1) {
     for (let x = 0; x <= GRID_COLS - w; x += 1) {
       if (!colisiona(items, x, y, w, h)) return { x, y };
     }
@@ -113,16 +109,16 @@ export function normalizarWidgets(widgets) {
 
   return ordenados.map((widget) => {
     const w = clamp(widget.w ?? 1, 1, GRID_COLS);
-    const h = clamp(widget.h ?? 1, 1, GRID_ROWS);
+    const h = clamp(widget.h ?? 1, 1, GRID_MAX_ROWS);
     let escritorio = Math.max(0, widget.page ?? 0);
     let pos = null;
 
     // Un escritorio vacío siempre admite un widget ya acotado a GRID_COLS x
-    // GRID_ROWS, así que este bucle no puede quedarse sin salida.
+    // GRID_MAX_ROWS, así que este bucle no puede quedarse sin salida.
     while (pos === null) {
       const items = porEscritorio.get(escritorio) ?? [];
       const x = clamp(widget.x ?? 0, 0, GRID_COLS - w);
-      const y = clamp(widget.y ?? 0, 0, GRID_ROWS - h);
+      const y = clamp(widget.y ?? 0, 0, GRID_MAX_ROWS - h);
       if (!colisiona(items, x, y, w, h)) pos = { x, y };
       else {
         const hueco = buscarHueco(items, w, h);

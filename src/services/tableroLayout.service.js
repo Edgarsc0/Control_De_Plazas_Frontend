@@ -9,7 +9,7 @@ export const TableroLayoutService = {
     /**
      * Obtiene el layout guardado del usuario autenticado.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
-     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` -> `{ widgets: [] }`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()` -> `{ widgets: [], escritorios: [] }`.
      */
     getLayout: (options = {}) => {
         return apiFetch('/auth/tablero-layout/', {
@@ -20,14 +20,16 @@ export const TableroLayoutService = {
 
     /**
      * Reemplaza el layout completo del usuario autenticado.
-     * @param {Array<Object>} widgets - Lista de widgets (forma de react-grid-layout: i/x/y/w/h + `type`).
+     * @param {Array<Object>} widgets - Lista de widgets (forma de react-grid-layout: i/x/y/w/h + `type` + `page`).
+     * @param {string[]} [escritorios] - Nombre de cada escritorio por índice ("" = sin nombre propio).
+     *   Si se omite, el backend conserva los guardados.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
-    saveLayout: (widgets, options = {}) => {
+    saveLayout: (widgets, escritorios, options = {}) => {
         return apiFetch('/auth/tablero-layout/', {
             method: 'PUT',
-            body: JSON.stringify({ widgets }),
+            body: JSON.stringify(escritorios ? { widgets, escritorios } : { widgets }),
             ...options
         });
     },

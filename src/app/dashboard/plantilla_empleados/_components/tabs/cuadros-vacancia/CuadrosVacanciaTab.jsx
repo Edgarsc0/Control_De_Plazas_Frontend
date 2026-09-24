@@ -23,6 +23,10 @@ gsap.registerPlugin(useGSAP);
 // identidad de componente sea estable entre renders: si se redefiniera en
 // cada render del padre, React la desmontaría/montaría de nuevo en cada
 // re-render (p.ej. al pasar el mouse sobre un punto).
+// Modo widget (`only`): sin animación de entrada ni div envolvente, para que la
+// cadena de alturas (h-full) llegue intacta hasta la gráfica.
+const SinAnimacion = ({ children }) => children;
+
 function MonthBandsLayer({ bands, chartData }) {
   const scale = useXAxisScale();
   const plotArea = usePlotArea();
@@ -509,7 +513,7 @@ function HistoricoTooltip({ active, payload, label, hoveredPointKey, formatNumbe
 // cada vez que vuelve a entrar al viewport (se perdió de vista y se ve de
 // nuevo), no en cada render ni en cada cambio de datos.
 function HistoricoChartCard({
-  title, subtitle, icon: Icon, series, chartData, ticks, isCompactChart,
+  title, subtitle, icon: Icon, series, chartData, ticks, isCompactChart: isCompactChartProp,
   formatNumber, monthBands, renderDot, hoveredPointKey, onDotHover, onDotLeave,
   // Opcionales: solo los usa la tarjeta de Plazas Totales/Activas/Inactivas.
   // `bandsLayer`, si se pasa, sustituye a <MonthBandsLayer> (p.ej. franjas por
@@ -519,8 +523,32 @@ function HistoricoChartCard({
   // gráfica; `toolbar` va en el header, junto al título (p.ej. botones de
   // filtro creación/desactivación).
   bandsLayer, extraLayer, footnote, topMargin, toolbar,
+  // Modo widget del tablero (`only`): sin marco/sombra, encabezado y gráfica
+  // más bajos para que la tarjeta quepa en un widget de pocas filas.
+  compact = false,
+  // Solo en `compact`: mostrar `footnote` en línea, en la esquina del
+  // encabezado (si no, va en un popover ⓘ).
+  footnoteInline = false,
 }) {
   const cardRef = useRef(null);
+
+  // Modo widget: el layout se adapta al espacio asignado al widget (no al de
+  // la ventana). Se mide la propia tarjeta; con poco ancho se usan las mismas
+  // fuentes/anchos reducidos que en móvil y se ocultan icono y subtítulo.
+  const [dim, setDim] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    if (!compact) return undefined;
+    const el = cardRef.current;
+    if (!el) return undefined;
+    const medir = () => setDim((prev) => (prev.w === el.clientWidth && prev.h === el.clientHeight ? prev : { w: el.clientWidth, h: el.clientHeight }));
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [compact]);
+  const angosto = compact && dim.w > 0 && dim.w < 560;
+  const bajo = compact && dim.h > 0 && dim.h < 300;
+  const isCompactChart = compact ? angosto : isCompactChartProp;
 
   // Dominio real de esta tarjeta (min/max de sus propias series, no del
   // dataset completo) con margen del 10%, en vez del default de recharts
@@ -575,20 +603,46 @@ function HistoricoChartCard({
   }, { scope: cardRef, dependencies: [chartData] });
 
   return (
-    <div ref={cardRef} data-historico-card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
-      <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60 flex-wrap">
-        <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
-          <Icon className="size-6" />
-        </div>
-        <div className="flex-1 min-w-[160px]">
-          <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
+    <div ref={cardRef} data-historico-card className={compact ? "relative overflow-hidden h-full flex flex-col" : "bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden"}>
+      <div className={`flex items-center border-b border-slate-100 dark:border-slate-800/60 ${compact ? "shrink-0 gap-2 pb-1 flex-wrap" : "gap-4 mb-6 pb-6 flex-wrap"}`}>
+        {!(compact && (angosto || bajo)) && (
+          <div className={`bg-gradient-to-br from-[#10243e] to-[#1a3b63] shadow-lg shadow-[#10243e]/30 text-white ${compact ? "p-1.5 rounded-lg" : "p-3.5 rounded-2xl"}`}>
+            <Icon className={compact ? "size-4" : "size-6"} />
+          </div>
+        )}
+        <div className={`flex-1 ${compact ? "min-w-[120px]" : "min-w-[160px]"}`}>
+          <h3 className={`font-black text-slate-800 dark:text-white tracking-tight ${compact ? "text-sm leading-tight" : "text-2xl"}`}>
             {title}
           </h3>
-          <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
-            {subtitle}
-          </p>
+          {!(compact && (angosto || bajo)) && (
+            <p className={`font-medium text-slate-400 dark:text-slate-500 ${compact ? "text-[11px] leading-tight" : "text-sm"}`}>
+              {subtitle}
+            </p>
+          )}
         </div>
         {toolbar && <div className="flex items-center gap-2 flex-wrap">{toolbar}</div>}
+        {compact && (
+          // Esquina derecha: leyenda de series y nota, en vez de debajo de la gráfica.
+          <div className="ml-auto flex items-center gap-x-3 gap-y-0.5 flex-wrap justify-end text-[10px] font-bold text-slate-500 dark:text-slate-400">
+            {series.map((sr) => (
+              <span key={sr.key} className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <span className="size-2 rounded-full shrink-0" style={{ background: sr.color }} />
+                {sr.name}
+              </span>
+            ))}
+            {footnote && footnoteInline && !angosto && (
+              <span className="inline-flex flex-wrap items-center gap-x-3">{footnote}</span>
+            )}
+            {footnote && (!footnoteInline || angosto) && (
+              <span className="relative group">
+                <span tabIndex={0} className="inline-flex size-4 items-center justify-center rounded-full bg-slate-300 dark:bg-slate-700 text-white text-[9px] font-black cursor-help">i</span>
+                <span className="hidden group-hover:flex group-focus-within:flex flex-col gap-1 absolute right-0 top-full mt-1 z-30 w-64 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg text-[10px] font-bold normal-case tracking-normal">
+                  {footnote}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {chartData.length === 0 ? (
@@ -596,9 +650,9 @@ function HistoricoChartCard({
           No hay datos históricos disponibles
         </div>
       ) : (
-        <div data-pdf-chart className="w-full relative h-[560px]">
+        <div data-pdf-chart className={`w-full relative ${compact ? "flex-1 min-h-[120px]" : "h-[560px]"}`}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: topMargin ?? (isCompactChart ? 36 : 54), right: isCompactChart ? 4 : 20, left: 0, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: compact ? (topMargin != null ? Math.round(topMargin * 0.3) : 12) : (topMargin ?? (isCompactChart ? 36 : 54)), right: isCompactChart ? 4 : 20, left: 0, bottom: compact ? 0 : 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.4} className="text-slate-350 dark:text-slate-600" />
               {bandsLayer ?? <MonthBandsLayer bands={monthBands} chartData={chartData} />}
               {extraLayer}
@@ -623,10 +677,12 @@ function HistoricoChartCard({
                 content={<HistoricoTooltip hoveredPointKey={hoveredPointKey} formatNumber={formatNumber} />}
                 cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }}
               />
-              <Legend
-                wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
-                formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
-              />
+              {!compact && (
+                <Legend
+                  wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
+                  formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
+                />
+              )}
               {series.map(s => (
                 <Line
                   key={s.key}
@@ -668,8 +724,8 @@ function HistoricoChartCard({
         </div>
       )}
 
-      {footnote && chartData.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+      {footnote && !compact && chartData.length > 0 && (
+        <div className={`${compact ? "mt-1" : "mt-4"} flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] font-bold text-slate-500 dark:text-slate-400`}>
           {footnote}
         </div>
       )}
@@ -735,7 +791,11 @@ export function CuadrosVacanciaSkeleton() {
 // `setActiveSectionTab` llegan por props (levantados a ClientComponent.jsx):
 // la barra que los controla se renderiza a nivel de página, pegada debajo de
 // PageTabBar, no dentro de este componente — ver ClientComponent.jsx.
-export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab }) {
+export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, only = null }) {
+  // `only`: id de un solo elemento a renderizar (modo widget del tablero
+  // personalizable: plazas | ocup_quincenal | vac_quincenal | ocup_mensual |
+  // vac_mensual | cuadro_general). Sin `only`, el comportamiento es el de
+  // siempre, controlado por `activeSectionTab`.
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedQnas, setSelectedQnas] = useState([]);
   const [yearFilterOpen, setYearFilterOpen] = useState(false);
@@ -757,6 +817,12 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const [isGeneratingWord, setIsGeneratingWord] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isTableExpanded, setIsTableExpanded] = useState(false);
+
+  const isTend = only ? false : (activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord);
+  const showT = (id) => (only ? only === id : isTend);
+  const ZoomW = only ? SinAnimacion : Zoom;
+  const padX = only ? 'w-full h-full' : 'w-full px-0 sm:px-4 lg:px-6';
+  const gridPair = `${padX} grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-6`;
 
   // Modal de detalle al hacer click en una franja verde/guinda de la gráfica
   // de Plazas: qué posiciones concretas se crearon/desactivaron ese mes.
@@ -2127,9 +2193,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   };
 
   return (
-    <div className="w-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className={only ? "w-full h-full flex flex-col" : "w-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700"}>
 
-      <div ref={pdfRef} className="space-y-6">
+      <div ref={pdfRef} className={only ? "h-full" : "space-y-6"}>
         {/* La barra que controla activeSectionTab (Tendencia Histórica /
             Comparativo por Barras / Cuadros y Detalle de Vacantes) se
             renderiza en ClientComponent.jsx, pegada debajo de PageTabBar —
@@ -2139,14 +2205,14 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             por eso se ocultan/muestran solo con la condición del tab (sin
             mover su posición en el árbol) y esos handlers también las
             mantienen montadas mientras exportan sin importar el tab activo. */}
-        {activeSectionTab === 'cuadros' && (
-        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
-          <Zoom triggerOnce>
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden">
+        {(only ? only === 'cuadro_general' : activeSectionTab === 'cuadros') && (
+        <div className={padX} data-pdf-section>
+          <ZoomW triggerOnce>
+            <div className={only ? "relative overflow-hidden h-full flex flex-col" : "bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden"}>
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#bc955c]/10 to-[#621f32]/10 blur-3xl -z-10 rounded-full mix-blend-multiply dark:mix-blend-screen" />
               <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-[#621f32]/10 to-[#bc955c]/10 blur-3xl -z-10 rounded-full mix-blend-multiply dark:mix-blend-screen" />
 
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
+              <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800/60 ${only ? "shrink-0 mb-1 pb-1" : "mb-6 pb-6"}`}>
                 <div className="flex items-center gap-4">
                   <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
                     <LayoutDashboard className="size-6" />
@@ -2228,7 +2294,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 // Durante la exportación (ver handleExportImage) se quita el
                 // recorte para que la captura sea la tabla completa, sin
                 // barras de scroll quemadas en el PNG.
-                className={`${isExporting ? 'overflow-visible max-h-none' : 'overflow-auto max-h-[65vh]'} pb-4 custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg relative bg-white dark:bg-slate-900`}
+                className={`${isExporting ? 'overflow-visible max-h-none' : only ? 'overflow-auto flex-1 min-h-0' : 'overflow-auto max-h-[65vh]'} ${only ? '' : 'pb-4'} custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg relative bg-white dark:bg-slate-900`}
                 ref={tableRef}
               >
                   <table className="w-full text-xs sm:text-sm text-left border-collapse">
@@ -2439,14 +2505,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   )}
               </div>
             </div>
-          </Zoom>
+          </ZoomW>
         </div>
         )}
 
-        {(activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord) && (
-        <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section>
-          <Zoom triggerOnce>
+        {showT('plazas') && (
+        <div className={padX} data-pdf-section>
+          <ZoomW triggerOnce>
             <HistoricoChartCard
+              compact={!!only}
               title="Plazas Totales vs Activas vs Inactivas"
               subtitle="Histórico completo de la ANAM · corte a fin de cada mes desde enero 2022"
               icon={TrendingUp}
@@ -2476,17 +2543,19 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
               toolbar={plazasEventToolbar}
               topMargin={isCompactChart ? 66 : 84}
             />
-          </Zoom>
+          </ZoomW>
         </div>
         )}
 
         {/* Ocupación / Vacancia Histórica — antes ocupado por los KPIs de la
             quincena actual; esa información ya vive en la última fila del
             cuadro de abajo, así que aquí arriba se prioriza la tendencia. */}
-        {(activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord) && historicoChartData.length > 0 && (
-          <div className="w-full px-0 sm:px-4 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-6" data-pdf-section>
-            <Zoom triggerOnce>
+        {(showT('ocup_quincenal') || showT('vac_quincenal')) && historicoChartData.length > 0 && (
+          <div className={gridPair} data-pdf-section>
+            {showT('ocup_quincenal') && (
+            <ZoomW triggerOnce>
               <HistoricoChartCard
+              compact={!!only}
                 title="Ocupación Histórica"
                 subtitle="Permanentes / Eventuales Ocupadas por quincena"
                 icon={Users}
@@ -2501,9 +2570,12 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 onDotHover={setHoveredPointKey}
                 onDotLeave={() => setHoveredPointKey(null)}
               />
-            </Zoom>
-            <Zoom triggerOnce delay={100}>
+            </ZoomW>
+            )}
+            {showT('vac_quincenal') && (
+            <ZoomW triggerOnce delay={100}>
               <HistoricoChartCard
+              compact={!!only}
                 title="Vacancia Histórica"
                 subtitle="Permanentes / Eventuales Vacantes por quincena"
                 icon={AlertCircle}
@@ -2518,7 +2590,8 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 onDotHover={setHoveredPointKey}
                 onDotLeave={() => setHoveredPointKey(null)}
               />
-            </Zoom>
+            </ZoomW>
+            )}
           </div>
         )}
 
@@ -2529,10 +2602,12 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             arriba (quincenal, filtrable por Año/Qna, con desglose Permanente/
             Eventual), estas son la serie agregada de toda la historia, sin
             desglose ni filtro. */}
-        {(activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord) && plazasChartData.length > 0 && (
-          <div className="w-full px-0 sm:px-4 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-6" data-pdf-section>
-            <Zoom triggerOnce>
+        {(showT('ocup_mensual') || showT('vac_mensual')) && plazasChartData.length > 0 && (
+          <div className={gridPair} data-pdf-section>
+            {showT('ocup_mensual') && (
+            <ZoomW triggerOnce>
               <HistoricoChartCard
+              compact={!!only}
                 title="Ocupación Histórica (Mensual)"
                 subtitle="Posiciones ocupadas · corte a fin de cada mes desde enero 2022"
                 icon={Users}
@@ -2556,11 +2631,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 onDotHover={setHoveredPointKey}
                 onDotLeave={() => setHoveredPointKey(null)}
                 footnote={ocupVacMensualFootnote}
+                footnoteInline
                 topMargin={isCompactChart ? 44 : 60}
               />
-            </Zoom>
-            <Zoom triggerOnce delay={100}>
+            </ZoomW>
+            )}
+            {showT('vac_mensual') && (
+            <ZoomW triggerOnce delay={100}>
               <HistoricoChartCard
+              compact={!!only}
                 title="Vacancia Histórica (Mensual)"
                 subtitle="Posiciones vacantes · corte a fin de cada mes desde enero 2022"
                 icon={AlertCircle}
@@ -2584,9 +2663,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 onDotHover={setHoveredPointKey}
                 onDotLeave={() => setHoveredPointKey(null)}
                 footnote={ocupVacMensualFootnote}
+                footnoteInline
                 topMargin={isCompactChart ? 44 : 60}
               />
-            </Zoom>
+            </ZoomW>
+            )}
           </div>
         )}
 
@@ -2597,15 +2678,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             querySelectorAll('[data-pdf-chart]') siga encontrando los 10 (5
             de aquí + 5 del tab "Tendencia Histórica") en el orden que espera
             chartTitles en handleGeneratePdf/handleGenerateWord. */}
-        {(activeSectionTab === 'barras' || isGeneratingPdf || isGeneratingWord) && (
+        {!only && (activeSectionTab === 'barras' || isGeneratingPdf || isGeneratingWord) && (
           <div className="w-full px-0 sm:px-4 lg:px-6" data-pdf-section data-pdf-charts>
-            <Zoom triggerOnce>
+            <ZoomW triggerOnce>
               <DesgloseJerarquicoCharts data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} forExport={isGeneratingPdf || isGeneratingWord} />
-            </Zoom>
+            </ZoomW>
           </div>
         )}
 
-        {activeSectionTab === 'cuadros' && (
+        {!only && activeSectionTab === 'cuadros' && (
         <div data-pdf-section>
           <DetalleVacantesTablas data={desgloseJerarquicoData} ocupadosData={ocupadosJerarquicoData} />
         </div>
