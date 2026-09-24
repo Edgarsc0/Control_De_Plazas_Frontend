@@ -27,6 +27,15 @@ export const PERMISSIONS = {
   VIEW_PLANTILLA_BAJAS_FOTO: 'authentication.view_plantilla_bajas_foto',
   VIEW_PLANTILLA_GEOGRAFIA_FOTO: 'authentication.view_plantilla_geografia_foto',
 
+  // Expediente del personal — una pestaña por permiso. El modal de
+  // expediente (EmployeesModal) se abre desde cualquier fila de empleado en
+  // todo el sistema, así que su contenido se configura aparte del módulo
+  // por el que se entró (ver EXPEDIENTE_TABS en ese componente).
+  VIEW_EXPEDIENTE_PLAZA: 'authentication.view_expediente_plaza',
+  VIEW_EXPEDIENTE_DATOS_PERSONALES: 'authentication.view_expediente_datos_personales',
+  VIEW_EXPEDIENTE_HISTORIAL_MOVIMIENTOS: 'authentication.view_expediente_historial_movimientos',
+  VIEW_EXPEDIENTE_HISTORIAL_POSICION: 'authentication.view_expediente_historial_posicion',
+
   // Ocupación de Plazas por Oficio
   // view_ocupacion_sankey/tabla/estadisticas quedaron sin uso en el rediseño
   // 2026-09 (la vista pasó a listar Solicitudes de Nueva Creación) — se

@@ -119,7 +119,13 @@ export default function PlantillaEmpleadosDetalle({
   distribucionGeografica = [],
   secondaryDataPromise
 }) {
-  const { isLoading: authLoading, hasPermission, email, unScopeFingerprint } = useAuth();
+  const { isLoading: authLoading, hasPermission, email, unScopeFingerprint, unScope } = useAuth();
+  // Un rol con alcance por Unidad de Negocio no ve el subtab "Rotación de
+  // personal": analiza quién ha encabezado cada aduana/dirección a lo largo
+  // del tiempo, un recorrido entre unidades que no tiene contenido propio
+  // acotado a una sola (el backend además le responde 403, ver
+  // RotacionTitularesAduanasView). `!authLoading` evita el parpadeo.
+  const sinRestriccionUN = !authLoading && unScope === null;
   // null mientras no se conozca la identidad todavía (evita computar una
   // clave sin namespacear que luego habría que migrar). Cambia si el admin
   // reduce/amplía el scope del rol (fingerprint distinto), invalidando el
@@ -507,7 +513,9 @@ export default function PlantillaEmpleadosDetalle({
       options: [
         { id: "movimientos", label: "Movimientos de Personal", icon: Briefcase },
         { id: "bitacora", label: "Bitácora de Movimientos", icon: UserCheck },
-        { id: "rotacion", label: "Rotación de personal", icon: Building2, tourId: "movpersonal-rotacion-subtab-option" },
+        ...(sinRestriccionUN
+          ? [{ id: "rotacion", label: "Rotación de personal", icon: Building2, tourId: "movpersonal-rotacion-subtab-option" }]
+          : []),
       ],
       active: activeMovPersonalSubTab,
       setActive: setActiveMovPersonalSubTab,
@@ -623,7 +631,7 @@ export default function PlantillaEmpleadosDetalle({
       body: "Da clic aquí para ver la misma rotación, pero de las 12 direcciones generales — mismo formato, mismos filtros y el mismo Excel exportable.",
     },
   ], []);
-  const rotacionTourEnabled = activeTab === "movimientos_personal" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS);
+  const rotacionTourEnabled = sinRestriccionUN && activeTab === "movimientos_personal" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS);
   useEffect(() => {
     if (!rotacionTourEnabled) setRotacionTourDropdownForced(false);
   }, [rotacionTourEnabled]);

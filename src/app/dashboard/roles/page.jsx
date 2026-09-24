@@ -518,16 +518,13 @@ function RolesAdminContent() {
         return orphanPermissions.filter((p) => p.name.toLowerCase().includes(q));
     }, [orphanPermissions, permSearch]);
 
-    // El alcance por Unidad de Negocio hoy solo cubre los datos alcanzables
-    // con view_plantilla_detalle/_foto (ver comentario en plantilla/views.py
-    // junto a _scope_un_filas) — si el rol restringido también tiene alguno
-    // de estos otros permisos, esos tabs devolverían datos SIN filtrar.
+    // Tabs a los que todavía no se les hace el recorte por Unidad de Negocio
+    // (ver el inventario en plantilla/views.py, junto a _scope_un_filas). El
+    // backend NO devuelve datos sin filtrar en estos casos: niega el acceso
+    // (default-deny de HasModulePermission), así que el aviso es sobre
+    // funcionalidad que no servirá, no sobre una fuga.
     const CODENAMES_FUERA_DE_COBERTURA_SCOPE = [
-        PERMISSIONS.VIEW_PLANTILLA_ESTATUS_NOMINA,
         PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES,
-        PERMISSIONS.VIEW_PLANTILLA_HISTORICO,
-        PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS,
-        PERMISSIONS.VIEW_PLANTILLA_BAJAS,
         PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA,
     ];
     const scopeTieneHuecoDeCobertura =
@@ -754,16 +751,18 @@ function RolesAdminContent() {
                                 Alcance de datos (Unidad de Negocio)
                             </label>
                             <p className="text-xs text-slate-400 mb-2">
-                                Aplica a los tabs Plantilla Detalle, Estatus Nómina y Mov. Posiciones
-                                (comparten el mismo conjunto de datos).
+                                Aplica a los tabs Plantilla Detalle (incluido Histórico), Estatus
+                                Nómina, Empleados Bajas y Movimientos (salvo su subtab Rotación de
+                                personal). Los demás tabs todavía no lo soportan y quedan
+                                bloqueados para un rol restringido.
                             </p>
                             <UnScopeSelector value={unScope} onChange={setUnScope} />
                             {scopeTieneHuecoDeCobertura && (
                                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                    El alcance por UN aún no se aplica a los datos propios de Estatus
-                                    Nómina, Mov. Posiciones, Histórico, Movimientos, Empleados Bajas o
-                                    Distribución Geográfica — este rol podría ver registros fuera de su
-                                    UN en esos tabs.
+                                    Mov. Posiciones y Distribución Geográfica aún no saben
+                                    recortar sus datos por UN. Para no exponer otras unidades, a
+                                    un rol restringido se le niega el acceso a esos tabs aunque
+                                    tenga el permiso marcado.
                                 </p>
                             )}
                         </div>

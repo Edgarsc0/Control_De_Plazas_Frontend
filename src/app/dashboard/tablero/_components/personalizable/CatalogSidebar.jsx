@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { LayoutGrid, ChevronRight, Search, X, PanelLeftClose } from "lucide-react";
-import { WIDGETS_DE_CATALOGO, GRUPOS_CATALOGO } from "./widgetRegistry";
+import { WIDGETS_DE_CATALOGO, GRUPOS_CATALOGO, puedeUsarWidget } from "./widgetRegistry";
+import { useAuth } from "@/hooks/useAuth";
 
 /**
  * Barra lateral con el catálogo de módulos disponibles para agregar al tablero.
@@ -27,6 +28,16 @@ export default function CatalogSidebar({ usedTypes, onIniciarArrastre, onContrae
   const [gruposAbiertos, setGruposAbiertos] = useState({});
   const [busqueda, setBusqueda] = useState("");
   const q = normalizar(busqueda);
+  const { hasAnyPermission, unScope, isLoading: authCargando } = useAuth();
+
+  // Solo los módulos que este rol puede usar de verdad: los que no tenga
+  // permitidos —o que todavía no respeten su alcance por Unidad de Negocio—
+  // ni siquiera se listan, en vez de ofrecerlos y que al soltarlos respondan
+  // 403. Ver `puedeUsarWidget`.
+  const disponibles = useMemo(
+    () => (authCargando ? [] : WIDGETS_DE_CATALOGO.filter((w) => puedeUsarWidget(w, hasAnyPermission, unScope))),
+    [authCargando, hasAnyPermission, unScope]
+  );
 
   // Con búsqueda activa: solo lo que coincide (por nombre del módulo o, en
   // un grupo, por el nombre del grupo — que trae todos sus elementos) y los
@@ -34,14 +45,14 @@ export default function CatalogSidebar({ usedTypes, onIniciarArrastre, onContrae
   const { sueltos, grupos } = useMemo(() => {
     const coincide = (w) => !q || normalizar(w.label).includes(q);
     return {
-      sueltos: WIDGETS_DE_CATALOGO.filter((w) => !w.grupo && coincide(w)),
+      sueltos: disponibles.filter((w) => !w.grupo && coincide(w)),
       grupos: GRUPOS_CATALOGO.map((g) => {
-        const todos = WIDGETS_DE_CATALOGO.filter((w) => w.grupo === g.id);
+        const todos = disponibles.filter((w) => w.grupo === g.id);
         const items = !q || normalizar(g.label).includes(q) ? todos : todos.filter(coincide);
         return { ...g, items };
       }).filter((g) => g.items.length > 0),
     };
-  }, [q]);
+  }, [q, disponibles]);
 
   const renderTarjeta = (entry, compacta = false) => {
     const Icon = entry.icon;
@@ -125,6 +136,11 @@ export default function CatalogSidebar({ usedTypes, onIniciarArrastre, onContrae
         {q && sueltos.length === 0 && grupos.length === 0 && (
           <p className="text-center text-[11px] text-slate-400 dark:text-slate-500 py-6">
             Ningún módulo coincide con “{busqueda.trim()}”.
+          </p>
+        )}
+        {!q && !authCargando && disponibles.length === 0 && (
+          <p className="text-center text-[11px] text-slate-400 dark:text-slate-500 py-6 px-2">
+            No hay módulos disponibles para tu perfil.
           </p>
         )}
         {grupos.map((grupo) => {

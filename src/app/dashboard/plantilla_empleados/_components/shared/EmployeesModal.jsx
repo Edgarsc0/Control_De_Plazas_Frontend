@@ -16,6 +16,10 @@ import {
 import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2, History, Landmark } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
+import {
+    PLANTILLA_DETALLE_COLUMNS_CATALOG,
+    COLUMNAS_DETALLE_SIEMPRE_INCLUIDAS,
+} from "@/config/plantillaDetalleColumns";
 import { copyToClipboard } from "@/utils/clipboard";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
@@ -437,6 +441,25 @@ const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys, av
 // orden de aparición.
 const EXPEDIENTE_CATEGORY_ORDER = ["Básicos", "Estructura", "Plaza", "Validación", "Otros"];
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+
+// Pestañas del expediente. Este modal se reutiliza en TODO el sistema (lo abre
+// cualquier fila de empleado, desde cualquier módulo), así que qué pestañas se
+// ven no depende del módulo por el que se entró sino del rol: un permiso por
+// pestaña (ver "Expediente del personal" en permissionTree.js). Agregar una
+// pestaña nueva = una entrada aquí + su permiso en el backend.
+const EXPEDIENTE_TABS = [
+    { id: "expediente", label: "Expediente", icon: Stamp, permiso: PERMISSIONS.VIEW_EXPEDIENTE_PLAZA },
+    { id: "personales", label: "Datos personales", icon: IdCard, permiso: PERMISSIONS.VIEW_EXPEDIENTE_DATOS_PERSONALES },
+    { id: "historial", label: "Historial de movimientos", icon: History, permiso: PERMISSIONS.VIEW_EXPEDIENTE_HISTORIAL_MOVIMIENTOS },
+    { id: "historial_posicion", label: "Historial de posición", icon: Landmark, permiso: PERMISSIONS.VIEW_EXPEDIENTE_HISTORIAL_POSICION },
+];
+
+// Claves del catálogo de Plantilla Detalle: solo estas están gobernadas por el
+// alcance de columnas del rol (RolColumnScope). Una clave fuera del catálogo
+// pertenece a otro dataset —p.ej. las columnas crudas de MOV_POS que
+// MovimientosTab le pasa al modal en `columns`— y ese alcance no la cubre, así
+// que se deja pasar en vez de borrarla por no reconocerla.
+const CLAVES_CATALOGO_DETALLE = new Set(PLANTILLA_DETALLE_COLUMNS_CATALOG.map((c) => c.key));
 
 // Grupos del tab "Datos personales" (tabla DATOS_PERSONALES, ver
 // DatosPersonalesEmpleadoView en el backend) — campos mono para los que se
@@ -928,8 +951,23 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     const sectionRefs = useRef({});
     const expedienteNavRef = useRef(null);
     const { toast } = useToast();
-    const { hasPermission } = useAuth();
+    const { hasPermission, columnasDetallePermitidas } = useAuth();
     const canEditDatosPersonales = hasPermission(PERMISSIONS.EDIT_DATOS_PERSONALES);
+
+    // null = rol sin alcance de columnas (ve todo). Las claves siempre
+    // incluidas se suman porque el backend también las manda siempre.
+    const columnasPermitidasSet = useMemo(
+        () => (columnasDetallePermitidas === null
+            ? null
+            : new Set([...columnasDetallePermitidas, ...COLUMNAS_DETALLE_SIEMPRE_INCLUIDAS])),
+        [columnasDetallePermitidas]
+    );
+
+    // Pestañas que este rol tiene habilitadas (ver EXPEDIENTE_TABS).
+    const tabsVisibles = useMemo(
+        () => EXPEDIENTE_TABS.filter((t) => hasPermission(t.permiso)),
+        [hasPermission]
+    );
     // Clave del último campo copiado — sólo para la palomita temporal del botón.
     const [copiedKey, setCopiedKey] = useState(null);
     const copiedTimeoutRef = useRef(null);
@@ -938,6 +976,9 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // de la tabla) vs. "Datos personales" (tabla DATOS_PERSONALES, cargada
     // bajo demanda igual que la fotografía — ver useEffect de fetch abajo).
     const [activeTab, setActiveTab] = useState("expediente");
+    // La pestaña efectiva: si la guardada no está habilitada para este rol se
+    // cae a la primera que sí lo esté (undefined = ninguna, ver empty state).
+    const tabActiva = tabsVisibles.some((t) => t.id === activeTab) ? activeTab : tabsVisibles[0]?.id;
     const [datosPersonales, setDatosPersonales] = useState({ status: "idle", data: null });
     // Guarda si ya se disparó el fetch para esta apertura del modal — en un ref
     // (no en `datosPersonales.status`) para no meter ese estado en las deps del
@@ -970,7 +1011,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             setHideEmptyFields(false);
             setActiveSection(null);
             setCopiedKey(null);
-            setActiveTab("expediente");
+            setActiveTab(tabsVisibles[0]?.id ?? "expediente");
             setDatosPersonales({ status: "idle", data: null });
             datosPersonalesFetchedRef.current = false;
             setHistorial({ status: "idle", data: null });
@@ -978,6 +1019,9 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             setHistorialPosicion({ status: "idle", data: null });
             historialPosicionFetchedRef.current = false;
         }
+        // `tabsVisibles` no va en las deps a propósito: solo interesa su valor
+        // al abrir el modal, y los permisos no cambian con el modal abierto.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
     useEffect(() => () => clearTimeout(copiedTimeoutRef.current), []);
@@ -1053,7 +1097,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // una sola vez por apertura del modal (status "idle" -> se dispara, luego
     // queda en loading/success/error/empty hasta el próximo open).
     useEffect(() => {
-        if (!isOpen || activeTab !== "personales" || !numempleadoFoto) return;
+        if (!isOpen || tabActiva !== "personales" || !numempleadoFoto) return;
         if (datosPersonalesFetchedRef.current) return;
         datosPersonalesFetchedRef.current = true;
         let cancelado = false;
@@ -1070,13 +1114,13 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             })
             .catch(() => { if (!cancelado) setDatosPersonales({ status: "error", data: null }); });
         return () => { cancelado = true; };
-    }, [isOpen, activeTab, numempleadoFoto]);
+    }, [isOpen, tabActiva, numempleadoFoto]);
 
     // Historial de movimientos (MovimientosPersonalHistorialView, raw SQL
     // sobre cp_tbl_mov_completo_29_05_26) — mismo patrón bajo demanda que
     // datosPersonales, arriba.
     useEffect(() => {
-        if (!isOpen || activeTab !== "historial" || !numempleadoFoto) return;
+        if (!isOpen || tabActiva !== "historial" || !numempleadoFoto) return;
         if (historialFetchedRef.current) return;
         historialFetchedRef.current = true;
         let cancelado = false;
@@ -1090,7 +1134,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             })
             .catch(() => { if (!cancelado) setHistorial({ status: "error", data: null }); });
         return () => { cancelado = true; };
-    }, [isOpen, activeTab, numempleadoFoto]);
+    }, [isOpen, tabActiva, numempleadoFoto]);
 
     // Historial de posición (MovimientosPosicionHistorialView, raw SQL sobre
     // MOV_POS) — mismo patrón bajo demanda que el historial de movimientos
@@ -1098,7 +1142,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     // empleado.
     const posicionFoto = record?.posicion;
     useEffect(() => {
-        if (!isOpen || activeTab !== "historial_posicion" || !posicionFoto) return;
+        if (!isOpen || tabActiva !== "historial_posicion" || !posicionFoto) return;
         if (historialPosicionFetchedRef.current) return;
         historialPosicionFetchedRef.current = true;
         let cancelado = false;
@@ -1117,7 +1161,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
             })
             .catch(() => { if (!cancelado) setHistorialPosicion({ status: "error", data: null }); });
         return () => { cancelado = true; };
-    }, [isOpen, activeTab, posicionFoto]);
+    }, [isOpen, tabActiva, posicionFoto]);
 
     // Apartados del expediente: mismo filtrado de siempre (label / valor /
     // categoría) pero devuelto ya ordenado y con conteos, para el índice lateral.
@@ -1131,7 +1175,25 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
         // consumidor que sí los necesita los pide explícito vía `columns`/
         // `restrictColumnsTo` (ver EmployeesModal más abajo y MovimientosTab,
         // que pasa su propio `columns` de la tabla MOV_POS).
-        const fieldsSource = columns || ALL_AVAILABLE_COLUMNS.filter(f => f.category !== "Movimiento de Posición" && !CUADROS_VACANCIA_ONLY_KEYS.has(f.key));
+        const fieldsSourceCompleto = columns || ALL_AVAILABLE_COLUMNS.filter(f => f.category !== "Movimiento de Posición" && !CUADROS_VACANCIA_ONLY_KEYS.has(f.key));
+        // Alcance de columnas del rol: un campo no permitido se omite ENTERO,
+        // etiqueta incluida. El backend ya no manda su valor, así que dejar la
+        // etiqueta solo produciría una fila "Sin dato" que insinúa que el dato
+        // existe y no se pudo traer. Ver _strip_columnas_filas en el backend.
+        // Sin `columns` propias, el expediente describe una fila de la
+        // plantilla: el backend ya recortó el registro a las columnas
+        // permitidas, así que TODO lo que no esté permitido se omite (esos
+        // campos nunca van a traer valor). Con `columns` propias el registro
+        // viene de otro dataset —p.ej. MOV_POS en MovimientosTab— que este
+        // alcance no gobierna: ahí solo se filtran las claves que sí
+        // pertenecen al catálogo de Plantilla Detalle.
+        const fieldsSource = !columnasPermitidasSet
+            ? fieldsSourceCompleto
+            : fieldsSourceCompleto.filter(f => (
+                columns
+                    ? !CLAVES_CATALOGO_DETALLE.has(f.key) || columnasPermitidasSet.has(f.key)
+                    : columnasPermitidasSet.has(f.key)
+            ));
         const query = normalizeForSearch(fieldSearch.trim());
         const groups = new Map();
 
@@ -1163,7 +1225,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                 fields,
                 filled: fields.filter(f => f.value !== null).length,
             }));
-    }, [record, columns, fieldSearch, hideEmptyFields]);
+    }, [record, columns, fieldSearch, hideEmptyFields, columnasPermitidasSet]);
 
     const totalFieldsShown = useMemo(() => sections.reduce((sum, s) => sum + s.fields.length, 0), [sections]);
     const hasVisibleFields = totalFieldsShown > 0;
@@ -1195,17 +1257,17 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
     }, []);
 
     // Entrada del tab "Expediente" — el índice lateral y los apartados solo
-    // existen en el DOM mientras `activeTab === "expediente"` (se desmontan
+    // existen en el DOM mientras `tabActiva === "expediente"` (se desmontan
     // al cambiar de tab), así que cada vuelta a este tab dispara la entrada.
     useGSAP(() => {
-        if (activeTab !== "expediente") return;
+        if (tabActiva !== "expediente") return;
         const navEl = expedienteNavRef.current;
         const sectionEls = Object.values(sectionRefs.current).filter(Boolean);
         if (!navEl && !sectionEls.length) return;
         const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
         if (navEl) tl.from(navEl, { autoAlpha: 0, x: -10, duration: 0.3 }, 0);
         if (sectionEls.length) tl.from(sectionEls, { autoAlpha: 0, y: 14, duration: 0.32, stagger: 0.07 }, navEl ? "-=0.15" : 0);
-    }, { dependencies: [activeTab, sectionKeys] });
+    }, { dependencies: [tabActiva, sectionKeys] });
 
     if (!record) return null;
 
@@ -1358,47 +1420,35 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                     </div>
                 </div>
 
-                {/* ── Pestañas internas: expediente de la plaza vs. datos personales del titular ── */}
-                <div className="flex items-center gap-2 border-b-2 border-dashed border-[#621f32]/12 dark:border-slate-800/60">
-                    <button
-                        onClick={() => setActiveTab("expediente")}
-                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "expediente"
-                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
-                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
-                    >
-                        <Stamp className="size-3.5" />
-                        Expediente
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("personales")}
-                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "personales"
-                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
-                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
-                    >
-                        <IdCard className="size-3.5" />
-                        Datos personales
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("historial")}
-                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "historial"
-                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
-                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
-                    >
-                        <History className="size-3.5" />
-                        Historial de movimientos
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("historial_posicion")}
-                        className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${activeTab === "historial_posicion"
-                            ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
-                            : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
-                    >
-                        <Landmark className="size-3.5" />
-                        Historial de posición
-                    </button>
-                </div>
+                {/* ── Pestañas internas del expediente (las que el rol tenga habilitadas, ver EXPEDIENTE_TABS) ── */}
+                {tabsVisibles.length > 0 && (
+                    <div className="flex items-center gap-2 border-b-2 border-dashed border-[#621f32]/12 dark:border-slate-800/60">
+                        {tabsVisibles.map((tab) => {
+                            const TabIcon = tab.icon;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`relative flex items-center gap-2 px-4 py-2.5 -mb-0.5 rounded-t-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 ${tabActiva === tab.id
+                                        ? "border-[#621f32] dark:border-[#bc955c] text-[#621f32] dark:text-[#e3c793] bg-[#621f32]/[0.05] dark:bg-slate-900"
+                                        : "border-transparent text-slate-400 dark:text-slate-500 hover:text-[#621f32] dark:hover:text-[#e3c793] hover:bg-[#621f32]/[0.03]"}`}
+                                >
+                                    <TabIcon className="size-3.5" />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
-                {activeTab === "personales" ? (
+                {tabActiva === undefined ? (
+                    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                        <Lock className="size-7 text-slate-300 dark:text-slate-700" />
+                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                            Tu rol no tiene habilitada ninguna pestaña del expediente.
+                        </p>
+                    </div>
+                ) : tabActiva === "personales" ? (
                     <DatosPersonalesTab
                         estado={datosPersonales}
                         copiedKey={copiedKey}
@@ -1407,9 +1457,9 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
                         noEmpleado={numempleadoFoto}
                         onFieldSaved={handleDatosPersonalesFieldSaved}
                     />
-                ) : activeTab === "historial" ? (
+                ) : tabActiva === "historial" ? (
                     <HistorialMovimientosTab estado={historial} numEmpleado={numempleadoFoto} canViewPhoto={canViewPhoto} />
-                ) : activeTab === "historial_posicion" ? (
+                ) : tabActiva === "historial_posicion" ? (
                     <HistorialMovimientosTab estado={historialPosicion} variant="posicion" posicion={posicionFoto} canViewPhoto={canViewPhoto} />
                 ) : (
                 <>

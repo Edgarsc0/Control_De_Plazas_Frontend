@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactGridLayout, { noCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { Check, ChevronLeft, ChevronRight, LayoutGrid, Pencil, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, Pencil, Plus } from "lucide-react";
 import WidgetFrame from "./WidgetFrame";
-import { WIDGET_REGISTRY } from "./widgetRegistry";
+import { WIDGET_REGISTRY, puedeUsarWidget } from "./widgetRegistry";
+import { useAuth } from "@/hooks/useAuth";
 import {
   GRID_COLS,
   GRID_MARGIN,
@@ -29,6 +30,11 @@ const UMBRAL_ARRASTRE_PX = 4;
 const ZONA_AUTOSCROLL_PX = 140;
 const VELOCIDAD_MAX_PX = 34; // px por frame (~2000 px/s a 60 fps) pegado al borde
 const MAX_NOMBRE_ESCRITORIO = 60; // igual que TableroLayoutView.MAX_NOMBRE en el backend
+// Cambio de escritorio arrastrando al margen: franja sensible desde el borde
+// izq/der del tablero, y cuánto hay que sostener el cursor ahí para disparar
+// el cambio ("un segundo y medio", pedido explícitamente).
+const ZONA_BORDE_PX = 56;
+const RETENCION_BORDE_MS = 650;
 
 const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
 const escritorioDe = (w) => w.page ?? 0;
@@ -122,6 +128,17 @@ export default function PersonalizableGrid({
 }) {
   const [viewportRef, { width: anchoEscritorio, height: altoEscritorio }] = useTamanoContenedor();
   const saveTimerRef = useRef(null);
+  const { hasAnyPermission, unScope, isLoading: authCargando } = useAuth();
+
+  // Un widget guardado en el tablero puede dejar de estar permitido (le
+  // quitaron el permiso al rol, o el rol pasó a tener alcance por Unidad de
+  // Negocio y ese módulo todavía no lo respeta). No se monta su componente
+  // —pediría datos que el backend va a negar— pero tampoco se borra del
+  // layout: se muestra bloqueado, para que al recuperar el acceso vuelva solo.
+  const widgetPermitido = useCallback(
+    (tipo) => authCargando || puedeUsarWidget(WIDGET_REGISTRY[tipo], hasAnyPermission, unScope),
+    [authCargando, hasAnyPermission, unScope]
+  );
 
   // Espejo de `widgets` para que el efecto del arrastre lea siempre el valor
   // más reciente sin tener que resuscribir sus listeners en cada cambio.
@@ -140,6 +157,28 @@ export default function PersonalizableGrid({
   const punteroRef = useRef(null);
   const alScrollearRef = useRef(null);
   const [autoScroll, setAutoScroll] = useState(false);
+
+  // --- Mover un widget arrastrándolo al margen del tablero ----------------
+  //
+  // 'izq' | 'der' | null: si el cursor lleva sostenido ahí (sin salir de la
+  // franja) desde que se puso en `null` la última vez, dispara el cambio de
+  // escritorio al cabo de RETENCION_BORDE_MS (ver el efecto más abajo, que
+  // arma/desarma un `setTimeout` cada vez que este valor cambia).
+  const [ladoBorde, setLadoBorde] = useState(null);
+  // 'catalogo' (arrastre nuevo desde CatalogSidebar) | 'existente' (moviendo
+  // un widget ya colocado) | null. Decide qué hace `dispararCambioEscritorio`.
+  const arrastreTipoRef = useRef(null);
+  // Evita que sostener el cursor pegado al margen encadene un cambio de
+  // escritorio tras otro sin soltar: tras disparar uno, hay que salir de la
+  // franja (poner `ladoBorde` en `null`) y volver a entrar para el siguiente.
+  const bordeDisparadoRef = useRef(false);
+
+  // Botones de navegación que aparecen al simple pasar el mouse por el margen
+  // (sin arrastrar nada) — independientes de `ladoBorde`, que es solo para el
+  // "sostén para mover un widget" durante un arrastre. Se apagan mientras haya
+  // un arrastre en curso: ese caso ya tiene su propio indicador.
+  const [hoverLado, setHoverLado] = useState(null);
+  useEffect(() => { if (autoScroll) setHoverLado(null); }, [autoScroll]);
 
   // Compactador que hace REVERSIBLE el empuje entre widgets durante un
   // arrastre. Con `noCompactor` a secas, react-grid-layout empuja a los
@@ -251,6 +290,37 @@ export default function PersonalizableGrid({
     setEscritorioActivo(destino);
   }, [viewportRef, anchoEscritorio, totalEscritorios]);
 
+  // Si `indice` todavía no existe, lo crea vacío — mismo par de estados que
+  // ya actualizaba el botón "+ Escritorio" (escritoriosExtra + nombres, para
+  // que el escritorio vacío también sobreviva a un refresco de página).
+  const asegurarEscritorio = useCallback((indice) => {
+    if (indice < totalEscritorios) return;
+    setEscritoriosExtra(indice + 1);
+    onNombresChange?.(Array.from({ length: indice + 1 }, (_, i) => nombres[i] || ""));
+  }, [totalEscritorios, nombres, onNombresChange]);
+
+  // Mueve un widget ya colocado al escritorio `destino`, en el primer hueco
+  // libre que encuentre ahí (mismo tamaño que tenía). Es el paso final de
+  // "arrastrar al margen para cambiar de escritorio" (ver `dispararCambioEscritorio`
+  // más abajo) — para entonces el arrastre nativo de react-grid-layout ya
+  // terminó, así que esto es una actualización de estado normal, no algo que
+  // deba coexistir con un drag en curso.
+  const moverWidgetAEscritorio = useCallback((id, destino) => {
+    const actuales = widgetsRef.current;
+    const widget = actuales.find((w) => w.i === id);
+    if (!widget) return;
+    asegurarEscritorio(destino);
+    const itemsDestino = actuales.filter((w) => w.i !== id && escritorioDe(w) === destino);
+    const hueco = buscarHueco(itemsDestino, widget.w, widget.h);
+    // Ya cabía en un escritorio de su mismo tamaño (GRID_COLS x GRID_MAX_ROWS);
+    // que el destino esté tan lleno que no quede ni un hueco para él sería
+    // una casualidad rarísima — se coloca en (0,0), superpuesto, antes que
+    // descartar el movimiento en silencio.
+    const pos = hueco ?? { x: 0, y: 0 };
+    aplicar(actuales.map((w) => (w.i === id ? { ...w, page: destino, x: pos.x, y: pos.y } : w)));
+    irAEscritorio(destino);
+  }, [asegurarEscritorio, aplicar, irAEscritorio]);
+
   // --- Cambios de layout dentro de un escritorio -------------------------
 
   const handleLayoutChange = useCallback((escritorio, nuevoLayout) => {
@@ -286,6 +356,76 @@ export default function PersonalizableGrid({
   const handleRemove = useCallback((id) => {
     aplicar(widgetsRef.current.filter((w) => w.i !== id));
   }, [aplicar]);
+
+  // --- Cambiar de escritorio arrastrando al margen ------------------------
+
+  // 'izq'/'der' si `clientX` cae en la franja sensible de ese lado del
+  // tablero, o `null`. La izquierda no cuenta en el primer escritorio (no hay
+  // adónde ir) — así el indicador nunca aparece prometiendo un cambio que no
+  // va a pasar; a la derecha siempre se puede: si no hay más, se crea uno.
+  const calcularLadoBorde = useCallback((clientX) => {
+    const cont = viewportRef.current;
+    if (!cont) return null;
+    const rect = cont.getBoundingClientRect();
+    if (clientX <= rect.left + ZONA_BORDE_PX) return escritorioActivo > 0 ? "izq" : null;
+    if (clientX >= rect.right - ZONA_BORDE_PX) return "der";
+    return null;
+  }, [viewportRef, escritorioActivo]);
+
+  const actualizarLadoBorde = useCallback((clientX) => {
+    const lado = calcularLadoBorde(clientX);
+    setLadoBorde((prev) => {
+      if (prev === lado) return prev;
+      if (lado === null) bordeDisparadoRef.current = false;
+      return lado;
+    });
+  }, [calcularLadoBorde]);
+
+  // Se llama cuando el cursor lleva RETENCION_BORDE_MS sostenido en la franja
+  // (ver el `useEffect` de más abajo, que arma este `setTimeout`).
+  const dispararCambioEscritorio = useCallback((lado) => {
+    bordeDisparadoRef.current = true;
+    const destino = escritorioActivo + (lado === "der" ? 1 : -1);
+    if (destino < 0) return;
+    if (arrastreTipoRef.current === "existente") {
+      const id = arrastreBaseRef.current?.id;
+      if (!id) return;
+      // Termina el arrastre nativo de react-grid-layout en su posición
+      // actual antes de reubicar el widget — moverlo de escritorio implica
+      // quitarlo de la lista de hijos de ESTE `<ReactGridLayout>` (pasa a
+      // pertenecer al del destino), y desmontar a mitad de un drag de
+      // react-draggable puede dejar sus listeners de `document` colgados.
+      // `react-draggable` ya usa este mismo patrón (un `MouseEvent("mouseup")`
+      // sintético) para terminar arrastres por su cuenta — no es un hackeo.
+      // Las coordenadas SÍ importan: `DraggableCore.handleDragStop` recalcula
+      // la posición final a partir de `e.clientX/Y` y la compara contra la
+      // del último `handleDrag` real — sin ellas (quedarían en 0,0) el widget
+      // saltaría a la esquina superior izquierda antes de moverlo.
+      const p = punteroRef.current;
+      document.dispatchEvent(new MouseEvent("mouseup", {
+        bubbles: true, cancelable: true, clientX: p?.x ?? 0, clientY: p?.y ?? 0,
+      }));
+      requestAnimationFrame(() => moverWidgetAEscritorio(id, destino));
+    } else if (arrastreTipoRef.current === "catalogo") {
+      asegurarEscritorio(destino);
+      // No hace falta recalcular nada más aquí: `destinoBajoCursor` (más
+      // abajo) ya lee `cont.scrollLeft` en cada `mousemove`, así que en
+      // cuanto `irAEscritorio` termine de desplazar la vista, el siguiente
+      // movimiento del cursor recalcula la vista previa contra el nuevo
+      // escritorio sin ningún cambio adicional.
+      irAEscritorio(destino);
+    }
+  }, [escritorioActivo, moverWidgetAEscritorio, asegurarEscritorio, irAEscritorio]);
+
+  // Arma/desarma el `setTimeout` de RETENCION_BORDE_MS cada vez que
+  // `ladoBorde` cambia — el patrón estándar de "hover intent": si el cursor
+  // sale de la franja (o cambia de lado) antes de que se cumpla el plazo, la
+  // limpieza del efecto anterior cancela el disparo pendiente.
+  useEffect(() => {
+    if (!ladoBorde || bordeDisparadoRef.current) return undefined;
+    const t = setTimeout(() => dispararCambioEscritorio(ladoBorde), RETENCION_BORDE_MS);
+    return () => clearTimeout(t);
+  }, [ladoBorde, dispararCambioEscritorio]);
 
   // --- Arrastre desde el catálogo ----------------------------------------
 
@@ -336,6 +476,18 @@ export default function PersonalizableGrid({
     return null;
   }, [viewportRef, listo, anchoEscritorio, rowHeight, totalEscritorios]);
 
+  // Espejo de todo lo que este efecto necesita pero que puede cambiar A MITAD
+  // DE UN ARRASTRE (p. ej. `escritorioActivo`/`irAEscritorio` cuando el propio
+  // cambio de escritorio al margen, más arriba, se dispara mientras el
+  // catálogo también está arrastrando). Si esos valores fueran dependencias
+  // directas del efecto, cambiar de escritorio lo desmontaría y remontaría a
+  // mitad del gesto — perdiendo `activo`/el fantasma y obligando a superar de
+  // nuevo el umbral de arrastre. Leerlos por ref evita eso sin perder
+  // frescura: el efecto solo debe reiniciarse cuando `arrastre` cambia (nuevo
+  // gesto) o termina.
+  const arrastreLatestRef = useRef(null);
+  arrastreLatestRef.current = { destinoBajoCursor, aplicar, irAEscritorio, escritorioActivo, actualizarLadoBorde };
+
   useEffect(() => {
     if (!arrastre) return undefined;
     const def = WIDGET_REGISTRY[arrastre.type];
@@ -346,30 +498,37 @@ export default function PersonalizableGrid({
       document.body.style.userSelect = "";
       punteroRef.current = null;
       alScrollearRef.current = null;
+      arrastreTipoRef.current = null;
+      bordeDisparadoRef.current = false;
       setAutoScroll(false);
       setPreview(null);
       setGhost(null);
+      setLadoBorde(null);
     };
 
     const onMove = (e) => {
+      const { destinoBajoCursor, actualizarLadoBorde } = arrastreLatestRef.current;
       if (!activo) {
         if (Math.hypot(e.clientX - arrastre.x0, e.clientY - arrastre.y0) < UMBRAL_ARRASTRE_PX) return;
         activo = true;
+        arrastreTipoRef.current = "catalogo";
         document.body.style.userSelect = "none";
         // Tras cada avance del autoscroll el cursor queda sobre otra celda
         // aunque no se haya movido: se recalcula el destino.
         alScrollearRef.current = () => {
           const p = punteroRef.current;
-          if (p) setPreview(destinoBajoCursor(p.x, p.y, def));
+          if (p) setPreview(arrastreLatestRef.current.destinoBajoCursor(p.x, p.y, def));
         };
         setAutoScroll(true);
       }
       punteroRef.current = { x: e.clientX, y: e.clientY };
       setGhost({ x: e.clientX, y: e.clientY });
       setPreview(destinoBajoCursor(e.clientX, e.clientY, def));
+      actualizarLadoBorde(e.clientX);
     };
 
     const onUp = (e) => {
+      const { destinoBajoCursor, aplicar, irAEscritorio, escritorioActivo } = arrastreLatestRef.current;
       const destino = activo ? destinoBajoCursor(e.clientX, e.clientY, def) : null;
       limpiar();
       if (destino) {
@@ -405,7 +564,10 @@ export default function PersonalizableGrid({
       window.removeEventListener("keydown", onKeyDown);
       limpiar();
     };
-  }, [arrastre, onArrastreFin, destinoBajoCursor, aplicar, escritorioActivo, irAEscritorio]);
+    // Deliberado: solo `arrastre` (nuevo gesto) y `onArrastreFin` (estable)
+    // reinician este efecto — todo lo demás se lee de `arrastreLatestRef`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrastre, onArrastreFin]);
 
   // Bucle de autoscroll (requestAnimationFrame) mientras dura un arrastre.
   useEffect(() => {
@@ -450,6 +612,7 @@ export default function PersonalizableGrid({
         base: new Map(layoutInicial.map((it) => [it.i, { x: it.x, y: it.y }])),
       };
     }
+    arrastreTipoRef.current = "existente";
     alScrollearRef.current = () => {
       const p = punteroRef.current;
       if (p) document.dispatchEvent(new MouseEvent("mousemove", { clientX: p.x, clientY: p.y, bubbles: true }));
@@ -457,13 +620,19 @@ export default function PersonalizableGrid({
     setAutoScroll(true);
   }, []);
   const handleDragInterno = useCallback((_layout, _old, _new, _placeholder, e) => {
-    if (e && typeof e.clientX === "number") punteroRef.current = { x: e.clientX, y: e.clientY };
-  }, []);
+    if (e && typeof e.clientX === "number") {
+      punteroRef.current = { x: e.clientX, y: e.clientY };
+      actualizarLadoBorde(e.clientX);
+    }
+  }, [actualizarLadoBorde]);
   const handleDragStopInterno = useCallback(() => {
     arrastreBaseRef.current = null;
     punteroRef.current = null;
     alScrollearRef.current = null;
+    arrastreTipoRef.current = null;
+    bordeDisparadoRef.current = false;
     setAutoScroll(false);
+    setLadoBorde(null);
   }, []);
 
   const previewBox = useMemo(() => {
@@ -477,16 +646,47 @@ export default function PersonalizableGrid({
   const defArrastrado = arrastre ? WIDGET_REGISTRY[arrastre.type] : null;
   const ultimoVacio = (escritorios[totalEscritorios - 1]?.length ?? 0) === 0;
 
+  // Rect del viewport para anclar el indicador de cambio de escritorio
+  // (`fixed`, calculado a mano en vez de con CSS): solo se necesita fresco al
+  // entrar a la franja, no en cada scroll interno (el contenedor no se mueve
+  // en pantalla al desplazarse horizontalmente entre escritorios).
+  const bordeRect = useMemo(
+    () => (ladoBorde ? viewportRef.current?.getBoundingClientRect() : null),
+    [ladoBorde, viewportRef]
+  );
+  const escritorioDestinoBorde = ladoBorde ? escritorioActivo + (ladoBorde === "der" ? 1 : -1) : null;
+  // Visibilidad de los botones de navegación por hover: a diferencia del
+  // "sostén para mover" (que sí puede crear un escritorio nuevo a la
+  // derecha), estos solo navegan entre los que ya existen — mismo criterio
+  // que las flechas de la barra inferior.
+  const mostrarNavIzq = hoverLado === "izq" && escritorioActivo > 0;
+  const mostrarNavDer = hoverLado === "der" && escritorioActivo < totalEscritorios - 1;
+  const claseNav = (visible) =>
+    `absolute top-1/2 -translate-y-1/2 z-30 size-11 rounded-full bg-white dark:bg-slate-900 border-2 border-[#621f32]/70 dark:border-[#bc955c]/70 shadow-lg flex items-center justify-center text-[#621f32] dark:text-[#bc955c] cursor-pointer transition-all duration-300 ease-out hover:scale-110 hover:border-[#621f32] dark:hover:border-[#bc955c] ${visible ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"
+    }`;
+
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      <div
-        ref={viewportRef}
-        onScroll={(e) => {
-          if (!anchoEscritorio) return;
-          setEscritorioActivo(Math.round(e.currentTarget.scrollLeft / anchoEscritorio));
-        }}
-        className="escritorios-scroll flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
-      >
+      {/* Wrapper SIN scroll: ancla los botones de navegación por hover con
+          `absolute` normal (sin cálculo manual de rect ni `fixed`) — a
+          diferencia del contenido de abajo, este wrapper nunca se desplaza,
+          así que sus hijos absolutos tampoco se van con el scroll interno. */}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={viewportRef}
+          onScroll={(e) => {
+            if (!anchoEscritorio) return;
+            setEscritorioActivo(Math.round(e.currentTarget.scrollLeft / anchoEscritorio));
+          }}
+          onMouseMove={(e) => {
+            // Mientras algo se arrastra ya está el indicador de "sostén para
+            // mover/cambiar" (ver `ladoBorde`) — este es solo para hover simple.
+            if (autoScroll) return;
+            setHoverLado(calcularLadoBorde(e.clientX));
+          }}
+          onMouseLeave={() => setHoverLado(null)}
+          className="escritorios-scroll h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
+        >
         {escritorios.map((items, indice) => (
           <section
             key={indice}
@@ -522,7 +722,20 @@ export default function PersonalizableGrid({
                   return (
                     <div key={w.i}>
                       <WidgetFrame label={def.label} onRemove={() => handleRemove(w.i)}>
-                        <Component config={w.config} onConfigChange={(parcial) => handleConfig(w.i, parcial)} />
+                        {widgetPermitido(w.type) ? (
+                          <Component config={w.config} onConfigChange={(parcial) => handleConfig(w.i, parcial)} />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center">
+                            <Lock className="size-5 text-slate-400" />
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                              Sin acceso a este módulo
+                            </p>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-[16rem]">
+                              Tu perfil no tiene permitida esta información. Puedes quitarlo del tablero
+                              con la ✕.
+                            </p>
+                          </div>
+                        )}
                       </WidgetFrame>
                     </div>
                   );
@@ -555,6 +768,35 @@ export default function PersonalizableGrid({
             </div>
           </section>
         ))}
+        </div>
+
+        {/* Botones de navegación por hover: aparecen con fade+escala suave al
+            acercar el cursor al margen (sin arrastrar nada) y se apagan igual
+            de suave al alejarlo — siempre montados, solo cambia su opacidad,
+            para que la transición de salida también se vea (a diferencia de
+            desmontar/montar, que no anima la salida). */}
+        <button
+          type="button"
+          onClick={() => irAEscritorio(escritorioActivo - 1)}
+          tabIndex={mostrarNavIzq ? 0 : -1}
+          aria-hidden={!mostrarNavIzq}
+          title="Escritorio anterior"
+          aria-label="Escritorio anterior"
+          className={`${claseNav(mostrarNavIzq)} left-3`}
+        >
+          <ChevronLeft className="size-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => irAEscritorio(escritorioActivo + 1)}
+          tabIndex={mostrarNavDer ? 0 : -1}
+          aria-hidden={!mostrarNavDer}
+          title="Escritorio siguiente"
+          aria-label="Escritorio siguiente"
+          className={`${claseNav(mostrarNavDer)} right-3`}
+        >
+          <ChevronRight className="size-5" />
+        </button>
       </div>
 
       {/* Navegación entre escritorios. */}
@@ -641,9 +883,7 @@ export default function PersonalizableGrid({
         <button
           type="button"
           onClick={() => {
-            setEscritoriosExtra(totalEscritorios + 1);
-            // Persistir el nuevo escritorio (aunque siga vacío) junto con los nombres.
-            onNombresChange?.(Array.from({ length: totalEscritorios + 1 }, (_, i) => nombres[i] || ""));
+            asegurarEscritorio(totalEscritorios);
             // El escritorio aún no existe en este render: se navega tras
             // pintarlo.
             requestAnimationFrame(() => irAEscritorio(totalEscritorios));
@@ -669,6 +909,44 @@ export default function PersonalizableGrid({
           <span className="text-xs font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
             {defArrastrado.label}
           </span>
+        </div>
+      )}
+
+      {/* Indicador de cambio de escritorio: aparece de inmediato al entrar a
+          la franja del margen (la "sombra" pedida) y su relleno se llena en
+          RETENCION_BORDE_MS — sostenerlo hasta el final dispara el cambio
+          (ver `dispararCambioEscritorio`). `fixed` + rect calculado a mano,
+          igual que el fantasma: no depende de dónde caiga en el árbol ni del
+          scroll interno del tablero. */}
+      {ladoBorde && bordeRect && (
+        <div
+          aria-hidden
+          className="fixed z-[70] pointer-events-none flex items-center"
+          style={{
+            top: bordeRect.top,
+            height: bordeRect.height,
+            ...(ladoBorde === "der"
+              ? { left: bordeRect.right - ZONA_BORDE_PX, width: ZONA_BORDE_PX, justifyContent: "flex-end" }
+              : { left: bordeRect.left, width: ZONA_BORDE_PX, justifyContent: "flex-start" }),
+          }}
+        >
+          <div
+            className={`absolute inset-y-0 w-full bg-gradient-to-${ladoBorde === "der" ? "l" : "r"} from-[#621f32]/15 dark:from-[#bc955c]/20 to-transparent`}
+          />
+          <div key={ladoBorde} className="relative flex flex-col items-center gap-1.5 px-2">
+            <div className="relative size-10 rounded-full bg-white dark:bg-slate-900 border-2 border-[#621f32] dark:border-[#bc955c] shadow-lg flex items-center justify-center overflow-hidden">
+              <span
+                className="absolute inset-x-0 bottom-0 bg-[#621f32]/20 dark:bg-[#bc955c]/25 tablero-borde-progreso"
+                style={{ animationDuration: `${RETENCION_BORDE_MS}ms` }}
+              />
+              {ladoBorde === "der"
+                ? <ChevronRight className="relative size-5 text-[#621f32] dark:text-[#bc955c]" />
+                : <ChevronLeft className="relative size-5 text-[#621f32] dark:text-[#bc955c]" />}
+            </div>
+            <span className="max-w-24 text-center text-[9px] font-black uppercase tracking-wider text-[#621f32] dark:text-[#bc955c] bg-white/90 dark:bg-slate-900/90 px-1.5 py-0.5 rounded truncate">
+              {nombreDe(escritorioDestinoBorde)}
+            </span>
+          </div>
         </div>
       )}
     </div>

@@ -13,13 +13,17 @@ import {
 import { LayoutGrid, FileText, ChevronRight, Users } from 'lucide-react';
 import LoadingOverlay from './LoadingOverlay';
 
+// Los valores por defecto van en cero, no en cifras de maqueta: hasta que
+// llega el resumen real (que el backend ya entrega recortado al alcance del
+// rol) no hay ningún conteo que se pueda mostrar sin arriesgarse a enseñar
+// totales de unidades ajenas.
 export function VacantesPorNivelResumen({
   resumenVacantes,
-  target = 14392,
+  target = 0,
   data: defaultData = [
-    { label: 'Activos', percent: 0.65, color: '#621f32' },
-    { label: 'Vacantes', percent: 0.15, color: '#bc955c' },
-    { label: 'Otros', percent: 0.2, color: '#4a1726' },
+    { label: 'Activos', percent: 0, color: '#621f32' },
+    { label: 'Vacantes', percent: 0, color: '#bc955c' },
+    { label: 'Otros', percent: 0, color: '#4a1726' },
   ],
 }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -333,7 +337,7 @@ export function OcupacionVacantes({
     return { nodes, links };
   }, [resumenOcupacion]);
 
-  const totalPlazas = resumenOcupacion?.total_general || 1857;
+  const totalPlazas = resumenOcupacion?.total_general ?? 0;
 
   return (
     <div
@@ -798,18 +802,21 @@ export function TransparencyContent({
 }
 
 export function PlantillaEmpleados({ resumenEmpleados }) {
-  console.log('PlantillaEmpleados resumenEmpleados:', resumenEmpleados);
+  // Mientras no llega el resumen se muestra todo en cero, no una maqueta: los
+  // valores de relleno que había aquí eran las cifras de la ANAM completa, y
+  // a un rol con alcance por Unidad de Negocio le enseñaban —aunque fuera un
+  // instante— un conteo de unidades que no tiene autorizadas.
   const defaultData = [
-    { label: 'Activo', percent: 0.79, color: '#621f32' },
-    { label: 'Vacante', percent: 0.20, color: '#bc955c' },
-    { label: 'Suspendido', percent: 0.002, color: '#3b82f6' },
-    { label: 'Permiso', percent: 0.001, color: '#8b5cf6' },
-    { label: 'Permiso Retribuido', percent: 0.005, color: '#10b981' },
+    { label: 'Activo', percent: 0, color: '#621f32' },
+    { label: 'Vacante', percent: 0, color: '#bc955c' },
+    { label: 'Suspendido', percent: 0, color: '#3b82f6' },
+    { label: 'Permiso', percent: 0, color: '#8b5cf6' },
+    { label: 'Permiso Retribuido', percent: 0, color: '#10b981' },
   ];
 
   let displayData = defaultData;
-  let displayTotal = 11957;
-  let activosCount = 9421;
+  let displayTotal = 0;
+  let activosCount = 0;
 
   if (resumenEmpleados) {
     const total = resumenEmpleados.total_registros || 1;

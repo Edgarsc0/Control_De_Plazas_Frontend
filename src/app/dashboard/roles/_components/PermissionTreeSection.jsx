@@ -99,6 +99,11 @@ export default function PermissionTreeSection({
                     {allSelected ? 'Quitar todos' : 'Seleccionar todos'}
                 </button>
             </div>
+            {moduleNode.info && (
+                <p className="px-2 -mt-0.5 mb-1.5 text-[11px] text-slate-400 italic">
+                    {moduleNode.info}
+                </p>
+            )}
             <div className="space-y-0.5">
                 {(moduleNode.children || []).map((node) => (
                     <PermissionNodeRow

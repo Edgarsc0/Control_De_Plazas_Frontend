@@ -66,7 +66,16 @@ export default function BuscarMovimientoWidget() {
     let active = true;
     setIsLoading(true);
     VacantesService.getMovimientosPersonal({ no_pagination: true, search: debouncedQuery })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudieron cargar los movimientos."))))
+      .then((res) => {
+        // 403 = el backend no autoriza esta búsqueda a este rol (por permiso de
+        // módulo o por alcance de Unidad de Negocio). Para quien busca no es un
+        // fallo: sencillamente no hay nada que pueda ver con ese criterio, así
+        // que se trata como "sin coincidencias" en vez de un error rojo —
+        // además de no delatar que el registro existe en otra unidad.
+        if (res.status === 403) return [];
+        if (!res.ok) throw new Error("No se pudieron cargar los movimientos.");
+        return res.json();
+      })
       .then((data) => { if (active) setResults(Array.isArray(data) ? data : []); })
       .catch((err) => { if (active) setError(err.message || "Error al buscar movimientos."); })
       .finally(() => { if (active) setIsLoading(false); });

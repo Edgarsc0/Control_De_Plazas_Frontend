@@ -428,3 +428,19 @@ body::before {
 .escritorios-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* Relleno del indicador de "sostén para cambiar de escritorio"
+   (PersonalizableGrid.jsx) — crece de abajo hacia arriba durante la
+   duración que marca `animationDuration` inline (RETENCION_BORDE_MS). Si el
+   cursor sale de la franja antes de terminar, el indicador completo se
+   desmonta (no queda a medias). */
+@keyframes tablero-borde-progreso {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.tablero-borde-progreso {
+  transform-origin: bottom;
+  animation-name: tablero-borde-progreso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}

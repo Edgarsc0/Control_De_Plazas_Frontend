@@ -45,7 +45,7 @@ import { PERMISSIONS } from "@/config/permissions";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { isNivelTabularColumn, compareNivelTabular } from "@/utils/nivelTabular";
-import { getDataset, setDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
+import { getDataset, setDataset, clearDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 
 const MOV_STATUS_BADGE_STYLES = {
@@ -93,35 +93,58 @@ const BAJAS_FETCHERS = {
 
 // Cache-first: pinta lo que ya haya en IndexedDB de inmediato (sin esperar
 // red) y, si no había nada, pide al backend y lo guarda para la próxima vez.
-function useCachedBajasDataset(key) {
+//
+// `sufijoCache` namespacea la clave por usuario + alcance por Unidad de
+// Negocio, igual que la de Plantilla Detalle (ver DETALLE_CACHE_BASE_KEY en
+// ClientComponent.jsx). Sin eso, estos datasets —que no tienen TTL: solo los
+// reemplaza un evento de ZAFIRO— sobrevivirían a un cambio de alcance del
+// rol y el usuario seguiría viendo indefinidamente las bajas de unidades que
+// ya no tiene autorizadas. Mientras la identidad no se conoce (`null`) no se
+// lee ni se escribe cache, para no crear una clave sin namespacear.
+function useCachedBajasDataset(key, sufijoCache) {
   const [data, setData] = useState([]);
   useEffect(() => {
+    if (!sufijoCache) return;
+    const cacheKey = `${key}::${sufijoCache}`;
     let cancelled = false;
     (async () => {
-      const cached = await getDataset(key);
+      const cached = await getDataset(cacheKey);
       if (cached && !cancelled) {
         setData(cached);
         return;
       }
       const fresh = await trackEndpointFetch(key, () => BAJAS_FETCHERS[key]());
       if (!cancelled) setData(fresh);
-      await setDataset(key, fresh);
+      await setDataset(cacheKey, fresh);
     })();
     return () => { cancelled = true; };
-  }, [key]);
+  }, [key, sufijoCache]);
   return [data, setData];
 }
 
 export default function BajasTab({ isPending, startTransition, cardRef }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, email, unScopeFingerprint, unScope, isLoading: authLoading } = useAuth();
   const canViewFotoBajas = hasPermission(PERMISSIONS.VIEW_PLANTILLA_BAJAS_FOTO);
+  // Ver useCachedBajasDataset: null hasta conocer la identidad.
+  const sufijoCache = email ? `${email}::${unScopeFingerprint ?? "all"}` : null;
+  // Un rol con alcance por Unidad de Negocio no ve la gráfica histórica: su
+  // serie es el contador global de la bitácora del ETL, sin desglose por
+  // unidad (ver BajasHistoricoView en el backend, que además le responde
+  // 403). `!authLoading` evita el parpadeo de mostrarla un instante.
+  const sinRestriccionUN = !authLoading && unScope === null;
   const [mounted, setMounted] = useState(false);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   useEffect(() => setMounted(true), []);
 
-  const [bajasData, setBajasData] = useCachedBajasDataset("bajas_sig");
-  const [bajasMotivos, setBajasMotivos] = useCachedBajasDataset("bajas_motivos");
-  const [bajasHistorico, setBajasHistorico] = useCachedBajasDataset("bajas_historico");
+  const [bajasData, setBajasData] = useCachedBajasDataset("bajas_sig", sufijoCache);
+  const [bajasMotivos, setBajasMotivos] = useCachedBajasDataset("bajas_motivos", sufijoCache);
+  const [bajasHistorico, setBajasHistorico] = useCachedBajasDataset("bajas_historico", sufijoCache);
+
+  // Purga de una sola vez de las claves viejas sin namespacear, compartidas
+  // por todos los usuarios de este navegador antes de este cambio.
+  useEffect(() => {
+    ["bajas_sig", "bajas_motivos", "bajas_historico"].forEach(clearDataset);
+  }, []);
 
   // Señal (a) del plan: evento real de ZAFIRO (no el "init" de reconexión sin
   // cambio, ver ZafiroUpdatesContext) → refetch completo + reemplazo total
@@ -136,12 +159,13 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
     setBajasData(freshBajas);
     setBajasMotivos(freshMotivos);
     setBajasHistorico(freshHistorico);
+    if (!sufijoCache) return; // sin identidad no se persiste (ver useCachedBajasDataset)
     await Promise.all([
-      setDataset("bajas_sig", freshBajas),
-      setDataset("bajas_motivos", freshMotivos),
-      setDataset("bajas_historico", freshHistorico),
+      setDataset(`bajas_sig::${sufijoCache}`, freshBajas),
+      setDataset(`bajas_motivos::${sufijoCache}`, freshMotivos),
+      setDataset(`bajas_historico::${sufijoCache}`, freshHistorico),
     ]);
-  }), [subscribe, setBajasData, setBajasMotivos, setBajasHistorico]);
+  }), [subscribe, setBajasData, setBajasMotivos, setBajasHistorico, sufijoCache]);
   const deptoCatalog = useOrganigramaCatalog();
   const { motivosCatalog } = useAccionesMotivosCatalog();
 
@@ -1156,8 +1180,10 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
               </div>
             )}
 
-            {/* Line chart (Historial de Bajas) */}
-            {lineChartData && (
+            {/* Line chart (Historial de Bajas) — oculto para roles con
+                alcance por UN: la serie es un total global de la ANAM, ver
+                `sinRestriccionUN` arriba. */}
+            {sinRestriccionUN && lineChartData && (
               <div ref={chartContainerRef} className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col justify-between select-none">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">

@@ -85,6 +85,17 @@ export const PERMISSION_TREE = [
     ],
   },
   {
+    id: 'expediente_personal',
+    label: 'Expediente del personal',
+    info: 'El expediente se abre desde cualquier fila de empleado del sistema; aquí se elige qué pestañas ve este rol al abrirlo.',
+    children: [
+      { id: 'expediente_plaza', codename: PERMISSIONS.VIEW_EXPEDIENTE_PLAZA },
+      { id: 'expediente_datos_personales', codename: PERMISSIONS.VIEW_EXPEDIENTE_DATOS_PERSONALES },
+      { id: 'expediente_historial_movimientos', codename: PERMISSIONS.VIEW_EXPEDIENTE_HISTORIAL_MOVIMIENTOS },
+      { id: 'expediente_historial_posicion', codename: PERMISSIONS.VIEW_EXPEDIENTE_HISTORIAL_POSICION },
+    ],
+  },
+  {
     id: 'ocupacion_plazas',
     label: 'Ocupación de Plazas por Oficio',
     children: [

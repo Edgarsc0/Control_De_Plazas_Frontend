@@ -28,11 +28,6 @@ export function alturaFila(altoEscritorio) {
   return Math.max(20, Math.floor(libre / GRID_MAX_ROWS));
 }
 
-/** Alto en píxeles de un contenido de `filas` filas (incluye el padding del contenedor). */
-export function alturaParaFilas(filas) {
-  return GRID_PADDING[1] * 2 + filas * ROW_HEIGHT + Math.max(0, filas - 1) * GRID_MARGIN[1];
-}
-
 /** Ancho en píxeles de una columna, dado el ancho del escritorio. */
 export function anchoColumna(anchoEscritorio) {
   return (anchoEscritorio - GRID_MARGIN[0] * (GRID_COLS - 1) - GRID_PADDING[0] * 2) / GRID_COLS;

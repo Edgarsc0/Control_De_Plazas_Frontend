@@ -23,13 +23,16 @@ export const fechaDeHoy = () => {
 };
 
 /**
- * El resumen agregado de movimientos de hoy (todas las UN) solo se ofrece a
- * quien no tiene alcance por Unidad de Negocio — mismo criterio que
- * `sinRestriccionUN` en PlantillaDetalleTab.
+ * Antes este resumen se negaba a los roles con alcance por Unidad de Negocio,
+ * porque MovimientosPersonalStatsView agregaba sobre TODAS las unidades. Ya
+ * no: esa vista recorta por UN (ver _scope_un_movimientos en el backend), así
+ * que los conteos que llegan aquí describen solo la unidad del rol. Se
+ * conserva el hook —devolviendo siempre permitido— para no tocar la forma de
+ * los tres widgets que lo consumen.
  */
 export function useSinRestriccionUN() {
-  const { isLoading, unScope } = useAuth();
-  return { cargando: isLoading, permitido: !isLoading && unScope === null };
+  const { isLoading } = useAuth();
+  return { cargando: isLoading, permitido: true };
 }
 
 /** Convierte [{<nameKey>, total}] en porciones con color y porcentaje. */

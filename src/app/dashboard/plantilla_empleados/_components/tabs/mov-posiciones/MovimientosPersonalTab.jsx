@@ -334,7 +334,11 @@ const BitacoraDateSelector = ({ distinctDates, selectedDates, onChange, triggerC
 };
 
 export default function MovimientosPersonalTab({ isPending, startTransition, cardRef, activeSubTab, setActiveSubTab }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, unScope, isLoading: authLoading } = useAuth();
+  // Ver ClientComponent.jsx: el subtab "Rotación de personal" no se ofrece a
+  // un rol con alcance por UN. Esta segunda comprobación cubre el caso de que
+  // el subtab quedara seleccionado de una sesión anterior.
+  const sinRestriccionUN = !authLoading && unScope === null;
   const canViewFotoMovimientos = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO);
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -2481,7 +2485,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
       )}
       <div className={`w-full flex justify-center ${activeSubTab === "rotacion" ? "" : "mt-4"}`}>
         <div ref={cardRef} className="bg-white/15 dark:bg-slate-950/20 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-2xl h-fit flex flex-col z-30 overflow-hidden w-full md:max-h-stack-vh md:sticky md:bottom-0 md:scroll-mt-[var(--stack-h)]" style={{ width: cardWidth ? `${cardWidth}px` : '100%' }}>
-          {activeSubTab === "rotacion" ? (
+          {activeSubTab === "rotacion" && sinRestriccionUN ? (
             /* La rotación de titulares no es una vista tabular: no comparte
                toolbar, paginador ni filtros de columna con los otros dos
                subtabs, y trae su propio estado. */
