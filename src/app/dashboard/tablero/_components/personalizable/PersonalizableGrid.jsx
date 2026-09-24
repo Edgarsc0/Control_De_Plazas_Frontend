@@ -11,8 +11,7 @@ import {
   GRID_COLS,
   GRID_MARGIN,
   GRID_MAX_ROWS,
-  ROW_HEIGHT,
-  alturaParaFilas,
+  alturaFila,
   buscarHueco,
   celdaDesdePuntero,
   colisiona,
@@ -29,10 +28,6 @@ const UMBRAL_ARRASTRE_PX = 4;
 // se desplaza sola; la velocidad crece con lo cerca que esté del borde.
 const ZONA_AUTOSCROLL_PX = 140;
 const VELOCIDAD_MAX_PX = 34; // px por frame (~2000 px/s a 60 fps) pegado al borde
-// Filas libres que se dejan debajo del último widget (más mientras se arrastra,
-// para poder soltar bastante más abajo de lo ocupado).
-const FILAS_LIBRES = 3;
-const FILAS_LIBRES_ARRASTRANDO = 12;
 const MAX_NOMBRE_ESCRITORIO = 60; // igual que TableroLayoutView.MAX_NOMBRE en el backend
 
 const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
@@ -70,10 +65,8 @@ function useTamanoContenedor() {
  * Tablero personalizable de escritorio, organizado en "escritorios": cada uno
  * ocupa el ancho visible y se navega horizontalmente entre ellos (flechas,
  * puntos o arrastre con scroll-snap). Verticalmente cada escritorio tiene su
- * propio scroll: la altura de fila es fija (ROW_HEIGHT) y el escritorio crece
- * hacia abajo según lo que contiene. Mientras se arrastra un módulo, acercar
- * el cursor al borde inferior/superior desplaza el escritorio automáticamente
- * (ver autoscroll más abajo).
+ * propio alto fijo (el de la pantalla, sin scroll vertical): tiene un número fijo
+ * de filas (GRID_MAX_ROWS) y la altura de fila se ajusta para llenarlo.
  *
  * `widgets` es la única fuente de verdad (viene de TableroPersonalizable, que
  * ya la sincroniza con el backend) — este componente no guarda estado propio
@@ -182,7 +175,7 @@ export default function PersonalizableGrid({
     },
   }), []);
 
-  const rowHeight = ROW_HEIGHT;
+  const rowHeight = alturaFila(altoEscritorio);
   const listo = anchoEscritorio > 0 && altoEscritorio > 0;
 
   const totalEscritorios = useMemo(() => {
@@ -195,14 +188,11 @@ export default function PersonalizableGrid({
     [widgets, totalEscritorios]
   );
 
-  // Alto de contenido de cada escritorio: lo ocupado + filas libres, pero
-  // nunca menos que el área visible (para que el destino de un drop y el
-  // estado vacío llenen la pantalla).
-  const altosEscritorio = useMemo(() => escritorios.map((items) => {
-    const filasOcupadas = items.reduce((max, w) => Math.max(max, w.y + w.h), 0);
-    const libres = ghost || autoScroll ? FILAS_LIBRES_ARRASTRANDO : FILAS_LIBRES;
-    return Math.max(altoEscritorio, alturaParaFilas(Math.min(GRID_MAX_ROWS, filasOcupadas + libres)));
-  }), [escritorios, altoEscritorio, ghost, autoScroll]);
+  // Sin scroll vertical: cada escritorio mide exactamente el área visible.
+  const altosEscritorio = useMemo(
+    () => escritorios.map(() => altoEscritorio),
+    [escritorios, altoEscritorio]
+  );
 
   // --- Nombres de escritorios --------------------------------------------
 
@@ -501,7 +491,7 @@ export default function PersonalizableGrid({
           <section
             key={indice}
             ref={(el) => { seccionesRef.current[indice] = el; }}
-            className="relative shrink-0 h-full snap-start overflow-x-hidden overflow-y-auto custom-scrollbar"
+            className="relative shrink-0 h-full snap-start overflow-hidden"
             style={{ width: anchoEscritorio || "100%" }}
           >
             <div className="relative" style={{ height: altosEscritorio[indice] }}>

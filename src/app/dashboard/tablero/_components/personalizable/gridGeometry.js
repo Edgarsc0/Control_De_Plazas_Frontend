@@ -1,21 +1,19 @@
 // Geometría de la cuadrícula del tablero personalizable.
 //
 // El tablero se organiza en "escritorios": cada uno ocupa el ancho visible y se
-// navega horizontalmente entre ellos. Verticalmente un escritorio crece con su
-// contenido y tiene scroll propio: la altura de fila es FIJA (ROW_HEIGHT), así
-// que un widget de `h` filas mide lo mismo sin importar el tamaño de la
-// ventana, y colocar más módulos solo alarga el escritorio hacia abajo en vez
-// de comprimirlos o mandarlos a otro escritorio.
+// navega horizontalmente entre ellos. NO hay scroll vertical: un escritorio
+// tiene un número FIJO de filas (GRID_MAX_ROWS) y la altura de fila se calcula
+// para que esas filas llenen exactamente el alto de la pantalla
+// (`alturaFila`). Lo que no cabe en un escritorio pasa al siguiente.
 //
 // Las fórmulas de píxeles son una réplica exacta de `calcGridColWidth`,
 // `calcGridItemWHPx`, `calcXY` y `calcGridItemPosition` de react-grid-layout
 // v2 — si se actualiza la librería y cambia su matemática, el preview y la
 // posición final se desalinearían, así que conviene revisarlas juntas.
 export const GRID_COLS = 12;
-export const ROW_HEIGHT = 80;
-// Tope de seguridad de filas por escritorio (no es un límite de diseño: con
-// 80px por fila son 16,000px de alto).
-export const GRID_MAX_ROWS = 200;
+// Filas por escritorio (el máximo que puede ocupar un widget es el escritorio
+// completo). El alto de cada fila se ajusta al alto disponible.
+export const GRID_MAX_ROWS = 8;
 export const GRID_MARGIN = [12, 12];
 // react-grid-layout usa `containerPadding ?? margin` cuando no se le pasa
 // `containerPadding` explícito (default `null`), así que el padding efectivo
@@ -23,6 +21,12 @@ export const GRID_MARGIN = [12, 12];
 export const GRID_PADDING = GRID_MARGIN;
 
 const clamp = (valor, min, max) => Math.max(min, Math.min(valor, max));
+
+/** Alto de fila para que `GRID_MAX_ROWS` filas llenen `altoEscritorio` px. */
+export function alturaFila(altoEscritorio) {
+  const libre = altoEscritorio - GRID_PADDING[1] * 2 - (GRID_MAX_ROWS - 1) * GRID_MARGIN[1];
+  return Math.max(20, Math.floor(libre / GRID_MAX_ROWS));
+}
 
 /** Alto en píxeles de un contenido de `filas` filas (incluye el padding del contenedor). */
 export function alturaParaFilas(filas) {
