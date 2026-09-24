@@ -19,15 +19,23 @@ const lazyWidget = (loader) => dynamic(loader, { ssr: false, loading: WidgetLoad
  *  - `component`: componente sin props, autocontenido (fetch propio).
  *  - `defaultW/defaultH`: tamaño inicial al soltar desde el catálogo (en celdas de grid).
  *  - `minW/minH`: tamaño mínimo permitido al redimensionar.
+ *  - `enCatalogo`: si se ofrece o no en la barra lateral (ver abajo).
  *
  * Solo se listan widgets con datos reales del sistema — deliberadamente NO
  * se incluyen `PresupuestarVolumenContent` ni `OrganigramaPreviewContent`
  * (BentoContent.jsx): son contenido de ejemplo/demo sin fetch propio, no
  * widgets funcionales.
+ *
+ * `enCatalogo` separa "el widget existe y sabe renderizarse" de "lo ofrecemos
+ * para agregar": se habilita módulo por módulo, conforme se valida cada uno
+ * dentro de la cuadrícula. Los que están en `false` siguen registrados a
+ * propósito — si un usuario ya los tenía en su tablero guardado, se siguen
+ * viendo y funcionando; solo no aparecen como opción nueva.
  */
 export const WIDGET_REGISTRY = {
   vacantes_por_nivel: {
     type: "vacantes_por_nivel",
+    enCatalogo: false,
     label: "Vacantes por Nivel",
     icon: BarChart3,
     component: lazyWidget(() => import("./widgets/VacantesPorNivelWidget")),
@@ -38,6 +46,7 @@ export const WIDGET_REGISTRY = {
   },
   plantilla_empleados: {
     type: "plantilla_empleados",
+    enCatalogo: false,
     label: "Plantilla de Empleados",
     icon: Users,
     component: lazyWidget(() => import("./widgets/PlantillaEmpleadosWidget")),
@@ -48,6 +57,7 @@ export const WIDGET_REGISTRY = {
   },
   ocupacion_vacantes: {
     type: "ocupacion_vacantes",
+    enCatalogo: false,
     label: "Ocupación por Oficios",
     icon: BarChart3,
     component: lazyWidget(() => import("./widgets/OcupacionVacantesWidget")),
@@ -58,6 +68,7 @@ export const WIDGET_REGISTRY = {
   },
   oficios_turnados: {
     type: "oficios_turnados",
+    enCatalogo: false,
     label: "Oficios Turnados a Dirección",
     icon: ClipboardList,
     component: lazyWidget(() => import("./widgets/OficiosTurnadosWidget")),
@@ -68,6 +79,7 @@ export const WIDGET_REGISTRY = {
   },
   cuadros_vacancia: {
     type: "cuadros_vacancia",
+    enCatalogo: false,
     label: "Cuadros de Vacancia",
     icon: ListTree,
     component: lazyWidget(() => import("../CuadrosVacanciaCard")),
@@ -78,6 +90,7 @@ export const WIDGET_REGISTRY = {
   },
   buscar_persona: {
     type: "buscar_persona",
+    enCatalogo: true,
     label: "Buscar Persona",
     icon: Search,
     component: lazyWidget(() => import("./widgets/BuscarPersonaWidget")),
@@ -88,6 +101,7 @@ export const WIDGET_REGISTRY = {
   },
   buscar_movimiento: {
     type: "buscar_movimiento",
+    enCatalogo: true,
     label: "Buscar Movimiento",
     icon: ArrowRightLeft,
     component: lazyWidget(() => import("./widgets/BuscarMovimientoWidget")),
@@ -99,3 +113,7 @@ export const WIDGET_REGISTRY = {
 };
 
 export const WIDGET_TYPES = Object.keys(WIDGET_REGISTRY);
+
+// Solo los módulos ya validados dentro de la cuadrícula — es lo que consume
+// CatalogSidebar. Se van habilitando de uno en uno (ver `enCatalogo`).
+export const WIDGETS_DE_CATALOGO = Object.values(WIDGET_REGISTRY).filter((w) => w.enCatalogo);

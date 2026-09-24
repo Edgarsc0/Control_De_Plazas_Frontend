@@ -415,3 +415,16 @@ body::before {
   border-color: rgba(255, 255, 255, 0.15);
   color: #e2e8f0;
 }
+
+/* Carrusel de "escritorios" del tablero personalizable
+   (PersonalizableGrid.jsx): la navegación es por flechas y puntos, así que la
+   barra de scroll horizontal se oculta. Además evita que al aparecer/ocultarse
+   altere el alto disponible, del que se deriva la altura de fila de la
+   cuadrícula. */
+.escritorios-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.escritorios-scroll::-webkit-scrollbar {
+  display: none;
+}
