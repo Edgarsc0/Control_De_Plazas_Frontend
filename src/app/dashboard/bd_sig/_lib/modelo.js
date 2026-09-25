@@ -127,6 +127,8 @@ export function buildModel(data) {
       colIdx.get(k).push(t.i);
     });
     t.cN = t.c.map((col) => normalizar(col[0] + ' ' + col[1]));
+    t.cNom = t.c.map((col) => normalizar(col[0]));
+    t.cDes = t.c.map((col) => normalizar(col[1]));
   });
   const grupos = [...new Set(tablas.flatMap((t) => t.g))].sort();
 
@@ -150,7 +152,19 @@ export function limites(model, idxs) {
  */
 export function buscar(model, q) {
   const t = normalizar(q).trim();
-  if (t.length < 2) return { tablas: [], columnas: [], coinciden: null };
+  if (t.length < 2) return { tablas: [], columnas: [], campos: [], coinciden: null };
+  // sintaxis TABLA.CAMPO: filtra por tabla y por campo a la vez
+  const punto = t.indexOf('.');
+  if (punto > 0 && punto < t.length - 1) {
+    const pt = t.slice(0, punto); const pc = t.slice(punto + 1);
+    const campos = [];
+    for (const T of model.tablas) {
+      if (!T.bN.includes(pt)) continue;
+      T.cNom.forEach((n, j) => { if (n.includes(pc)) campos.push({ t: T.i, fila: j, p: (n === pc ? 0 : n.startsWith(pc) ? 1 : 2) + (T.bN === pt ? 0 : 0.5) }); });
+    }
+    campos.sort((a, b) => a.p - b.p || model.tablas[a.t].n.localeCompare(model.tablas[b.t].n) || a.fila - b.fila);
+    return { tablas: [], columnas: [], campos, coinciden: new Set(campos.map((c) => c.t)) };
+  }
   const puntaje = (t0, i) => {
     const T = model.tablas[i];
     if (T.bN === t0) return 0;
@@ -174,8 +188,17 @@ export function buscar(model, q) {
     if (p < 9) columnas.push({ campo, n: ts.length, p });
   }
   columnas.sort((a, b) => a.p - b.p || b.n - a.n || a.campo.localeCompare(b.campo));
+  // cada campo individual (TABLA.CAMPO) cuyo nombre o descripción coincide
+  const campos = [];
+  for (const T of model.tablas) {
+    T.cNom.forEach((n, j) => {
+      const p = n === t ? 0 : n.startsWith(t) ? 1 : n.includes(t) ? 2 : T.cDes[j].includes(t) ? 3 : 9;
+      if (p < 9) campos.push({ t: T.i, fila: j, p });
+    });
+  }
+  campos.sort((a, b) => a.p - b.p || model.tablas[a.t].n.localeCompare(model.tablas[b.t].n) || a.fila - b.fila);
   // conjunto de tablas que coinciden por cualquier motivo (para atenuar el resto)
   const coinciden = new Set(tablas);
   for (const c of columnas) model.colIdx.get(c.campo).forEach((i) => coinciden.add(i));
-  return { tablas, columnas, coinciden };
+  return { tablas, columnas, campos, coinciden };
 }

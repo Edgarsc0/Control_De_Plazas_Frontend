@@ -264,6 +264,9 @@ export default function DiagramaBD() {
     if (ids.length === 1) { elegir(ids[0], M.tablas[ids[0]].filaDe.get(campo)); irA(ids[0], M.tablas[ids[0]].filaDe.get(campo)); }
     else if (ids.length) encuadrar(limites(M, ids), 40, 500, 0.5);
   };
+  const elegirCampo = (i, fila) => {
+    limpiarBusqueda(); setAbierto(false); elegir(i, fila); setPanel(true); irA(i, fila);
+  };
   const saltar = (d) => {
     if (!lista.length) return;
     const k = (pos + d + lista.length) % lista.length;
@@ -278,6 +281,7 @@ export default function DiagramaBD() {
       if (busq.tablas[0] != null && (busq.columnas.length === 0 || busq.tablas.some((i) => M.tablas[i].bN === normalizar(query).trim()))) elegirTabla(busq.tablas[0]);
       else if (busq.columnas[0]) elegirColumna(busq.columnas[0].campo);
       else if (busq.tablas[0] != null) elegirTabla(busq.tablas[0]);
+      else if (busq.campos[0]) elegirCampo(busq.campos[0].t, busq.campos[0].fila);
     }
   };
   useEffect(() => {
@@ -379,7 +383,7 @@ export default function DiagramaBD() {
               onFocus={() => setAbierto(true)}
               onBlur={() => setTimeout(() => setAbierto(false), 150)}
               onKeyDown={alTeclaBusqueda}
-              placeholder="Buscar tabla, columna o descripción  ( / )"
+              placeholder="Buscar tabla o campo, o TABLA.CAMPO  ( / )"
               aria-label="Buscar en el diagrama"
               className="flex-1 bg-transparent outline-none text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 min-w-0"
             />
@@ -399,10 +403,10 @@ export default function DiagramaBD() {
               <button type="button" onClick={() => saltar(1)} aria-label="Coincidencia siguiente" className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronDown className="size-4" /></button>
             </div>
           )}
-          {abierto && query.trim().length >= 2 && (busq.tablas.length > 0 || busq.columnas.length > 0) && (
+          {abierto && query.trim().length >= 2 && (busq.tablas.length > 0 || busq.columnas.length > 0 || busq.campos.length > 0) && (
             <div className={`${cajaBase} rounded-xl mt-1.5 max-h-[60vh] overflow-y-auto py-1`} role="listbox">
               {busq.tablas.length > 0 && <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold tracking-wider uppercase text-slate-400">Tablas ({busq.tablas.length})</p>}
-              {busq.tablas.slice(0, 8).map((i) => (
+              {busq.tablas.slice(0, 10).map((i) => (
                 <button key={i} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegirTabla(i)}
                   className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-baseline gap-2">
                   <span className="size-2 rounded-full shrink-0 self-center" style={{ background: COLOR_FAMILIA[M.tablas[i].fam] }} />
@@ -410,14 +414,33 @@ export default function DiagramaBD() {
                   <span className="text-[11px] text-slate-500 truncate">{M.tablas[i].d}</span>
                 </button>
               ))}
-              {busq.columnas.length > 0 && <p className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider uppercase text-slate-400">Columnas ({busq.columnas.length})</p>}
-              {busq.columnas.slice(0, 8).map((c) => (
+              {busq.columnas.length > 0 && <p className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider uppercase text-slate-400">Campo en todas las tablas ({busq.columnas.length})</p>}
+              {busq.columnas.slice(0, 6).map((c) => (
                 <button key={c.campo} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegirColumna(c.campo)}
                   className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-baseline gap-2">
                   <span className="font-mono text-xs text-slate-800 dark:text-slate-100">{c.campo}</span>
                   <span className="text-[11px] text-slate-500">en {c.n} tabla{c.n === 1 ? '' : 's'}</span>
                 </button>
               ))}
+              {busq.campos.length > 0 && <p className="px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider uppercase text-slate-400">Campos por tabla ({busq.campos.length})</p>}
+              {busq.campos.slice(0, 40).map((h) => {
+                const T = M.tablas[h.t]; const col = T.c[h.fila];
+                return (
+                  <button key={`${h.t}-${h.fila}`} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegirCampo(h.t, h.fila)}
+                    className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span className="flex items-baseline gap-1.5">
+                      <span className="size-2 rounded-full shrink-0 self-center" style={{ background: COLOR_FAMILIA[T.fam] }} />
+                      <span className="font-mono text-[11px] text-slate-500">{T.n}.</span>
+                      <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{col[0]}</span>
+                      {col[3] === 1 && <span className="text-[9px] font-bold text-teal-600 dark:text-teal-300">PK</span>}
+                      <span className="flex-1" />
+                      <span className="font-mono text-[10px] text-slate-400">{col[2]}</span>
+                    </span>
+                    {col[1] && <span className="block text-[11px] text-slate-500 truncate pl-4">{col[1]}</span>}
+                  </button>
+                );
+              })}
+              {busq.campos.length > 40 && <p className="px-3 py-1.5 text-[11px] text-slate-500">y {busq.campos.length - 40} campos más — afina la búsqueda o usa TABLA.CAMPO</p>}
             </div>
           )}
         </div>
