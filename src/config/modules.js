@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, BarChart3, Calculator, Users,
-  GitFork, Database, FileText, ShieldCheck,
+  GitFork, Database, FileText, ShieldCheck, Network,
 } from 'lucide-react';
 import { PERMISSIONS } from './permissions';
 
@@ -114,6 +114,19 @@ export const MODULES = [
     color: '#0ea5e9',
     bg: 'rgba(14,165,233,0.10)',
     description: 'Bitácora de actualizaciones',
+    group: 'Estructura',
+    permission: PERMISSIONS.VIEW_MONITOREO_ZAFIRO,
+    primary: false,
+  },
+  {
+    key: 'bd_sig',
+    title: 'BD del SIG',
+    label: 'BD SIG',
+    href: '/dashboard/bd_sig',
+    icon: Network,
+    color: '#0891b2',
+    bg: 'rgba(8,145,178,0.10)',
+    description: '436 tablas PeopleSoft',
     group: 'Estructura',
     permission: PERMISSIONS.VIEW_MONITOREO_ZAFIRO,
     primary: false,
