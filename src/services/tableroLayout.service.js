@@ -33,4 +33,25 @@ export const TableroLayoutService = {
             ...options
         });
     },
+
+    /**
+     * Administración: layout de OTRO usuario (id de Whitelist). Exige el
+     * permiso `manage_usuarios`.
+     * @param {number} whitelistId
+     */
+    getLayoutDeUsuario: (whitelistId, options = {}) => {
+        return apiFetch(`/auth/tablero-layout/usuario/${whitelistId}/`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /** Administración: reemplaza el layout de otro usuario. */
+    saveLayoutDeUsuario: (whitelistId, widgets, escritorios, options = {}) => {
+        return apiFetch(`/auth/tablero-layout/usuario/${whitelistId}/`, {
+            method: 'PUT',
+            body: JSON.stringify({ widgets, escritorios }),
+            ...options
+        });
+    },
 };

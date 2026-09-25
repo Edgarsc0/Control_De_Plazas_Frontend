@@ -6,6 +6,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
+import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
 import { formatDateEsMx, normalizeForSearch } from "@/utils/columnFilters";
 
@@ -56,6 +57,12 @@ const CARD_CONFIG = {
 export default function BuscarBajaWidget() {
   const { hasPermission } = useAuth();
   const canViewFoto = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
+  const cardConfig = useMemo(() => ({
+    ...CARD_CONFIG,
+    renderLeading: canViewFoto
+      ? (row) => <FotoEmpleadoCell numempleado={row.no_empleado} size={44} caption={row.nombre_completo} />
+      : undefined,
+  }), [canViewFoto]);
   const [bajas, setBajas] = useState(null);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
@@ -108,7 +115,7 @@ export default function BuscarBajaWidget() {
             {total > MAX_RESULTADOS && (
               <p className="text-[10px] font-bold text-slate-400 mb-1">Mostrando {MAX_RESULTADOS} de {total}. Afina la búsqueda.</p>
             )}
-            <MobileCardList data={resultados} config={CARD_CONFIG} onCardClick={setSelected} isLoading={!bajas && !error} pageSize={10} />
+            <MobileCardList data={resultados} config={cardConfig} onCardClick={setSelected} isLoading={!bajas && !error} pageSize={10} />
           </>
         ) : !error ? (
           <p className="text-center text-xs font-bold text-slate-400 dark:text-slate-600 mt-10">Empieza a escribir para ver resultados.</p>

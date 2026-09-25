@@ -93,7 +93,7 @@ const fecha = (valor) => (valor ? formatDateEsMx(valor) : "—");
 /** Desglose años/meses/días (no "1,8 años") — años y meses con longitud
  * promedio (365.25 / 30.44 días), suficiente para mostrar, no para calcular
  * fechas exactas. */
-const duracion = (dias) => {
+export const duracion = (dias) => {
     if (dias === null || dias === undefined) return "";
     if (dias < 365) return `${dias} ${dias === 1 ? "día" : "días"}`;
     const anios = Math.floor(dias / 365.25);
@@ -109,7 +109,7 @@ const duracion = (dias) => {
 };
 
 /** Días entre dos fechas ISO ("YYYY-MM-DD"); `hasta` nulo = hoy. */
-const diasEntre = (desde, hasta) => {
+export const diasEntre = (desde, hasta) => {
     if (!desde) return null;
     const fin = hasta ? new Date(hasta) : new Date();
     const ini = new Date(desde);
@@ -309,7 +309,7 @@ function construirSegmentos(gestion) {
  * cae en una subcolumna concreta y el conector con sus vecinos tiene de dónde
  * salir/llegar.
  */
-function construirEntradasAduana(aduana) {
+export function construirEntradasAduana(aduana) {
     const entradas = [];
     (aduana.gestiones || []).forEach((gestion) => {
         construirSegmentos(gestion).forEach((seg) => {
@@ -382,7 +382,7 @@ function nombreCorto(nombre) {
  * catálogo vigente; el fallback al último de `codigos_ua` es solo para
  * cachés viejas de antes de que el backend mandara ese campo.
  */
-function codigoUaActual(aduana) {
+export function codigoUaActual(aduana) {
     return aduana.codigo_ua_actual || aduana.codigos_ua?.[aduana.codigos_ua.length - 1] || "—";
 }
 
@@ -988,7 +988,7 @@ function addMembreteCompactoRotacion(workbook, worksheet, numCols, colOffset, lo
  * ocupados contra la suma de días ocupados + días de vacancia (el periodo
  * con dato real para esa aduana).
  */
-function construirResumenPorAduana(aduanas, entradasPorAduana) {
+export function construirResumenPorAduana(aduanas, entradasPorAduana) {
     return aduanas.map((aduana) => {
         const entradas = entradasPorAduana.get(aduana.aduana) || [];
 

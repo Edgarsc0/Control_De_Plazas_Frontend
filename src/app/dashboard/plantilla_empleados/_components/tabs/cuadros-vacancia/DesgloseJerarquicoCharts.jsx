@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { useElementSize } from '@/app/dashboard/tablero/_components/personalizable/widgets/useElementSize';
 import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 import { Layers, ChevronLeft, TrendingUp } from 'lucide-react';
 import EmployeesModal from '../../shared/EmployeesModal';
@@ -377,6 +378,13 @@ const formatAxisTick = (v) => {
 // personalizable): vac_nj | ocup_nj | vac_tabular | ocup_tabular | familia.
 // Sin `only`, se renderiza el bloque completo de siempre.
 export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [], forExport = false, only = null }) {
+  // Modo widget: el contenido se adapta al tamaño real de la celda (tiers) para
+  // poder encogerlo mucho — `chico` oculta subtítulo/guía/leyenda, `mini`
+  // además comprime márgenes, ejes y tipografía.
+  const [rootRef, rootSize] = useElementSize();
+  const medido = !!only && rootSize.width > 0;
+  const chico = medido && (rootSize.width < 420 || rootSize.height < 340);
+  const mini = medido && (rootSize.width < 260 || rootSize.height < 220);
   const show = (id) => !only || only === id;
   const { hasPermission } = useAuth();
   const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
@@ -985,7 +993,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   };
 
   return (
-    <div className={only ? 'w-full h-full' : 'w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700'}>
+    <div ref={rootRef} className={only ? 'w-full h-full' : 'w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700'}>
       <div className={only ? 'h-full' : 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden'}>
         {!only && (<>
         {/* Blobs decorativos */}
@@ -1017,20 +1025,20 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
           {/* ── Gráfica 1: Vacantes por Nivel Jerárquico (fila 1, col 1) ── */}
           {show('vac_nj') && (
-          <div ref={chart1ContainerRef} data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-1 lg:row-start-1'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
-            <div className={only ? 'mb-1' : 'mb-6'}>
-              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+          <div ref={chart1ContainerRef} data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-1 lg:row-start-1'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? (mini ? 'p-1.5' : chico ? 'p-2' : 'p-3') : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={only ? (mini ? 'mb-0.5' : 'mb-1') : 'mb-6'}>
+              <h4 className={`${mini ? 'text-[11px] leading-tight' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                 Vacantes por Nivel Jerárquico
               </h4>
-              <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+              <p className={`${only && chico ? 'hidden' : ''} text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium`}>
                 Distribución por NJ
               </p>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart1Data}
-                  margin={{ top: 34, right: 15, left: -15, bottom: 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1042,18 +1050,20 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    interval={only ? 0 : undefined}
+                    tickFormatter={(v) => (only && medido && rootSize.width < 600 && v === 'Dir. Central' ? 'DC' : v)}
                   />
                   <YAxis
                     allowDecimals={false}
                     domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={formatAxisTick}
-                    width={45}
+                    width={mini ? 26 : 45}
                   />
                   <Tooltip content={<NJTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   <Bar
@@ -1086,11 +1096,11 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
             </div>
 
             {/* Guía de Niveles Jerárquicos */}
-            <div className="mt-6 pt-5 border-t border-[#bc955c]/10">
-              <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+            <div className={`${only ? 'mt-1 pt-1.5' : 'mt-6 pt-5'} border-t border-[#bc955c]/10`}>
+              <h5 className={`${only && chico ? 'hidden' : ''} text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3`}>
                 Guía de Niveles Jerárquicos
               </h5>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className={`grid ${only ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'} ${only && chico ? 'gap-1' : 'gap-2'}`}>
                 {[
                   { id: '0', name: 'Titular ANAM' },
                   { id: '1', name: 'Director General' },
@@ -1105,7 +1115,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <div
                     key={item.id}
                     onClick={() => handleNJBarClick({ name: `NJ ${item.id}` })}
-                    className="flex items-center gap-2.5 text-[11px] text-slate-700 dark:text-slate-350 bg-slate-50/80 dark:bg-slate-800/40 px-3 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/80 hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/10 hover:border-[#bc955c]/30 dark:hover:border-[#bc955c]/30 hover:scale-[1.02] active:scale-95 duration-200 transition-all cursor-pointer shadow-sm"
+                    className={`flex items-center ${only && chico ? 'gap-1 px-1 py-0.5 text-[9px] rounded-md' : 'gap-2.5 px-3 py-2 text-[11px] rounded-xl'} text-slate-700 dark:text-slate-350 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/80 hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/10 hover:border-[#bc955c]/30 dark:hover:border-[#bc955c]/30 hover:scale-[1.02] active:scale-95 duration-200 transition-all cursor-pointer shadow-sm`}
                   >
                     <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-[#10243e] dark:bg-[#bc955c]/10 text-white dark:text-[#bc955c] text-[10px] font-extrabold flex-shrink-0 shadow-sm">
                       {item.id}
@@ -1120,20 +1130,20 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
           {/* ── Gráfica NJ-Ocupación: Ocupación por Nivel Jerárquico (fila 1, col 2) ── */}
           {show('ocup_nj') && (
-          <div ref={chart1bContainerRef} data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-2 lg:row-start-1'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
-            <div className={only ? 'mb-1' : 'mb-6'}>
-              <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+          <div ref={chart1bContainerRef} data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-2 lg:row-start-1'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? (mini ? 'p-1.5' : chico ? 'p-2' : 'p-3') : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={only ? (mini ? 'mb-0.5' : 'mb-1') : 'mb-6'}>
+              <h4 className={`${mini ? 'text-[11px] leading-tight' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                 Ocupación por Nivel Jerárquico
               </h4>
-              <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+              <p className={`${only && chico ? 'hidden' : ''} text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium`}>
                 Distribución por NJ
               </p>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart1bData}
-                  margin={{ top: 34, right: 15, left: -15, bottom: 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1145,18 +1155,20 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
+                    interval={only ? 0 : undefined}
+                    tickFormatter={(v) => (only && medido && rootSize.width < 600 && v === 'Dir. Central' ? 'DC' : v)}
                   />
                   <YAxis
                     allowDecimals={false}
                     domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={formatAxisTick}
-                    width={45}
+                    width={mini ? 26 : 45}
                   />
                   <Tooltip content={<NJTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   <Bar
@@ -1185,11 +1197,11 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
             </div>
 
             {/* Guía de Niveles Jerárquicos */}
-            <div className="mt-6 pt-5 border-t border-[#bc955c]/10">
-              <h5 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+            <div className={`${only ? 'mt-1 pt-1.5' : 'mt-6 pt-5'} border-t border-[#bc955c]/10`}>
+              <h5 className={`${only && chico ? 'hidden' : ''} text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3`}>
                 Guía de Niveles Jerárquicos
               </h5>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className={`grid ${only ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'} ${only && chico ? 'gap-1' : 'gap-2'}`}>
                 {[
                   { id: '0', name: 'Titular ANAM' },
                   { id: '1', name: 'Director General' },
@@ -1204,7 +1216,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <div
                     key={item.id}
                     onClick={() => handleNJOcupBarClick({ name: `NJ ${item.id}` })}
-                    className="flex items-center gap-2.5 text-[11px] text-slate-700 dark:text-slate-350 bg-slate-50/80 dark:bg-slate-800/40 px-3 py-2 rounded-xl border border-slate-200/50 dark:border-slate-800/80 hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/10 hover:border-[#bc955c]/30 dark:hover:border-[#bc955c]/30 hover:scale-[1.02] active:scale-95 duration-200 transition-all cursor-pointer shadow-sm"
+                    className={`flex items-center ${only && chico ? 'gap-1 px-1 py-0.5 text-[9px] rounded-md' : 'gap-2.5 px-3 py-2 text-[11px] rounded-xl'} text-slate-700 dark:text-slate-350 bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-800/80 hover:bg-[#bc955c]/10 dark:hover:bg-[#bc955c]/10 hover:border-[#bc955c]/30 dark:hover:border-[#bc955c]/30 hover:scale-[1.02] active:scale-95 duration-200 transition-all cursor-pointer shadow-sm`}
                   >
                     <span className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-[#10243e] dark:bg-[#bc955c]/10 text-white dark:text-[#bc955c] text-[10px] font-extrabold flex-shrink-0 shadow-sm">
                       {item.id}
@@ -1219,39 +1231,39 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
           {/* ── Gráfica 2: Familia con Drill-Down ── */}
           {show('vac_tabular') && (
-          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-1 lg:row-start-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
-            <div className={`${only ? 'mb-1' : 'mb-6'} flex items-start justify-between`}>
+          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-1 lg:row-start-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? (mini ? 'p-1.5' : chico ? 'p-2' : 'p-3') : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={`${only ? (mini ? 'mb-0.5' : 'mb-1') : 'mb-6'} flex items-start justify-between`}>
               <div>
                 {drillFamily ? (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setDrillFamily(null)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 transition-all font-semibold text-xs group"
+                      className={`flex items-center gap-1 ${mini ? 'px-1 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} rounded-lg bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 transition-all font-semibold group`}
                     >
                       <ChevronLeft className="size-3.5 group-hover:-translate-x-0.5 transition-transform" />
                       Regresar
                     </button>
-                    <span className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                    <span className={`${mini ? 'text-[11px]' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                       Niveles {drillFamily}
                     </span>
                   </div>
                 ) : (
-                  <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                  <h4 className={`${mini ? 'text-[11px] leading-tight' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                     Vacantes por Nivel Tabular
                   </h4>
                 )}
-                <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+                <p className={`${only && chico ? 'hidden' : ''} text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium`}>
                   {drillFamily
                     ? `${drillData.length} niveles en ${drillFamily}`
                     : 'Clic en una barra para explorar'}
                 </p>
               </div>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2Data}
-                  margin={{ top: 34, right: 15, left: -15, bottom: chart2Data.length > 6 ? 50 : 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: chart2Data.length > 6 ? (mini ? 34 : 50) : 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1267,7 +1279,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     interval={0}
@@ -1277,11 +1289,11 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <YAxis
                     allowDecimals={false}
                     domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={formatAxisTick}
-                    width={45}
+                    width={mini ? 26 : 45}
                   />
                   <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   {drillFamily ? (
@@ -1411,7 +1423,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
             </div>
 
             {/* Leyenda del desglose por tipo de plaza (nivel superficial y drill-down) */}
-            {chart2Data.some(row => row.segments) && (
+            {!(only && chico) && chart2Data.some(row => row.segments) && (
               <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
                 {Object.values(SEGMENT_META).map((s) => (
                   <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
@@ -1429,39 +1441,39 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
           {/* ── Gráfica Tabular-Ocupación: Ocupación por Nivel Tabular (fila 2, col 2) ── */}
           {show('ocup_tabular') && (
-          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-2 lg:row-start-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
-            <div className={`${only ? 'mb-1' : 'mb-6'} flex items-start justify-between`}>
+          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-2 lg:row-start-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? (mini ? 'p-1.5' : chico ? 'p-2' : 'p-3') : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={`${only ? (mini ? 'mb-0.5' : 'mb-1') : 'mb-6'} flex items-start justify-between`}>
               <div>
                 {drillFamilyOcup ? (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setDrillFamilyOcup(null)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 transition-all font-semibold text-xs group"
+                      className={`flex items-center gap-1 ${mini ? 'px-1 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} rounded-lg bg-[#621f32]/10 text-[#621f32] hover:bg-[#621f32]/20 transition-all font-semibold group`}
                     >
                       <ChevronLeft className="size-3.5 group-hover:-translate-x-0.5 transition-transform" />
                       Regresar
                     </button>
-                    <span className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                    <span className={`${mini ? 'text-[11px]' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                       Niveles {drillFamilyOcup}
                     </span>
                   </div>
                 ) : (
-                  <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                  <h4 className={`${mini ? 'text-[11px] leading-tight' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                     Ocupación por Nivel Tabular
                   </h4>
                 )}
-                <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+                <p className={`${only && chico ? 'hidden' : ''} text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium`}>
                   {drillFamilyOcup
                     ? `${drillDataOcupTabular.length} niveles en ${drillFamilyOcup}`
                     : 'Clic en una barra para explorar'}
                 </p>
               </div>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
+            <div className="w-full flex-1" style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2bData}
-                  margin={{ top: 34, right: 15, left: -15, bottom: chart2bData.length > 6 ? 50 : 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: chart2bData.length > 6 ? (mini ? 34 : 50) : 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1477,7 +1489,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     interval={0}
@@ -1487,11 +1499,11 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <YAxis
                     allowDecimals={false}
                     domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={formatAxisTick}
-                    width={45}
+                    width={mini ? 26 : 45}
                   />
                   <Tooltip content={<Chart2Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   {drillFamilyOcup ? (
@@ -1612,7 +1624,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
             </div>
 
             {/* Leyenda del desglose por tipo de plaza (Ocupadas) */}
-            {chart2bData.some(row => row.segments) && (
+            {!(only && chico) && chart2bData.some(row => row.segments) && (
               <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
                 {Object.values(OCUPADA_SEGMENT_META).map((s) => (
                   <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
@@ -1630,8 +1642,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
 
           {/* ── Gráfica 3: Posiciones Totales (fila 1-2, col 3) ── */}
           {show('familia') && (
-          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-3 lg:row-start-1 lg:row-span-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? 'p-3' : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
-            <div className={only ? 'mb-1' : 'mb-6'}>
+          <div data-pdf-chart className={`${only ? 'h-full' : 'lg:col-start-3 lg:row-start-1 lg:row-span-2'} bg-gradient-to-br from-white/70 to-white/40 dark:from-slate-900/70 dark:to-slate-800/40 backdrop-blur-md border border-[#bc955c]/20 rounded-2xl ${only ? (mini ? 'p-1.5' : chico ? 'p-2' : 'p-3') : 'p-4 sm:p-7'} shadow-sm hover:shadow-xl hover:shadow-[#621f32]/5 transition-all duration-500 flex flex-col`}>
+            <div className={only ? (mini ? 'mb-0.5' : 'mb-1') : 'mb-6'}>
               {drillFamily3 ? (
                 <div className="flex items-center gap-2">
                   <button
@@ -1641,26 +1653,27 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     <ChevronLeft className="size-3.5 group-hover:-translate-x-0.5 transition-transform" />
                     Regresar
                   </button>
-                  <span className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                  <span className={`${mini ? 'text-[11px]' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                     Niveles {drillFamily3}
                   </span>
                 </div>
               ) : (
-                <h4 className="text-base font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+                <h4 className={`${mini ? 'text-[11px] leading-tight' : chico ? 'text-sm' : 'text-base'} font-bold text-slate-800 dark:text-slate-200 tracking-tight`}>
                   Ocupadas vs Vacantes por familia de nivel
                 </h4>
               )}
-              <p className="text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium">
+              <p className={`${only && chico ? 'hidden' : ''} text-[11px] text-slate-400 mt-1 uppercase tracking-wider font-medium`}>
                 {drillFamily3
                   ? `${drillData3.length} niveles en ${drillFamily3} · Ocupadas vs Vacantes`
                   : 'Posiciones totales por familia de nivel (vacantes + ocupadas) · Clic para explorar'}
               </p>
             </div>
-            <div className="w-full flex-1" style={{ minHeight: only ? '140px' : '360px' }}>
+            <div className={`w-full flex-1 ${only ? 'overflow-x-auto overflow-y-hidden custom-scrollbar' : ''}`} style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
+              <div className="h-full" style={{ minWidth: only ? Math.max(440, chart3Data.length * 56 + 60) : undefined }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart3Data}
-                  margin={{ top: 34, right: 15, left: -15, bottom: chart3Data.length > 6 ? 50 : 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: chart3Data.length > 6 ? 50 : 10 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1676,7 +1689,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     interval={0}
@@ -1686,11 +1699,11 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <YAxis
                     allowDecimals={false}
                     domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={formatAxisTick}
-                    width={45}
+                    width={mini ? 26 : 45}
                   />
                   <Tooltip content={<Chart3Tooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
                   {/* Ocupadas dividida en Eventuales / Permanentes / Evt. Nueva Creación
@@ -1798,22 +1811,23 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   </Line>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="mt-6 pt-5 border-t border-[#bc955c]/10 flex flex-wrap items-center gap-4">
+            <div className={`${only ? (chico ? 'mt-0.5 pt-1 gap-x-2 gap-y-0.5' : 'mt-1 pt-1.5 gap-x-4 gap-y-1') : 'mt-6 pt-5 gap-4'} border-t border-[#bc955c]/10 flex flex-wrap items-center`}>
               {Object.values(OCUPADA_SEGMENT_META).map((s) => (
-                <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
-                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+                <div key={s.label} className={`flex items-center ${only && chico ? 'gap-1 text-[9px]' : 'gap-2 text-[11px]'} font-semibold text-slate-600 dark:text-slate-350`}>
+                  <span className={`${only && chico ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-sm flex-shrink-0`} style={{ background: s.color }} />
                   {s.label}
                 </div>
               ))}
               {Object.values(SEGMENT_META).map((s) => (
-                <div key={s.label} className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-350">
-                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: s.color }} />
+                <div key={s.label} className={`flex items-center ${only && chico ? 'gap-1 text-[9px]' : 'gap-2 text-[11px]'} font-semibold text-slate-600 dark:text-slate-350`}>
+                  <span className={`${only && chico ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-sm flex-shrink-0`} style={{ background: s.color }} />
                   {s.label}
                 </div>
               ))}
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              <span className={`${only && chico ? 'hidden' : ''} text-[10px] text-slate-400 dark:text-slate-500 font-medium`}>
                 (P's, D's, S's, A's: 3 divisiones · Operativos y K's: Eventuales + Permanentes)
               </span>
             </div>

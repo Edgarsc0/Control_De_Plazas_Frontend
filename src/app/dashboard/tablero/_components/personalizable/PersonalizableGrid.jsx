@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactGridLayout, { noCompactor } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import { Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, Pencil, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import WidgetFrame from "./WidgetFrame";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import { WIDGET_REGISTRY, puedeUsarWidget } from "./widgetRegistry";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -125,6 +126,9 @@ export default function PersonalizableGrid({
   // Nodo que se pinta al inicio de la barra inferior (botón para volver a
   // mostrar el catálogo cuando está contraído).
   accionesIzquierda = null,
+  // Igual, pero al final (exportar / importar el tablero). Puede ser una
+  // función `(escritorioActivo) => nodo`.
+  accionesDerecha = null,
 }) {
   const [viewportRef, { width: anchoEscritorio, height: altoEscritorio }] = useTamanoContenedor();
   const saveTimerRef = useRef(null);
@@ -299,6 +303,32 @@ export default function PersonalizableGrid({
     onNombresChange?.(Array.from({ length: indice + 1 }, (_, i) => nombres[i] || ""));
   }, [totalEscritorios, nombres, onNombresChange]);
 
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const modulosEscritorioActivo = (escritorios[escritorioActivo] || []).length;
+
+  // Elimina el escritorio activo junto con sus módulos; los escritorios
+  // siguientes se recorren un lugar. Siempre queda al menos uno.
+  const eliminarEscritorioActivo = useCallback(() => {
+    if (totalEscritorios <= 1) return;
+    const indice = escritorioActivo;
+    // Un guardado diferido pendiente traería el layout anterior.
+    clearTimeout(saveTimerRef.current);
+    const nextWidgets = widgetsRef.current
+      .filter((w) => escritorioDe(w) !== indice)
+      .map((w) => (escritorioDe(w) > indice ? { ...w, page: escritorioDe(w) - 1 } : w));
+    const nextNombres = Array.from({ length: totalEscritorios }, (_, i) => nombres[i] || "")
+      .filter((_, i) => i !== indice);
+    setEscritoriosExtra(totalEscritorios - 1);
+    // Sin persistir aquí: `onNombresChange` guarda widgets y nombres juntos.
+    onWidgetsChange(nextWidgets, { persist: false });
+    onNombresChange?.(nextNombres);
+    const destino = Math.min(indice, totalEscritorios - 2);
+    setEscritorioActivo(destino);
+    requestAnimationFrame(() => {
+      viewportRef.current?.scrollTo({ left: destino * anchoEscritorio });
+    });
+  }, [totalEscritorios, escritorioActivo, nombres, onWidgetsChange, onNombresChange, viewportRef, anchoEscritorio]);
+
   // Mueve un widget ya colocado al escritorio `destino`, en el primer hueco
   // libre que encuentre ahí (mismo tamaño que tenía). Es el paso final de
   // "arrastrar al margen para cambiar de escritorio" (ver `dispararCambioEscritorio`
@@ -465,6 +495,13 @@ export default function PersonalizableGrid({
     // Desde el escritorio apuntado hacia adelante; el índice `totalEscritorios`
     // representa uno nuevo al final, que por estar vacío siempre admite el
     // widget.
+    // Tamaño mínimo del widget (nunca mayor que el de por defecto): si no cabe
+    // con el tamaño por defecto en un escritorio, se intenta encogido antes de
+    // pasar al siguiente.
+    const minW = clamp(def.minW ?? 2, 1, w);
+    const minH = clamp(def.minH ?? 2, 1, h);
+    const hayMinimoDistinto = minW < w || minH < h;
+
     for (let e = apuntado; e <= totalEscritorios; e += 1) {
       const items = widgetsRef.current.filter((it) => escritorioDe(it) === e);
       if (e === apuntado && !colisiona(items, celda.x, celda.y, w, h)) {
@@ -472,6 +509,11 @@ export default function PersonalizableGrid({
       }
       const hueco = buscarHueco(items, w, h);
       if (hueco) return { escritorio: e, x: hueco.x, y: hueco.y, w, h };
+
+      if (hayMinimoDistinto) {
+        const huecoMin = buscarHueco(items, minW, minH);
+        if (huecoMin) return { escritorio: e, x: huecoMin.x, y: huecoMin.y, w: minW, h: minH };
+      }
     }
     return null;
   }, [viewportRef, listo, anchoEscritorio, rowHeight, totalEscritorios]);
@@ -802,6 +844,7 @@ export default function PersonalizableGrid({
       {/* Navegación entre escritorios. */}
       <div className="shrink-0 relative flex items-center justify-center gap-3 py-2 border-t border-slate-200/70 dark:border-slate-800/70">
         {accionesIzquierda && <div className="absolute left-0 top-1/2 -translate-y-1/2">{accionesIzquierda}</div>}
+        {accionesDerecha && <div className="absolute right-0 top-1/2 -translate-y-1/2">{typeof accionesDerecha === "function" ? accionesDerecha(escritorioActivo) : accionesDerecha}</div>}
         <button
           type="button"
           onClick={() => irAEscritorio(escritorioActivo - 1)}
@@ -895,7 +938,31 @@ export default function PersonalizableGrid({
           <Plus className="size-3.5" />
           <span>Escritorio</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setConfirmandoEliminar(true)}
+          disabled={totalEscritorios <= 1}
+          title={totalEscritorios <= 1 ? "Debe quedar al menos un escritorio" : "Eliminar escritorio"}
+          aria-label="Eliminar escritorio"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+        >
+          <Trash2 className="size-4" />
+        </button>
       </div>
+
+      <ConfirmModal
+        open={confirmandoEliminar}
+        onClose={() => setConfirmandoEliminar(false)}
+        onConfirm={async () => eliminarEscritorioActivo()}
+        title={`¿Eliminar "${nombreDe(escritorioActivo)}"?`}
+        message={
+          modulosEscritorioActivo > 0
+            ? `Se eliminará el escritorio y ${modulosEscritorioActivo === 1 ? "su módulo" : `sus ${modulosEscritorioActivo} módulos`}. Los demás escritorios no se tocan.`
+            : "El escritorio está vacío. Los demás escritorios no se tocan."
+        }
+        confirmLabel="Eliminar escritorio"
+      />
 
       {/* "Fantasma" que sigue al cursor: `fixed`, así que su posición en el
           árbol no importa y no afecta el layout ni el scroll. */}

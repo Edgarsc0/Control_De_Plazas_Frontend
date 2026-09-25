@@ -40,6 +40,7 @@ import { RoleService } from '@/services/role.service';
 import { WhitelistService } from '@/services/whitelist.service';
 import { UaService } from '@/services/ua.service';
 import { PresenceService } from '@/services/presence.service';
+import { useTableroUsuario } from './_components/useTableroUsuario';
 import UserActivityDialog from './_components/UserActivityDialog';
 import { PERMISSIONS } from '@/config/permissions';
 import { PERMISSION_PREVIEWS } from '@/config/permissionPreviews';
@@ -180,6 +181,7 @@ function RolesAdminContent() {
     const [activeSessionsByEmail, setActiveSessionsByEmail] = useState({});
     const [activityEntry, setActivityEntry] = useState(null);
     const panelRef = useRef(null);
+    const tableroUsuario = useTableroUsuario();
 
     // Salida del panel actual (fade) y luego cambio de pestaña; TabPanel hace la entrada.
     const changeTab = useCallback(
@@ -590,6 +592,8 @@ function RolesAdminContent() {
                     onReassignTablero={handleReassignTablero}
                     onOpenActivity={setActivityEntry}
                     onOpenPassword={openPasswordDialog}
+                    onExportTablero={tableroUsuario.iniciarExportar}
+                    onImportTablero={tableroUsuario.iniciarImportar}
                 />
             )}
 
@@ -968,6 +972,8 @@ function RolesAdminContent() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {tableroUsuario.dialogos}
 
             <UserActivityDialog entry={activityEntry} onClose={() => setActivityEntry(null)} />
         </div>

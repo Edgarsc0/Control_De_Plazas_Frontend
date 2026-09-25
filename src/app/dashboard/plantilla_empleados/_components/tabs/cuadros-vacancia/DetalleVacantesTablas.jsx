@@ -186,14 +186,14 @@ const PLAZA_GROUPS = [
 // Número de celda de las tablas por nivel: texto plano tabular (sin badge ni
 // fondo); si es clicable se subraya al pasar el cursor. `strong` para la fila
 // de totales.
-function CellNum({ value, onClick, tone, strong = false }) {
+function CellNum({ value, onClick, tone, strong = false, compact = false }) {
   if (!(value > 0)) return <span className="text-slate-300 dark:text-slate-600">–</span>;
   const color = tone === "vac" ? "text-amber-700 dark:text-amber-400" : "text-slate-900 dark:text-slate-100";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`tabular-nums text-sm ${strong ? "font-bold" : "font-medium"} ${color} hover:underline underline-offset-4 decoration-1 focus-visible:outline focus-visible:outline-1 focus-visible:outline-slate-400 cursor-pointer`}
+      className={`tabular-nums ${compact ? "text-[15px]" : "text-sm"} ${strong ? "font-bold" : "font-medium"} ${color} hover:underline underline-offset-4 decoration-1 focus-visible:outline focus-visible:outline-1 focus-visible:outline-slate-400 cursor-pointer`}
     >
       {formatNumber(value)}
     </button>
@@ -207,20 +207,22 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
 
   // Separador vertical entre grupos (Eventuales | Evt. N.C. | Permanentes | Total).
   const sepGrupo = (i) => (i > 0 ? "border-l border-slate-300 dark:border-slate-700" : "");
-  const celda = "px-3 py-2 text-right";
+  const px = fill ? "px-3" : "px-3";
+  const py = fill ? "py-2.5" : "py-2";
+  const celda = `${px} ${py} text-right`;
 
   return (
     <div className={`flex flex-col ${fill ? "h-full min-h-0" : ""}`}>
-      <h4 className={`text-sm font-semibold text-slate-800 dark:text-slate-200 ${fill ? "mb-1 shrink-0" : "mb-2"}`}>
+      <h4 className={`${fill ? "text-sm mb-1.5 shrink-0" : "text-sm mb-2"} font-semibold text-slate-800 dark:text-slate-200`}>
         {levelLabel}
       </h4>
       <div className={`overflow-auto custom-scrollbar ${fill ? "flex-1 min-h-0" : "max-h-[420px]"} rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950`}>
-        <table className={`w-full text-sm border-collapse ${fill ? "h-full" : ""}`}>
+        <table className={`w-full ${fill ? "text-sm" : "text-sm"} border-collapse`}>
           <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
             <tr>
               <th
                 rowSpan={2}
-                className="sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-3 py-2 text-left font-semibold text-[11px] uppercase tracking-wide"
+                className={`sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 ${px} ${py} text-left font-semibold text-[11px] uppercase tracking-wide`}
               >
                 Nivel
               </th>
@@ -228,18 +230,18 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
                 <th
                   key={g.key}
                   colSpan={2}
-                  className={`px-3 py-1.5 text-center font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap border-b border-slate-200 dark:border-slate-800 ${sepGrupo(i)}`}
+                  className={`${px} py-1.5 text-center font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap border-b border-slate-200 dark:border-slate-800 ${sepGrupo(i)}`}
                 >
                   {g.label}
                 </th>
               ))}
             </tr>
-            <tr className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <tr className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {PLAZA_GROUPS.flatMap((g, i) => [
-                <th key={`${g.key}|ocup`} className={`px-3 py-1 text-right border-b border-slate-300 dark:border-slate-700 ${sepGrupo(i)}`}>
+                <th key={`${g.key}|ocup`} className={`${px} py-1 text-right border-b border-slate-300 dark:border-slate-700 ${sepGrupo(i)}`}>
                   Ocup
                 </th>,
-                <th key={`${g.key}|vac`} className="px-3 py-1 text-right border-b border-slate-300 dark:border-slate-700 text-amber-700 dark:text-amber-400">
+                <th key={`${g.key}|vac`} className={`${px} py-1 text-right border-b border-slate-300 dark:border-slate-700 text-amber-700 dark:text-amber-400`}>
                   Vac
                 </th>,
               ])}
@@ -251,15 +253,15 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
                 key={row.nivel}
                 className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors"
               >
-                <td className="sticky left-0 z-10 bg-white dark:bg-slate-950 px-3 py-2 text-left font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                <td className={`sticky left-0 z-10 bg-white dark:bg-slate-950 ${px} ${py} text-left font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap`}>
                   {row.nivel}
                 </td>
                 {PLAZA_GROUPS.flatMap((g, i) => [
                   <td key={`${row.nivel}|${g.key}|ocup`} className={`${celda} ${sepGrupo(i)} ${g.key === "total" ? "bg-slate-50 dark:bg-slate-900/50" : ""}`}>
-                    <CellNum value={row[g.key].ocup} tone="ocup" onClick={() => onCellClick(row.nivel, g.key, "ocup")} />
+                    <CellNum compact={fill} value={row[g.key].ocup} tone="ocup" onClick={() => onCellClick(row.nivel, g.key, "ocup")} />
                   </td>,
                   <td key={`${row.nivel}|${g.key}|vac`} className={`${celda} ${g.key === "total" ? "bg-slate-50 dark:bg-slate-900/50" : ""}`}>
-                    <CellNum value={row[g.key].vac} tone="vac" onClick={() => onCellClick(row.nivel, g.key, "vac")} />
+                    <CellNum compact={fill} value={row[g.key].vac} tone="vac" onClick={() => onCellClick(row.nivel, g.key, "vac")} />
                   </td>,
                 ])}
               </tr>
@@ -267,17 +269,55 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
           </tbody>
           <tfoot className="sticky bottom-0 z-20">
             <tr className="bg-slate-100 dark:bg-slate-900 border-t-2 border-slate-300 dark:border-slate-700">
-              <td className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-900 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+              <td className={`sticky left-0 z-10 bg-slate-100 dark:bg-slate-900 ${px} ${py} text-left text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200`}>
                 Total
               </td>
               {PLAZA_GROUPS.flatMap((g, i) => [
                 <td key={`total|${g.key}|ocup`} className={`${celda} ${sepGrupo(i)}`}>
-                  <CellNum strong value={totalRow[g.key].ocup} tone="ocup" onClick={() => onCellClick("__ALL__", g.key, "ocup")} />
+                  <CellNum compact={fill} strong value={totalRow[g.key].ocup} tone="ocup" onClick={() => onCellClick("__ALL__", g.key, "ocup")} />
                 </td>,
                 <td key={`total|${g.key}|vac`} className={celda}>
-                  <CellNum strong value={totalRow[g.key].vac} tone="vac" onClick={() => onCellClick("__ALL__", g.key, "vac")} />
+                  <CellNum compact={fill} strong value={totalRow[g.key].vac} tone="vac" onClick={() => onCellClick("__ALL__", g.key, "vac")} />
                 </td>,
               ])}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Tabla de Observaciones en modo widget: mismo diseño que NivelPlazaTable
+// (encabezado gris, números planos, fila de total fija abajo).
+function ObsTable({ title, rows, total, onCellClick }) {
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <h4 className="text-sm mb-1.5 shrink-0 font-semibold text-slate-800 dark:text-slate-200">{title}</h4>
+      <div className="overflow-auto custom-scrollbar flex-1 min-h-0 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
+            <tr>
+              <th className="px-3 py-2.5 text-left font-semibold text-[11px] uppercase tracking-wide border-b border-slate-300 dark:border-slate-700">Observación</th>
+              <th className="px-3 py-2.5 text-right font-semibold text-[11px] uppercase tracking-wide border-b border-slate-300 dark:border-slate-700">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                <td className="px-3 py-2.5 text-left font-semibold text-slate-800 dark:text-slate-100">{r.label}</td>
+                <td className="px-3 py-2.5 text-right">
+                  <CellNum compact value={r.value} tone="ocup" onClick={() => onCellClick(r)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="sticky bottom-0 z-20">
+            <tr className="bg-slate-100 dark:bg-slate-900 border-t-2 border-slate-300 dark:border-slate-700">
+              <td className="px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">Total</td>
+              <td className="px-3 py-2.5 text-right">
+                <CellNum strong compact value={total.value} tone="ocup" onClick={() => onCellClick(total)} />
+              </td>
             </tr>
           </tfoot>
         </table>
@@ -457,7 +497,40 @@ export default function DetalleVacantesTablas({ data = [], ocupadosData = [], on
           {/* Observaciones Vacancia (izquierda) | Observaciones Ocupación (derecha) —
               mismo criterio (Contratación Base / OIC / Titulares de Aduanas),
               una sobre plazas vacantes y otra sobre plazas ocupadas. */}
-          {(observaciones.total > 0 || observacionesOcup.total > 0) && (!only || only.startsWith('obs_')) && (
+          {only && only.startsWith('obs_') && (() => {
+            const esVac = only === 'obs_vacancia';
+            const src = esVac ? data : ocupadosData;
+            const obs = esVac ? observaciones : observacionesOcup;
+            if (obs.total <= 0) return null;
+            const nombre = esVac ? 'Vacancia' : 'Ocupación';
+            const colKeys = esVac ? DETALLE_VACANTES_COLUMN_KEYS : DETALLE_OCUPACION_COLUMN_KEYS;
+            const defKeys = esVac ? null : DETALLE_OCUPACION_DEFAULT_COLUMN_KEYS;
+            const esBase = (i) => (i['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE';
+            const esOic = (i) => (i['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control';
+            const esTit = (i) => (i['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA');
+            const filas = [
+              { label: 'Contratación Base', value: obs.base, filtro: esBase },
+              { label: 'Órgano Interno de Control', value: obs.oic, filtro: esOic },
+              { label: 'Titulares de Aduanas', value: obs.titulares, filtro: esTit },
+            ];
+            const total = { label: 'Total', value: obs.total, filtro: (i) => esBase(i) || esOic(i) || esTit(i) };
+            return (
+              <ObsTable
+                title={`Observaciones ${nombre}`}
+                rows={filas}
+                total={total}
+                onCellClick={(r) => {
+                  setModalTitle(`Observaciones ${nombre} — ${r.label}`);
+                  setModalRows(src.filter(r.filtro).map(mapVacanteRowToEmployeeRow));
+                  setModalColumnKeys(colKeys);
+                  setModalDefaultColumnKeys(defKeys);
+                  setModalOpen(true);
+                }}
+              />
+            );
+          })()}
+
+          {(observaciones.total > 0 || observacionesOcup.total > 0) && !only && (
             <div className={`grid grid-cols-1 ${only ? '' : 'lg:grid-cols-2'} gap-8`}>
               {observaciones.total > 0 && (!only || only === 'obs_vacancia') ? (
                 <div className="flex flex-col">

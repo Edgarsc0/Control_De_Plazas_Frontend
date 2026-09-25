@@ -6,6 +6,7 @@ import { gsap } from "gsap";
 import { TableroLayoutService } from "@/services/tableroLayout.service";
 import CatalogSidebar from "./_components/personalizable/CatalogSidebar";
 import PersonalizableGrid from "./_components/personalizable/PersonalizableGrid";
+import PortabilidadTablero from "./_components/personalizable/PortabilidadTablero";
 import WidgetFrame from "./_components/personalizable/WidgetFrame";
 import { WIDGET_REGISTRY } from "./_components/personalizable/widgetRegistry";
 import { normalizarWidgets } from "./_components/personalizable/gridGeometry";
@@ -144,6 +145,15 @@ export default function TableroPersonalizable() {
     guardar(widgetsRef.current, next);
   }, [guardar]);
 
+  // Importación: reemplaza widgets y nombres de una sola vez y persiste ambos.
+  const handleImportar = useCallback((nextWidgets, nextNombres) => {
+    widgetsRef.current = nextWidgets;
+    nombresRef.current = nextNombres;
+    setWidgets(nextWidgets);
+    setNombres(nextNombres);
+    guardar(nextWidgets, nextNombres);
+  }, [guardar]);
+
   // Contraer: el contenido se desliza fuera y SOLO al terminar se colapsa el
   // ancho de la columna — así la cuadrícula (react-grid-layout + widgets con
   // gráficas) se redimensiona una sola vez en vez de en cada frame. Expandir
@@ -254,6 +264,9 @@ export default function TableroPersonalizable() {
           onArrastreFin={handleArrastreFin}
           nombres={nombres}
           onNombresChange={handleNombresChange}
+          accionesDerecha={(escritorioActivo) => (
+            <PortabilidadTablero widgets={widgets} nombres={nombres} escritorioActivo={escritorioActivo} onImportar={handleImportar} />
+          )}
           accionesIzquierda={!sidebarAbierto ? <BotonMostrarCatalogo onClick={() => cambiarSidebar(true)} /> : null}
         />
       </div>

@@ -825,7 +825,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingWord, setIsGeneratingWord] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const [isTableExpanded, setIsTableExpanded] = useState(false);
+  const [isTableExpanded, setIsTableExpanded] = useState(!!only);
 
   const isTend = only ? false : (sinRestriccionUN && (activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord));
   const showT = (id) => (only ? only === id : isTend);
@@ -2218,9 +2218,12 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         <div className={padX} data-pdf-section>
           <ZoomW triggerOnce>
             <div className={only ? "relative overflow-hidden h-full flex flex-col" : "bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden"}>
+              {!only && (<>
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#bc955c]/10 to-[#621f32]/10 blur-3xl -z-10 rounded-full mix-blend-multiply dark:mix-blend-screen" />
               <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-[#621f32]/10 to-[#bc955c]/10 blur-3xl -z-10 rounded-full mix-blend-multiply dark:mix-blend-screen" />
+              </>)}
 
+              {!only && (
               <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800/60 ${only ? "shrink-0 mb-1 pb-1" : "mb-6 pb-6"}`}>
                 <div className="flex items-center gap-4">
                   <div className="p-3.5 bg-gradient-to-br from-[#10243e] to-[#1a3b63] rounded-2xl shadow-lg shadow-[#10243e]/30 text-white">
@@ -2296,7 +2299,79 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                   </div>
                 </div>
               </div>
+              )}
 
+              {only && (
+                <div className="flex-1 min-h-0 overflow-auto custom-scrollbar rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                  <table className="w-full text-[14px] border-collapse">
+                    <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
+                      <tr>
+                        <th rowSpan={2} className="sticky left-0 top-0 z-40 bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-3 py-2.5 text-left font-semibold text-xs uppercase tracking-wide">
+                          Periodo
+                        </th>
+                        {[["Ocupadas", ""], ["Vacantes", "text-amber-700 dark:text-amber-400"], ["Total", ""]].map(([label, color], i) => (
+                          <th key={label} colSpan={3} className={`px-3 py-2 text-center font-semibold text-xs uppercase tracking-wide whitespace-nowrap border-b border-slate-200 dark:border-slate-800 ${i > 0 ? "border-l border-l-slate-300 dark:border-l-slate-700" : ""} ${color}`}>
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {[0, 1, 2].flatMap((g) => ["Perm.", "Event.", "Total"].map((c, j) => (
+                          <th key={`${g}|${c}`} className={`px-3 py-1.5 text-right border-b border-slate-300 dark:border-slate-700 ${j === 0 && g > 0 ? "border-l border-l-slate-300 dark:border-l-slate-700" : ""}`}>
+                            {c}
+                          </th>
+                        )))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredData.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
+                            No hay datos que coincidan con los filtros
+                          </td>
+                        </tr>
+                      ) : (
+                        (isTableExpanded ? filteredData : filteredData.slice(0, 1)).map((row, index) => {
+                          const isMostRecent = row.id === sortedDescData[0]?.id;
+                          const celdas = [
+                            [row.ocupadas_permanente, row.ocupadas_eventual, row.ocupadas_total, ""],
+                            [row.vacantes_permanente, row.vacantes_eventual, row.vacantes_total, "text-amber-700 dark:text-amber-400"],
+                            [row.total_permanente, row.total_eventual, row.total, ""],
+                          ];
+                          return (
+                            <tr key={row.id || index} className={`border-b border-slate-100 dark:border-slate-800/70 transition-colors ${isMostRecent ? "bg-slate-200 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-900/60"}`}>
+                              <td className={`sticky left-0 z-10 ${isMostRecent ? "bg-slate-200 dark:bg-slate-800" : "bg-white dark:bg-slate-950"} px-3 py-2.5 text-left font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap`}>
+                                {formatDate(row.fecha)}
+                              </td>
+                              {celdas.flatMap(([perm, ev, tot, color], g) => [
+                                <td key={`${g}p`} className={`px-3 py-2.5 text-right tabular-nums font-medium ${color || "text-slate-900 dark:text-slate-100"} ${g > 0 ? "border-l border-slate-300 dark:border-slate-700" : ""}`}>{formatNumber(perm)}</td>,
+                                <td key={`${g}e`} className={`px-3 py-2.5 text-right tabular-nums font-medium ${color || "text-slate-900 dark:text-slate-100"}`}>{formatNumber(ev)}</td>,
+                                <td key={`${g}t`} className={`px-3 py-2.5 text-right tabular-nums font-bold ${isMostRecent ? "" : "bg-slate-50 dark:bg-slate-900/50"} ${color || "text-slate-900 dark:text-slate-100"}`}>{formatNumber(tot)}</td>,
+                              ])}
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                  {filteredData.length > 1 && (
+                    <button
+                      onClick={() => setIsTableExpanded(prev => !prev)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 cursor-pointer"
+                    >
+                      {isTableExpanded ? <ChevronsDownUp className="size-3" /> : <ChevronsUpDown className="size-3" />}
+                      <span>{isTableExpanded ? "Contraer histórico" : `Ver histórico completo (${filteredData.length - 1} más)`}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+              {only && (
+                <p className="shrink-0 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  Este cuadro de vacancia ignora las posiciones Laudos, las posiciones 1039 y las plazas con partida presupuestal 11401 PASEM.
+                </p>
+              )}
+
+              {!only && (
               <div
                 // Exportar a imagen captura este nodo tal cual, con scrollbar
                 // nativo incluido si queda recortado por max-h + overflow-auto.
@@ -2306,25 +2381,25 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 className={`${isExporting ? 'overflow-visible max-h-none' : only ? 'overflow-auto flex-1 min-h-0' : 'overflow-auto max-h-[65vh]'} ${only ? '' : 'pb-4'} custom-scrollbar rounded-2xl border border-slate-200/50 dark:border-slate-800/60 shadow-lg relative bg-white dark:bg-slate-900`}
                 ref={tableRef}
               >
-                  <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                  <table className="w-full text-sm sm:text-base text-left border-collapse">
                     <thead ref={theadRef} className="text-white sticky top-0 z-20">
                       <tr>
-                        <th colSpan={isCompactChart ? 1 : 2} className="bg-gradient-to-br from-[#10243e] to-[#1a3b63] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-white/10">
+                        <th colSpan={isCompactChart ? 1 : 2} className="bg-gradient-to-br from-[#10243e] to-[#1a3b63] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-xs uppercase tracking-widest border-b border-white/10">
                           Periodo
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-br from-emerald-700 to-emerald-800 px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-l border-white/10">
+                        <th colSpan="3" className="bg-gradient-to-br from-emerald-700 to-emerald-800 px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-xs uppercase tracking-widest border-b border-l border-white/10">
                           Ocupadas
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-br from-[#621f32] to-[#7a2740] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-l border-white/10">
+                        <th colSpan="3" className="bg-gradient-to-br from-[#621f32] to-[#7a2740] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-xs uppercase tracking-widest border-b border-l border-white/10">
                           Vacantes
                         </th>
-                        <th colSpan="3" className="bg-gradient-to-br from-[#8a6739] to-[#bc955c] text-[#10243e] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-[10px] uppercase tracking-widest border-b border-l border-[#10243e]/15">
+                        <th colSpan="3" className="bg-gradient-to-br from-[#8a6739] to-[#bc955c] text-[#10243e] px-2 py-2.5 sm:px-3 sm:py-3 text-center font-black text-xs uppercase tracking-widest border-b border-l border-[#10243e]/15">
                           Total
                         </th>
                       </tr>
                       <tr className="bg-[#10243e]">
                         {!isCompactChart && (
-                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#10243e] border-b border-r border-white/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                          <th className="sticky left-0 z-30 w-16 sm:w-20 bg-[#10243e] border-b border-r border-white/10 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-xs uppercase tracking-wider">
                             <div className="flex items-center justify-center gap-2">
                               Año
                               <div className="relative" ref={yearFilterRef}>
@@ -2345,7 +2420,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                             </div>
                           </th>
                         )}
-                        <th className="sticky left-0 sm:left-20 z-30 bg-[#10243e] border-b border-r-2 border-white/15 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-[10px] uppercase tracking-wider">
+                        <th className="sticky left-0 sm:left-20 z-30 bg-[#10243e] border-b border-r-2 border-white/15 px-2 py-2 sm:px-3 sm:py-2.5 text-center font-bold text-xs uppercase tracking-wider">
                           <div className="flex items-center justify-center gap-2">
                             Qna.
                             <div className="relative" ref={qnaFilterRef}>
@@ -2366,33 +2441,33 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                           </div>
                         </th>
                         {/* Ocupadas */}
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-xs uppercase text-white/75">
                           Permanente
                         </th>
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-xs uppercase text-white/75">
                           Eventual
                         </th>
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-[10px] uppercase bg-white/10">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-xs uppercase bg-white/10">
                           Total
                         </th>
                         {/* Vacantes */}
-                        <th className="border-b border-l border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
+                        <th className="border-b border-l border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-xs uppercase text-white/75">
                           Permanente
                         </th>
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-xs uppercase text-white/75">
                           Eventual
                         </th>
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-[10px] uppercase bg-white/10">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-xs uppercase bg-white/10">
                           Total
                         </th>
                         {/* Total */}
-                        <th className="border-b border-l border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
+                        <th className="border-b border-l border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-xs uppercase text-white/75">
                           Permanente
                         </th>
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-[10px] uppercase text-white/75">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-semibold text-xs uppercase text-white/75">
                           Eventual
                         </th>
-                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-[10px] uppercase bg-white/10">
+                        <th className="border-b border-white/10 px-1.5 py-2 sm:px-3 text-center font-black text-xs uppercase bg-white/10">
                           Total
                         </th>
                       </tr>
@@ -2513,6 +2588,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                     </button>
                   )}
               </div>
+              )}
             </div>
           </ZoomW>
         </div>

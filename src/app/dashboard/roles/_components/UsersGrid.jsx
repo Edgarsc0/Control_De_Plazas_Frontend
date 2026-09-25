@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { Activity, KeyRound } from 'lucide-react';
+import { Activity, Download, KeyRound, Upload } from 'lucide-react';
 import {
     Select,
     SelectContent,
@@ -19,7 +19,7 @@ const COLUMNS = [
     { key: 'pagina', label: 'Página actual', width: 230, visible: true },
     { key: 'rol', label: 'Rol', width: 180, visible: true },
     { key: 'tablero', label: 'Tablero', width: 170, visible: true },
-    { key: 'acciones', label: 'Acciones', width: 80, visible: true, noFilter: true },
+    { key: 'acciones', label: 'Acciones', width: 130, visible: true, noFilter: true },
 ];
 
 const MONO_KEYS = [];
@@ -54,6 +54,8 @@ export default function UsersGrid({
     onReassignTablero,
     onOpenActivity,
     onOpenPassword,
+    onExportTablero,
+    onImportTablero,
 }) {
     const roleNameById = useMemo(() => new Map(roles.map((r) => [String(r.id), r.name])), [roles]);
     const tableroLabelByValue = useMemo(
@@ -182,13 +184,33 @@ export default function UsersGrid({
             case 'acciones':
                 return (
                     <td key={col.key} {...base} className={cellClassName({ isSelected })}>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onOpenPassword(entry); }}
-                            title={entry.tiene_password ? 'Restablecer contraseña' : 'Asignar contraseña'}
-                            className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-[#621f32]/5 transition-colors cursor-pointer"
-                        >
-                            <KeyRound className="size-4" />
-                        </button>
+                        <div className="flex items-center gap-0.5">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onOpenPassword(entry); }}
+                                title={entry.tiene_password ? 'Restablecer contraseña' : 'Asignar contraseña'}
+                                className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-[#621f32]/5 transition-colors cursor-pointer"
+                            >
+                                <KeyRound className="size-4" />
+                            </button>
+                            {entry.tablero === 'personalizable' && (
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onExportTablero(entry); }}
+                                        title="Exportar su tablero"
+                                        className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-[#621f32]/5 transition-colors cursor-pointer"
+                                    >
+                                        <Download className="size-4" />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onImportTablero(entry); }}
+                                        title="Cargarle un tablero"
+                                        className="p-1 rounded-md text-slate-400 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-[#621f32]/5 transition-colors cursor-pointer"
+                                    >
+                                        <Upload className="size-4" />
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </td>
                 );
             default:

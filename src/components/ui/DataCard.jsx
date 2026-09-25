@@ -16,12 +16,14 @@ import { ChevronRight } from "lucide-react";
  * @param {(row: Object) => (string|JSX.Element)} [props.config.getTitle] - Título de la tarjeta.
  * @param {(row: Object) => (string|JSX.Element)} [props.config.getSubtitle] - Subtítulo (mono).
  * @param {(row: Object) => JSX.Element} [props.config.renderBadge] - Badge superior derecho (estado).
+ * @param {(row: Object) => (JSX.Element|null)} [props.config.renderLeading] - Elemento a la izquierda del título (p. ej. foto del empleado).
  * @param {Array<{key?: string, label: string, mono?: boolean, render?: (row: Object) => *, onClick?: (row: Object) => void, valueClassName?: (row: Object) => string}>} [props.config.fields] - Pares clave/valor del cuerpo. `onClick` hace el valor clicable (detiene la propagación al tap de la tarjeta).
  * @param {(row: Object, index: number) => void} [props.onClick] - Tap en la tarjeta (abrir expediente).
  * @returns {JSX.Element}
  */
 export default function DataCard({ row, index = 0, config = {}, onClick }) {
-  const { getTitle, getSubtitle, renderBadge, fields = [] } = config;
+  const { getTitle, getSubtitle, renderBadge, renderLeading, fields = [] } = config;
+  const leading = renderLeading ? renderLeading(row) : null;
   // `title` no existe en táctil: los valores largos ("Agencia Nacional de
   // Adua…", una CURP) quedaban truncados sin forma de leerlos. Un toque sobre
   // el valor lo despliega en su sitio (y no abre el expediente).
@@ -39,6 +41,7 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
       className="group w-full text-left bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm active:scale-[0.99] hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/30 transition-all flex flex-col gap-3"
     >
       <div className="flex items-start justify-between gap-3">
+        {leading && <div className="shrink-0">{leading}</div>}
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight" title={typeof title === "string" ? title : undefined}>
             {title || <span className="text-slate-400 dark:text-slate-600 italic font-bold">Sin nombre</span>}

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search, X, Loader2, ArrowRightLeft } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
+import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
 
 // Igual que `buildFullName` en MovimientosPersonalTab.jsx/TableroRH.jsx: el
@@ -43,6 +44,13 @@ const SEARCH_DEBOUNCE_MS = 400;
 export default function BuscarMovimientoWidget() {
   const { hasPermission } = useAuth();
   const canViewFoto = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO);
+
+  const cardConfig = useMemo(() => ({
+    ...MOVIMIENTO_CARD_CONFIG,
+    renderLeading: canViewFoto
+      ? (row) => <FotoEmpleadoCell numempleado={row.num_empleado} size={44} caption={buildMovNombreCompleto(row)} />
+      : undefined,
+  }), [canViewFoto]);
 
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -123,7 +131,7 @@ export default function BuscarMovimientoWidget() {
         {query.trim() ? (
           <MobileCardList
             data={results}
-            config={MOVIMIENTO_CARD_CONFIG}
+            config={cardConfig}
             onCardClick={handleSelectRow}
             isLoading={isLoading && results.length === 0}
             pageSize={10}

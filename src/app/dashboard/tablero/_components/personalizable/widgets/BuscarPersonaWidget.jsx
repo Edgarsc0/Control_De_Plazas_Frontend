@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search, X, Loader2, UserCheck, UserMinus, UserX, CalendarDays, Activity } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
+import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
 
 // Mismo mapeo que TableroRH.jsx — duplicado a propósito (convención ya usada
@@ -68,6 +69,14 @@ export default function BuscarPersonaWidget() {
   const { hasPermission } = useAuth();
   const canViewFoto = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
 
+  // Foto a la izquierda de cada tarjeta (solo con permiso; las plazas vacantes no traen empleado).
+  const cardConfig = useMemo(() => ({
+    ...PERSONA_CARD_CONFIG,
+    renderLeading: canViewFoto
+      ? (row) => <FotoEmpleadoCell numempleado={row.id_empleado ?? row.num_empleado} size={44} caption={row.nombres} />
+      : undefined,
+  }), [canViewFoto]);
+
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -126,7 +135,7 @@ export default function BuscarPersonaWidget() {
         {query.trim() ? (
           <MobileCardList
             data={results}
-            config={PERSONA_CARD_CONFIG}
+            config={cardConfig}
             onCardClick={(row) => setSelectedRow(row)}
             isLoading={isLoading && results.length === 0}
             pageSize={10}

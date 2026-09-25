@@ -6,6 +6,7 @@ import { VacantesService } from "@/services/vacantes.service";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import PosicionArbolModal from "@/app/dashboard/plantilla_empleados/_components/modals/PosicionArbolModal";
+import HistorialMovimientosTab from "@/app/dashboard/plantilla_empleados/_components/shared/HistorialMovimientosTab";
 
 const DEBOUNCE_MS = 250;
 const MIN_CARACTERES = 2;
@@ -23,11 +24,14 @@ const Dato = ({ label, valor }) => (
 /**
  * Ficha rápida de una plaza: escribes una posición (autocompleta con el
  * ocupante y si está activa), ves su estado, ocupante, UA, puesto y nivel, y
- * con un clic abres su árbol de movimientos. La plaza queda en `config.posicion`.
+ * debajo el mismo diagrama por carriles (adscripción por columna) del tab
+ * "Historial de posición" del Expediente de plaza. La plaza queda en
+ * `config.posicion`.
  */
 export default function BuscarPlazaWidget({ config, onConfigChange }) {
   const { hasPermission } = useAuth();
   const canViewFoto = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
+  const canViewHistorial = hasPermission(PERMISSIONS.VIEW_EXPEDIENTE_HISTORIAL_POSICION);
   const posicion = config?.posicion || "";
   const [borrador, setBorrador] = useState(posicion);
   const [sugerencias, setSugerencias] = useState([]);
@@ -36,6 +40,8 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
   const [ficha, setFicha] = useState(null);
   const [cargandoFicha, setCargandoFicha] = useState(false);
   const [arbolAbierto, setArbolAbierto] = useState(false);
+  const [indiceActivo, setIndiceActivo] = useState(-1);
+  const [historial, setHistorial] = useState({ status: "idle", data: null });
   const contenedorRef = useRef(null);
 
   useEffect(() => { setBorrador(posicion); }, [posicion]);
@@ -48,7 +54,7 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
       setBuscando(true);
       VacantesService.getPlazaSugerencias(termino, { signal: ctrl.signal })
         .then((res) => (res.ok ? res.json() : []))
-        .then((d) => setSugerencias(Array.isArray(d) ? d : []))
+        .then((d) => { setSugerencias(Array.isArray(d) ? d : []); setIndiceActivo(-1); })
         .catch(() => {})
         .finally(() => { if (!ctrl.signal.aborted) setBuscando(false); });
     }, DEBOUNCE_MS);
@@ -78,6 +84,23 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
     return () => { active = false; };
   }, [posicion]);
 
+  // Historia de la plaza (MOV_POS). No depende de `ficha`: una plaza que ya no
+  // está en la plantilla activa conserva su historia. El backend responde DESC
+  // y el diagrama se lee más viejo → vigente, igual que en EmployeesModal.
+  useEffect(() => {
+    if (!posicion || !canViewHistorial) { setHistorial({ status: "idle", data: null }); return undefined; }
+    let active = true;
+    setHistorial({ status: "loading", data: null });
+    VacantesService.getMovimientosPosicionHistorial([posicion])
+      .then(async (res) => {
+        if (!res.ok) throw new Error("request failed");
+        const asc = [...(await res.json())].reverse();
+        if (active) setHistorial(asc.length > 0 ? { status: "success", data: asc } : { status: "empty", data: [] });
+      })
+      .catch(() => { if (active) setHistorial({ status: "error", data: null }); });
+    return () => { active = false; };
+  }, [posicion, canViewHistorial]);
+
   const elegir = (valor) => {
     const limpio = (valor || "").trim();
     setAbierto(false);
@@ -100,7 +123,12 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
             value={borrador}
             onChange={(e) => { setBorrador(e.target.value); setAbierto(true); }}
             onFocus={() => setAbierto(true)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); elegir(sugerencias[0]?.posicion ?? borrador); } else if (e.key === "Escape") setAbierto(false); }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown" && sugerencias.length) { e.preventDefault(); setIndiceActivo((i) => Math.min(i + 1, sugerencias.length - 1)); }
+              else if (e.key === "ArrowUp" && sugerencias.length) { e.preventDefault(); setIndiceActivo((i) => Math.max(i - 1, 0)); }
+              else if (e.key === "Enter") { e.preventDefault(); elegir(sugerencias[Math.max(indiceActivo, 0)]?.posicion ?? borrador); }
+              else if (e.key === "Escape") setAbierto(false);
+            }}
             placeholder="Buscar plaza / posición (ej. 12345)"
             aria-label="Posición a consultar"
             autoComplete="off"
@@ -117,8 +145,8 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
         </div>
         {mostrarLista && (
           <ul className="absolute left-2 right-2 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1">
-            {sugerencias.map((s) => (
-              <li key={s.posicion} onMouseDown={(e) => { e.preventDefault(); elegir(s.posicion); }} className="px-3 py-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
+            {sugerencias.map((s, i) => (
+              <li key={s.posicion} onMouseDown={(e) => { e.preventDefault(); elegir(s.posicion); }} onMouseEnter={() => setIndiceActivo(i)} className={`px-3 py-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 ${i === indiceActivo ? "bg-slate-100 dark:bg-slate-800" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-100">{s.posicion}</span>
                   <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${s.activa ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
@@ -139,24 +167,28 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
         {!posicion ? (
           <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
             <Briefcase className="size-8 text-slate-300 dark:text-slate-700" />
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-56">Escribe una posición para ver su ficha: estado, ocupante, unidad y puesto.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-56">Escribe una posición para ver su ficha y la historia de su adscripción.</p>
           </div>
-        ) : cargandoFicha ? (
-          <div className="h-full flex items-center justify-center"><Loader2 className="size-6 text-[#621f32] dark:text-[#bc955c] animate-spin" /></div>
-        ) : !ficha ? (
-          <p className="text-center text-xs font-bold text-slate-400 mt-8">No se encontró la posición {posicion} en la plantilla activa.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-lg font-black text-slate-800 dark:text-white">{ficha.posicion}</span>
-              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase ${estado === "Vacante" ? "bg-[#bc955c]/10 text-[#a37944] border-[#bc955c]/30" : "bg-[#621f32]/8 text-[#621f32] dark:text-[#f3dcd4] border-[#621f32]/20"}`}>{estado}</span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
-              <Dato label="Ocupante" valor={estado === "Vacante" ? "Vacante" : ficha.nombres} />
-              <Dato label="Nivel" valor={ficha.nivel} />
-              <Dato label="Puesto funcional" valor={ficha.nombre_puesto_funcional} />
-              <Dato label="Unidad administrativa" valor={ficha.unidad_administrativa} />
-            </dl>
+            {cargandoFicha ? (
+              <div className="flex items-center justify-center py-3"><Loader2 className="size-5 text-[#621f32] dark:text-[#bc955c] animate-spin" /></div>
+            ) : !ficha ? (
+              <p className="text-xs font-bold text-slate-400">La posición {posicion} no está en la plantilla activa{canViewHistorial ? "; abajo su historia." : "."}</p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-lg font-black text-slate-800 dark:text-white">{ficha.posicion}</span>
+                  <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase ${estado === "Vacante" ? "bg-[#bc955c]/10 text-[#a37944] border-[#bc955c]/30" : "bg-[#621f32]/8 text-[#621f32] dark:text-[#f3dcd4] border-[#621f32]/20"}`}>{estado}</span>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                  <Dato label="Ocupante" valor={estado === "Vacante" ? "Vacante" : ficha.nombres} />
+                  <Dato label="Nivel" valor={ficha.nivel} />
+                  <Dato label="Puesto funcional" valor={ficha.nombre_puesto_funcional} />
+                  <Dato label="Unidad administrativa" valor={ficha.unidad_administrativa} />
+                </dl>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setArbolAbierto(true)}
@@ -164,6 +196,12 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
             >
               <GitBranch className="size-3.5" />Ver árbol de la plaza
             </button>
+            {canViewHistorial && (
+              <div className="min-w-0">
+                <h4 className="mb-2 text-[9px] font-black uppercase tracking-wider text-slate-400">Historia de la posición</h4>
+                <HistorialMovimientosTab estado={historial} variant="posicion" posicion={posicion} canViewPhoto={canViewFoto} />
+              </div>
+            )}
           </div>
         )}
       </div>
