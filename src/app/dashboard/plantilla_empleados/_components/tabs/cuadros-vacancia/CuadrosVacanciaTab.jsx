@@ -791,11 +791,20 @@ export function CuadrosVacanciaSkeleton() {
 // `setActiveSectionTab` llegan por props (levantados a ClientComponent.jsx):
 // la barra que los controla se renderiza a nivel de página, pegada debajo de
 // PageTabBar, no dentro de este componente — ver ClientComponent.jsx.
-export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, only = null }) {
+export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquicoData = [], ocupadosJerarquicoData = [], conteoPlazasSerieData = [], onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, only = null, sinRestriccionUN = true }) {
   // `only`: id de un solo elemento a renderizar (modo widget del tablero
   // personalizable: plazas | ocup_quincenal | vac_quincenal | ocup_mensual |
   // vac_mensual | cuadro_general). Sin `only`, el comportamiento es el de
   // siempre, controlado por `activeSectionTab`.
+  //
+  // `sinRestriccionUN=false` (rol con alcance por Unidad de Negocio): se
+  // ocultan las dos piezas que salen de agregados globales sin dimensión de
+  // unidad — la tabla "Cuadros de Vacancia" (`cuadro_vacancia`) y las
+  // gráficas de tendencia (`sp_conteo_plazas_historico_serie`). El backend
+  // les responde 403, así que `cuadrosData`/`conteoPlazasSerieData` llegan
+  // vacíos: pintarlas igual mostraría ceros, que se leen como "tu unidad no
+  // tiene plazas" en vez de "este dato no existe por unidad". Lo que sí está
+  // recortado (desglose jerárquico y detalle de vacantes) se sigue viendo.
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedQnas, setSelectedQnas] = useState([]);
   const [yearFilterOpen, setYearFilterOpen] = useState(false);
@@ -818,7 +827,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isTableExpanded, setIsTableExpanded] = useState(false);
 
-  const isTend = only ? false : (activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord);
+  const isTend = only ? false : (sinRestriccionUN && (activeSectionTab === 'tendencia' || isGeneratingPdf || isGeneratingWord));
   const showT = (id) => (only ? only === id : isTend);
   const ZoomW = only ? SinAnimacion : Zoom;
   const padX = only ? 'w-full h-full' : 'w-full px-0 sm:px-4 lg:px-6';
@@ -2205,7 +2214,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             por eso se ocultan/muestran solo con la condición del tab (sin
             mover su posición en el árbol) y esos handlers también las
             mantienen montadas mientras exportan sin importar el tab activo. */}
-        {(only ? only === 'cuadro_general' : activeSectionTab === 'cuadros') && (
+        {(only ? only === 'cuadro_general' : (sinRestriccionUN && activeSectionTab === 'cuadros')) && (
         <div className={padX} data-pdf-section>
           <ZoomW triggerOnce>
             <div className={only ? "relative overflow-hidden h-full flex flex-col" : "bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden"}>

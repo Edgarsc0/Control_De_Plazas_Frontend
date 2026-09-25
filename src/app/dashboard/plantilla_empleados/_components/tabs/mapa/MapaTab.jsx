@@ -10,10 +10,34 @@ import {
   MapControls,
 } from "@/components/ui/map";
 import { VacantesService } from "@/services/vacantes.service";
+import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
+import { useAuth } from "@/hooks/useAuth";
+import { PERMISSIONS } from "@/config/permissions";
 
 export default function MapaTab({ distribucionGeografica = [] }) {
   const [mapFilter, setMapFilter] = useState("all");
   const mapRef = useRef(null);
+  const { hasPermission } = useAuth();
+  const canViewFotoGeografia = hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO);
+
+  // Detalle nominal de un punto: se abre al hacer clic en la píldora con el
+  // conteo del popup. Mismo componente (y mismo formato de fila) que usa
+  // Torre Caballito, así que trae la columna del ojo para abrir el expediente.
+  const [empleadosPunto, setEmpleadosPunto] = useState(null);
+  const [cargandoPunto, setCargandoPunto] = useState(false);
+  const [tituloPunto, setTituloPunto] = useState("");
+
+  const abrirEmpleadosDelPunto = (loc) => {
+    setCargandoPunto(true);
+    setTituloPunto(loc.nombre || "Ubicación sin nombre");
+    VacantesService.getEmpleadosPorUbicacion(loc.latitud, loc.longitud)
+      .then((res) => res.json())
+      // Un 403/500 devuelve un objeto de error, no un arreglo — ver el mismo
+      // blindaje en TorreCaballito3DTab.
+      .then((data) => setEmpleadosPunto(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Error cargando empleados del punto:", err))
+      .finally(() => setCargandoPunto(false));
+  };
 
   // Búsqueda de empleados por nombre/número, centrada en su ubicación geográfica
   const [searchQuery, setSearchQuery] = useState("");
@@ -257,9 +281,14 @@ export default function MapaTab({ distribucionGeografica = [] }) {
                       <div className="p-4 pt-3 flex flex-col gap-3 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
                         <div className="flex items-center justify-between text-[11px] shrink-0">
                           <span className="font-bold text-slate-400 dark:text-slate-500">Personal Concentrado:</span>
-                          <span className="font-extrabold text-[#621f32] dark:text-[#f3dcd4] bg-[#621f32]/5 dark:bg-[#621f32]/15 px-2.5 py-1 rounded-xl border border-[#621f32]/10 dark:border-[#bc955c]/25 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => abrirEmpleadosDelPunto(loc)}
+                            title="Ver quiénes son"
+                            className="font-extrabold text-[#621f32] dark:text-[#f3dcd4] bg-[#621f32]/5 dark:bg-[#621f32]/15 px-2.5 py-1 rounded-xl border border-[#621f32]/10 dark:border-[#bc955c]/25 text-xs cursor-pointer transition-all hover:bg-[#621f32]/15 dark:hover:bg-[#621f32]/25 hover:border-[#621f32]/30 dark:hover:border-[#bc955c]/50 hover:shadow-sm active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#bc955c]"
+                          >
                             {loc.count} {loc.count === 1 ? "empleado" : "empleados"}
-                          </span>
+                          </button>
                         </div>
 
                         {loc.uas && loc.uas.length > 0 && (
@@ -325,6 +354,21 @@ export default function MapaTab({ distribucionGeografica = [] }) {
           </Map>
         </div>
       </div>
+
+      {/* Detalle nominal del punto — mismo modal que Torre Caballito, con su
+          columna de ojo para abrir el expediente de cada persona. */}
+      {(empleadosPunto || cargandoPunto) && (
+        <EmpleadosTableModal
+          data={empleadosPunto}
+          loading={cargandoPunto}
+          title={tituloPunto}
+          onClose={() => {
+            setEmpleadosPunto(null);
+            setCargandoPunto(false);
+          }}
+          canViewPhoto={canViewFotoGeografia}
+        />
+      )}
     </div>
   );
 }

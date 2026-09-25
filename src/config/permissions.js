@@ -11,6 +11,8 @@ export const PERMISSIONS = {
   VIEW_PLANTILLA_MOVIMIENTOS: 'authentication.view_plantilla_movimientos',
   VIEW_PLANTILLA_BAJAS: 'authentication.view_plantilla_bajas',
   VIEW_PLANTILLA_GEOGRAFIA: 'authentication.view_plantilla_geografia',
+  VIEW_PLANTILLA_GEOGRAFIA_MAPA: 'authentication.view_plantilla_geografia_mapa',
+  VIEW_PLANTILLA_GEOGRAFIA_TORRE: 'authentication.view_plantilla_geografia_torre',
   VIEW_PLANTILLA_CATALOGOS: 'authentication.view_plantilla_catalogos',
   EDIT_PLANTILLA_DETALLE: 'authentication.edit_plantilla_detalle',
   EDIT_DATOS_PERSONALES: 'authentication.edit_datos_personales',

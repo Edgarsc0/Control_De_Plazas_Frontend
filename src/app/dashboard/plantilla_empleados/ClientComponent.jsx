@@ -78,7 +78,7 @@ function MovimientosTabSection({ detalle, isPending, startTransition, cardRef, o
   );
 }
 
-function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab }) {
+function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, sinRestriccionUN }) {
   const [cuadrosResult, desgloseResult, ocupadosResult, conteoPlazasSerieResult] = use(secondaryDataPromise);
   const cuadrosData = cuadrosResult.status === 'fulfilled' ? (cuadrosResult.value || []) : [];
   const desgloseJerarquicoData = desgloseResult.status === 'fulfilled' ? (desgloseResult.value || []) : [];
@@ -93,6 +93,7 @@ function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal
       onSwitchToTablaPrincipal={onSwitchToTablaPrincipal}
       activeSectionTab={activeSectionTab}
       setActiveSectionTab={setActiveSectionTab}
+      sinRestriccionUN={sinRestriccionUN}
     />
   );
 }
@@ -120,12 +121,30 @@ export default function PlantillaEmpleadosDetalle({
   secondaryDataPromise
 }) {
   const { isLoading: authLoading, hasPermission, email, unScopeFingerprint, unScope } = useAuth();
-  // Un rol con alcance por Unidad de Negocio no ve el subtab "Rotación de
-  // personal": analiza quién ha encabezado cada aduana/dirección a lo largo
-  // del tiempo, un recorrido entre unidades que no tiene contenido propio
-  // acotado a una sola (el backend además le responde 403, ver
-  // RotacionTitularesAduanasView). `!authLoading` evita el parpadeo.
+  // Un rol con alcance por Unidad de Negocio no ve:
+  //   · "Rotación de personal" (Movimientos) — analiza quién ha encabezado
+  //     cada aduana/dirección a lo largo del tiempo, un recorrido entre
+  //     unidades sin contenido propio acotado a una sola.
+  //   · "Anuencia" (Mov. Posiciones) — un Anexo 2 puede mezclar plazas de
+  //     varias unidades en una misma hoja, así que no hay por dónde recortar
+  //     el listado; además es una superficie de escritura.
+  //   · "Tendencia Histórica" (Cuadros Vacancia) — sus series salen de
+  //     agregados diarios/mensuales globales sin dimensión de unidad.
+  // En los tres casos el backend además responde 403 (ver el bloque-guía de
+  // alcance en plantilla/views.py): ocultarlos es para no ofrecer un botón
+  // que sólo lleva a un error. `!authLoading` evita el parpadeo.
   const sinRestriccionUN = !authLoading && unScope === null;
+  // Distribución Geográfica se divide en dos vistas con permiso propio. El
+  // permiso del tab solo lo abre; estos deciden qué se ve dentro, y el
+  // backend los exige igual (ver `extra_permission` en las vistas del mapa y
+  // de Torre Caballito). Si un rol no tiene ninguno, el tab entero se oculta
+  // más abajo en vez de quedar vacío.
+  const puedeVerMapaNacional =
+    hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) &&
+    hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_MAPA);
+  const puedeVerTorreCaballito =
+    hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) &&
+    hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_TORRE);
   // null mientras no se conozca la identidad todavía (evita computar una
   // clave sin namespacear que luego habría que migrar). Cambia si el admin
   // reduce/amplía el scope del rol (fingerprint distinto), invalidando el
@@ -259,8 +278,16 @@ export default function PlantillaEmpleadosDetalle({
   // Mientras cargan los permisos se muestran todos los tabs (optimista, sin
   // parpadeo) — el backend igual exige el permiso real en cada endpoint.
   const visibleTabs = useMemo(
-    () => TABS.filter((t) => authLoading || hasPermission(t.permission)),
-    [authLoading, hasPermission]
+    () => TABS.filter((t) => {
+      if (authLoading) return true;
+      if (!hasPermission(t.permission)) return false;
+      // Distribución Geográfica no tiene contenido propio: todo lo que
+      // muestra son sus dos sub-vistas. Sin ninguna de las dos, el tab
+      // abriría en blanco, así que se oculta entero.
+      if (t.id === "mapa") return puedeVerMapaNacional || puedeVerTorreCaballito;
+      return true;
+    }),
+    [authLoading, hasPermission, puedeVerMapaNacional, puedeVerTorreCaballito]
   );
   const [activeTab, setActiveTab] = useState("detalle");
   useEffect(() => {
@@ -270,6 +297,16 @@ export default function PlantillaEmpleadosDetalle({
   }, [authLoading, visibleTabs, activeTab]);
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
+  // Si el rol solo tiene Torre Caballito, el default "nacional" dejaría el
+  // tab en blanco al abrirlo.
+  useEffect(() => {
+    if (authLoading) return;
+    if (activeMapaSubTab === "nacional" && !puedeVerMapaNacional && puedeVerTorreCaballito) {
+      setActiveMapaSubTab("caballito");
+    } else if (activeMapaSubTab === "caballito" && !puedeVerTorreCaballito && puedeVerMapaNacional) {
+      setActiveMapaSubTab("nacional");
+    }
+  }, [authLoading, activeMapaSubTab, puedeVerMapaNacional, puedeVerTorreCaballito]);
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
   const isCuadrosVacanciaSubtab = activeTab === "movimientos" && activeMovimientosSubTab === "cuadros";
   // Sub-navegación interna del subtab "Cuadros de Vacancia" (Tendencia
@@ -277,6 +314,14 @@ export default function PlantillaEmpleadosDetalle({
   // vive aquí (no dentro de CuadrosVacanciaTab) porque la barra se renderiza
   // a nivel de página, pegada debajo de PageTabBar, no dentro del propio tab.
   const [activeSectionTab, setActiveSectionTab] = useState("tendencia");
+  // A un rol con alcance por UN no se le ofrece "Tendencia Histórica" (ver la
+  // barra más abajo), así que el default tiene que moverse: si no, abre el
+  // subtab en una sección que ya no existe y no ve nada.
+  useEffect(() => {
+    if (!sinRestriccionUN && !authLoading && activeSectionTab === "tendencia") {
+      setActiveSectionTab("barras");
+    }
+  }, [sinRestriccionUN, authLoading, activeSectionTab]);
   // Borde inferior real (px, relativo al viewport) del PageTabBar fijo,
   // medido en vivo con getBoundingClientRect().bottom — no depende de dónde
   // arranca el flujo normal de la página (a diferencia de un padding-top
@@ -499,13 +544,22 @@ export default function PlantillaEmpleadosDetalle({
         { id: "cuadros", label: "Cuadros Vacancia" },
         { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
         { id: "aduanas", label: "Aduanas Ocupación vs Vacantes", icon: Globe },
-        { id: "anuencia", label: "Anuencia", icon: FileSpreadsheet, tourId: "movpos-anuencia-subtab-option" },
+        ...(sinRestriccionUN
+          ? [{ id: "anuencia", label: "Anuencia", icon: FileSpreadsheet, tourId: "movpos-anuencia-subtab-option" }]
+          : []),
       ],
       active: activeMovimientosSubTab,
       setActive: setActiveMovimientosSubTab,
     },
     mapa: {
-      options: [{ id: "nacional", label: "Mapa Nacional" }, { id: "caballito", label: "Torre Caballito" }],
+      // Cada vista de Distribución Geográfica tiene su propio permiso: un rol
+      // puede ver solo el mapa, solo la torre o ambas (ver
+      // view_plantilla_geografia_mapa / _torre). El permiso del tab
+      // (VIEW_PLANTILLA_GEOGRAFIA) solo lo abre.
+      options: [
+        ...(puedeVerMapaNacional ? [{ id: "nacional", label: "Mapa Nacional" }] : []),
+        ...(puedeVerTorreCaballito ? [{ id: "caballito", label: "Torre Caballito" }] : []),
+      ],
       active: activeMapaSubTab,
       setActive: setActiveMapaSubTab,
     },
@@ -590,7 +644,9 @@ export default function PlantillaEmpleadosDetalle({
       body: "Y da clic aquí para generar el Anexo 3 (FUMP) a partir de las plazas capturadas. ¡Listo!",
     },
   ], []);
-  const anuenciaTourEnabled = activeTab === "movimientos" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES);
+  // `sinRestriccionUN`: sin el subtab no hay nada que recorrer, y el paso 2
+  // del tour lo activa por código (setActiveMovimientosSubTab("anuencia")).
+  const anuenciaTourEnabled = sinRestriccionUN && activeTab === "movimientos" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES);
   // Si el usuario sale de "Mov. Posiciones" a la mitad del tour, ProductTour
   // oculta y reinicia su paso solo (ver `enabled` ahí abajo), pero no avisa
   // — sin esto, el dropdown se quedaría forzado abierto para siempre.
@@ -758,7 +814,12 @@ export default function PlantillaEmpleadosDetalle({
             style={{ top: pageTabBarBottom }}
           >
             {[
-              { id: 'tendencia', label: 'Tendencia Histórica', icon: TrendingUp },
+              // "Tendencia Histórica" sale de series ya agregadas para toda
+              // la ANAM (cuadro_vacancia y sp_conteo_plazas_historico_serie,
+              // sin columna de unidad): no hay forma de recortarla, así que
+              // no se le ofrece a un rol con alcance por UN. El resto de este
+              // subtab sí está recortado y sigue disponible.
+              ...(sinRestriccionUN ? [{ id: 'tendencia', label: 'Tendencia Histórica', icon: TrendingUp }] : []),
               { id: 'barras', label: 'Comparativo por Barras', icon: BarChart3 },
               { id: 'cuadros', label: 'Cuadros y Detalle de Vacantes', icon: Table2 },
             ].map(({ id, label, icon: Icon }) => (
@@ -891,6 +952,7 @@ export default function PlantillaEmpleadosDetalle({
                   onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
                   activeSectionTab={activeSectionTab}
                   setActiveSectionTab={setActiveSectionTab}
+                  sinRestriccionUN={sinRestriccionUN}
                 />
               </Suspense>
             </div>
@@ -909,7 +971,11 @@ export default function PlantillaEmpleadosDetalle({
               <AduanasOcupacionVacanciaTab cardRef={cardRefAduanas} />
             </div>
           )}
-          {anuenciaVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+          {/* `sinRestriccionUN`: además de quitar la opción del dropdown
+              (ver subtabConfigs), no se monta el tab — el tour de Anuencia y
+              el estado guardado pueden llevar aquí sin pasar por el
+              dropdown, y montarlo dispararía una ráfaga de 403. */}
+          {anuenciaVisited && sinRestriccionUN && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "anuencia" ? "block" : "hidden"}>
               <AnuenciaTab cardRef={cardRefAnuencia} />
             </div>
@@ -942,12 +1008,12 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {activeTab === "mapa" && activeMapaSubTab === "nacional" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) && (
+          {activeTab === "mapa" && activeMapaSubTab === "nacional" && puedeVerMapaNacional && (
             <MapaTab
               distribucionGeografica={distribucionGeografica}
             />
           )}
-          {activeTab === "mapa" && activeMapaSubTab === "caballito" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) && (
+          {activeTab === "mapa" && activeMapaSubTab === "caballito" && puedeVerTorreCaballito && (
             <div className="w-full h-[calc(100vh-160px)] min-h-[500px] overflow-hidden relative">
               <TorreCaballito3DTab />
             </div>

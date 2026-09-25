@@ -259,10 +259,16 @@ for (const el of ELEMENTOS_CUADROS_VACANCIA) {
   WIDGET_REGISTRY[type] = {
     type,
     permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES],
-    // Cuadro de Vacancia se calcula sobre tablas agregadas que no guardan la
-    // Unidad de Negocio de cada plaza (solo totales por fecha), así que no hay
-    // forma de recortarlo a una UN: no se ofrece a roles restringidos.
-    alcanceUnSoportado: false,
+    // Depende de la fuente del elemento, no del módulo:
+    //   · "cuadros" (`cuadro_vacancia`) y "serie"
+    //     (`sp_conteo_plazas_historico_serie`) son tablas ya agregadas que no
+    //     guardan la Unidad de Negocio de cada plaza, solo totales por fecha
+    //     — no hay forma de recortarlas, así que no se ofrecen a roles
+    //     restringidos (el backend además les responde 403).
+    //   · "desglose"/"ocupados" (`desglose_jerarquico`) sí traen el `Cd UN`
+    //     de cada fila y el backend ya los recorta, así que esos elementos
+    //     funcionan igual con alcance.
+    alcanceUnSoportado: !el.needs.some((n) => n === "cuadros" || n === "serie"),
     enCatalogo: true,
     grupo: "cuadros_vacancia",
     label: el.label,

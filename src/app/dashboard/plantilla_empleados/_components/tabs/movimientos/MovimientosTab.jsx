@@ -52,7 +52,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { getDataset, setDataset, patchDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
+import { getDataset, setDataset, patchDataset, clearDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
 import { useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 
 const TUVO_INSUBSISTENCIA_BADGE = {
@@ -174,7 +174,7 @@ const HISTORIAL_COLUMNS_MOV_POS = [{ key: "fecha_anuencia", label: "Fecha de Anu
 // vez que este navegador abre el tab) o cuando llega el evento SSE real de
 // ZAFIRO (§4.4 del plan) o una edición propia (§4.5, parche quirúrgico sin
 // refetch vía `patchMovPosCachedRow`).
-const MOV_POS_CACHE_KEY = "mov_pos_detalle";
+const MOV_POS_CACHE_BASE_KEY = "mov_pos_detalle";
 
 export default function MovimientosTab({ detalle = [], isPending, startTransition, cardRef, onCardTitleChange }) {
   const [movPosData, setMovPosData] = useState([]);
@@ -189,7 +189,30 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   const [mounted, setMounted] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   useEffect(() => setMounted(true), []);
-  const { hasPermission } = useAuth();
+  const { hasPermission, email, unScopeFingerprint, unScope, isLoading: authLoading } = useAuth();
+  // Un rol con alcance por Unidad de Negocio no ve "Historial de Cambios":
+  // nunca recibe permisos de edición, así que no tiene ediciones propias que
+  // consultar y lo único que habría ahí es la actividad de otras unidades
+  // (el backend le responde 403, ver MovPosCeldaHistorialView).
+  // `!authLoading` evita el parpadeo de mostrar el botón un instante.
+  const sinRestriccionUN = !authLoading && unScope === null;
+  // La clave del cache de IndexedDB lleva identidad + huella del alcance por
+  // Unidad de Negocio. Sin esto, la copia COMPLETA que dejó guardada un
+  // usuario sin restricción se le serviría tal cual al siguiente usuario del
+  // mismo navegador, aunque su rol solo pueda ver una unidad — el filtrado
+  // del backend no llega a correr porque nunca se pide a la red. Cambia sola
+  // si un admin ajusta el alcance del rol (otra huella, otra clave), sin
+  // tener que purgar nada a mano. `null` mientras la sesión resuelve: el
+  // efecto de carga no arranca hasta conocer la identidad.
+  const movPosCacheKey = useMemo(
+    () => (email ? `${MOV_POS_CACHE_BASE_KEY}::${email}::${unScopeFingerprint ?? "all"}` : null),
+    [email, unScopeFingerprint]
+  );
+  // Purga de una sola vez de la clave vieja sin namespacear, compartida por
+  // todos los usuarios de este navegador antes de este cambio.
+  useEffect(() => {
+    clearDataset(MOV_POS_CACHE_BASE_KEY);
+  }, []);
   const canEditFechaAnuencia = hasPermission(PERMISSIONS.EDIT_PLANTILLA_MOV_POSICIONES);
   const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
   // Edición inline (doble clic) de "Fecha de Anuencia" — por default es
@@ -646,21 +669,24 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   // `refreshTick` fuerza a que el efecto de más abajo repinte con lo fresco.
   const refetchFullMovPosDataset = useCallback(async () => {
     try {
-      const resData = await trackEndpointFetch(MOV_POS_CACHE_KEY, async () => {
+      const resData = await trackEndpointFetch(MOV_POS_CACHE_BASE_KEY, async () => {
         const res = await VacantesService.getMovPosDetalle({ is_latest: "true" });
         return res.ok ? res.json() : null;
       });
       if (!resData) return;
       const rawList = extractRawList(resData);
       fullLatestDataRef.current = { list: rawList, stats: resData.stats || null };
-      await setDataset(MOV_POS_CACHE_KEY, resData);
+      // `movPosCacheKey` en null = la sesión todavía no resuelve: se repinta
+      // igual con lo recién traído, pero no se guarda bajo una clave sin
+      // identidad (sería la misma clave global que este cambio elimina).
+      if (movPosCacheKey) await setDataset(movPosCacheKey, resData);
     } catch (err) {
       console.error("Error al refrescar mov_pos_detalle:", err);
     } finally {
       movPosDataCacheRef.current = {};
       setRefreshTick((t) => t + 1);
     }
-  }, []);
+  }, [movPosCacheKey]);
 
   // Señal (a) del plan de cache de navegador: evento real de ZAFIRO (el ETL
   // de Celery corre cada ~30 min; no el "init" de reconexión sin cambio, ver
@@ -685,6 +711,11 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   useAnuenciaAnexoUpdatesRealtime(refetchFullMovPosDataset);
 
   useEffect(() => {
+    // La clave del cache depende de la identidad y del alcance por UN (ver
+    // `movPosCacheKey`): hasta que la sesión resuelva no hay dónde leer ni
+    // guardar, y arrancar antes significaría caer al fetch de red y escribir
+    // bajo una clave sin dueño.
+    if (!movPosCacheKey) return;
     // Solo toggle de estado (Activas/Inactivas/Todas) + is_latest=true, sin
     // búsqueda/orden/filtros/paginación reales: el backend ya manda el set
     // completo en una sola llamada (is_latest=true bypassa paginación), así
@@ -718,7 +749,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       const toggleCtrl = new AbortController();
       setLoading(true);
       (async () => {
-        const cached = await getDataset(MOV_POS_CACHE_KEY);
+        const cached = await getDataset(movPosCacheKey);
         if (cached && !cancelled) {
           const rawList = extractRawList(cached);
           fullLatestDataRef.current = { list: rawList, stats: cached.stats || null };
@@ -730,7 +761,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
           return;
         }
         try {
-          const resData = await trackEndpointFetch(MOV_POS_CACHE_KEY, async () => {
+          const resData = await trackEndpointFetch(MOV_POS_CACHE_BASE_KEY, async () => {
             const res = await VacantesService.getMovPosDetalle({ is_latest: "true" }, { signal: toggleCtrl.signal });
             return res.json();
           });
@@ -741,7 +772,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
           setMovPosData(view);
           setCount(view.length);
           if (resData.stats) setStats(resData.stats);
-          await setDataset(MOV_POS_CACHE_KEY, resData);
+          await setDataset(movPosCacheKey, resData);
         } catch (err) {
           if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err);
         } finally {
@@ -842,7 +873,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       .catch(err => { if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err); })
       .finally(() => setLoading(false));
     return () => listCtrl.abort();
-  }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters, refreshTick]);
+  }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters, refreshTick, movPosCacheKey]);
 
   // Valores alcanzables (fetch "por defecto", sin buscar): distinct values
   // scopeados igual que el card activo (Activas/Inactivas/Todas -> última
@@ -1068,7 +1099,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
         movPosDataCacheRef.current = {};
         // Señal (b) del plan de cache de navegador: parche quirúrgico sin
         // refetch, para que una recarga posterior ya vea este cambio.
-        patchDataset(MOV_POS_CACHE_KEY, (cached) => patchMovPosCachedRow(
+        patchDataset(movPosCacheKey, (cached) => patchMovPosCachedRow(
           cached,
           (r) => r.no_pos_actual === noPosActual,
           (r) => ({ ...r, fecha_anuencia: body.fecha_anuencia ?? "", fecha_anuencia_override: false }),
@@ -1091,7 +1122,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       // Ídem: sin esto, volver a la misma firma de filtros/orden/página
       // mostraría la fecha de antes del override.
       movPosDataCacheRef.current = {};
-      patchDataset(MOV_POS_CACHE_KEY, (cached) => patchMovPosCachedRow(
+      patchDataset(movPosCacheKey, (cached) => patchMovPosCachedRow(
         cached,
         (r) => r.no_pos_actual === noPosActual,
         (r) => ({ ...r, fecha_anuencia: body.fecha_anuencia, fecha_anuencia_override: true }),
@@ -1137,7 +1168,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       // Ídem fecha_anuencia: sin esto, volver a la misma firma de filtros/
       // orden/página mostraría la fecha de antes del cambio.
       movPosDataCacheRef.current = {};
-      patchDataset(MOV_POS_CACHE_KEY, (cached) => patchMovPosCachedRow(
+      patchDataset(movPosCacheKey, (cached) => patchMovPosCachedRow(
         cached,
         (r) => r.codigo === codigo,
         (r) => ({ ...r, fecha_alta_solicitada: body.fecha_alta_solicitada ?? "" }),
@@ -1981,6 +2012,11 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   // resuelto por el backend — ver `enriquecer_mov_pos_rows`) para que el
   // modal pueda avisar/excluir plazas ya en anuencia SIN otra llamada.
   const codigosParaAgregarAnexo2 = useMemo(() => {
+    // Anuencia está cerrada para un rol con alcance por Unidad de Negocio
+    // (ver `sinRestriccionUN` arriba y el bloque-guía en plantilla/views.py):
+    // sin esto, el menú contextual de la columna "Código" seguiría ofreciendo
+    // "Agregar a Anexo 2" y abriría un modal que sólo cosecha 403.
+    if (!sinRestriccionUN) return null;
     if (contextMenu?.colKey !== "codigo") return null;
     const codigoClic = String(contextMenu.row?.codigo || "").trim();
     if (!codigoClic) return null;
@@ -1989,7 +2025,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       const fila = codigo === codigoClic ? contextMenu.row : filteredSortedData.find((r) => r.codigo === codigo);
       return { codigo, anuenciaAnexoNombre: String(fila?.anuencia_anexo_nombre || "").trim() };
     });
-  }, [contextMenu, selectedCodigos, filteredSortedData]);
+  }, [contextMenu, selectedCodigos, filteredSortedData, sinRestriccionUN]);
 
   const handleExportExcel = async () => {
     setIsExportingExcel(true);
@@ -2380,7 +2416,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: !canReset },
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
-              { icon: History, label: "Historial de Cambios", onClick: openHistorialModal },
+              ...(sinRestriccionUN ? [{ icon: History, label: "Historial de Cambios", onClick: openHistorialModal }] : []),
             ]}
             chips={activeOcupacionFilter ? (
               <button key="ocupacion" onClick={(e) => handleOcupacionFilter(e, activeOcupacionFilter)} className="shrink-0 flex items-center gap-1.5 px-3 min-h-11 py-2 rounded-full text-[10px] font-black uppercase border active:scale-95 transition-transform" style={{ backgroundColor: activeOcupacionFilter === "Ocupada" ? "#10b98112" : "#bc955c12", color: activeOcupacionFilter === "Ocupada" ? "#059669" : "#8d6a3d", borderColor: activeOcupacionFilter === "Ocupada" ? "#10b98130" : "#bc955c30" }}>
@@ -2576,7 +2612,11 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
                 </span>
               </div>
               <button onClick={resetAllFilters} disabled={!canReset} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200/60 dark:border-slate-800/80 hover:border-red-200/80 dark:hover:border-red-950/50 bg-white/80 dark:bg-slate-950/85 hover:bg-red-50/50 dark:hover:bg-red-950/15 text-slate-600 dark:text-slate-300 hover:text-red-700 dark:hover:text-red-400 font-black rounded-2xl text-[10px] uppercase transition-all duration-300 shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex-shrink-0"><RotateCcw className="size-3.5" /><span>Restablecer Filtros</span></button>
-              <button onClick={openHistorialModal} title="Ver historial de ediciones manuales de esta tabla" className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><History className="size-3.5" /><span>Historial de Cambios</span></button>
+              {/* Oculto para un rol con alcance por Unidad de Negocio — ver
+                  `sinRestriccionUN` arriba. */}
+              {sinRestriccionUN && (
+                <button onClick={openHistorialModal} title="Ver historial de ediciones manuales de esta tabla" className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><History className="size-3.5" /><span>Historial de Cambios</span></button>
+              )}
               <button onClick={() => setIsColumnsModalOpen(true)} className="flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm active:scale-95 cursor-pointer"><Columns className="size-3.5" /><span>Columnas</span></button>
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               <button

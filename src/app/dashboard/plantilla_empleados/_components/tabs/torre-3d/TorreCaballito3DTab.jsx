@@ -622,7 +622,7 @@ export default function TorreCaballito3DTab() {
     setEmpleadosModalTitle("Empleados en Torre Caballito Reforma 10");
     VacantesService.getTorreCaballitoEmpleadosTotal()
       .then(res => res.json())
-      .then(data => setEmpleadosData(data))
+      .then(data => setEmpleadosData(Array.isArray(data) ? data : []))
       .catch(err => console.error(err))
       .finally(() => setLoadingEmpleados(false));
   };
@@ -656,8 +656,13 @@ export default function TorreCaballito3DTab() {
   useEffect(() => {
     VacantesService.getTorreCaballito3D()
       .then((res) => res.json())
+      // Un 403/500 devuelve un OBJETO de error ({detail: ...}), no un arreglo:
+      // guardarlo tal cual rompía el render entero con "a.forEach is not a
+      // function" (el `.forEach` de uaDetails y el `.reduce` del total) y
+      // dejaba la página en "This page couldn't load". Con esto el peor caso
+      // es una torre vacía.
       .then((fetchedData) => {
-        setData(fetchedData);
+        setData(Array.isArray(fetchedData) ? fetchedData : []);
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
@@ -996,7 +1001,7 @@ export default function TorreCaballito3DTab() {
                         setEmpleadosModalTitle(`Empleados en ${displayInfo.pisoLabel}`);
                         VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, "")
                           .then(res => res.json())
-                          .then(data => setEmpleadosData(data))
+                          .then(data => setEmpleadosData(Array.isArray(data) ? data : []))
                           .catch(err => console.error(err))
                           .finally(() => setLoadingEmpleados(false));
                       }}
@@ -1023,7 +1028,7 @@ export default function TorreCaballito3DTab() {
                               setEmpleadosModalTitle(`Empleados de ${ua.nombre} en ${displayInfo.pisoLabel}`);
                               VacantesService.getTorreCaballitoEmpleados(displayInfo.pisoLabel, ua.nombre)
                                 .then(res => res.json())
-                                .then(data => setEmpleadosData(data))
+                                .then(data => setEmpleadosData(Array.isArray(data) ? data : []))
                                 .catch(err => console.error(err))
                                 .finally(() => setLoadingEmpleados(false));
                             }}
@@ -1080,7 +1085,7 @@ export default function TorreCaballito3DTab() {
                             setEmpleadosModalTitle(`Empleados de ${uaDetails.nombre} en ${piso.piso}`);
                             VacantesService.getTorreCaballitoEmpleados(piso.piso, uaDetails.nombre)
                               .then(res => res.json())
-                              .then(data => setEmpleadosData(data))
+                              .then(data => setEmpleadosData(Array.isArray(data) ? data : []))
                               .catch(err => console.error(err))
                               .finally(() => setLoadingEmpleados(false));
                           }}

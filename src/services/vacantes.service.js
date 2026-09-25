@@ -935,6 +935,26 @@ export const VacantesService = {
     },
 
     /**
+     * Personas concentradas en un punto del mapa nacional — alimenta el modal
+     * que se abre al hacer clic en la píldora del conteo del popup. Devuelve
+     * las filas en el mismo formato que `getTorreCaballitoEmpleados`, porque
+     * ambas pintan `EmpleadosTableModal`.
+     * @param {number|string} lat - Latitud del punto, tal como la trae el marcador.
+     * @param {number|string} lng - Longitud del punto.
+     * @param {string} [ua] - Acota a una de las unidades administrativas del punto.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
+     * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
+     */
+    getEmpleadosPorUbicacion: (lat, lng, ua = '', options = {}) => {
+        const qs = new URLSearchParams({ lat: String(lat), lng: String(lng) });
+        if (ua) qs.set('ua', ua);
+        return apiFetch(`/plantilla/empleados_por_ubicacion/?${qs.toString()}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Autocompletado de número de plaza mientras se escribe (widget "Árbol de
      * Movimientos"). Cada sugerencia: { posicion, puesto, ocupada, ocupante, activa }.
      * @param {string} q - Prefijo de la posición (mínimo 2 caracteres).

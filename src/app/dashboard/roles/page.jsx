@@ -518,14 +518,21 @@ function RolesAdminContent() {
         return orphanPermissions.filter((p) => p.name.toLowerCase().includes(q));
     }, [orphanPermissions, permSearch]);
 
-    // Tabs a los que todavía no se les hace el recorte por Unidad de Negocio
-    // (ver el inventario en plantilla/views.py, junto a _scope_un_filas). El
-    // backend NO devuelve datos sin filtrar en estos casos: niega el acceso
-    // (default-deny de HasModulePermission), así que el aviso es sobre
-    // funcionalidad que no servirá, no sobre una fuga.
+    // Módulos a los que todavía no se les hace el recorte por Unidad de
+    // Negocio (ver el bloque-guía en plantilla/views.py, junto a
+    // _scope_un_filas). El backend NO devuelve datos sin filtrar en estos
+    // casos: niega el acceso (default-deny de HasModulePermission), así que
+    // el aviso es sobre funcionalidad que no servirá, no sobre una fuga.
+    //
+    // Plantilla de Empleados ya está cubierta por completo (sus 7 tabs); lo
+    // que queda son los módulos de al lado. Al cubrir uno, quítalo de aquí.
     const CODENAMES_FUERA_DE_COBERTURA_SCOPE = [
-        PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES,
-        PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA,
+        PERMISSIONS.VIEW_ORGANIGRAMA_INSTITUCIONAL,
+        PERMISSIONS.VIEW_ORGANIGRAMA_ALINEACION,
+        PERMISSIONS.VIEW_ORGANIGRAMA_SIG,
+        PERMISSIONS.VIEW_OCUPACION_SOLICITUDES,
+        PERMISSIONS.VIEW_VALUACION_PRESUPUESTARIA,
+        PERMISSIONS.VIEW_OFICIOS_TURNADOS,
     ];
     const scopeTieneHuecoDeCobertura =
         Array.isArray(unScope) &&
@@ -751,18 +758,22 @@ function RolesAdminContent() {
                                 Alcance de datos (Unidad de Negocio)
                             </label>
                             <p className="text-xs text-slate-400 mb-2">
-                                Aplica a los tabs Plantilla Detalle (incluido Histórico), Estatus
-                                Nómina, Empleados Bajas y Movimientos (salvo su subtab Rotación de
-                                personal). Los demás tabs todavía no lo soportan y quedan
-                                bloqueados para un rol restringido.
+                                Cubre los 7 tabs de Plantilla de Empleados: Detalle (incluido
+                                Histórico), Estatus Nómina, Mov. Posiciones, Movimientos, Bajas,
+                                Distribución Geográfica y Catálogos. Quedan fuera, por no poder
+                                recortarse, el subtab Rotación de personal, el subtab Anuencia,
+                                los historiales de cambios y las series ya agregadas para toda la
+                                ANAM. Los módulos fuera de Plantilla todavía no lo soportan y
+                                quedan bloqueados para un rol restringido.
                             </p>
                             <UnScopeSelector value={unScope} onChange={setUnScope} />
                             {scopeTieneHuecoDeCobertura && (
                                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                    Mov. Posiciones y Distribución Geográfica aún no saben
-                                    recortar sus datos por UN. Para no exponer otras unidades, a
-                                    un rol restringido se le niega el acceso a esos tabs aunque
-                                    tenga el permiso marcado.
+                                    Los módulos fuera de Plantilla de Empleados (Organigrama,
+                                    Ocupación de Plazas por Oficio, Valuación Presupuestaria y
+                                    Oficios Turnados) aún no saben recortar sus datos por UN. Para
+                                    no exponer otras unidades, a un rol restringido se le niega el
+                                    acceso a esos módulos aunque tenga el permiso marcado.
                                 </p>
                             )}
                         </div>

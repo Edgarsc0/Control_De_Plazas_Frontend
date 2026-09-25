@@ -72,8 +72,10 @@ export const PERMISSION_TREE = [
       {
         id: 'geografia',
         codename: PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA,
-        info: 'Incluye: Mapa Nacional y Torre Caballito',
+        info: 'Abre el tab; marca abajo cuál de sus dos vistas ve este rol',
         children: [
+          { id: 'geografia_mapa', codename: PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_MAPA },
+          { id: 'geografia_torre', codename: PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_TORRE },
           { id: 'geografia_foto', codename: PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_FOTO },
         ],
       },
