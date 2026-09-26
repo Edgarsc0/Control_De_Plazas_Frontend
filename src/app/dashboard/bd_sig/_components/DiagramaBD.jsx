@@ -27,6 +27,13 @@ export default function DiagramaBD() {
   const animRef = useRef(0);
   const escalaMinRef = useRef(0.02);
   const pinchRef = useRef(null);
+  const zoomRef = useRef(null);
+  const tipRef = useRef(null);
+  const tipPos = useRef({ x: 0, y: 0 });
+  const miniBase = useRef(null);
+  const miniFn = useRef(null);
+  const syncRaf = useRef(0);
+  const rapidoT = useRef(0);
 
   const [tam, setTam] = useState({ w: 0, h: 0 });
   const [oscuro, setOscuro] = useState(false);
@@ -40,8 +47,6 @@ export default function DiagramaBD() {
   const [mostrarR, setMostrarR] = useState(true);
   const [soloSel, setSoloSel] = useState(false);
   const [panel, setPanel] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 900));
-  const [zoom, setZoom] = useState(0);
-  const [tick, setTick] = useState(0);
   const [tip, setTip] = useState(null);
   const [pos, setPos] = useState(0); // índice dentro de la lista de coincidencias
 
@@ -90,11 +95,25 @@ export default function DiagramaBD() {
 
   /* ── vista: sincronización, zoom y animación ───────────────────────────── */
   const redibujar = useCallback(() => layerRef.current?.batchDraw(), []);
+  // Zoom/arrastre no pasan por React: el % y el minimapa se actualizan directo (1 vez por cuadro).
   const sincronizar = useCallback(() => {
-    const st = stageRef.current;
-    if (!st) return;
-    setZoom(Math.round(st.scaleX() * 100));
-    setTick((n) => n + 1);
+    if (syncRaf.current) return;
+    syncRaf.current = requestAnimationFrame(() => {
+      syncRaf.current = 0;
+      const st = stageRef.current;
+      if (!st) return;
+      if (zoomRef.current) zoomRef.current.textContent = `${Math.round(st.scaleX() * 100)}%`;
+      miniFn.current?.();
+    });
+  }, []);
+  // Mientras se mueve la vista se pinta en modo "rápido"; 140 ms después de parar, repinta completo.
+  const marcarRapido = useCallback(() => {
+    estadoRef.current.rapido = true;
+    clearTimeout(rapidoT.current);
+    rapidoT.current = setTimeout(() => { estadoRef.current.rapido = false; layerRef.current?.batchDraw(); }, 140);
+  }, []);
+  useEffect(() => () => {
+    cancelAnimationFrame(animRef.current); cancelAnimationFrame(syncRaf.current); clearTimeout(rapidoT.current);
   }, []);
 
   const vistaA = useCallback((x, y, s, ms = 0) => {
@@ -113,11 +132,11 @@ export default function DiagramaBD() {
       const sc = s0 + (s - s0) * e;
       st.scale({ x: sc, y: sc });
       st.position({ x: x0 + (x - x0) * e, y: y0 + (y - y0) * e });
-      redibujar();
+      marcarRapido(); redibujar(); sincronizar();
       if (k < 1) animRef.current = requestAnimationFrame(paso); else sincronizar();
     };
     animRef.current = requestAnimationFrame(paso);
-  }, [redibujar, sincronizar]);
+  }, [redibujar, sincronizar, marcarRapido]);
 
   const encuadrar = useCallback((r, margen = 60, ms = 450, maxEsc = 1) => {
     const { h } = tam;
@@ -181,9 +200,14 @@ export default function DiagramaBD() {
     cancelAnimationFrame(animRef.current);
     st.scale({ x: s1, y: s1 });
     st.position({ x: p.x - w.x * s1, y: p.y - w.y * s1 });
-    redibujar(); sincronizar();
+    marcarRapido(); redibujar(); sincronizar();
   };
 
+  const posTip = (p) => {
+    tipPos.current = { x: p.x, y: p.y };
+    const el = tipRef.current;
+    if (el) { el.style.left = `${Math.max(0, Math.min(p.x + 14, tam.w - 336))}px`; el.style.top = `${Math.max(0, Math.min(p.y + 16, tam.h - 90))}px`; }
+  };
   const alMover = () => {
     const st = stageRef.current;
     if (!st || st.isDragging()) return;
@@ -194,12 +218,13 @@ export default function DiagramaBD() {
     const ant = estadoRef.current.hover;
     const nuevo = h ? { t: h.t, fila: h.fila } : null;
     if ((ant?.t ?? -1) === (nuevo?.t ?? -1) && (ant?.fila ?? -2) === (nuevo?.fila ?? -2)) {
-      if (tip && h) setTip((x) => (x ? { ...x, x: p.x, y: p.y } : x));
+      if (h) posTip(p);
       return;
     }
     estadoRef.current.hover = nuevo;
     redibujar();
     if (!h) { setTip(null); return; }
+    tipPos.current = { x: p.x, y: p.y };
     const t = M.tablas[h.t];
     if (h.fila >= 0) {
       const c = t.c[h.fila];
@@ -244,7 +269,7 @@ export default function DiagramaBD() {
     const s1 = Math.min(ESCALA_MAX, Math.max(escalaMinRef.current, pinchRef.current.s * (d / pinchRef.current.d)));
     st.scale({ x: s1, y: s1 });
     st.position({ x: c.x - pinchRef.current.w.x * s1, y: c.y - pinchRef.current.w.y * s1 });
-    redibujar(); sincronizar();
+    marcarRapido(); redibujar(); sincronizar();
   };
 
   const zoomBoton = (f) => {
@@ -295,12 +320,12 @@ export default function DiagramaBD() {
   /* ── minimapa ──────────────────────────────────────────────────────────── */
   const MINI_W = 208;
   const MINI_H = Math.round((MINI_W * M.H) / M.W);
+  // capa estática del minimapa (tablas): solo se rehace si cambia selección/filtros/tema
   useEffect(() => {
-    const cv = miniRef.current; const st = stageRef.current;
-    if (!cv || !st) return;
-    const c = cv.getContext('2d');
+    const base = document.createElement('canvas');
+    base.width = MINI_W; base.height = MINI_H;
+    const c = base.getContext('2d');
     const k = MINI_W / M.W;
-    c.clearRect(0, 0, MINI_W, MINI_H);
     c.fillStyle = P.mesa; c.fillRect(0, 0, MINI_W, MINI_H);
     for (const t of M.tablas) {
       const act = (!match || match.has(t.i)) && (!grupoSet || grupoSet.has(t.i));
@@ -308,11 +333,18 @@ export default function DiagramaBD() {
       c.fillStyle = t.i === sel ? P.sel : COLOR_FAMILIA[t.fam];
       c.fillRect(t.x * k, t.y * k, Math.max(1.5, t.w * k), Math.max(1, t.h * k));
     }
-    c.globalAlpha = 1;
-    const s = st.scaleX();
-    c.strokeStyle = P.dorado; c.lineWidth = 1.5;
-    c.strokeRect((-st.x() / s) * k, (-st.y() / s) * k, (st.width() / s) * k, (st.height() / s) * k);
-  }, [M, tick, sel, match, grupoSet, P, MINI_H]);
+    miniBase.current = base;
+    miniFn.current = () => {
+      const cv = miniRef.current; const st = stageRef.current;
+      if (!cv || !st || !miniBase.current) return;
+      const cx = cv.getContext('2d');
+      cx.drawImage(miniBase.current, 0, 0);
+      const sc = st.scaleX();
+      cx.strokeStyle = P.dorado; cx.lineWidth = 1.5;
+      cx.strokeRect((-st.x() / sc) * k, (-st.y() / sc) * k, (st.width() / sc) * k, (st.height() / sc) * k);
+    };
+    miniFn.current();
+  }, [M, sel, match, grupoSet, P, MINI_H]);
   const alMinimapa = (e) => {
     if (e.type === 'pointermove' && e.buttons !== 1) return;
     const r = e.currentTarget.getBoundingClientRect();
@@ -361,12 +393,13 @@ export default function DiagramaBD() {
             onTap={alClic}
             onDblClick={alDoble}
             onDblTap={alDoble}
-            onDragMove={sincronizar}
+            onDragStart={() => { setTip(null); estadoRef.current.hover = null; }}
+            onDragMove={() => { marcarRapido(); redibujar(); sincronizar(); }}
             onDragEnd={sincronizar}
             onTouchMove={alTocar}
             onTouchEnd={() => { pinchRef.current = null; }}
           >
-            <Layer ref={layerRef} listening={false}>
+            <Layer ref={layerRef} listening={false} hitGraphEnabled={false}>
               <Shape sceneFunc={sceneFunc} />
             </Layer>
           </Stage>
@@ -448,7 +481,7 @@ export default function DiagramaBD() {
         {/* controles de zoom */}
         <div className={`${cajaBase} absolute bottom-3 left-3 z-20 rounded-xl flex items-center overflow-hidden`}>
           <button type="button" onClick={() => zoomBoton(1 / 1.35)} aria-label="Alejar" className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800"><Minus className="size-4" /></button>
-          <span className="w-14 text-center text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300">{zoom}%</span>
+          <span ref={zoomRef} className="w-14 text-center text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300" />
           <button type="button" onClick={() => zoomBoton(1.35)} aria-label="Acercar" className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-800"><Plus className="size-4" /></button>
           <button type="button" onClick={() => ajustarTodo()} aria-label="Ver todo el diagrama" title="Ver todo" className="p-2.5 border-l border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"><Maximize2 className="size-4" /></button>
         </div>
@@ -460,8 +493,8 @@ export default function DiagramaBD() {
 
         {/* tooltip */}
         {tip && (
-          <div className="absolute z-30 pointer-events-none max-w-[320px] rounded-lg px-3 py-2 text-xs shadow-xl bg-slate-900 text-slate-100 border border-slate-700"
-            style={{ left: Math.min(tip.x + 14, tam.w - 336), top: Math.min(tip.y + 16, tam.h - 90) }}>
+          <div ref={tipRef} className="absolute z-30 pointer-events-none max-w-[320px] rounded-lg px-3 py-2 text-xs shadow-xl bg-slate-900 text-slate-100 border border-slate-700"
+            style={{ left: Math.max(0, Math.min(tipPos.current.x + 14, tam.w - 336)), top: Math.max(0, Math.min(tipPos.current.y + 16, tam.h - 90)) }}>
             <p className="font-mono font-bold text-[11px] text-amber-300 break-all">{tip.titulo}</p>
             <p className="whitespace-pre-line text-slate-200 mt-0.5">{tip.texto}</p>
           </div>
