@@ -146,57 +146,82 @@ export function limites(model, idxs) {
   return { x0, y0, x1, y1 };
 }
 
+/** Operadores de búsqueda sobre nombres (ya normalizados). */
+export const OPERADORES = [
+  ['contiene', 'Contiene'],
+  ['empieza', 'Empieza con'],
+  ['termina', 'Termina con'],
+  ['igual', 'Es igual a'],
+];
+export const AMBITOS = [
+  ['ambos', 'Tablas y campos'],
+  ['tablas', 'Solo tablas'],
+  ['campos', 'Solo campos'],
+];
+export const coincide = (n, t, op) => (
+  op === 'empieza' ? n.startsWith(t)
+    : op === 'termina' ? n.endsWith(t)
+      : op === 'igual' ? n === t
+        : n.includes(t)
+);
+
 /**
- * Búsqueda: tablas por nombre/descripción/llave y columnas por nombre/descripción.
- * Devuelve {tablas:[idx], columnas:[{campo, n}]} ordenado por relevancia.
+ * Búsqueda: tablas por nombre (y descripción, solo con "contiene") y columnas por
+ * nombre/descripción, según el operador y el ámbito (tablas, campos o ambos).
+ * Devuelve {tablas:[idx], columnas:[{campo, n}], campos, coinciden:Set} ordenado por relevancia.
  */
-export function buscar(model, q) {
+export function buscar(model, q, op = 'contiene', ambito = 'ambos') {
   const t = normalizar(q).trim();
   if (t.length < 2) return { tablas: [], columnas: [], campos: [], coinciden: null };
+  const verTablas = ambito !== 'campos';
+  const verCampos = ambito !== 'tablas';
+  const conDesc = op === 'contiene';
+  const rango = (n, pat) => (n === pat ? 0 : n.startsWith(pat) ? 1 : 2);
   // sintaxis TABLA.CAMPO: filtra por tabla y por campo a la vez
   const punto = t.indexOf('.');
   if (punto > 0 && punto < t.length - 1) {
     const pt = t.slice(0, punto); const pc = t.slice(punto + 1);
     const campos = [];
     for (const T of model.tablas) {
-      if (!T.bN.includes(pt)) continue;
-      T.cNom.forEach((n, j) => { if (n.includes(pc)) campos.push({ t: T.i, fila: j, p: (n === pc ? 0 : n.startsWith(pc) ? 1 : 2) + (T.bN === pt ? 0 : 0.5) }); });
+      if (!coincide(T.bN, pt, op)) continue;
+      T.cNom.forEach((n, j) => { if (coincide(n, pc, op)) campos.push({ t: T.i, fila: j, p: rango(n, pc) + (T.bN === pt ? 0 : 0.5) }); });
     }
     campos.sort((a, b) => a.p - b.p || model.tablas[a.t].n.localeCompare(model.tablas[b.t].n) || a.fila - b.fila);
     return { tablas: [], columnas: [], campos, coinciden: new Set(campos.map((c) => c.t)) };
   }
-  const puntaje = (t0, i) => {
+  const puntaje = (i) => {
     const T = model.tablas[i];
-    if (T.bN === t0) return 0;
-    if (T.bN.startsWith(t0)) return 1;
-    if (T.bN.includes(t0)) return 2;
-    if (T.bD.includes(t0)) return 3;
+    if (coincide(T.bN, t, op)) return rango(T.bN, t);
+    if (conDesc && T.bD.includes(t)) return 3;
     return 9;
   };
-  const tablas = model.tablas.map((_, i) => i).filter((i) => puntaje(t, i) < 9)
-    .sort((a, b) => puntaje(t, a) - puntaje(t, b) || model.tablas[a].n.localeCompare(model.tablas[b].n));
+  const tablas = verTablas
+    ? model.tablas.map((_, i) => i).filter((i) => puntaje(i) < 9)
+      .sort((a, b) => puntaje(a) - puntaje(b) || model.tablas[a].n.localeCompare(model.tablas[b].n))
+    : [];
   const columnas = [];
-  for (const [campo, ts] of model.colIdx) {
-    const n = normalizar(campo);
-    let p = n === t ? 0 : n.startsWith(t) ? 1 : n.includes(t) ? 2 : 9;
-    if (p === 9) {
-      // descripción de la columna (usa la de la primera tabla que la trae)
-      const T = model.tablas[ts[0]];
-      const d = normalizar(T.c[T.filaDe.get(campo)][1]);
-      if (d.includes(t)) p = 3;
-    }
-    if (p < 9) columnas.push({ campo, n: ts.length, p });
-  }
-  columnas.sort((a, b) => a.p - b.p || b.n - a.n || a.campo.localeCompare(b.campo));
-  // cada campo individual (TABLA.CAMPO) cuyo nombre o descripción coincide
   const campos = [];
-  for (const T of model.tablas) {
-    T.cNom.forEach((n, j) => {
-      const p = n === t ? 0 : n.startsWith(t) ? 1 : n.includes(t) ? 2 : T.cDes[j].includes(t) ? 3 : 9;
-      if (p < 9) campos.push({ t: T.i, fila: j, p });
-    });
+  if (verCampos) {
+    for (const [campo, ts] of model.colIdx) {
+      const n = normalizar(campo);
+      let p = coincide(n, t, op) ? rango(n, t) : 9;
+      if (p === 9 && conDesc) {
+        // descripción de la columna (usa la de la primera tabla que la trae)
+        const T = model.tablas[ts[0]];
+        if (normalizar(T.c[T.filaDe.get(campo)][1]).includes(t)) p = 3;
+      }
+      if (p < 9) columnas.push({ campo, n: ts.length, p });
+    }
+    columnas.sort((a, b) => a.p - b.p || b.n - a.n || a.campo.localeCompare(b.campo));
+    // cada campo individual (TABLA.CAMPO) cuyo nombre o descripción coincide
+    for (const T of model.tablas) {
+      T.cNom.forEach((n, j) => {
+        const p = coincide(n, t, op) ? rango(n, t) : conDesc && T.cDes[j].includes(t) ? 3 : 9;
+        if (p < 9) campos.push({ t: T.i, fila: j, p });
+      });
+    }
+    campos.sort((a, b) => a.p - b.p || model.tablas[a.t].n.localeCompare(model.tablas[b.t].n) || a.fila - b.fila);
   }
-  campos.sort((a, b) => a.p - b.p || model.tablas[a.t].n.localeCompare(model.tablas[b.t].n) || a.fila - b.fila);
   // conjunto de tablas que coinciden por cualquier motivo (para atenuar el resto)
   const coinciden = new Set(tablas);
   for (const c of columnas) model.colIdx.get(c.campo).forEach((i) => coinciden.add(i));

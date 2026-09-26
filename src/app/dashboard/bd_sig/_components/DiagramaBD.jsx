@@ -7,7 +7,7 @@ import {
   PanelRightClose, PanelRightOpen, Key, GitBranch,
 } from 'lucide-react';
 import data from '../_data/esquema.json';
-import { buildModel, buscar, limites, normalizar, HEAD, ROW } from '../_lib/modelo';
+import { buildModel, buscar, limites, normalizar, coincide, OPERADORES, AMBITOS, HEAD, ROW } from '../_lib/modelo';
 import { dibujar, golpe, PALETAS, COLOR_FAMILIA } from '../_lib/dibujo';
 
 const ESCALA_MAX = 3;
@@ -40,6 +40,8 @@ export default function DiagramaBD() {
   const [sel, setSel] = useState(-1);
   const [selFila, setSelFila] = useState(-1);
   const [query, setQuery] = useState('');
+  const [op, setOp] = useState('contiene');
+  const [ambito, setAmbito] = useState('ambos');
   const [colFoco, setColFoco] = useState(null);
   const [abierto, setAbierto] = useState(false);
   const [grupo, setGrupo] = useState('');
@@ -68,15 +70,16 @@ export default function DiagramaBD() {
   const P = oscuro ? PALETAS.oscuro : PALETAS.claro;
 
   /* ── búsqueda y conjuntos derivados ────────────────────────────────────── */
-  const busq = useMemo(() => buscar(M, query), [M, query]);
+  const busq = useMemo(() => buscar(M, query, op, ambito), [M, query, op, ambito]);
   const match = useMemo(() => {
     if (colFoco) return new Set(M.colIdx.get(colFoco) || []);
     return busq.coinciden && busq.coinciden.size ? busq.coinciden : null;
   }, [M, colFoco, busq]);
   const qFila = useMemo(() => {
     const n = normalizar(query).trim();
-    return !colFoco && n.length >= 2 ? n : null;
-  }, [query, colFoco]);
+    if (colFoco || n.length < 2 || ambito === 'tablas') return null;
+    return (t, j) => coincide(t.cNom[j], n, op) || (op === 'contiene' && t.cDes[j].includes(n));
+  }, [query, colFoco, op, ambito]);
   const grupoSet = useMemo(
     () => (grupo ? new Set(M.tablas.filter((t) => t.g.includes(grupo)).map((t) => t.i)) : null),
     [M, grupo],
@@ -425,6 +428,15 @@ export default function DiagramaBD() {
                 <X className="size-4" />
               </button>
             )}
+          </div>
+          <div className="mt-1.5 flex gap-1.5">
+            {[[op, setOp, OPERADORES, 'Operador de búsqueda'], [ambito, setAmbito, AMBITOS, 'Buscar en']].map(([val, set, opts, et]) => (
+              <select key={et} value={val} aria-label={et} title={et}
+                onChange={(e) => { set(e.target.value); setColFoco(null); setPos(0); setAbierto(true); }}
+                className={`${cajaBase} flex-1 min-w-0 rounded-lg px-2 py-1 text-xs text-slate-700 dark:text-slate-200`}>
+                {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            ))}
           </div>
           {match && query && (
             <div className={`${cajaBase} rounded-lg mt-1.5 px-3 py-1.5 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300`}>

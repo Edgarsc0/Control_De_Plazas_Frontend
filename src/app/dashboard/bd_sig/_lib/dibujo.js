@@ -187,7 +187,7 @@ export function dibujar(c, M, v, sc, E, P) {
       const ry = t.y + HEAD + j * ROW;
       if (col[3] === 1) { c.fillStyle = P.llave; c.fillRect(t.x, ry, t.w, ROW); }
       else if (j % 2) { c.fillStyle = P.fila; c.fillRect(t.x, ry, t.w, ROW); }
-      if ((E.colFoco && col[0] === E.colFoco) || (E.qFila && t.cN[j].includes(E.qFila))) { c.fillStyle = P.resalta; c.fillRect(t.x, ry, t.w, ROW); }
+      if ((E.colFoco && col[0] === E.colFoco) || (E.qFila && E.qFila(t, j))) { c.fillStyle = P.resalta; c.fillRect(t.x, ry, t.w, ROW); }
       if (o.esSel && E.selFila === j) {
         c.fillStyle = P.resalta; c.fillRect(t.x, ry, t.w, ROW);
         c.strokeStyle = P.sel; c.lineWidth = px(1.5); c.strokeRect(t.x + 1, ry + 0.5, t.w - 2, ROW - 1);
