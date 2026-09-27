@@ -1,4 +1,8 @@
 import { prefijoTipoCuadrosVacancia, ELEMENTOS_CUADROS_VACANCIA } from "./widgets/cuadrosVacanciaElementos";
+import { prefijoTipoAccesoRapido } from "./widgetRegistry";
+import { MODULES } from "@/config/modules";
+
+const modulosPorKey = Object.fromEntries(MODULES.map((m) => [m.key, m]));
 
 /**
  * Metadatos de presentación del catálogo (WidgetStoreModal): descripción corta
@@ -73,6 +77,10 @@ const cvPorTipo = Object.fromEntries(
 /** `{ descripcion, preview }` de un widget del registro (con valores por defecto). */
 export function metaDeWidget(type) {
   if (META[type]) return META[type];
+  if (type.startsWith(prefijoTipoAccesoRapido)) {
+    const m = modulosPorKey[type.slice(prefijoTipoAccesoRapido.length)];
+    return { preview: "acceso", descripcion: m?.description || "Acceso directo a este módulo." };
+  }
   const el = cvPorTipo[type];
   if (el) {
     return {

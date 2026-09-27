@@ -14,6 +14,58 @@ import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_compon
 // backend trae nombre/ap_pat/ap_mat por separado, no hay campo combinado.
 const buildMovNombreCompleto = (row) => [row.nombre, row.ap_pat, row.ap_mat].filter(Boolean).join(" ").trim();
 
+// Mismas claves que `dataColumns` en MovimientosPersonalTab.jsx (misma fuente,
+// VacantesService.getMovimientosPersonal): EmployeeRecordModal, sin `columns`
+// propias, asume que `record` es una fila de Plantilla Detalle y filtra por
+// ese catálogo — con una fila de Movimientos de Personal (claves distintas)
+// eso deja casi todo en blanco. Pasando estas columnas el expediente describe
+// el registro real en vez de caer al catálogo equivocado.
+const MOVIMIENTO_RECORD_COLUMNS = [
+  { key: "posicion", label: "Posición" },
+  { key: "num_empleado", label: "No. Empleado" },
+  { key: "nombre", label: "Nombre Completo" },
+  { key: "accion_nombre", label: "Nombre Acción" },
+  { key: "motivo_nombre", label: "Nombre Motivo" },
+  { key: "fecha_efectiva", label: "Fecha Efectiva" },
+  { key: "sec", label: "Sec" },
+  { key: "fecha_captura", label: "Fecha Captura" },
+  { key: "est_hr", label: "Est. Hr" },
+  { key: "estado_pago", label: "Estado Pago" },
+  { key: "partida_presup", label: "Partida Presup." },
+  { key: "un", label: "UN" },
+  { key: "un_admin", label: "UN Admin." },
+  { key: "id_depto", label: "Id Depto" },
+  { key: "depen_direc", label: "Depen. Direc." },
+  { key: "plan_sal", label: "Plan Sal." },
+  { key: "grado", label: "Grado" },
+  { key: "escala", label: "Escala" },
+  { key: "puesto_ptal", label: "Puesto Ptal." },
+  { key: "nivel_tabular", label: "Nivel Tabular" },
+  { key: "gp_pago", label: "Gp Pago" },
+  { key: "prog_benef", label: "Prog. Benef." },
+  { key: "sal_base", label: "Sal. Base" },
+  { key: "cd_puesto", label: "Cd Puesto" },
+  { key: "ubicacion", label: "Ubicación" },
+  { key: "id_estbl", label: "Id Estbl" },
+  { key: "salida_prevista", label: "Salida Prevista" },
+  { key: "fecha_ult_actz", label: "Fecha Últ. Actz." },
+  { key: "por", label: "Por" },
+  { key: "ult_inicio", label: "Últ. Inicio" },
+  { key: "fecha_inicial", label: "Fecha Inicial" },
+  { key: "gp_trabajo", label: "Gp Trabajo" },
+  { key: "grupo_cd_sal", label: "Grupo Cd Sal" },
+  { key: "antiguo_empr", label: "Antiguo Empr." },
+  { key: "rfc", label: "RFC" },
+  { key: "curp", label: "CURP" },
+  { key: "id_persona", label: "Id Persona" },
+  { key: "desc_larga_p", label: "Desc. Larga P" },
+  { key: "nv_jerarquico", label: "Nv. Jerárquico" },
+  { key: "desc_larga_un", label: "Desc. Larga UN" },
+  { key: "sexo", label: "Sexo" },
+  { key: "fecha_entrada", label: "Fecha Entrada" },
+  { key: "fecha_posicion", label: "Fecha Posición" },
+];
+
 const renderAccionBadge = (row) => (
   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-black uppercase whitespace-nowrap bg-[#621f32]/8 dark:bg-[#621f32]/15 text-[#621f32] dark:text-[#f3dcd4] border-[#621f32]/20 dark:border-[#621f32]/30">
     <ArrowRightLeft className="size-3" />{row.accion_nombre || "Movimiento"}
@@ -217,6 +269,7 @@ export default function BuscarMovimientoWidget() {
           isOpen={!!selectedRow}
           onClose={() => setSelectedRow(null)}
           record={selectedRow}
+          columns={MOVIMIENTO_RECORD_COLUMNS}
           canViewPhoto={canViewFoto}
         />
       )}

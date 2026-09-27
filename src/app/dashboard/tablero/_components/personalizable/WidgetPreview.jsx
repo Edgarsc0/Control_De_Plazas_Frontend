@@ -7,6 +7,8 @@ import WidgetFrame from "./WidgetFrame";
 import { tamanoEnPx } from "./gridGeometry";
 import { useElementSize } from "./widgets/useElementSize";
 import { prefijoTipoCuadrosVacancia } from "./widgets/cuadrosVacanciaElementos";
+import { prefijoTipoAccesoRapido } from "./widgetRegistry";
+import { metaDeWidget } from "./widgetCatalogoMeta";
 
 /**
  * Vista previa de un widget en la tienda (WidgetStoreModal). NO monta el
@@ -1239,6 +1241,31 @@ const TorreCaballitoPrev = () => (
   </div>
 );
 
+/**
+ * Vista previa de un widget de "acceso rápido" (una página del sistema, ver
+ * widgetRegistry.js). A diferencia del resto del catálogo no es una maqueta
+ * con datos de ejemplo animados: es el mismo contenido real del widget
+ * (ícono, color y descripción de la página), estático salvo el hover normal
+ * de la tarjeta.
+ */
+function AccesoRapidoPrev({ entry, descripcion }) {
+  const Icon = entry.icon;
+  return (
+    <div className="group relative flex flex-col justify-between w-full h-full p-3 overflow-hidden text-white" style={{ backgroundColor: entry.color }}>
+      <Icon className="absolute -right-6 -bottom-6 size-40 opacity-[0.28] pointer-events-none" />
+      <div className="p-1.5 rounded-lg shrink-0 bg-white/15 relative z-10 w-fit">
+        <Icon className="size-4" />
+      </div>
+      <div className="relative z-10 min-w-0">
+        <p className="text-[11px] text-white/75 mb-1 line-clamp-2">{descripcion}</p>
+        <span className="inline-flex items-center gap-1 flex-wrap text-[11px] font-black leading-snug">
+          Ir a {entry.label} <ChevronRight className="size-3.5 shrink-0" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const MAQUETAS = {
   estados_nomina: Estados,
   plazas_por_ua: PlazasUa,
@@ -1263,7 +1290,22 @@ function maquetaDe(type) {
 }
 
 export default function WidgetPreview({ entry }) {
+  // `ref` se pasa siempre (reglas de hooks); solo se usa para medir el lienzo
+  // virtual de las maquetas de datos, más abajo.
   const [ref, { width, height }] = useElementSize();
+
+  // Acceso rápido: layout simple y responsivo, sin el lienzo virtual a escala
+  // fija que usan las maquetas de datos (no tiene proporciones que cuidar).
+  if (entry.type.startsWith(prefijoTipoAccesoRapido)) {
+    const { descripcion } = metaDeWidget(entry.type);
+    return (
+      <div aria-hidden style={{ width: "100%", height: "100%" }} className="relative overflow-hidden pointer-events-none rounded-2xl shadow-md">
+        <WidgetFrame label={entry.label} editable>
+          <AccesoRapidoPrev entry={entry} descripcion={descripcion} />
+        </WidgetFrame>
+      </div>
+    );
+  }
   const real = tamanoEnPx(ESCRITORIO_REF, FILA_REF, entry.defaultW, entry.defaultH);
   // Lienzo angosto (mismas proporciones) en los widgets cuyo contenido, a tamaño real, no se leería en la tarjeta.
   const anchoVirtual = entry.type.startsWith(prefijoTipoCuadrosVacancia) ? CV_ANCHO_VIRTUAL : ANCHO_VIRTUAL[entry.type];

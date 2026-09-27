@@ -1,7 +1,14 @@
 import dynamic from "next/dynamic";
 import { PERMISSIONS as P } from "@/config/permissions";
-import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2 } from "lucide-react";
+import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2, Rocket } from "lucide-react";
 import { ELEMENTOS_CUADROS_VACANCIA, prefijoTipoCuadrosVacancia } from "./widgets/cuadrosVacanciaElementos";
+import { MODULES } from "@/config/modules";
+import { crearAccesoRapidoWidget } from "./widgets/AccesoRapidoWidget";
+
+// Prefijo de los widgets "acceso rápido" (uno por página de MODULES, ver más
+// abajo). Se exporta para que WidgetPreview.jsx y widgetCatalogoMeta.js
+// reconozcan el tipo sin repetir el literal.
+export const prefijoTipoAccesoRapido = "acceso_";
 
 // Skeleton mínimo para el fallback de `next/dynamic` mientras se descarga el
 // código del widget (code-split: solo se baja lo que el usuario realmente
@@ -326,9 +333,40 @@ for (const el of ELEMENTOS_CUADROS_VACANCIA) {
   };
 }
 
+// Un widget de acceso rápido por cada página que exista en MODULES (fuente
+// única compartida con Navbar/DashboardSubmenu y BottomNav — ver
+// src/config/modules.js). Se excluye 'dashboard': es el propio tablero donde
+// vive este widget, un acceso a sí mismo no aporta nada.
+for (const m of MODULES) {
+  if (m.key === "dashboard") continue;
+  const type = `${prefijoTipoAccesoRapido}${m.key}`;
+  WIDGET_REGISTRY[type] = {
+    type,
+    // Mismo criterio "OR" que en isModuleVisible (config/modules.js).
+    permisos: m.permissions || (m.permission ? [m.permission] : []),
+    // Es solo un enlace: no consume ningún endpoint, así que es correcto para
+    // cualquier alcance por UN.
+    alcanceUnSoportado: true,
+    enCatalogo: true,
+    grupo: "accesos_rapidos",
+    label: m.title,
+    icon: m.icon,
+    color: m.color,
+    bg: m.bg,
+    component: crearAccesoRapidoWidget(m),
+    defaultW: 3,
+    defaultH: 3,
+    // Se puede achicar hasta 1x1: el widget recorta su contenido en escalones
+    // (ver AccesoRapidoWidget.jsx) hasta quedar solo con el ícono.
+    minW: 1,
+    minH: 1,
+  };
+}
+
 // Grupos desplegables de la barra lateral (WidgetStoreModal). Los widgets con
 // `grupo` se listan dentro; el resto va suelto.
 export const GRUPOS_CATALOGO = [
+  { id: "accesos_rapidos", label: "Accesos Rápidos", icon: Rocket },
   { id: "cuadros_vacancia", label: "Cuadros de Vacancia", icon: ListTree },
 ];
 

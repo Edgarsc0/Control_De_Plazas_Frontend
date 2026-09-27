@@ -73,7 +73,8 @@ function geosDe(M) {
 
 /**
  * `E.rapido` = el usuario está haciendo zoom/arrastrando: se omiten sombras, guiones y
- * textos secundarios para mantener los cuadros fluidos; al soltar se repinta completo.
+ * las etiquetas PK/FK para mantener los cuadros fluidos; al soltar se repinta completo.
+ * Descripciones y tipo de columna NO se omiten: es justo lo que se está consultando.
  * Para minimizar cambios de `font` (lo más caro del canvas 2D) el texto se pinta en
  * pasadas globales, una por tipo de letra, en vez de fila por fila.
  */
@@ -144,8 +145,8 @@ export function dibujar(c, M, v, sc, E, P) {
 
   // ── tablas visibles ───────────────────────────────────────────────────────────
   const detalle = sc >= 0.35;
-  const conDesc = sc >= 0.8 && !rapido;
-  const conTipo = sc >= 0.55 && !rapido;
+  const conDesc = sc >= 0.8;
+  const conTipo = sc >= 0.55;
   const vis = [];
   for (const t of tablas) {
     if (!visible(t)) continue;
@@ -216,13 +217,13 @@ export function dibujar(c, M, v, sc, E, P) {
       c.fillStyle = 'rgba(255,255,255,0.22)'; c.fillRect(t.x + t.w - 52, t.y + 8, 42, 16);
       c.fillStyle = '#fff'; c.fillText('VISTA', t.x + t.w - 46, t.y + 19.5);
     });
-    if (!rapido) {
-      c.fillStyle = 'rgba(255,255,255,0.86)'; c.font = `11px ${SANS}`;
-      porTabla((t) => c.fillText(cortar(t.d || 'Sin descripción en PeopleSoft', 58), t.x + 12, t.y + 36));
-      c.fillStyle = 'rgba(255,255,255,0.6)'; c.font = `10px ${SANS}`; c.textAlign = 'right';
-      porTabla((t) => c.fillText(`${t.c.length} col.`, t.x + t.w - 10, t.y + 44));
-      c.textAlign = 'left';
-    }
+    // La descripción de la tabla (y el conteo de columnas) se pinta siempre,
+    // incluso arrastrando: son el dato que se está consultando, no un adorno.
+    c.fillStyle = 'rgba(255,255,255,0.86)'; c.font = `11px ${SANS}`;
+    porTabla((t) => c.fillText(cortar(t.d || 'Sin descripción en PeopleSoft', 58), t.x + 12, t.y + 36));
+    c.fillStyle = 'rgba(255,255,255,0.6)'; c.font = `10px ${SANS}`; c.textAlign = 'right';
+    porTabla((t) => c.fillText(`${t.c.length} col.`, t.x + t.w - 10, t.y + 44));
+    c.textAlign = 'left';
 
     c.textBaseline = 'middle';
     if (!rapido) {
