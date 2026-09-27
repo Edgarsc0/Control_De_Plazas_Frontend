@@ -3662,7 +3662,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             arriba sí se conserva: solo deja suscribirse a vacantes de
             posiciones que ya están dentro de su `detalle` (ya filtrado por
             UN del lado servidor), así que no hay nada que ocultarle ahí. */}
-        {sinRestriccionUN && (
+        {sinRestriccionUN && !barraMinima && (
           <button
             type="button"
             onClick={() => setIsMovimientosHoyModalOpen(true)}
