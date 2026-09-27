@@ -1,37 +1,24 @@
 'use client';
 
-import { Zoom } from '@/components/shared/Reveal';
 import CambiarPasswordDrawer from '@/components/shared/CambiarPasswordDrawer';
-import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Zoom } from '@/components/shared/Reveal';
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { gsap } from 'gsap';
+import { Plus_Jakarta_Sans } from 'next/font/google';
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { AuthService } from '@/services/auth.service';
 import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
-import DriftWall from '@/components/ui/DriftWall';
+import BlurText from '@/components/ui/BlurText';
 
-const DRIFT_WALL_ITEMS = [
-  'view_oficios_turnados',
-  'view_ocupacion_estadisticas',
-  'view_plantilla_estatus_nomina',
-  'view_valuacion_presupuestaria',
-  'view_plantilla_mov_posiciones',
-  'view_ocupacion_tabla',
-  'edit_ocupacion_plazas',
-  'view_plantilla_bajas',
-  'view_plantilla_geografia',
-  'view_plantilla_catalogos',
-  'view_ocupacion_sankey',
-  'view_plantilla_detalle',
-  'view_monitoreo_zafiro',
-  'view_plantilla_movimientos',
-  'view_organigrama',
-  'manage_usuarios',
-  'manage_roles',
-  'edit_valuacion_parametros',
-].map((name) => ({
-  image: `/permission-previews/${name}.png`,
-  title: name.replace(/_/g, ' '),
-}));
+// Tipografía propia de esta pantalla (no Noto Sans, la del resto del sitio
+// vía `font-sans` en <html>): al aplicarse directo sobre el contenedor raíz,
+// gana por herencia sin tocar la fuente global.
+const loginFont = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
+});
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -41,6 +28,40 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('Cargando...');
   const [error, setError] = useState('');
+
+  // Panel del formulario: entra deslizándose desde la derecha hasta su
+  // posición final (GSAP, no framer) — el panel guinda se anima aparte.
+  // `panelReady` se prende en el onComplete de ese tween y de ahí cuelgan,
+  // encadenados (no en paralelo), el BlurText del título y el Zoom del
+  // contenido del formulario.
+  const rightPanelRef = useRef(null);
+  const [panelReady, setPanelReady] = useState(false);
+  useEffect(() => {
+    const el = rightPanelRef.current;
+    if (!el) return;
+    const reduceMotion = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (reduceMotion) {
+      setPanelReady(true);
+      return;
+    }
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        el,
+        { xPercent: 100, opacity: 0 },
+        {
+          xPercent: 0,
+          opacity: 1,
+          duration: 0.9,
+          ease: 'power3.out',
+          onComplete: () => setPanelReady(true),
+        }
+      );
+    });
+    return () => ctx.revert();
+  }, []);
 
   const entrarAlDashboard = () => {
     window.location.href = '/dashboard';
@@ -88,136 +109,186 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-200px)] overflow-hidden flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div
+      className={`relative h-stack-nav-dvh md:h-stack-dvh overflow-hidden bg-gradient-to-br from-[#4a1726] via-[#621f32] to-[#7a2740] ${loginFont.className}`}
+    >
       <LoadingOverlay isLoading={isLoading} text={loadingText} />
 
-      {/* Muro a la deriva de fondo (previews de permisos del sistema), a pantalla completa */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <DriftWall
-          items={DRIFT_WALL_ITEMS}
-          columns={6}
-          parallax={0.5}
-          dim={1}
-          tileHeight={176}
-          depth={20}
-          lift={36}
-          tilt={0}
-          turn={0}
-          roll={0}
-          fade={0.45}
-          gap={14}
-          radius={16}
-          overlayColor="rgba(0,0,0,0.2)"
-        />
-      </div>
+      <div className="flex h-full flex-col md:flex-row">
+        {/* Panel hero — identidad institucional, a pantalla completa.
+            `@container`: el título usa unidades `cqw` (relativas al ANCHO
+            de este panel, no al viewport) para caber siempre en una sola
+            línea — a 46% de un viewport angosto el panel es más estrecho
+            que en móvil apilado, un breakpoint fijo no alcanza ahí. */}
+        <div className="relative flex flex-col items-center justify-center overflow-hidden px-8 py-14 @container md:w-[46%] md:py-0">
+          <div
+            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40 mix-blend-soft-light"
+            style={{ backgroundImage: "url('/pleca.png')" }}
+          />
 
-      <Zoom triggerOnce>
-        <div className="z-10 flex flex-col justify-center px-6 py-12 lg:px-8">
-          <div className="sm:mx-auto sm:w-full sm:max-w-md bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-gray-200">
-            <div className="sm:mx-auto sm:w-full sm:max-w-sm">
-              <img
-                alt="Logo ANAM"
-                src="/anam.png"
-                className="mx-auto h-20 w-auto drop-shadow-sm"
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="relative flex max-w-sm flex-col items-center text-center"
+          >
+            {/* /icon.svg tal cual (favicon real de ANAM): verde, guinda,
+                dorado y su propio fondo blanco redondeado. Zoom de entrada
+                (react-awesome-reveal) + flote en bucle una vez dentro. */}
+            <Zoom triggerOnce duration={600}>
+              <motion.img
+                alt="Ícono ANAM"
+                src="/icon.svg"
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+                className="h-24 w-24 drop-shadow-lg md:h-28 md:w-28"
               />
-              <h2 className="mt-8 text-center text-2xl font-bold tracking-tight text-gray-900">
-                Inicia sesión en tu cuenta
-              </h2>
+            </Zoom>
+
+            <div className="mt-7 h-[3px] w-12 rounded-full bg-white/35" />
+
+            <h1 className="mt-6 whitespace-nowrap text-[clamp(1.05rem,6.5cqw,2.125rem)] font-extrabold text-white">
+              <BlurText
+                text="Sistema de Control de Plazas"
+                animateBy="words"
+                direction="top"
+                delay={90}
+                stepDuration={0.45}
+                start={panelReady}
+              />
+            </h1>
+            <p className="mt-3 text-[11px] tracking-[3px] text-white/60 uppercase md:text-xs">
+              <BlurText
+                text="Agencia Nacional de Aduanas de México"
+                animateBy="words"
+                direction="top"
+                delay={40}
+                stepDuration={0.4}
+                start={panelReady}
+              />
+            </p>
+          </motion.div>
+        </div>
+
+        {/* Panel del formulario — animado con GSAP (ver useEffect arriba) */}
+        <div
+          ref={rightPanelRef}
+          className="relative z-10 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-white to-[#f7f8fa] px-6 py-12 shadow-[0_0_60px_rgba(0,0,0,0.06)] md:-ml-7 md:w-[calc(54%+1.75rem)] md:rounded-l-[28px] md:px-10"
+        >
+          <div
+            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.16]"
+            style={{ backgroundImage: "url('/pleca.png')" }}
+          />
+
+          {/* Logo + Bienvenido/Iniciar sesión + form, todo junto dentro del
+              Zoom (react-awesome-reveal): recién se MONTA cuando panelReady
+              prende (onComplete del GSAP del panel), así que su entrada
+              arranca encadenada, no junto con el slide del panel. */}
+          {panelReady && (
+          <Zoom triggerOnce duration={600}>
+          <img
+            alt="Logo Secretaría de Hacienda y Crédito Público — Agencia Nacional de Aduanas de México"
+            src="/hacienda_aduanas.png"
+            className="relative mb-8 h-auto w-full max-w-[420px]"
+          />
+          <div className="relative w-full max-w-[374px]">
+            <div className="text-center">
+              <p className="text-[13px] tracking-[1.5px] text-gray-400 uppercase">
+                Bienvenido
+              </p>
+              <span className="text-[22px] font-extrabold text-gray-800">
+                INICIAR SESIÓN
+              </span>
+              <div className="mx-auto mt-2 h-[3px] w-10 rounded-full bg-[#621f32]" />
             </div>
 
-            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-sm">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-900"
-                  >
-                    Correo institucional (@anam.gob.mx)
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                      placeholder="usuario@anam.gob.mx"
-                      className="block w-full rounded-md bg-white px-3 py-2 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-[#621f32] sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
-                    />
-                  </div>
-                </div>
+            <form onSubmit={handleSubmit} className="mt-9 space-y-5">
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-gray-400 peer-focus:text-[#621f32]" />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder=" "
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                  className="peer block w-full rounded-xl border border-gray-200 bg-[#fafafa] px-4 py-3.5 pl-10 pt-5 pb-2 text-sm text-gray-800 shadow-sm outline-none transition-colors duration-200 focus:border-[#621f32] focus:ring-4 focus:ring-[#621f32]/10 disabled:bg-gray-100"
+                />
+                <label
+                  htmlFor="email"
+                  className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm text-gray-400 transition-all duration-150 peer-focus:top-3.5 peer-focus:text-[10px] peer-focus:text-[#621f32] peer-[&:not(:placeholder-shown)]:top-3.5 peer-[&:not(:placeholder-shown)]:text-[10px] peer-[&:not(:placeholder-shown)]:text-gray-500"
+                >
+                  Correo institucional (@anam.gob.mx)
+                </label>
+              </div>
 
-                <div>
-                  <label
-                    htmlFor="password"
-                    className="block text-sm font-medium text-gray-900"
-                  >
-                    Contraseña
-                  </label>
-                  <div className="relative mt-2">
-                    <input
-                      id="password"
-                      name="password"
-                      type={verPassword ? 'text' : 'password'}
-                      required
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                      className="block w-full rounded-md bg-white px-3 py-2 pr-10 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-[#621f32] sm:text-sm disabled:bg-gray-100 disabled:text-gray-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVerPassword((v) => !v)}
-                      aria-label={
-                        verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
-                      }
-                      className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-[#621f32]"
-                    >
-                      {verPassword ? (
-                        <EyeOff className="size-4" />
-                      ) : (
-                        <Eye className="size-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-gray-400 peer-focus:text-[#621f32]" />
+                <input
+                  id="password"
+                  name="password"
+                  type={verPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  placeholder=" "
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  className="peer block w-full rounded-xl border border-gray-200 bg-[#fafafa] px-4 py-3.5 pl-10 pr-10 pt-5 pb-2 text-sm text-gray-800 shadow-sm outline-none transition-colors duration-200 focus:border-[#621f32] focus:ring-4 focus:ring-[#621f32]/10 disabled:bg-gray-100"
+                />
+                <label
+                  htmlFor="password"
+                  className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm text-gray-400 transition-all duration-150 peer-focus:top-3.5 peer-focus:text-[10px] peer-focus:text-[#621f32] peer-[&:not(:placeholder-shown)]:top-3.5 peer-[&:not(:placeholder-shown)]:text-[10px] peer-[&:not(:placeholder-shown)]:text-gray-500"
+                >
+                  Contraseña
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setVerPassword((v) => !v)}
+                  aria-label={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute inset-y-0 right-0 flex items-center px-3.5 text-gray-400 hover:text-[#621f32]"
+                >
+                  {verPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
 
+              <AnimatePresence>
                 {error && (
-                  <div className="text-red-600 text-sm font-medium text-center bg-red-50 p-2 rounded-md border border-red-100">
-                    {error}
-                  </div>
-                )}
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex w-full justify-center rounded-md bg-[#621f32] px-3 py-2 text-sm font-semibold text-white shadow-md hover:bg-[#4a1726] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#621f32] transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="rounded-lg border border-red-100 bg-red-50 p-2.5 text-center text-sm font-medium text-red-600"
                   >
-                    {isLoading ? 'Validando...' : 'Iniciar sesión'}
-                  </button>
-                </div>
-              </form>
+                    {error}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              <p className="mt-6 text-center text-xs text-gray-500">
-                ¿Olvidaste tu contraseña? Solicita a un administrador del sistema
-                que te la restablezca.
-              </p>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex w-full items-center justify-center rounded-xl bg-gradient-to-br from-[#621f32] to-[#4a1726] py-3.5 text-[15px] font-bold tracking-[0.4px] text-white shadow-md transition-colors duration-200 hover:to-[#3a1120] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#621f32] disabled:opacity-50"
+              >
+                {isLoading ? 'Validando...' : 'Ingresar'}
+              </button>
 
-              <p className="mt-6 text-center text-sm text-gray-600">
-                Acceso exclusivo para personal de la{' '}
-                <span className="font-semibold text-[#621f32]">
-                  Agencia Nacional de Aduanas de México
+              <p className="pt-1 text-center text-xs text-gray-500">
+                ¿Olvidaste tu contraseña?{' '}
+                <span className="font-bold text-[#bc955c]">
+                  Solicita a un administrador que te la restablezca.
                 </span>
               </p>
-            </div>
+            </form>
           </div>
+          </Zoom>
+          )}
         </div>
-      </Zoom>
+      </div>
 
       <CambiarPasswordDrawer
         open={cambioPasswordOpen}

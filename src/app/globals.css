@@ -151,6 +151,16 @@ body {
   }
 }
 
+/* Login — el autofill de Chrome pinta el input de amarillo por encima de
+   cualquier bg-*; se anula con un box-shadow interior del mismo color que
+   el fondo real del input (blanco) y se fuerza el color de texto. */
+#email:-webkit-autofill,
+#password:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: #111827;
+}
+
 body::before {
   content: "";
   position: absolute;
