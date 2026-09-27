@@ -115,20 +115,36 @@ export default function HistoricoLineChart({
         ])
       : [];
 
-    // Máx/mín anual por serie (puntos huecos; el valor sale al pasar el cursor).
-    const extremosDe = (s) => {
-      if (!extremes) return [];
-      const pts = [];
+    // Máx/mín de cada año por serie: {[anio]: {max:{v,label}, min:{v,label}|null}}.
+    // Una sola pasada, reutilizada tanto por los puntos huecos del markPoint
+    // como por el tooltip por eje (ver `tooltip.formatter` más abajo) — así el
+    // texto "Máx/Mín" es el mismo se vea al pasar por el punto o por cualquier
+    // otro mes de ese año.
+    const maxMinDe = (s) => {
+      const porAnioS = {};
       porAnio.forEach((y) => {
         let max = null, min = null;
         chartData.forEach((d) => {
           if ((d.fecha || "").slice(0, 4) !== y.anio) return;
           const v = d[s.key];
+          if (v == null) return;
           if (max === null || v > max.v) max = { v, label: d.label };
           if (min === null || v < min.v) min = { v, label: d.label };
         });
+        if (max) porAnioS[y.anio] = { max, min: min && min.v !== max.v ? min : null };
+      });
+      return porAnioS;
+    };
+    const extremosPorSerie = extremes ? Object.fromEntries(series.map((s) => [s.key, maxMinDe(s)])) : {};
+    const keyByName = Object.fromEntries(series.map((s) => [s.name, s.key]));
+
+    // Máx/mín anual por serie (puntos huecos; el valor sale al pasar el cursor).
+    const extremosDe = (s) => {
+      if (!extremes) return [];
+      const pts = [];
+      Object.entries(extremosPorSerie[s.key]).forEach(([, { max, min }]) => {
         [[max, "Máx.", -1], [min, "Mín.", 1]].forEach(([e, rot, signo]) => {
-          if (!e || (max && min && max.v === min.v && rot === "Mín.")) return;
+          if (!e) return;
           const etiqueta = {
             position: signo < 0 ? "top" : "bottom",
             distance: 6,
@@ -213,13 +229,28 @@ export default function HistoricoLineChart({
           if (!params.length) return "";
           const i = params[0].dataIndex;
           const evs = events.filter((e) => e.index === i);
-          const filas = params.map((p) => `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:18px">
-              <span style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:${texto}">
-                <span style="width:9px;height:9px;border-radius:50%;background:${p.color}"></span>${p.seriesName}
-              </span>
-              <span style="font-size:12px;font-weight:900;color:${fuerte}">${fmt(p.value)}</span>
-            </div>`).join("");
+          const anio = (chartData[i]?.fecha || "").slice(0, 4);
+          const filas = params.map((p) => {
+            // Máx/mín del año en curso de esta serie: el mismo dato que ya se ve
+            // al pasar el cursor justo por el punto hueco (ver `extremosDe`),
+            // pero ahora también junto al valor de cualquier otro mes del año.
+            const key = keyByName[p.seriesName];
+            const ext = extremes ? extremosPorSerie[key]?.[anio] : null;
+            const subfila = ext ? `
+              <div style="margin-top:2px;padding-left:16px;font-size:9.5px;font-weight:700;color:${texto}">
+                ▲ Máx ${ext.max.label} <span style="color:${p.color};font-weight:900">${fmt(ext.max.v)}</span>
+                ${ext.min ? `&nbsp;&nbsp;▼ Mín ${ext.min.label} <span style="color:${p.color};font-weight:900">${fmt(ext.min.v)}</span>` : ""}
+              </div>` : "";
+            return `
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:18px">
+                <span style="display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:${texto}">
+                  <span style="width:9px;height:9px;border-radius:50%;background:${p.color}"></span>${p.seriesName}
+                </span>
+                <span style="font-size:12px;font-weight:900;color:${fuerte}">${fmt(p.value)}</span>
+              </div>${subfila}
+            </div>`;
+          }).join("");
           const extra = evs.map((e) => `
             <div style="margin-top:6px;padding-top:6px;border-top:1px solid ${linea};font-size:11px;font-weight:800;color:${e.type === "creacion" ? VERDE : GUINDA}">
               ${e.type === "creacion" ? `▲ +${e.dActivas} plazas activas` : `▼ +${e.dInactivas} plazas inactivas`}
