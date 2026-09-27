@@ -85,8 +85,11 @@ export default function AlineacionOrganizacionalWidget() {
   const mostrarGrafica = historico.length > 1 && !compacto;
   const mostrarDetalle = height >= 200 && width >= 200;
 
+  // `ref` en un contenedor sin padding: el padding del hijo cambia con `compacto` (que sale de la
+  // medida), y medirlo en el mismo elemento creaba un ciclo de re-render.
   return (
-    <div ref={ref} className={`w-full h-full min-h-0 flex flex-col justify-center gap-1 ${compacto ? "p-2" : "p-3"} bg-gradient-to-br from-[#621f32] to-[#8d2c48] text-white`}>
+    <div ref={ref} className="w-full h-full min-h-0">
+    <div className={`w-full h-full min-h-0 flex flex-col justify-center gap-1 ${compacto ? "p-2" : "p-3"} bg-gradient-to-br from-[#621f32] to-[#8d2c48] text-white`}>
       {error ? (
         <p className="text-center text-xs font-bold text-white">{error}</p>
       ) : !data ? (
@@ -134,6 +137,7 @@ export default function AlineacionOrganizacionalWidget() {
           )}
         </>
       )}
+    </div>
     </div>
   );
 }

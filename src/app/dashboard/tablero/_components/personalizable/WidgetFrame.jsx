@@ -1,6 +1,8 @@
 "use client";
 
+import { useRef } from "react";
 import { GripVertical, X } from "lucide-react";
+import { cerrarWidget } from "./cerrarWidget";
 
 /**
  * Chrome común de cada widget dentro de la cuadrícula del tablero
@@ -12,8 +14,19 @@ import { GripVertical, X } from "lucide-react";
  * interactivos de su contenido (buscadores, tablas, etc.).
  */
 export default function WidgetFrame({ label, onRemove, editable = true, children }) {
+  const raizRef = useRef(null);
+  const quitandoRef = useRef(false);
+
+  // La ✕ no quita el widget de golpe: lo cierra con una animación de persiana (rápida) y
+  // solo entonces avisa `onRemove`. `quitandoRef` evita un segundo clic a medias.
+  const quitar = () => {
+    if (quitandoRef.current) return;
+    quitandoRef.current = true;
+    cerrarWidget(raizRef.current, onRemove);
+  };
+
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm overflow-hidden">
+    <div ref={raizRef} className="w-full h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-sm overflow-hidden">
       <div
         className={`shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-950/40 ${editable ? "widget-drag-handle cursor-move" : ""}`}
       >
@@ -26,7 +39,7 @@ export default function WidgetFrame({ label, onRemove, editable = true, children
         {editable && onRemove && (
           <button
             type="button"
-            onClick={onRemove}
+            onClick={quitar}
             title="Quitar del tablero"
             className="shrink-0 p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
           >

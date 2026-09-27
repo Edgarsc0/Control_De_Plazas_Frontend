@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { TableProperties } from 'lucide-react';
 import EmployeesModal, { ALL_AVAILABLE_COLUMNS } from '../../shared/EmployeesModal';
 import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
@@ -202,7 +202,32 @@ function CellNum({ value, onClick, tone, strong = false, compact = false }) {
 
 // `fill`: modo widget — la tabla ocupa todo el alto del widget (las filas se
 // reparten el espacio sobrante) y solo hace scroll si no caben.
+/**
+ * Altura de cada fila para que las filas llenen el alto disponible del
+ * contenedor de la tabla (modo widget: el widget puede ser mucho más alto que
+ * la tabla y dejaba media celda en blanco). `reservado` = alto fijo de
+ * encabezado(s) + fila de total. Devuelve `null` (alto natural, con scroll si
+ * no cabe) cuando no hay espacio de sobra o el modo no es widget.
+ */
+const ALTO_FILA_MIN = 40;
+const ALTO_FILA_MAX = 120;
+function useAltoFilas(nFilas, reservado, activo) {
+  const ref = useRef(null);
+  const [alto, setAlto] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!activo || !el) return undefined;
+    const ro = new ResizeObserver(([entry]) => setAlto(Math.round(entry.contentRect.height)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [activo]);
+  if (!activo || !alto || !nFilas) return [ref, null];
+  const h = Math.min(ALTO_FILA_MAX, Math.floor((alto - reservado) / nFilas));
+  return [ref, h > ALTO_FILA_MIN ? h : null];
+}
+
 function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false }) {
+  const [contenedorRef, altoFila] = useAltoFilas(rows.length, 106, fill);
   if (rows.length === 0) return null;
 
   // Separador vertical entre grupos (Eventuales | Evt. N.C. | Permanentes | Total).
@@ -216,7 +241,7 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
       <h4 className={`${fill ? "text-sm mb-1.5 shrink-0" : "text-sm mb-2"} font-semibold text-slate-800 dark:text-slate-200`}>
         {levelLabel}
       </h4>
-      <div className={`overflow-auto custom-scrollbar ${fill ? "flex-1 min-h-0" : "max-h-[420px]"} rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950`}>
+      <div ref={contenedorRef} className={`overflow-auto custom-scrollbar ${fill ? "flex-1 min-h-0" : "max-h-[420px]"} rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950`}>
         <table className={`w-full ${fill ? "text-sm" : "text-sm"} border-collapse`}>
           <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
             <tr>
@@ -251,6 +276,7 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
             {rows.map((row) => (
               <tr
                 key={row.nivel}
+                style={altoFila ? { height: altoFila } : undefined}
                 className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors"
               >
                 <td className={`sticky left-0 z-10 bg-white dark:bg-slate-950 ${px} ${py} text-left font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap`}>
@@ -291,10 +317,13 @@ function NivelPlazaTable({ levelLabel, rows, totalRow, onCellClick, fill = false
 // Tabla de Observaciones en modo widget: mismo diseño que NivelPlazaTable
 // (encabezado gris, números planos, fila de total fija abajo).
 function ObsTable({ title, rows, total, onCellClick }) {
+  // Encabezado + fila de total ≈ 92 px; el resto se reparte entre las filas.
+  const [contenedorRef, altoFila] = useAltoFilas(rows.length, 92, true);
+  const grande = altoFila && altoFila >= 64;
   return (
     <div className="flex flex-col h-full min-h-0">
       <h4 className="text-sm mb-1.5 shrink-0 font-semibold text-slate-800 dark:text-slate-200">{title}</h4>
-      <div className="overflow-auto custom-scrollbar flex-1 min-h-0 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+      <div ref={contenedorRef} className="overflow-auto custom-scrollbar flex-1 min-h-0 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
             <tr>
@@ -304,8 +333,8 @@ function ObsTable({ title, rows, total, onCellClick }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.label} className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
-                <td className="px-3 py-2.5 text-left font-semibold text-slate-800 dark:text-slate-100">{r.label}</td>
+              <tr key={r.label} style={altoFila ? { height: altoFila } : undefined} className="border-b border-slate-100 dark:border-slate-800/70 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                <td className={`px-3 py-2.5 text-left font-semibold text-slate-800 dark:text-slate-100 ${grande ? "text-base" : ""}`}>{r.label}</td>
                 <td className="px-3 py-2.5 text-right">
                   <CellNum compact value={r.value} tone="ocup" onClick={() => onCellClick(r)} />
                 </td>

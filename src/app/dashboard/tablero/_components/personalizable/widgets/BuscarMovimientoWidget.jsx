@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Search, X, Loader2, ArrowRightLeft } from "lucide-react";
+import { Search, X, Loader2, ArrowRightLeft, UserCheck, UserX, CircleHelp } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
 import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
+import { formatDateEsMx } from "@/utils/columnFilters";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
 
 // Igual que `buildFullName` en MovimientosPersonalTab.jsx/TableroRH.jsx: el
@@ -34,6 +35,49 @@ const MOVIMIENTO_CARD_CONFIG = {
 };
 
 const SEARCH_DEBOUNCE_MS = 400;
+const LOTE_ESTATUS = 300; // máximo de No. Empleado por consulta (ver EmpleadosEstatusPlantillaView)
+
+const claveEmpleado = (row) => String(row.num_empleado ?? "").trim();
+
+/**
+ * Leyenda de estatus al pie de cada tarjeta: ¿sigue en la plantilla o ya causó baja?
+ * Criterio (ver EmpleadosEstatusPlantillaView): baja = aparece en BAJAS_SIG y ya no está en la
+ * plantilla vigente; quien causó baja y reingresó cuenta como activo. `estatus` es el mapa
+ * { id: { baja, fecha_baja, en_plantilla } }; `undefined` = aún no llega (o no hay permiso).
+ */
+function LeyendaEstatus({ estatus, cargando }) {
+  if (!estatus) {
+    return cargando ? (
+      <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/70 text-[10px] font-bold text-slate-400">
+        <Loader2 className="size-3 animate-spin" />Consultando si sigue en plantilla…
+      </div>
+    ) : null;
+  }
+  let Icono = CircleHelp;
+  let titulo = "Sin registro en la plantilla vigente";
+  let detalle = "Tampoco aparece en bajas";
+  let tono = "text-slate-500 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700";
+  if (estatus.en_plantilla) {
+    Icono = UserCheck;
+    titulo = "Vigente en la plantilla";
+    detalle = "Activo al día de hoy";
+    tono = "text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900";
+  } else if (estatus.baja) {
+    Icono = UserX;
+    titulo = "Ya causó baja";
+    detalle = estatus.fecha_baja ? `Baja efectiva ${formatDateEsMx(estatus.fecha_baja)}` : "Consta en el registro de bajas";
+    tono = "text-rose-700 dark:text-rose-400 bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900";
+  }
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${tono}`}>
+      <Icono className="size-4 shrink-0" />
+      <div className="min-w-0 leading-tight">
+        <p className="text-[11px] font-black">{titulo}</p>
+        <p className="text-[10px] font-semibold opacity-80 truncate">{detalle}</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Widget del tablero personalizable: búsqueda de movimientos de personal por
@@ -45,12 +89,17 @@ export default function BuscarMovimientoWidget() {
   const { hasPermission } = useAuth();
   const canViewFoto = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO);
 
+  // Estatus (plantilla / baja) de los empleados de los resultados: { id: { baja, fecha_baja, en_plantilla } }.
+  const [estatus, setEstatus] = useState({});
+  const [cargandoEstatus, setCargandoEstatus] = useState(false);
+
   const cardConfig = useMemo(() => ({
     ...MOVIMIENTO_CARD_CONFIG,
     renderLeading: canViewFoto
       ? (row) => <FotoEmpleadoCell numempleado={row.num_empleado} size={44} caption={buildMovNombreCompleto(row)} />
       : undefined,
-  }), [canViewFoto]);
+    renderFooter: (row) => <LeyendaEstatus estatus={estatus[claveEmpleado(row)]} cargando={cargandoEstatus} />,
+  }), [canViewFoto, estatus, cargandoEstatus]);
 
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -89,6 +138,25 @@ export default function BuscarMovimientoWidget() {
       .finally(() => { if (active) setIsLoading(false); });
     return () => { active = false; };
   }, [debouncedQuery]);
+
+  // Tras cada búsqueda, un solo viaje (por lotes) para saber quién sigue en plantilla y quién causó baja.
+  useEffect(() => {
+    const ids = [...new Set(results.map(claveEmpleado).filter((i) => i && i.toUpperCase() !== "VACANTE"))];
+    if (ids.length === 0) { setEstatus({}); setCargandoEstatus(false); return undefined; }
+    const ctrl = new AbortController();
+    setCargandoEstatus(true);
+    const lotes = [];
+    for (let i = 0; i < ids.length; i += LOTE_ESTATUS) lotes.push(ids.slice(i, i + LOTE_ESTATUS));
+    Promise.all(lotes.map((lote) =>
+      VacantesService.getEmpleadosEstatusPlantilla(lote, { signal: ctrl.signal })
+        // Sin permiso o error: no se muestra leyenda (nunca una equivocada).
+        .then((res) => (res.ok ? res.json() : {}))
+        .catch(() => ({}))
+    ))
+      .then((mapas) => { if (!ctrl.signal.aborted) setEstatus(Object.assign({}, ...mapas)); })
+      .finally(() => { if (!ctrl.signal.aborted) setCargandoEstatus(false); });
+    return () => ctrl.abort();
+  }, [results]);
 
   const handleSelectRow = (row) => {
     // Mismo remapeo que TableroRH.jsx/MovimientosPersonalTab.jsx:
@@ -130,6 +198,7 @@ export default function BuscarMovimientoWidget() {
       <div className="flex-1 min-h-0 overflow-y-auto mt-2">
         {query.trim() ? (
           <MobileCardList
+            compact
             data={results}
             config={cardConfig}
             onCardClick={handleSelectRow}

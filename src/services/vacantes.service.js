@@ -833,6 +833,33 @@ export const VacantesService = {
     },
 
     /**
+     * Autocompletado de "Cadena de mando": posición o No. Empleado que empiezan
+     * con lo escrito, o nombre que contiene todas las palabras.
+     * @param {string} q - Texto escrito (mínimo 2 caracteres).
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch` (p. ej. `signal`).
+     * @returns {Promise<Response>} Lista de `{ posicion, puesto, ocupante, id_empleado }`.
+     */
+    getCadenaMandoSugerencias: (q, options = {}) => {
+        return apiFetch(`/plantilla/cadena_mando/sugerencias/?q=${encodeURIComponent(q)}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
+     * ¿Sigue activo en la plantilla o ya causó baja? Para un lote de No. Empleado (máx. 300).
+     * @param {string[]} ids - No. Empleado a consultar.
+     * @param {RequestInit} [options={}] - Opciones extra para `fetch` (p. ej. `signal`).
+     * @returns {Promise<Response>} `{ "<id>": { baja, fecha_baja, en_plantilla } }`.
+     */
+    getEmpleadosEstatusPlantilla: (ids, options = {}) => {
+        return apiFetch(`/plantilla/empleados/estatus/?empleados=${encodeURIComponent(ids.join(','))}`, {
+            method: 'GET',
+            ...options
+        });
+    },
+
+    /**
      * Obtiene las bajas registradas en SIG.
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.

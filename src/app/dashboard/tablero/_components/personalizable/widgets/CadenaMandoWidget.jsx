@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, Loader2, Network } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 
@@ -14,6 +14,9 @@ const estadoNodo = (n) => {
   return !n?.Empleado || String(n.Empleado).trim() === "" ? "Vacante" : "Activo";
 };
 
+const DEBOUNCE_MS = 250;
+const MIN_CARACTERES = 2;
+
 const Kpi = ({ label, valor, sub }) => (
   <div className="rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 min-w-0">
     <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 truncate">{label}</p>
@@ -26,7 +29,10 @@ const Kpi = ({ label, valor, sub }) => (
  * Cadena de mando rápida: escribe una posición, nombre o No. Empleado. "Abajo"
  * resume los subordinados (directos/indirectos, ocupadas/vacantes,
  * profundidad y niveles); "Arriba" lista la línea de jefes hasta la cima.
- * Consulta y dirección se guardan en `config`.
+ * Consulta y dirección se guardan en `config`. El input autocompleta mientras se
+ * escribe (posición o No. Empleado que empiezan con lo escrito, o nombre que
+ * contiene todas las palabras): al elegir una sugerencia se consulta con su
+ * posición exacta, sin la ambigüedad de un nombre parcial.
  */
 export default function CadenaMandoWidget({ config, onConfigChange }) {
   const q = config?.q || "";
@@ -35,8 +41,43 @@ export default function CadenaMandoWidget({ config, onConfigChange }) {
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
+  const [sugerencias, setSugerencias] = useState([]);
+  const [buscandoSug, setBuscandoSug] = useState(false);
+  const [abierto, setAbierto] = useState(false);
+  const [indiceActivo, setIndiceActivo] = useState(-1);
+  const contenedorRef = useRef(null);
 
   useEffect(() => { setBorrador(q); }, [q]);
+
+  // Sugerencias con debounce; cada búsqueda cancela la anterior.
+  useEffect(() => {
+    const termino = borrador.trim();
+    if (!abierto || termino.length < MIN_CARACTERES || termino === q) {
+      setSugerencias([]);
+      setBuscandoSug(false);
+      return undefined;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      setBuscandoSug(true);
+      VacantesService.getCadenaMandoSugerencias(termino, { signal: ctrl.signal })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((d) => {
+          setSugerencias(Array.isArray(d) ? d : []);
+          setIndiceActivo(-1);
+        })
+        .catch(() => { /* cancelada o sin red: se deja la lista vacía */ })
+        .finally(() => { if (!ctrl.signal.aborted) setBuscandoSug(false); });
+    }, DEBOUNCE_MS);
+    return () => { clearTimeout(timer); ctrl.abort(); };
+  }, [borrador, abierto, q]);
+
+  // Cerrar la lista al hacer clic fuera del widget.
+  useEffect(() => {
+    const fuera = (e) => { if (!contenedorRef.current?.contains(e.target)) setAbierto(false); };
+    document.addEventListener("mousedown", fuera);
+    return () => document.removeEventListener("mousedown", fuera);
+  }, []);
 
   useEffect(() => {
     if (!q) { setData(null); setError(null); return undefined; }
@@ -75,33 +116,79 @@ export default function CadenaMandoWidget({ config, onConfigChange }) {
     return s;
   }, [cadena, direction]);
 
-  const buscar = (e) => {
-    e?.preventDefault();
-    const limpio = borrador.trim();
+  const consultar = (valor) => {
+    const limpio = (valor || "").trim();
+    setAbierto(false);
+    setSugerencias([]);
+    setBorrador(limpio);
     if (limpio !== q) onConfigChange?.({ q: limpio });
   };
 
+  // Enter con una sugerencia resaltada (flechas) elige esa; si no, consulta lo escrito.
+  const buscar = (e) => {
+    e?.preventDefault();
+    consultar(sugerencias[indiceActivo]?.posicion ?? borrador);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "ArrowDown" && sugerencias.length) { e.preventDefault(); setIndiceActivo((i) => Math.min(i + 1, sugerencias.length - 1)); }
+    else if (e.key === "ArrowUp" && sugerencias.length) { e.preventDefault(); setIndiceActivo((i) => Math.max(i - 1, 0)); }
+    else if (e.key === "Escape") setAbierto(false);
+  };
+
+  const mostrarLista = abierto && sugerencias.length > 0 && borrador.trim() !== q;
+
   return (
-    <div className="w-full h-full flex flex-col min-h-0">
+    <div ref={contenedorRef} className="w-full h-full flex flex-col min-h-0">
       <form onSubmit={buscar} className="shrink-0 p-2 flex flex-col gap-2 border-b border-slate-200/70 dark:border-slate-800/70">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
           <input
             type="text"
             value={borrador}
-            onChange={(e) => setBorrador(e.target.value)}
+            onChange={(e) => { setBorrador(e.target.value); setAbierto(true); }}
+            onFocus={() => setAbierto(true)}
+            onKeyDown={onKeyDown}
             placeholder="Posición, nombre o No. Empleado"
             aria-label="Consultar cadena de mando"
+            role="combobox"
+            aria-expanded={mostrarLista}
+            aria-autocomplete="list"
+            autoComplete="off"
             className="w-full pl-8 pr-14 py-1.5 text-xs rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-[#621f32]/50 dark:focus:border-[#bc955c]/50"
           />
           <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {cargando && <Loader2 className="size-3.5 text-slate-400 animate-spin" />}
+            {(cargando || buscandoSug) && <Loader2 className="size-3.5 text-slate-400 animate-spin" />}
             {borrador && (
               <button type="button" aria-label="Limpiar" onClick={() => { setBorrador(""); if (q) onConfigChange?.({ q: "" }); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="size-3.5" />
               </button>
             )}
           </div>
+          {mostrarLista && (
+            <ul role="listbox" className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1">
+              {sugerencias.map((sg, i) => (
+                <li
+                  key={sg.posicion}
+                  role="option"
+                  aria-selected={i === indiceActivo}
+                  // mousedown (no click): se elige antes de que el input pierda el foco.
+                  onMouseDown={(e) => { e.preventDefault(); consultar(sg.posicion); }}
+                  onMouseEnter={() => setIndiceActivo(i)}
+                  className={`px-3 py-1.5 cursor-pointer ${i === indiceActivo ? "bg-slate-100 dark:bg-slate-800" : ""}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-100">{sg.posicion}</span>
+                    {sg.id_empleado && <span className="font-mono text-[10px] font-bold text-slate-400">Emp. {sg.id_empleado}</span>}
+                  </div>
+                  <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300 truncate">
+                    {sg.ocupante || <span className="italic text-amber-700 dark:text-amber-400">Vacante</span>}
+                  </div>
+                  {sg.puesto && <div className="text-[10px] leading-tight text-slate-400 dark:text-slate-500 truncate">{sg.puesto}</div>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="flex items-center bg-slate-100 dark:bg-slate-800/60 rounded-lg p-0.5 gap-0.5 self-start">
           {[["abajo", "Subordinados"], ["arriba", "Jefes"]].map(([val, txt]) => (

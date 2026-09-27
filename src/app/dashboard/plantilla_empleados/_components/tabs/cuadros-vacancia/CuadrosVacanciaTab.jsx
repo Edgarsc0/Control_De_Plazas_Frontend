@@ -1,528 +1,34 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { Zoom } from "@/components/shared/Reveal";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, useXAxisScale, useYAxisScale, usePlotArea } from "recharts";
-import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, AlertCircle, ChevronsUpDown, ChevronsDownUp, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, AlertCircle, ChevronsUpDown, ChevronsDownUp, TrendingUp, Layers, CirclePlus, CircleMinus, EyeOff } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
-import { gsap } from 'gsap';
-import { useGSAP } from '@gsap/react';
 import { PlantillaService } from '@/services/plantilla.service';
 import { VacantesService } from '@/services/vacantes.service';
+import HistoricoLineChart from "./HistoricoLineChart";
 import DesgloseJerarquicoCharts from "./DesgloseJerarquicoCharts";
 import DetalleVacantesTablas from "./DetalleVacantesTablas";
 import EmployeesModal from "../../shared/EmployeesModal";
 
-gsap.registerPlugin(useGSAP);
-
-// ReferenceArea con x1===x2 (mes de un solo registro) renderiza ancho 0 en
-// el eje categórico (point scale, sin bandwidth), así que las franjas se
-// dibujan a mano con el scale real del eje X (hooks de recharts v3) para
-// poder darle un ancho mínimo visible a esos meses de un solo punto.
-// Definida a nivel de módulo (no dentro de CuadrosVacanciaTab) para que su
-// identidad de componente sea estable entre renders: si se redefiniera en
-// cada render del padre, React la desmontaría/montaría de nuevo en cada
-// re-render (p.ej. al pasar el mouse sobre un punto).
 // Modo widget (`only`): sin animación de entrada ni div envolvente, para que la
 // cadena de alturas (h-full) llegue intacta hasta la gráfica.
 const SinAnimacion = ({ children }) => children;
 
-function MonthBandsLayer({ bands, chartData }) {
-  const scale = useXAxisScale();
-  const plotArea = usePlotArea();
-  if (!scale || !plotArea || bands.length === 0) return null;
-
-  const step = chartData.length > 1
-    ? Math.abs(scale(chartData[1].label) - scale(chartData[0].label))
-    : plotArea.width;
-  const minWidth = Math.max(6, step * 0.4);
-  const halfStep = step / 2;
-
-  return (
-    <g>
-      {bands.map((b, i) => {
-        const x1px = scale(b.x1);
-        const x2px = scale(b.x2);
-        const isSingle = b.x1 === b.x2;
-        // Puntos son categóricos (point scale): cada uno se ancla en su centro,
-        // así que hay que extender medio paso a cada lado para cubrir todo su ancho,
-        // no solo el tramo centro-a-centro entre el primer y el último punto del mes.
-        const width = isSingle ? minWidth : Math.abs(x2px - x1px) + step;
-        const left = isSingle ? x1px - width / 2 : Math.min(x1px, x2px) - halfStep;
-        if (!Number.isFinite(left) || !Number.isFinite(width)) return null;
-
-        // Etiqueta "Mes Año" centrada en la franja, solo si el ancho la
-        // acomoda completa (estimación de ancho por caracter a fontSize 10).
-        const [yearStr, monthStr] = b.monthKey.split('-');
-        const monthLabel = new Date(Number(yearStr), Number(monthStr) - 1, 1)
-          .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-        const labelText = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
-        const estimatedTextWidth = labelText.length * 5.6 + 10;
-        const showLabel = width >= estimatedTextWidth;
-
-        return (
-          <g key={b.monthKey}>
-            <rect
-              x={left}
-              y={plotArea.y}
-              width={width}
-              height={plotArea.height}
-              fill={b.color}
-              fillOpacity={0.22}
-            />
-            {/* Frontera entre meses: línea vertical en el borde izquierdo de cada
-                franja (salvo la primera, que coincide con el borde del área). */}
-            {i > 0 && (
-              <line
-                x1={left}
-                x2={left}
-                y1={plotArea.y}
-                y2={plotArea.y + plotArea.height}
-                stroke={b.color}
-                strokeOpacity={0.55}
-                strokeWidth={1.5}
-                strokeDasharray="4 3"
-              />
-            )}
-            {showLabel && (
-              <text
-                x={left + width / 2}
-                y={plotArea.y + plotArea.height / 2 - 16}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={10}
-                fontWeight={900}
-                fill={b.color}
-                fillOpacity={0.85}
-                className="select-none pointer-events-none"
-              >
-                {labelText}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
-// Franjas de fondo por año (en vez de por mes, como MonthBandsLayer) para la
-// gráfica de Plazas Totales/Activas/Inactivas, que cubre toda la historia de
-// la ANAM (2022-hoy) con un punto por mes: agrupar por mes ahí no aportaría
-// nada (ya es la unidad del dato), agrupar por año sí ayuda a ubicar "en qué
-// año" cae cada máximo/mínimo. Misma técnica de posicionamiento con el scale
-// real del eje X que MonthBandsLayer, a nivel de módulo por la misma razón
-// (identidad de componente estable entre renders).
-function YearBandsLayer({ bands, chartData }) {
-  const scale = useXAxisScale();
-  const plotArea = usePlotArea();
-  if (!scale || !plotArea || bands.length === 0) return null;
-
-  const step = chartData.length > 1
-    ? Math.abs(scale(chartData[1].label) - scale(chartData[0].label))
-    : plotArea.width;
-  const halfStep = step / 2;
-
-  return (
-    <g>
-      {bands.map((b, i) => {
-        const x1px = scale(b.x1);
-        const x2px = scale(b.x2);
-        const width = Math.abs(x2px - x1px) + step;
-        const left = Math.min(x1px, x2px) - halfStep;
-        if (!Number.isFinite(left) || !Number.isFinite(width)) return null;
-        const estimatedTextWidth = b.year.length * 8 + 10;
-        const showLabel = width >= estimatedTextWidth;
-
-        return (
-          <g key={b.year}>
-            <rect x={left} y={plotArea.y} width={width} height={plotArea.height} fill={b.color} fillOpacity={0.14} />
-            {i > 0 && (
-              <line
-                x1={left} x2={left} y1={plotArea.y} y2={plotArea.y + plotArea.height}
-                stroke={b.color} strokeOpacity={0.5} strokeWidth={1.5} strokeDasharray="4 3"
-              />
-            )}
-            {showLabel && (
-              <text
-                x={left + width / 2}
-                y={plotArea.y + 16}
-                textAnchor="middle"
-                fontSize={13}
-                fontWeight={900}
-                fill={b.color}
-                fillOpacity={0.85}
-                className="select-none pointer-events-none"
-              >
-                {b.year}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
-// Marca meses en los que, según el corte mensual del histórico de plazas, se
-// detecta creación (cualquier incremento de plazas activas) o desactivación
-// (cualquier incremento de plazas inactivas) — ver cálculo en `plazasEventos`
-// más abajo. Ambas se evalúan por separado, así que un mismo mes puede tener
-// las dos a la vez (activas e inactivas suben juntas): se dibujan lado a lado
-// (offset horizontal), no encimadas. Banda vertical delgada (mismo mecanismo
-// que YearBandsLayer) para que no se amontonen varios meses seguidos.
-// Triángulo (creación ▲ verde / desactivación ▼ guinda) + número de plazas
-// afectadas en una píldora encima — todas las píldoras viven a la misma
-// altura fija (arriba del área de trazo), así que con muchos meses seguidos
-// se amontonan entre sí. Al pasar el mouse sobre la franja (o la píldora),
-// esa píldora se alza con GSAP (traslada + escala + sombra) para sacarla del
-// montón. Ojo: NO se reordena el DOM para "traerla al frente" — moverla de
-// posición mientras el mouse está encima le rompe el mouseleave (el cursor
-// deja de estar sobre el nodo original) y se queda pegada arriba.
-function PlazasEventsLayer({ events, chartData, onEventClick }) {
-  const scale = useXAxisScale();
-  const plotArea = usePlotArea();
-  const badgeRefs = useRef({});
-  const [hoveredKey, setHoveredKey] = useState(null);
-  if (!scale || !plotArea || events.length === 0) return null;
-
-  const step = chartData.length > 1
-    ? Math.abs(scale(chartData[1].label) - scale(chartData[0].label))
-    : plotArea.width;
-  const bandWidth = Math.max(4, step * 0.28);
-  const halfBand = bandWidth / 2;
-
-  const byIndex = {};
-  events.forEach(ev => {
-    (byIndex[ev.index] ||= []).push(ev);
-  });
-
-  const items = [];
-  Object.values(byIndex).forEach(evs => {
-    const baseX = scale(chartData[evs[0].index]?.label);
-    if (!Number.isFinite(baseX)) return;
-    const slot = bandWidth + 3;
-    evs.forEach((ev, ei) => {
-      const x = baseX + (ei - (evs.length - 1) / 2) * slot;
-      items.push({ ev, x, key: `evt-${ev.type}-${ev.index}` });
-    });
-  });
-  const lowerEl = (elKey) => {
-    const el = badgeRefs.current[elKey];
-    if (!el) return;
-    gsap.to(el, { y: 0, scale: 1, filter: 'none', duration: 0.18, ease: 'power2.out', overwrite: true });
-  };
-
-  const raise = (key) => {
-    // Seguro: si quedó otra píldora alzada (p.ej. su mouseleave no llegó a
-    // disparar por movimiento rápido del mouse), se baja antes de alzar esta.
-    setHoveredKey(prev => {
-      if (prev && prev !== key) lowerEl(prev);
-      return key;
-    });
-    const el = badgeRefs.current[key];
-    if (!el) return;
-    gsap.to(el, {
-      y: -14,
-      scale: 1.25,
-      filter: 'drop-shadow(0 4px 7px rgba(0,0,0,.45))',
-      transformOrigin: '50% 100%',
-      duration: 0.28,
-      ease: 'back.out(2.4)',
-      overwrite: true,
-    });
-  };
-  const lower = (key) => {
-    setHoveredKey(prev => (prev === key ? null : prev));
-    const el = badgeRefs.current[key];
-    if (!el) return;
-    gsap.to(el, {
-      y: 0,
-      scale: 1,
-      filter: 'none',
-      duration: 0.22,
-      ease: 'power2.out',
-      overwrite: true,
-    });
-  };
-
-  return (
-    <g>
-      {items.map(({ ev, x, key }) => {
-        const isCreacion = ev.type === 'creacion';
-        const color = isCreacion ? '#2f9e5c' : '#c23b5a';
-        const topY = plotArea.y - 8;
-        const apexY = topY - 14;
-        const count = isCreacion ? ev.dActivas : ev.dInactivas;
-        const labelText = `${isCreacion ? '+' : '-'}${count}`;
-        const pillW = Math.max(26, labelText.length * 7.5 + 10);
-        const pillY = apexY - 20;
-
-        return (
-          <g key={key}>
-            <rect
-              x={x - halfBand}
-              y={plotArea.y}
-              width={bandWidth}
-              height={plotArea.height}
-              fill={color}
-              fillOpacity={key === hoveredKey ? 0.4 : 0.22}
-              onMouseEnter={() => raise(key)}
-              onMouseLeave={() => lower(key)}
-              onClick={() => onEventClick?.(ev)}
-              style={{ cursor: 'pointer' }}
-            />
-            <g
-              ref={el => { if (el) badgeRefs.current[key] = el; }}
-              onMouseEnter={() => raise(key)}
-              onMouseLeave={() => lower(key)}
-              onClick={() => onEventClick?.(ev)}
-              style={{ cursor: 'pointer' }}
-            >
-              <path
-                d={isCreacion
-                  ? `M ${x - 8} ${topY} L ${x + 8} ${topY} L ${x} ${apexY} Z`
-                  : `M ${x - 8} ${apexY} L ${x + 8} ${apexY} L ${x} ${topY} Z`}
-                fill={color}
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-              <rect
-                x={x - pillW / 2}
-                y={pillY}
-                width={pillW}
-                height={16}
-                rx={8}
-                fill={color}
-                stroke="#fff"
-                strokeWidth={1}
-              />
-              <text
-                x={x}
-                y={pillY + 11.5}
-                textAnchor="middle"
-                fontSize={10.5}
-                fontWeight={800}
-                fill="#fff"
-                className="select-none pointer-events-none"
-              >
-                {labelText}
-              </text>
-            </g>
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
-// Offset vertical "preferido" por serie para sus etiquetas de máximo/mínimo:
-// punto de partida del empaquetado anticolisión de PlazasExtremeLabelsLayer,
-// y también usado por renderPlazasDot/renderOcupVacMensualDot para separar el
-// nombre de serie (en el primer/último punto) de esa misma etiqueta.
-// Compartido a nivel de módulo porque ambos (capa y dot) lo necesitan.
-// `ocupadas`/`vacantes` son las series mensuales de OCUPACION_MENSUAL_SERIES/
-// VACANCIA_MENSUAL_SERIES (una sola serie por tarjeta, así que no necesitan
-// carriles tan separados entre sí como totales/activas/inactivas).
-const PLAZAS_LABEL_BASE_OFFSET = { totales: 26, activas: 50, inactivas: 74, ocupadas: 26, vacantes: 26 };
-
-// Ancho estimado (por caracter) del texto de las etiquetas de extremos, y
-// según el textAnchor calcula el rango [xStart, xEnd] que esa etiqueta ocupa
-// realmente en el eje X (no solo su centro), para poder detectar colisiones
-// horizontales entre etiquetas ancladas a la izquierda/derecha/centro.
-function estimateExtremeLabelBox(dateText, valueText, anchor, px) {
-  const CHAR_W = 6.3;
-  const PAD = 8;
-  const width = Math.max(dateText.length, valueText.length) * CHAR_W + PAD;
-  if (anchor === 'start') return { xStart: px, xEnd: px + width, width };
-  if (anchor === 'end') return { xStart: px - width, xEnd: px, width };
-  return { xStart: px - width / 2, xEnd: px + width / 2, width };
-}
-
-// Empaqueta etiquetas de un mismo sentido (todas "max", que suben, o todas
-// "min", que bajan): cada etiqueta arranca en el carril preferido de su serie
-// (`baseOffset`) y, si su caja [xStart,xEnd,yTop,yBottom] choca con la de
-// cualquier otra etiqueta YA colocada —de la misma serie o de otra—, se aleja
-// más del punto (mismo sentido) hasta encontrar hueco libre. La comparación es
-// contra TODAS las etiquetas ya puestas (no solo las de su propio carril):
-// con series de valores parecidos (p.ej. Totales y Activas cuando Inactivas
-// ronda cero) sus carriles preferidos quedan a solo 24px uno de otro, menos
-// que el alto real de una etiqueta de 2 líneas (~28px), así que sin este
-// chequeo cruzado dos carriles "distintos" se siguen encimando en pantalla.
-// Determinista y O(n²) sobre el puñado de extremos por año que maneja esta
-// gráfica. `direction` es -1 (max, hacia arriba) o +1 (min, hacia abajo).
-function packExtremeLabels(items, direction) {
-  const GAP_X = 4;
-  const LABEL_HEIGHT = 28; // 2 líneas (fecha + valor) + aire
-  const STEP = LABEL_HEIGHT + 4;
-  const placedBoxes = [];
-  const sorted = [...items].sort((a, b) => a.baseOffset - b.baseOffset || a.px - b.px);
-
-  return sorted.map(item => {
-    const baseDy = direction * item.baseOffset;
-    let dy = baseDy;
-    const xStart = item.box.xStart - GAP_X;
-    const xEnd = item.box.xEnd + GAP_X;
-
-    for (let guard = 0; guard < 20; guard++) {
-      const labelY = item.py + dy;
-      const yTop = labelY - 10;
-      const yBottom = labelY + 18;
-      const collides = placedBoxes.some(b =>
-        xStart < b.xEnd && xEnd > b.xStart && yTop < b.yBottom && yBottom > b.yTop
-      );
-      if (!collides) {
-        placedBoxes.push({ xStart, xEnd, yTop, yBottom });
-        return { ...item, dy, pushed: dy !== baseDy };
-      }
-      dy += direction * STEP;
-    }
-    return { ...item, dy, pushed: true };
-  });
-}
-
-// Etiquetas de máximo/mínimo POR AÑO de la gráfica de Plazas Totales/Activas/
-// Inactivas. Vive fuera de renderPlazasDot (que solo conoce su propio punto)
-// porque evitar que se encimen requiere ver TODOS los extremos a la vez: usa
-// las escalas reales del eje (mismos hooks que MonthBandsLayer/PlazasEventsLayer)
-// para calcular la posición en píxeles de cada extremo, los reparte con
-// packExtremeLabels, y cuando una etiqueta termina lejos de su punto (se movió
-// de carril para no chocar) dibuja una flecha conectora hacia el punto que
-// representa.
-function PlazasExtremeLabelsLayer({ minMaxByYear, chartData, series, formatDateShort, formatNumber }) {
-  const xScale = useXAxisScale();
-  const yScale = useYAxisScale();
-  const plotArea = usePlotArea();
-  if (!xScale || !yScale || !plotArea) return null;
-
-  const rawItems = [];
-  series.forEach(s => {
-    const byYear = minMaxByYear[s.key] || {};
-    Object.entries(byYear).forEach(([year, g]) => {
-      ['max', 'min'].forEach(kind => {
-        const point = g[kind];
-        if (!point) return;
-        const d = chartData[point.index];
-        if (!d) return;
-        const px = xScale(d.label);
-        const py = yScale(point.value);
-        if (!Number.isFinite(px) || !Number.isFinite(py)) return;
-
-        const isFirstPoint = point.index === 0;
-        const isLastPoint = point.index === chartData.length - 1;
-        const anchor = isFirstPoint ? 'start' : isLastPoint ? 'end' : 'middle';
-        const dateText = `${kind === 'max' ? '▲' : '▼'} ${formatDateShort(d.fecha)}`;
-        const valueText = formatNumber(point.value);
-        const box = estimateExtremeLabelBox(dateText, valueText, anchor, px);
-
-        rawItems.push({
-          key: `${s.key}-${kind}-${point.index}-${year}`,
-          color: s.color, kind, px, py, anchor, dateText, valueText, box,
-          baseOffset: PLAZAS_LABEL_BASE_OFFSET[s.key],
-        });
-      });
-    });
-  });
-
-  const placed = [
-    ...packExtremeLabels(rawItems.filter(it => it.kind === 'max'), -1),
-    ...packExtremeLabels(rawItems.filter(it => it.kind === 'min'), 1),
-  ];
-
-  return (
-    <g>
-      {placed.map(it => {
-        const dir = it.kind === 'max' ? -1 : 1;
-        const labelY = it.py + it.dy;
-        const textX = it.anchor === 'start' ? it.px + 6 : it.anchor === 'end' ? it.px - 6 : it.px;
-
-        // Flecha conectora: solo cuando el empaquetado tuvo que alejar esta
-        // etiqueta de su carril preferido (chocaba con otra), que es
-        // justamente cuando ya no queda obvio a simple vista a qué punto
-        // pertenece.
-        const dotEdgeY = it.py + dir * 9;
-        const labelEdgeY = dir === -1 ? labelY + 16 : labelY - 11;
-        const arrowBaseY = dotEdgeY + dir * 5;
-
-        return (
-          <g key={it.key}>
-            {it.pushed && (
-              <g pointerEvents="none">
-                <line
-                  x1={it.px}
-                  y1={labelEdgeY}
-                  x2={it.px}
-                  y2={dotEdgeY}
-                  stroke={it.color}
-                  strokeWidth={1.25}
-                  strokeOpacity={0.6}
-                />
-                <path
-                  d={`M ${it.px - 3} ${arrowBaseY} L ${it.px + 3} ${arrowBaseY} L ${it.px} ${dotEdgeY} Z`}
-                  fill={it.color}
-                  fillOpacity={0.75}
-                />
-              </g>
-            )}
-            <text x={textX} y={labelY} textAnchor={it.anchor} className="select-none pointer-events-none">
-              <tspan x={textX} fontSize={11} fontWeight={700} fill={it.color}>{it.dateText}</tspan>
-              <tspan x={textX} dy={13} fontSize={12} fontWeight={800} fill={it.color}>{it.valueText}</tspan>
-            </text>
-          </g>
-        );
-      })}
-    </g>
-  );
-}
-
-function HistoricoTooltip({ active, payload, label, hoveredPointKey, formatNumber }) {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/65 dark:border-slate-800 rounded-2xl p-4 shadow-xl shadow-[#621f32]/10 dark:shadow-black/45 min-w-[190px]">
-      <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2.5 pb-2 border-b border-slate-100 dark:border-slate-800 tracking-wider">
-        {label}
-      </p>
-      <div className="space-y-1.5">
-        {payload.map((p, i) => {
-          const isHovered = p.dataKey === hoveredPointKey;
-          return (
-            <div key={i} className="flex justify-between items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
-                <span className={`text-[11px] ${isHovered ? 'font-black text-slate-800 dark:text-white' : 'font-bold text-slate-500 dark:text-slate-400'}`}>
-                  {p.name}
-                </span>
-              </div>
-              <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatNumber(p.value)}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // Tarjeta reutilizable de gráfica histórica (Ocupación o Vacancia). Definida
-// a nivel de módulo por la misma razón que MonthBandsLayer: recibe todo por
-// props para no depender de closures del padre y así mantener su identidad
-// estable entre renders (evita que un simple hover remonte el <LineChart>
-// completo y con él, la animación de dibujado de línea).
-//
-// La animación de "dibujado" (stroke-dashoffset) solo se dispara por
-// visibilidad: un IntersectionObserver sobre la tarjeta completa la relanza
-// cada vez que vuelve a entrar al viewport (se perdió de vista y se ve de
-// nuevo), no en cada render ni en cada cambio de datos.
+// a nivel de módulo: recibe todo por props para no depender de closures del
+// padre y así mantener su identidad estable entre renders. La gráfica en sí
+// (ECharts: etiquetas al final de línea, máx/mín anual, eventos) vive en
+// HistoricoLineChart.jsx; aquí solo el marco, encabezado y notas.
 function HistoricoChartCard({
   title, subtitle, icon: Icon, series, chartData, ticks, isCompactChart: isCompactChartProp,
-  formatNumber, monthBands, renderDot, hoveredPointKey, onDotHover, onDotLeave,
+  formatNumber,
   // Opcionales: solo los usa la tarjeta de Plazas Totales/Activas/Inactivas.
-  // `bandsLayer`, si se pasa, sustituye a <MonthBandsLayer> (p.ej. franjas por
-  // año en vez de por mes); `extraLayer` se dibuja encima (marcadores de
-  // creación/desactivación de plazas, que necesitan más margen superior para
-  // su píldora de conteo — de ahí `topMargin`); `footnote` va debajo de la
-  // gráfica; `toolbar` va en el header, junto al título (p.ej. botones de
-  // filtro creación/desactivación).
-  bandsLayer, extraLayer, footnote, topMargin, toolbar,
+  // `events`/`onEventClick`: marcadores de creación/desactivación de plazas
+  // (clic = detalle); `footnote` va debajo de la gráfica; `toolbar` va en el
+  // header, junto al título (p.ej. botones de filtro creación/desactivación).
+  events, onEventClick, footnote, toolbar,
+  // `etiquetasExtremos`: deja siempre visible el texto de máx/mín de cada año (gráficas de una sola serie).
+  etiquetasExtremos = false,
   // Modo widget del tablero (`only`): sin marco/sombra, encabezado y gráfica
   // más bajos para que la tarjeta quepa en un widget de pocas filas.
   compact = false,
@@ -531,6 +37,10 @@ function HistoricoChartCard({
   footnoteInline = false,
 }) {
   const cardRef = useRef(null);
+  // Textos de máx/mín visibles u ocultos (botón del encabezado; solo en tarjetas con `etiquetasExtremos`).
+  // En modo widget (`compact`) arranca oculto (sin textos), pero los puntos huecos de máx/mín se
+  // muestran siempre: su valor sale al pasar el cursor.
+  const [verExtremos, setVerExtremos] = useState(!compact);
 
   // Modo widget: el layout se adapta al espacio asignado al widget (no al de
   // la ventana). Se mide la propia tarjeta; con poco ancho se usan las mismas
@@ -569,39 +79,6 @@ function HistoricoChartCard({
     return [Math.max(0, min - padding), max + padding];
   }, [chartData, series]);
 
-  useGSAP(() => {
-    if (chartData.length === 0) return;
-    const el = cardRef.current;
-    if (!el) return;
-
-    const playDrawAnimation = () => {
-      const paths = gsap.utils.toArray('.recharts-line-curve', el);
-      paths.forEach((path, i) => {
-        const length = path.getTotalLength();
-        gsap.fromTo(
-          path,
-          { strokeDasharray: length, strokeDashoffset: length },
-          { strokeDashoffset: 0, duration: 1.2, ease: 'power2.inOut', delay: i * 0.15, overwrite: true }
-        );
-      });
-
-      const dotLayers = gsap.utils.toArray('.recharts-line-dots', el);
-      gsap.fromTo(dotLayers, { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 1, stagger: 0.12, overwrite: true });
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          playDrawAnimation();
-          observer.disconnect();
-        }
-      });
-    }, { threshold: 0.3 });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, { scope: cardRef, dependencies: [chartData] });
-
   return (
     <div ref={cardRef} data-historico-card className={compact ? "relative overflow-hidden h-full flex flex-col" : "bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40 relative overflow-hidden"}>
       <div className={`flex items-center border-b border-slate-100 dark:border-slate-800/60 ${compact ? "shrink-0 gap-2 pb-1 flex-wrap" : "gap-4 mb-6 pb-6 flex-wrap"}`}>
@@ -621,6 +98,22 @@ function HistoricoChartCard({
           )}
         </div>
         {toolbar && <div className="flex items-center gap-2 flex-wrap">{toolbar}</div>}
+        {etiquetasExtremos && (
+          <button
+            type="button"
+            onClick={() => setVerExtremos((v) => !v)}
+            aria-pressed={verExtremos}
+            title={verExtremos ? "Ocultar los textos de máximo y mínimo" : "Mostrar los textos de máximo y mínimo"}
+            className={`inline-flex items-center gap-1.5 rounded-full font-black uppercase tracking-wide transition-colors cursor-pointer ${compact ? "px-2 py-1 text-[9px]" : "px-3 py-1.5 text-[11px]"} ${
+              verExtremos
+                ? 'bg-[#10243e] text-white dark:bg-[#bc955c] dark:text-[#10243e]'
+                : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+            }`}
+          >
+            <span className="inline-block size-2 rounded-full border-2 border-current bg-transparent" />
+            Máx / Mín
+          </button>
+        )}
         {compact && (
           // Esquina derecha: leyenda de series y nota, en vez de debajo de la gráfica.
           <div className="ml-auto flex items-center gap-x-3 gap-y-0.5 flex-wrap justify-end text-[10px] font-bold text-slate-500 dark:text-slate-400">
@@ -650,77 +143,20 @@ function HistoricoChartCard({
           No hay datos históricos disponibles
         </div>
       ) : (
-        <div data-pdf-chart className={`w-full relative ${compact ? "flex-1 min-h-[120px]" : "h-[560px]"}`}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: compact ? (topMargin != null ? Math.round(topMargin * 0.3) : 12) : (topMargin ?? (isCompactChart ? 36 : 54)), right: isCompactChart ? 4 : 20, left: 0, bottom: compact ? 0 : 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.4} className="text-slate-350 dark:text-slate-600" />
-              {bandsLayer ?? <MonthBandsLayer bands={monthBands} chartData={chartData} />}
-              {extraLayer}
-              <XAxis
-                dataKey="label"
-                type="category"
-                ticks={ticks}
-                tick={{ fontSize: isCompactChart ? 8 : 10, fontWeight: 700 }}
-                stroke="currentColor"
-                className="text-slate-400 dark:text-slate-500"
-              />
-              <YAxis
-                domain={yDomain}
-                allowDecimals={false}
-                tick={{ fontSize: isCompactChart ? 9 : 10, fontWeight: 700 }}
-                stroke="currentColor"
-                className="text-slate-400 dark:text-slate-500"
-                tickFormatter={formatNumber}
-                width={isCompactChart ? 36 : 55}
-              />
-              <Tooltip
-                content={<HistoricoTooltip hoveredPointKey={hoveredPointKey} formatNumber={formatNumber} />}
-                cursor={{ stroke: '#bc955c', strokeWidth: 1, strokeDasharray: '4 4' }}
-              />
-              {!compact && (
-                <Legend
-                  wrapperStyle={{ fontSize: isCompactChart ? 9 : 11, fontWeight: 700 }}
-                  formatter={(value) => <span className="text-slate-600 dark:text-slate-300">{value}</span>}
-                />
-              )}
-              {series.map(s => (
-                <Line
-                  key={s.key}
-                  type="linear"
-                  dataKey={s.key}
-                  name={s.name}
-                  stroke={s.color}
-                  strokeWidth={1.75}
-                  isAnimationActive={false}
-                  dot={renderDot(s.key, s.color, s.name)}
-                  activeDot={(dotProps) => {
-                    const { cx, cy, key } = dotProps;
-                    return (
-                      <g key={key}>
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={18}
-                          fill="transparent"
-                          onMouseEnter={() => onDotHover(s.key)} onPointerDown={() => onDotHover(s.key)}
-                          onMouseLeave={onDotLeave}
-                        />
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={6}
-                          fill={s.color}
-                          stroke="#fff"
-                          strokeWidth={2}
-                          pointerEvents="none"
-                        />
-                      </g>
-                    );
-                  }}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+        <div data-pdf-chart className={`w-full relative ${compact ? "flex-1 min-h-[120px]" : "h-[520px]"}`}>
+          <HistoricoLineChart
+            series={series}
+            chartData={chartData}
+            ticks={ticks}
+            yDomain={yDomain}
+            formatNumber={formatNumber}
+            events={events}
+            onEventClick={onEventClick}
+            extremes
+            extremeLabels={etiquetasExtremos && verExtremos}
+            compact={compact}
+            angosto={isCompactChart}
+          />
         </div>
       )}
 
@@ -911,18 +347,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     return dateStr.split('-')[0];
   };
 
-  // Fecha corta ("10 Ene 26") para las anotaciones de máximo/mínimo del
-  // histórico — la fecha larga (formatDate) es demasiado ancha para caber
-  // junto al valor sin encimarse con puntos vecinos.
-  const formatDateShort = (dateStr) => {
-    if (!dateStr) return "";
-    const [year, month, day] = dateStr.split('-');
-    const date = new Date(year, month - 1, day);
-    const monthStr = date.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '');
-    const capitalizedMonth = monthStr.charAt(0).toUpperCase() + monthStr.slice(1);
-    return `${date.getDate().toString().padStart(2, '0')} ${capitalizedMonth} ${year.slice(2)}`;
-  };
-
   // "Ene 2022" para el eje X de la gráfica de Plazas Totales/Activas/Inactivas
   // (corte mensual, sin día que mostrar).
   const formatMonthYear = (dateStr) => {
@@ -966,25 +390,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       }));
   }, [filteredData]);
 
-  // Franjas de fondo: agrupa puntos consecutivos que caen en el mismo mes
-  // calendario y les asigna un color distinto (ciclando la paleta) para que
-  // cada mes se distinga visualmente en la gráfica histórica.
-  const MONTH_BAND_COLORS = ['#10243e', '#bc955c', '#621f32', '#2e5890', '#3b6ba8', '#8c2d4a', '#4a7c59', '#7c4a8c'];
-
-  const historicoMonthBands = useMemo(() => {
-    const bands = [];
-    historicoChartData.forEach(d => {
-      const monthKey = d.fecha.slice(0, 7); // YYYY-MM
-      const last = bands[bands.length - 1];
-      if (last && last.monthKey === monthKey) {
-        last.x2 = d.label;
-      } else {
-        bands.push({ monthKey, x1: d.label, x2: d.label });
-      }
-    });
-    return bands.map((b, i) => ({ ...b, color: MONTH_BAND_COLORS[i % MONTH_BAND_COLORS.length] }));
-  }, [historicoChartData]);
-
   const HISTORICO_SERIES = [
     { key: 'ocupadas_permanente', name: 'Permanentes Ocupadas', color: '#10243e' },
     { key: 'ocupadas_eventual', name: 'Eventuales Ocupadas', color: '#bc955c' },
@@ -996,101 +401,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   // usa el subconjunto de series que le corresponde por prefijo de key.
   const OCUPACION_SERIES = HISTORICO_SERIES.filter(s => s.key.startsWith('ocupadas'));
   const VACANCIA_SERIES = HISTORICO_SERIES.filter(s => s.key.startsWith('vacantes'));
-
-  const historicoMinMax = useMemo(() => {
-    const result = {};
-    HISTORICO_SERIES.forEach(s => {
-      let maxPoint = null, minPoint = null;
-      historicoChartData.forEach((d, i) => {
-        const v = d[s.key];
-        if (maxPoint === null || v > maxPoint.value) maxPoint = { index: i, value: v };
-        if (minPoint === null || v < minPoint.value) minPoint = { index: i, value: v };
-      });
-      result[s.key] = { max: maxPoint, min: minPoint };
-    });
-    return result;
-  }, [historicoChartData]);
-
-  // Cada serie del grupo (Ocupadas: permanente+eventual / Vacantes: permanente+eventual)
-  // comparte rango de valores, así que sus etiquetas de máximo/mínimo pueden caer
-  // muy cerca en x/y y encimarse. Se les asigna un "carril" vertical distinto por
-  // serie dentro del grupo para separarlas incluso cuando el punto extremo coincide
-  // en el mismo índice de fecha.
-  const HISTORICO_LABEL_LANE = {
-    ocupadas_permanente: { max: -24, min: 22 },
-    ocupadas_eventual: { max: -48, min: 46 },
-    vacantes_permanente: { max: -24, min: 22 },
-    vacantes_eventual: { max: -48, min: 46 },
-  };
-
-  const renderHistoricoDot = (key, color, seriesName) => (dotProps) => {
-    const { cx, cy, index, value } = dotProps;
-    const minMax = historicoMinMax[key];
-    const isMax = minMax?.max && index === minMax.max.index;
-    const isMin = minMax?.min && index === minMax.min.index && minMax.min.index !== minMax.max.index;
-
-    // Cerca del borde izquierdo/derecho el texto centrado se recorta contra el
-    // área del gráfico: se ancla hacia adentro en vez de centrarlo sobre el punto.
-    const isFirstPoint = index === 0;
-    const isLastPoint = index === historicoChartData.length - 1;
-    const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
-    const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
-
-    // Nombre de la serie (mismo texto que la leyenda) sobre el extremo de la
-    // línea, para identificarla directamente en la gráfica sin depender solo
-    // de la leyenda al pie. Si el extremo coincide con el punto máximo (cuya
-    // anotación de fecha/valor también va arriba), se sube más para no
-    // encimarse con ella.
-    const lane = HISTORICO_LABEL_LANE[key];
-    const nameLabelY = isMax ? cy + lane.max - 20 : cy - 12;
-    const nameLabel = (isFirstPoint || isLastPoint) && (
-      <text
-        key={`name-${key}-${index}`}
-        x={textX}
-        y={nameLabelY}
-        textAnchor={textAnchor}
-        fontSize={11}
-        fontWeight={800}
-        fill={color}
-        className="select-none pointer-events-none"
-      >
-        {seriesName}
-      </text>
-    );
-
-    if (!isMax && !isMin) {
-      // Marcador pequeño y discreto (estilo matplotlib) para los puntos normales.
-      return (
-        <g key={`dot-${key}-${index}`}>
-          <circle cx={cx} cy={cy} r={2.2} fill={color} strokeWidth={0} />
-          {nameLabel}
-        </g>
-      );
-    }
-
-    const dateText = formatDateShort(historicoChartData[index]?.fecha);
-    const labelY = cy + (isMax ? lane.max : lane.min);
-
-    return (
-      <g key={`dot-${key}-${index}`}>
-        {/* Punto sólido más grande con borde blanco (sin halo difuso) para que
-            destaque frente a los puntos normales, y texto plano estilo
-            matplotlib: fecha arriba, valor abajo. */}
-        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
-        <text x={textX} y={labelY} textAnchor={textAnchor} className="select-none">
-          <tspan x={textX} fontSize={12} fontWeight={600} fill={color}>
-            {dateText}
-          </tspan>
-          <tspan x={textX} dy={14} fontSize={12} fontWeight={600} fill={color}>
-            {formatNumber(value)}
-          </tspan>
-        </text>
-        {nameLabel}
-      </g>
-    );
-  };
-
-  const [hoveredPointKey, setHoveredPointKey] = useState(null);
 
   const [isCompactChart, setIsCompactChart] = useState(false);
   useEffect(() => {
@@ -1153,22 +463,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const VACANCIA_MENSUAL_SERIES = [
     { key: 'vacantes', name: 'Posiciones Vacantes', color: '#621f32' },
   ];
-  const OCUP_VAC_MENSUAL_SERIES = [...OCUPACION_MENSUAL_SERIES, ...VACANCIA_MENSUAL_SERIES];
-
-  // Franjas de fondo por año.
-  const plazasYearBands = useMemo(() => {
-    const bands = [];
-    plazasChartData.forEach(d => {
-      const year = d.fecha.slice(0, 4);
-      const last = bands[bands.length - 1];
-      if (last && last.year === year) {
-        last.x2 = d.label;
-      } else {
-        bands.push({ year, x1: d.label, x2: d.label });
-      }
-    });
-    return bands.map((b, i) => ({ ...b, color: MONTH_BAND_COLORS[i % MONTH_BAND_COLORS.length] }));
-  }, [plazasChartData]);
 
   // Un tick por año (primer punto disponible de cada año) en vez de repartir
   // N ticks por índice: con ~4-5 años de historia, marcar el arranque de cada
@@ -1186,169 +480,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     });
     return ticks;
   }, [plazasChartData]);
-
-  // Máximo y mínimo de cada serie (Totales/Activas/Inactivas) POR AÑO, a
-  // diferencia de historicoMinMax que es un único máximo/mínimo global —
-  // aquí se pide destacar el extremo de cada año por separado.
-  const plazasMinMaxByYear = useMemo(() => {
-    const result = {};
-    PLAZAS_SERIES.forEach(s => {
-      result[s.key] = {};
-      plazasChartData.forEach((d, i) => {
-        const year = d.fecha.slice(0, 4);
-        const v = d[s.key];
-        if (!result[s.key][year]) result[s.key][year] = { max: null, min: null };
-        const g = result[s.key][year];
-        if (g.max === null || v > g.max.value) g.max = { index: i, value: v };
-        if (g.min === null || v < g.min.value) g.min = { index: i, value: v };
-      });
-    });
-    return result;
-  }, [plazasChartData]);
-
-  // Índice → 'max' | 'min' | 'both', por serie, para que el dot sepa si le
-  // toca anotación al dibujarse (evita recorrer todos los años en cada dot).
-  const plazasExtremeAtIndex = useMemo(() => {
-    const map = {};
-    PLAZAS_SERIES.forEach(s => {
-      Object.values(plazasMinMaxByYear[s.key] || {}).forEach(g => {
-        if (g.max) {
-          const k = `${s.key}-${g.max.index}`;
-          map[k] = map[k] === 'min' ? 'both' : 'max';
-        }
-        if (g.min) {
-          const k = `${s.key}-${g.min.index}`;
-          map[k] = map[k] === 'max' ? 'both' : 'min';
-        }
-      });
-    });
-    return map;
-  }, [plazasMinMaxByYear]);
-
-  // Las etiquetas de fecha/valor de máximo y mínimo ya no se dibujan aquí:
-  // requieren ver TODOS los extremos a la vez para no encimarse entre sí, así
-  // que las dibuja PlazasExtremeLabelsLayer (capa aparte, con las escalas
-  // reales del eje). Este dot solo pone el punto (grande si es extremo,
-  // pequeño si no) y, en el primer/último punto, el nombre de la serie.
-  const renderPlazasDot = (key, color, seriesName) => (dotProps) => {
-    const { cx, cy, index } = dotProps;
-    const extreme = plazasExtremeAtIndex[`${key}-${index}`];
-    const isFirstPoint = index === 0;
-    const isLastPoint = index === plazasChartData.length - 1;
-    const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
-    const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
-
-    const isMaxish = extreme === 'max' || extreme === 'both';
-    const nameLabelY = isMaxish ? cy - PLAZAS_LABEL_BASE_OFFSET[key] - 14 : cy - 10;
-    const nameLabel = (isFirstPoint || isLastPoint) && (
-      <text
-        key={`name-${key}-${index}`}
-        x={textX}
-        y={nameLabelY}
-        textAnchor={textAnchor}
-        fontSize={11}
-        fontWeight={800}
-        fill={color}
-        className="select-none pointer-events-none"
-      >
-        {seriesName}
-      </text>
-    );
-
-    if (!extreme) {
-      return (
-        <g key={`dot-${key}-${index}`}>
-          <circle cx={cx} cy={cy} r={2} fill={color} strokeWidth={0} />
-          {nameLabel}
-        </g>
-      );
-    }
-
-    return (
-      <g key={`dot-${key}-${index}`}>
-        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
-        {nameLabel}
-      </g>
-    );
-  };
-
-  // Mismo cálculo que plazasMinMaxByYear/plazasExtremeAtIndex pero para
-  // OCUP_VAC_MENSUAL_SERIES (Ocupadas/Vacantes mensuales, mismo plazasChartData) —
-  // tarjetas separadas de Ocupación/Vacancia Histórica (Mensual).
-  const ocupVacMensualMinMaxByYear = useMemo(() => {
-    const result = {};
-    OCUP_VAC_MENSUAL_SERIES.forEach(s => {
-      result[s.key] = {};
-      plazasChartData.forEach((d, i) => {
-        const year = d.fecha.slice(0, 4);
-        const v = d[s.key];
-        if (!result[s.key][year]) result[s.key][year] = { max: null, min: null };
-        const g = result[s.key][year];
-        if (g.max === null || v > g.max.value) g.max = { index: i, value: v };
-        if (g.min === null || v < g.min.value) g.min = { index: i, value: v };
-      });
-    });
-    return result;
-  }, [plazasChartData]);
-
-  const ocupVacMensualExtremeAtIndex = useMemo(() => {
-    const map = {};
-    OCUP_VAC_MENSUAL_SERIES.forEach(s => {
-      Object.values(ocupVacMensualMinMaxByYear[s.key] || {}).forEach(g => {
-        if (g.max) {
-          const k = `${s.key}-${g.max.index}`;
-          map[k] = map[k] === 'min' ? 'both' : 'max';
-        }
-        if (g.min) {
-          const k = `${s.key}-${g.min.index}`;
-          map[k] = map[k] === 'max' ? 'both' : 'min';
-        }
-      });
-    });
-    return map;
-  }, [ocupVacMensualMinMaxByYear]);
-
-  const renderOcupVacMensualDot = (key, color, seriesName) => (dotProps) => {
-    const { cx, cy, index } = dotProps;
-    const extreme = ocupVacMensualExtremeAtIndex[`${key}-${index}`];
-    const isFirstPoint = index === 0;
-    const isLastPoint = index === plazasChartData.length - 1;
-    const textAnchor = isFirstPoint ? "start" : isLastPoint ? "end" : "middle";
-    const textX = isFirstPoint ? cx + 6 : isLastPoint ? cx - 6 : cx;
-
-    const isMaxish = extreme === 'max' || extreme === 'both';
-    const nameLabelY = isMaxish ? cy - PLAZAS_LABEL_BASE_OFFSET[key] - 14 : cy - 10;
-    const nameLabel = (isFirstPoint || isLastPoint) && (
-      <text
-        key={`name-${key}-${index}`}
-        x={textX}
-        y={nameLabelY}
-        textAnchor={textAnchor}
-        fontSize={11}
-        fontWeight={800}
-        fill={color}
-        className="select-none pointer-events-none"
-      >
-        {seriesName}
-      </text>
-    );
-
-    if (!extreme) {
-      return (
-        <g key={`dot-${key}-${index}`}>
-          <circle cx={cx} cy={cy} r={2} fill={color} strokeWidth={0} />
-          {nameLabel}
-        </g>
-      );
-    }
-
-    return (
-      <g key={`dot-${key}-${index}`}>
-        <circle cx={cx} cy={cy} r={5.5} fill={color} stroke="#fff" strokeWidth={2} />
-        {nameLabel}
-      </g>
-    );
-  };
 
   // Detección de creación/desactivación de plazas entre un corte mensual y el
   // siguiente: creación = CUALQUIER incremento de plazas activas; desactivación
@@ -1375,51 +506,44 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   }, [plazasChartData]);
 
   // Botones "Solo ver creación" / "Solo ver desactivación" del header de la
-  // tarjeta de Plazas: filtran qué franjas/píldoras dibuja PlazasEventsLayer,
+  // tarjeta de Plazas: filtran qué franjas de evento dibuja HistoricoLineChart,
   // sin tocar el cálculo de plazasEventos (ambos tipos se siguen detectando
   // igual, solo se oculta uno al renderizar).
-  const [plazasEventFilter, setPlazasEventFilter] = useState('todos');
+  // En modo widget (`only`) parte sin franjas (lo más limpio posible); en la pestaña, con todas.
+  const [plazasEventFilter, setPlazasEventFilter] = useState(only ? 'ninguno' : 'todos');
   const plazasEventosVisibles = useMemo(() => {
     if (plazasEventFilter === 'todos') return plazasEventos;
+    if (plazasEventFilter === 'ninguno') return [];
     return plazasEventos.filter(ev => ev.type === plazasEventFilter);
   }, [plazasEventos, plazasEventFilter]);
 
+  // Filtro de franjas de la gráfica de Plazas: botones de solo ícono (Lucide) con su nombre
+  // como `title`/`aria-label`. Pulsar de nuevo el filtro activo vuelve a "todos".
   const plazasEventToolbar = (
-    <>
-      <button
-        type="button"
-        onClick={() => setPlazasEventFilter('todos')}
-        className={`px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors cursor-pointer ${
-          plazasEventFilter === 'todos'
-            ? 'bg-[#10243e] text-white dark:bg-[#bc955c] dark:text-[#10243e]'
-            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-        }`}
-      >
-        Todos
-      </button>
-      <button
-        type="button"
-        onClick={() => setPlazasEventFilter(prev => (prev === 'creacion' ? 'todos' : 'creacion'))}
-        className={`px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors cursor-pointer ${
-          plazasEventFilter === 'creacion'
-            ? 'bg-[#2f9e5c] text-white'
-            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-        }`}
-      >
-        Solo ver creación de plazas
-      </button>
-      <button
-        type="button"
-        onClick={() => setPlazasEventFilter(prev => (prev === 'desactivacion' ? 'todos' : 'desactivacion'))}
-        className={`px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors cursor-pointer ${
-          plazasEventFilter === 'desactivacion'
-            ? 'bg-[#c23b5a] text-white'
-            : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
-        }`}
-      >
-        Solo ver desactivación de plazas
-      </button>
-    </>
+    <div className="inline-flex items-center gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-800/70" role="group" aria-label="Franjas de altas e inactivaciones">
+      {[
+        { id: 'todos', Icon: Layers, label: 'Ver todas las franjas (altas e inactivaciones)', activo: 'bg-[#10243e] text-white dark:bg-[#bc955c] dark:text-[#10243e]', alPulsar: () => setPlazasEventFilter('todos') },
+        { id: 'creacion', Icon: CirclePlus, label: 'Solo ver creación de plazas (altas)', activo: 'bg-[#2f9e5c] text-white', alPulsar: () => setPlazasEventFilter(prev => (prev === 'creacion' ? 'todos' : 'creacion')) },
+        { id: 'desactivacion', Icon: CircleMinus, label: 'Solo ver desactivación de plazas (inactivaciones)', activo: 'bg-[#c23b5a] text-white', alPulsar: () => setPlazasEventFilter(prev => (prev === 'desactivacion' ? 'todos' : 'desactivacion')) },
+        { id: 'ninguno', Icon: EyeOff, label: 'Ocultar las franjas de altas e inactivaciones', activo: 'bg-slate-600 text-white dark:bg-slate-300 dark:text-slate-900', alPulsar: () => setPlazasEventFilter(prev => (prev === 'ninguno' ? 'todos' : 'ninguno')) },
+      ].map(({ id, Icon, label, activo, alPulsar }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={alPulsar}
+          title={label}
+          aria-label={label}
+          aria-pressed={plazasEventFilter === id}
+          className={`flex size-8 items-center justify-center rounded-full transition-colors cursor-pointer ${
+            plazasEventFilter === id
+              ? activo
+              : 'text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700'
+          }`}
+        >
+          <Icon className="size-4" />
+        </button>
+      ))}
+    </div>
   );
 
   // Universo completo de columnas del detalle de creación/desactivación de
@@ -1489,20 +613,16 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   const plazasEventFootnote = (
     <>
       <span className="flex items-center gap-1.5">
-        <svg width="10" height="9" viewBox="0 0 12 11"><path d="M0 11 L12 11 L6 0 Z" fill="#2f7d4f" /></svg>
-        Incremento de plazas activas vs. el mes anterior
+        <span className="inline-block h-3.5 w-[3px] rounded-full bg-[#86efac]" />
+        Alta de plazas (incremento de activas vs. el mes anterior) — clic en la línea: detalle
       </span>
       <span className="flex items-center gap-1.5">
-        <svg width="10" height="9" viewBox="0 0 12 11"><path d="M0 0 L12 0 L6 11 Z" fill="#8c2d4a" /></svg>
-        Incremento de plazas inactivas vs. el mes anterior
+        <span className="inline-block h-3.5 w-[3px] rounded-full bg-[#fda4af]" />
+        Inactivación de plazas (incremento de inactivas vs. el mes anterior)
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="text-[#10243e] dark:text-[#bc955c]">▲/▼</span>
-        Máximo / mínimo del año junto al punto
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="inline-flex size-3.5 items-center justify-center rounded-full bg-slate-400 text-white text-[9px] font-black">i</span>
-        Click en una franja para ver el detalle de posiciones
+        <span className="inline-block size-2 rounded-full border-2 border-[#10243e] bg-white dark:border-[#bc955c] dark:bg-slate-900" />
+        Máximo / mínimo de cada año
       </span>
     </>
   );
@@ -1512,8 +632,8 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   // de plazasEventFootnote).
   const ocupVacMensualFootnote = (
     <span className="flex items-center gap-1.5">
-      <span className="text-[#10243e] dark:text-[#bc955c]">▲/▼</span>
-      Máximo / mínimo del año junto al punto
+      <span className="inline-block size-2 rounded-full border-2 border-[#10243e] bg-white dark:border-[#bc955c] dark:bg-slate-900" />
+      Máximo / mínimo de cada año
     </span>
   );
 
@@ -2607,26 +1727,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
               ticks={plazasTicks}
               isCompactChart={isCompactChart}
               formatNumber={formatNumber}
-              bandsLayer={<YearBandsLayer bands={plazasYearBands} chartData={plazasChartData} />}
-              extraLayer={
-                <>
-                  <PlazasEventsLayer events={plazasEventosVisibles} chartData={plazasChartData} onEventClick={handlePlazasEventClick} />
-                  <PlazasExtremeLabelsLayer
-                    minMaxByYear={plazasMinMaxByYear}
-                    chartData={plazasChartData}
-                    series={PLAZAS_SERIES}
-                    formatDateShort={formatDateShort}
-                    formatNumber={formatNumber}
-                  />
-                </>
-              }
-              renderDot={renderPlazasDot}
-              hoveredPointKey={hoveredPointKey}
-              onDotHover={setHoveredPointKey}
-              onDotLeave={() => setHoveredPointKey(null)}
+              events={plazasEventosVisibles}
+              onEventClick={handlePlazasEventClick}
               footnote={plazasEventFootnote}
               toolbar={plazasEventToolbar}
-              topMargin={isCompactChart ? 66 : 84}
             />
           </ZoomW>
         </div>
@@ -2649,11 +1753,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 ticks={historicoTicks}
                 isCompactChart={isCompactChart}
                 formatNumber={formatNumber}
-                monthBands={historicoMonthBands}
-                renderDot={renderHistoricoDot}
-                hoveredPointKey={hoveredPointKey}
-                onDotHover={setHoveredPointKey}
-                onDotLeave={() => setHoveredPointKey(null)}
               />
             </ZoomW>
             )}
@@ -2669,11 +1768,6 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 ticks={historicoTicks}
                 isCompactChart={isCompactChart}
                 formatNumber={formatNumber}
-                monthBands={historicoMonthBands}
-                renderDot={renderHistoricoDot}
-                hoveredPointKey={hoveredPointKey}
-                onDotHover={setHoveredPointKey}
-                onDotLeave={() => setHoveredPointKey(null)}
               />
             </ZoomW>
             )}
@@ -2697,27 +1791,13 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 subtitle="Posiciones ocupadas · corte a fin de cada mes desde enero 2022"
                 icon={Users}
                 series={OCUPACION_MENSUAL_SERIES}
+                etiquetasExtremos
                 chartData={plazasChartData}
                 ticks={plazasTicks}
                 isCompactChart={isCompactChart}
                 formatNumber={formatNumber}
-                bandsLayer={<YearBandsLayer bands={plazasYearBands} chartData={plazasChartData} />}
-                extraLayer={
-                  <PlazasExtremeLabelsLayer
-                    minMaxByYear={ocupVacMensualMinMaxByYear}
-                    chartData={plazasChartData}
-                    series={OCUPACION_MENSUAL_SERIES}
-                    formatDateShort={formatDateShort}
-                    formatNumber={formatNumber}
-                  />
-                }
-                renderDot={renderOcupVacMensualDot}
-                hoveredPointKey={hoveredPointKey}
-                onDotHover={setHoveredPointKey}
-                onDotLeave={() => setHoveredPointKey(null)}
                 footnote={ocupVacMensualFootnote}
                 footnoteInline
-                topMargin={isCompactChart ? 44 : 60}
               />
             </ZoomW>
             )}
@@ -2729,27 +1809,13 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                 subtitle="Posiciones vacantes · corte a fin de cada mes desde enero 2022"
                 icon={AlertCircle}
                 series={VACANCIA_MENSUAL_SERIES}
+                etiquetasExtremos
                 chartData={plazasChartData}
                 ticks={plazasTicks}
                 isCompactChart={isCompactChart}
                 formatNumber={formatNumber}
-                bandsLayer={<YearBandsLayer bands={plazasYearBands} chartData={plazasChartData} />}
-                extraLayer={
-                  <PlazasExtremeLabelsLayer
-                    minMaxByYear={ocupVacMensualMinMaxByYear}
-                    chartData={plazasChartData}
-                    series={VACANCIA_MENSUAL_SERIES}
-                    formatDateShort={formatDateShort}
-                    formatNumber={formatNumber}
-                  />
-                }
-                renderDot={renderOcupVacMensualDot}
-                hoveredPointKey={hoveredPointKey}
-                onDotHover={setHoveredPointKey}
-                onDotLeave={() => setHoveredPointKey(null)}
                 footnote={ocupVacMensualFootnote}
                 footnoteInline
-                topMargin={isCompactChart ? 44 : 60}
               />
             </ZoomW>
             )}

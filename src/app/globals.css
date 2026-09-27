@@ -444,3 +444,34 @@ body::before {
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+
+/* Tienda de widgets (WidgetStoreModal / WidgetPreview): las vistas previas
+   están estáticas y SOLO se animan mientras la tarjeta (`.group`) tiene el
+   cursor encima. El estado base es el "final" de la animación, así que la
+   vista previa en reposo se ve completa. Solo transform/opacity/stroke. */
+@keyframes wp-barra { 0% { transform: translateY(16px); opacity: 0; } 22%, 85% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+@keyframes wp-dona { 0% { transform: rotate(-140deg) scale(0.6); opacity: 0.2; } 35%, 88% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+@keyframes wp-linea { 0% { stroke-dashoffset: 1; opacity: 1; } 45%, 85% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes wp-fila { 0% { transform: translateX(-14px); opacity: 0; } 25%, 85% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+@keyframes wp-tipeo { 0% { transform: scaleX(0); opacity: 1; } 45%, 88% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes wp-pulso { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+@keyframes wp-cursor { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes wp-brillo { from { transform: translateX(-140%) skewX(-14deg); } to { transform: translateX(420%) skewX(-14deg); } }
+@keyframes wp-flota { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.wp-tipeo, .wp-fila { transform-origin: left center; }
+.wp-dona, .wp-pulso { transform-origin: center; transform-box: fill-box; }
+.wp-linea { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.wp-brillo { opacity: 0; }
+.group:hover .wp-barra { animation: wp-barra 3.4s ease-out infinite; }
+.group:hover .wp-dona { animation: wp-dona 3.4s ease-out infinite; }
+.group:hover .wp-linea { animation: wp-linea 3.4s ease-in-out infinite; }
+.group:hover .wp-fila { animation: wp-fila 3.4s ease-out infinite; }
+.group:hover .wp-tipeo { animation: wp-tipeo 3.4s ease-out infinite; }
+.group:hover .wp-pulso { animation: wp-pulso 1.6s ease-in-out infinite; }
+.group:hover .wp-cursor { animation: wp-cursor 1s steps(1) infinite; }
+.group:hover .wp-brillo { opacity: 1; animation: wp-brillo 2.6s ease-in-out infinite; }
+.wp-flota { animation: wp-flota 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .wp-barra, .group:hover .wp-dona, .group:hover .wp-linea, .group:hover .wp-fila, .group:hover .wp-tipeo,
+  .group:hover .wp-pulso, .group:hover .wp-cursor, .group:hover .wp-brillo, .wp-flota { animation: none; }
+}

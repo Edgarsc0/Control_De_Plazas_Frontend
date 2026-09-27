@@ -26,6 +26,8 @@ const PAGE_SIZE = 10;
  * @param {boolean} [props.isLoading] - Carga inicial → skeletons.
  * @param {boolean} [props.isPending] - Refiltrado en transición → overlay sutil.
  * @param {number} [props.pageSize] - Tarjetas por página.
+ * @param {boolean} [props.compact] - Paginación delgada (una sola línea, botones de 28 px) y menos
+ *   relleno: para widgets del tablero, donde la barra estándar (táctil, 44 px) ocupa demasiado alto.
  * @returns {JSX.Element}
  */
 export default function MobileCardList({
@@ -35,6 +37,7 @@ export default function MobileCardList({
   isLoading = false,
   isPending = false,
   pageSize = PAGE_SIZE,
+  compact = false,
 }) {
   const [page, setPage] = useState(0);
   const topRef = useRef(null);
@@ -106,10 +109,10 @@ export default function MobileCardList({
   const atEnd = safePage >= totalPages - 1;
 
   const navBtn =
-    "size-11 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-[#621f32] dark:text-[#bc955c] shadow-sm active:scale-95 transition-transform disabled:opacity-30 disabled:pointer-events-none";
+    (compact ? "size-7 rounded-lg" : "size-11 rounded-xl") + " flex items-center justify-center border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-[#621f32] dark:text-[#bc955c] shadow-sm active:scale-95 transition-transform disabled:opacity-30 disabled:pointer-events-none";
 
   return (
-    <div className="relative flex flex-col gap-3 p-4">
+    <div className={`relative flex flex-col ${compact ? "gap-2 p-2" : "gap-3 p-4"}`}>
       <span ref={topRef} className="absolute -top-20" aria-hidden />
 
       {isPending && (
@@ -122,31 +125,39 @@ export default function MobileCardList({
       )}
 
       {/* Controles de paginación — arriba */}
-      <div className="flex items-center justify-between gap-2 p-1.5 rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/80 shadow-sm">
+      <div className={`flex items-center justify-between gap-2 bg-white/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/80 shadow-sm ${compact ? "p-1 rounded-xl" : "p-1.5 rounded-2xl"}`}>
         <div className="flex items-center gap-1">
           <button onClick={() => goto(0)} disabled={atStart} aria-label="Primera página" className={navBtn}>
-            <ChevronsLeft className="size-4" />
+            <ChevronsLeft className={compact ? "size-3.5" : "size-4"} />
           </button>
           <button onClick={() => goto(safePage - 1)} disabled={atStart} aria-label="Página anterior" className={navBtn}>
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className={compact ? "size-3.5" : "size-4"} />
           </button>
         </div>
 
-        <div className="text-center leading-tight min-w-0">
-          <span className="block text-[11px] font-black text-slate-700 dark:text-slate-200">
-            Página {safePage + 1} de {fmt(totalPages)}
-          </span>
-          <span className="block text-[9px] font-bold text-slate-500">
-            {fmt(start + 1)}–{fmt(Math.min(start + pageSize, data.length))} de {fmt(data.length)}
-          </span>
-        </div>
+        {compact ? (
+          // Una sola línea: "Pág. 1/4 · 1–10 de 35".
+          <div className="min-w-0 truncate text-center leading-none text-[10px] font-black text-slate-700 dark:text-slate-200">
+            Pág. {safePage + 1}/{fmt(totalPages)}
+            <span className="ml-1.5 font-bold text-slate-500">· {fmt(start + 1)}–{fmt(Math.min(start + pageSize, data.length))} de {fmt(data.length)}</span>
+          </div>
+        ) : (
+          <div className="text-center leading-tight min-w-0">
+            <span className="block text-[11px] font-black text-slate-700 dark:text-slate-200">
+              Página {safePage + 1} de {fmt(totalPages)}
+            </span>
+            <span className="block text-[9px] font-bold text-slate-500">
+              {fmt(start + 1)}–{fmt(Math.min(start + pageSize, data.length))} de {fmt(data.length)}
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center gap-1">
           <button onClick={() => goto(safePage + 1)} disabled={atEnd} aria-label="Página siguiente" className={navBtn}>
-            <ChevronRight className="size-4" />
+            <ChevronRight className={compact ? "size-3.5" : "size-4"} />
           </button>
           <button onClick={() => goto(totalPages - 1)} disabled={atEnd} aria-label="Última página" className={navBtn}>
-            <ChevronsRight className="size-4" />
+            <ChevronsRight className={compact ? "size-3.5" : "size-4"} />
           </button>
         </div>
       </div>

@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, PanelLeftOpen } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { gsap } from "gsap";
 import { TableroLayoutService } from "@/services/tableroLayout.service";
-import CatalogSidebar from "./_components/personalizable/CatalogSidebar";
+import WidgetStoreModal from "./_components/personalizable/WidgetStoreModal";
 import PersonalizableGrid from "./_components/personalizable/PersonalizableGrid";
 import PortabilidadTablero from "./_components/personalizable/PortabilidadTablero";
 import WidgetFrame from "./_components/personalizable/WidgetFrame";
@@ -16,16 +16,11 @@ import { normalizarWidgets } from "./_components/personalizable/gridGeometry";
 // se monta un árbol totalmente distinto (lista apilada, sin cuadrícula ni
 // catálogo) en vez de solo ocultar con CSS, para no montar react-grid-layout
 // ni disparar el fetch de cada widget dos veces (uno oculto, uno visible).
-const SIDEBAR_ANCHO = 288; // w-72
-const SIDEBAR_STORAGE_KEY = "tablero_catalogo_abierto";
-const leerSidebarAbierto = () => {
-  try { return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) !== "0"; } catch { return true; }
-};
 const prefiereMenosMovimiento = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** Botón que reaparece en la barra inferior cuando el catálogo está contraído. */
-function BotonMostrarCatalogo({ onClick }) {
+/** Botón de la barra inferior que abre la galería de widgets. */
+function BotonAbrirGaleria({ onClick }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return undefined;
@@ -41,12 +36,12 @@ function BotonMostrarCatalogo({ onClick }) {
       ref={ref}
       type="button"
       onClick={onClick}
-      title="Mostrar módulos"
-      aria-label="Mostrar módulos"
+      title="Abrir galería de widgets"
+      aria-label="Abrir galería de widgets"
       className="flex items-center gap-1.5 ml-2 px-2.5 py-1.5 rounded-lg bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-[#10243e] text-[10px] font-black uppercase tracking-wider shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
     >
-      <PanelLeftOpen className="size-3.5" />
-      <span>Módulos</span>
+      <Sparkles className="size-3.5" />
+      <span>Widgets</span>
     </button>
   );
 }
@@ -66,8 +61,8 @@ function useIsDesktop() {
 
 /**
  * Tablero personalizable (ver Whitelist.tablero == 'personalizable'):
- * cuadrícula de widgets que cada usuario arma arrastrando módulos desde un
- * catálogo lateral, con posición/tamaño guardados por usuario
+ * cuadrícula de widgets que cada usuario arma arrastrando módulos desde una
+ * galería modal ("tienda de widgets"), con posición/tamaño guardados por usuario
  * (TableroLayoutService). Autofetch al montar, igual que TableroRH.jsx (no
  * recibe props de dashboard/page.jsx).
  *
@@ -85,12 +80,12 @@ export default function TableroPersonalizable() {
   const [nombres, setNombres] = useState([]);
   const widgetsRef = useRef([]);
   const nombresRef = useRef([]);
-  // Catálogo lateral: `sidebarAbierto` es el estado lógico (pinta el botón de
-  // reabrir y el ancho de la columna); `sidebarRef`/`sidebarContenidoRef` son
-  // el contenedor y el contenido que anima GSAP.
-  const [sidebarAbierto, setSidebarAbierto] = useState(leerSidebarAbierto);
-  const sidebarRef = useRef(null);
-  const sidebarContenidoRef = useRef(null);
+  // Galería de widgets (modal central): `null` = cerrada; el número es una
+  // clave única por apertura. Arrastrar una tarjeta la cierra y NO se reabre
+  // sola; al abrirla de nuevo la galería recuerda dónde se quedó el usuario
+  // (ver `recuerdo` en WidgetStoreModal.jsx). La clave evita que la animación
+  // de salida de una instancia anterior cierre la nueva — ver `cerrarGaleria`.
+  const [galeriaKey, setGaleriaKey] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   // Arrastre en curso desde el catálogo: `{ type, x0, y0 }` (coordenadas del
@@ -154,37 +149,8 @@ export default function TableroPersonalizable() {
     guardar(nextWidgets, nextNombres);
   }, [guardar]);
 
-  // Contraer: el contenido se desliza fuera y SOLO al terminar se colapsa el
-  // ancho de la columna — así la cuadrícula (react-grid-layout + widgets con
-  // gráficas) se redimensiona una sola vez en vez de en cada frame. Expandir
-  // es al revés: primero se devuelve el ancho y luego entra el contenido.
-  const cambiarSidebar = useCallback((abrir) => {
-    try { window.localStorage.setItem(SIDEBAR_STORAGE_KEY, abrir ? "1" : "0"); } catch { /* sin storage */ }
-    const contenido = sidebarContenidoRef.current;
-    const duracion = prefiereMenosMovimiento() ? 0 : abrir ? 0.35 : 0.28;
-    gsap.killTweensOf(contenido);
-    if (abrir) {
-      setSidebarAbierto(true);
-      // El ancho ya lo aplica el render; el contenido entra desde la izquierda.
-      requestAnimationFrame(() => {
-        gsap.fromTo(
-          sidebarContenidoRef.current,
-          { x: -SIDEBAR_ANCHO, opacity: 0 },
-          { x: 0, opacity: 1, duration: duracion, ease: "power3.out", clearProps: "transform,opacity" }
-        );
-      });
-    } else if (contenido) {
-      gsap.to(contenido, {
-        x: -SIDEBAR_ANCHO,
-        opacity: 0,
-        duration: duracion,
-        ease: "power2.in",
-        onComplete: () => setSidebarAbierto(false),
-      });
-    } else {
-      setSidebarAbierto(false);
-    }
-  }, []);
+  const cerrarGaleria = useCallback((key) => setGaleriaKey((actual) => (actual === key ? null : actual)), []);
+  const iniciarArrastre = useCallback((type, x0, y0) => setArrastre({ type, x0, y0 }), []);
 
   if (isLoading) {
     return (
@@ -244,18 +210,6 @@ export default function TableroPersonalizable() {
 
   return (
     <div className="w-full h-stack-dvh flex overflow-hidden">
-      <div
-        ref={sidebarRef}
-        className={`shrink-0 overflow-hidden bg-white/60 dark:bg-slate-950/40 ${sidebarAbierto ? "w-72 border-r border-slate-200/70 dark:border-slate-800/70" : "w-0"}`}
-      >
-        <div ref={sidebarContenidoRef} className="w-72 h-full">
-          <CatalogSidebar
-            usedTypes={widgets.map((w) => w.type)}
-            onIniciarArrastre={(type, x0, y0) => setArrastre({ type, x0, y0 })}
-            onContraer={() => cambiarSidebar(false)}
-          />
-        </div>
-      </div>
       <div className="flex-1 min-w-0 p-3">
         <PersonalizableGrid
           widgets={widgets}
@@ -267,9 +221,17 @@ export default function TableroPersonalizable() {
           accionesDerecha={(escritorioActivo) => (
             <PortabilidadTablero widgets={widgets} nombres={nombres} escritorioActivo={escritorioActivo} onImportar={handleImportar} />
           )}
-          accionesIzquierda={!sidebarAbierto ? <BotonMostrarCatalogo onClick={() => cambiarSidebar(true)} /> : null}
+          accionesIzquierda={<BotonAbrirGaleria onClick={() => setGaleriaKey(Date.now())} />}
         />
       </div>
+      {galeriaKey !== null && (
+        <WidgetStoreModal
+          key={galeriaKey}
+          usedTypes={widgets.map((w) => w.type)}
+          onIniciarArrastre={iniciarArrastre}
+          onClose={() => cerrarGaleria(galeriaKey)}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,79 @@
+"use client";
+
+import { useEffect, useRef, useState, useTransition } from "react";
+import { LayoutList } from "lucide-react";
+import ModalShell from "@/components/shared/ModalShell";
+import { VacantesService } from "@/services/vacantes.service";
+import PlantillaDetalleTab from "@/app/dashboard/plantilla_empleados/_components/tabs/plantilla-detalle/PlantillaDetalleTab";
+
+// Orden inicial: nivel tabular, del más alto al más bajo (la misma lógica que la pestaña usa para "nj",
+// donde el 0 —Titular— va primero). `compareNivelTabular` (utils/nivelTabular) aplica la regla
+// P<D<S<A<K<J<H con los numéricos al fondo; "desc" deja arriba los niveles más altos.
+const ORDEN_NIVEL_TABULAR = { key: "nivel", direction: "desc" };
+const CLAVE_ORDEN_MODAL = "plantilla_detalle_ua_modal_sort_v1"; // distinta a la de la pestaña
+
+/**
+ * Plantilla de UNA unidad administrativa, en un modal grande que es la MISMA pestaña "Plantilla
+ * Detalle" (PlantillaDetalleTab: tarjetas de resumen, dona, filtros, columnas, exportación, etc.)
+ * alimentada solo con las filas de esa unidad: SELECT * FROM EMPLEADOS_COMPLETOS_SIG WHERE
+ * unidad_administrativa = <UA> (parámetro `unidad_administrativa` de
+ * /plantilla/empleados_completos_activos_detalle/). Las tarjetas y la dona se calculan sobre esas
+ * filas (el tab lo hace solo mientras "Plantilla oficial" está activo, que es su valor por defecto).
+ *
+ * Se dibuja por portal en <body> (ModalShell), así que no queda atrapado en el widget.
+ */
+export default function PlantillaUaModal({ unidad, onClose }) {
+  const [filas, setFilas] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
+  const [isPending, startTransition] = useTransition();
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    setCargando(true);
+    setError(null);
+    VacantesService.getEmpleadosCompletosActivosDetalle({ unidad_administrativa: unidad })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo cargar la plantilla de la unidad."))))
+      .then((d) => { if (active) setFilas(Array.isArray(d) ? d : []); })
+      .catch((err) => { if (active) setError(err.message || "No se pudo cargar la plantilla de la unidad."); })
+      .finally(() => { if (active) setCargando(false); });
+    return () => { active = false; };
+  }, [unidad]);
+
+  return (
+    <ModalShell
+      open
+      onClose={onClose}
+      size="2xl"
+      fixedHeight
+      icon={LayoutList}
+      eyebrow="Plantilla Detalle"
+      title={unidad}
+      subtitle={cargando ? "Cargando plantilla…" : `${filas.length.toLocaleString("es-MX")} registros en EMPLEADOS_COMPLETOS_SIG`}
+      bodyClassName="p-0 flex-1 min-h-0 overflow-y-auto"
+    >
+      {/* `--stack-h` es la altura de "banner + navbar" que el tab descuenta de su tarjeta de tabla
+          (max-h-stack-vh); aquí lo que hay que descontar es el resto del viewport que NO es cuerpo
+          del modal (margen del panel + franja + encabezado), para que la tabla llene el modal. */}
+      <div style={{ "--stack-h": "calc(15vh + 8.5rem)" }} className="min-h-full">
+        {error ? (
+          <p className="p-10 text-center text-sm font-bold text-red-600 dark:text-red-400">{error}</p>
+        ) : (
+          <PlantillaDetalleTab
+            detalle={filas}
+            isLoading={cargando}
+            resumen={{}}
+            isPending={isPending}
+            startTransition={startTransition}
+            cardRef={cardRef}
+            isActiveTab={false}
+            persistSortKey={CLAVE_ORDEN_MODAL}
+            initialSort={ORDEN_NIVEL_TABULAR}
+            barraMinima
+          />
+        )}
+      </div>
+    </ModalShell>
+  );
+}

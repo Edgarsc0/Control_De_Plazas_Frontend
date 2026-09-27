@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import { PERMISSIONS as P } from "@/config/permissions";
-import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network } from "lucide-react";
+import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2 } from "lucide-react";
 import { ELEMENTOS_CUADROS_VACANCIA, prefijoTipoCuadrosVacancia } from "./widgets/cuadrosVacanciaElementos";
 
 // Skeleton mínimo para el fallback de `next/dynamic` mientras se descarga el
@@ -16,7 +16,7 @@ const lazyWidget = (loader) => dynamic(loader, { ssr: false, loading: WidgetLoad
 
 /**
  * Catálogo de widgets disponibles para el tablero personalizable (ver
- * CatalogSidebar.jsx y PersonalizableGrid.jsx). Cada entrada:
+ * WidgetStoreModal.jsx y PersonalizableGrid.jsx). Cada entrada:
  *  - `type`: identificador guardado en el layout persistido (TableroLayoutService).
  *  - `component`: componente sin props, autocontenido (fetch propio).
  *  - `defaultW/defaultH`: tamaño inicial al soltar desde el catálogo (en celdas de grid).
@@ -276,6 +276,22 @@ export const WIDGET_REGISTRY = {
     minW: 3,
     minH: 3,
   },
+  torre_caballito: {
+    type: "torre_caballito",
+    // Mismos permisos que TorreCaballito3DView / TorreCaballitoSearchView /
+    // TorreCaballitoEmpleadosView (basta uno, criterio OR).
+    permisos: [P.VIEW_PLANTILLA_GEOGRAFIA, P.VIEW_ORGANIGRAMA_INSTITUCIONAL, P.VIEW_ORGANIGRAMA_ALINEACION],
+    // Las tres vistas declaran `un_scope = UN_SCOPE_APLICADO`: recortan por UN.
+    alcanceUnSoportado: true,
+    enCatalogo: true,
+    label: "Torre Caballito — ¿En qué piso está?",
+    icon: Building2,
+    component: lazyWidget(() => import("./widgets/TorreCaballitoWidget")),
+    defaultW: 6,
+    defaultH: 7,
+    minW: 2,
+    minH: 3,
+  },
 };
 
 // Cada gráfica/tabla de "Cuadros de Vacancia" es un widget propio (`cv_<id>`),
@@ -310,7 +326,7 @@ for (const el of ELEMENTOS_CUADROS_VACANCIA) {
   };
 }
 
-// Grupos desplegables de la barra lateral (CatalogSidebar). Los widgets con
+// Grupos desplegables de la barra lateral (WidgetStoreModal). Los widgets con
 // `grupo` se listan dentro; el resto va suelto.
 export const GRUPOS_CATALOGO = [
   { id: "cuadros_vacancia", label: "Cuadros de Vacancia", icon: ListTree },
@@ -319,7 +335,7 @@ export const GRUPOS_CATALOGO = [
 export const WIDGET_TYPES = Object.keys(WIDGET_REGISTRY);
 
 // Solo los módulos ya validados dentro de la cuadrícula — es lo que consume
-// CatalogSidebar. Se van habilitando de uno en uno (ver `enCatalogo`).
+// WidgetStoreModal. Se van habilitando de uno en uno (ver `enCatalogo`).
 export const WIDGETS_DE_CATALOGO = Object.values(WIDGET_REGISTRY).filter((w) => w.enCatalogo);
 
 /**

@@ -115,7 +115,8 @@ export default function BuscarBajaWidget() {
             {total > MAX_RESULTADOS && (
               <p className="text-[10px] font-bold text-slate-400 mb-1">Mostrando {MAX_RESULTADOS} de {total}. Afina la búsqueda.</p>
             )}
-            <MobileCardList data={resultados} config={cardConfig} onCardClick={setSelected} isLoading={!bajas && !error} pageSize={10} />
+            <MobileCardList
+            compact data={resultados} config={cardConfig} onCardClick={setSelected} isLoading={!bajas && !error} pageSize={10} />
           </>
         ) : !error ? (
           <p className="text-center text-xs font-bold text-slate-400 dark:text-slate-600 mt-10">Empieza a escribir para ver resultados.</p>

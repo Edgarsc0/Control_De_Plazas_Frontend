@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import NivelBarChart from "./NivelBarChart";
 import { useElementSize } from '@/app/dashboard/tablero/_components/personalizable/widgets/useElementSize';
 import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 import { Layers, ChevronLeft, TrendingUp } from 'lucide-react';
@@ -89,8 +90,8 @@ const NJ_ABBR = {
   '4': 'Subdirector',
   '5': 'Jefe Depto.',
   '6': 'Enlace',
-  '7': 'Op. Cfza.',
-  '8': 'Op. Bse.',
+  '7': 'OC', // Operativo de Confianza
+  '8': 'OB', // Operativo de Base
 };
 
 const FAMILY_COLORS = {
@@ -385,6 +386,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   const medido = !!only && rootSize.width > 0;
   const chico = medido && (rootSize.width < 420 || rootSize.height < 340);
   const mini = medido && (rootSize.width < 260 || rootSize.height < 220);
+  // Con poco espacio la guía de niveles (9 chips) le quita el sitio a las barras: se oculta entera.
+  const sinGuia = !!only && medido && (chico || rootSize.height < 470);
   const show = (id) => !only || only === id;
   const { hasPermission } = useAuth();
   const canViewFotoMovPosiciones = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO);
@@ -1035,68 +1038,24 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </p>
             </div>
             <div className="w-full flex-1" style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chart1Data}
-                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 10 }}
-                  barCategoryGap="20%"
-                  onClick={(state) => {
-                    if (state && state.activePayload && state.activePayload.length > 0) {
-                      handleNJBarClick(state.activePayload[0].payload);
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={only ? 0 : undefined}
-                    tickFormatter={(v) => (only && medido && rootSize.width < 600 && v === 'Dir. Central' ? 'DC' : v)}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={formatAxisTick}
-                    width={mini ? 26 : 45}
-                  />
-                  <Tooltip content={<NJTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
-                  <Bar
-                    dataKey="Vacantes"
-                    shape={<GradientBar />}
-                    background={{ fill: 'transparent', cursor: 'pointer' }}
-                    onClick={handleNJBarClick}
-                    style={{ cursor: 'pointer' }}
-                    isAnimationActive={!forExport}
-                    animationBegin={80}
-                    animationDuration={900}
-                    animationEasing={MODERN_EASING}
-                  />
-                  {/* Line invisible: sostiene el label de valor fuera del <Bar> para que
-                      no se oculte durante su animación de entrada (ver renderTotalLabel).
-                      dataKey como función (no "Vacantes") para que CustomTooltip la excluya
-                      del payload visible, igual que en las gráficas 2 y 3. */}
-                  <Line
-                    dataKey={row => row.Vacantes}
-                    stroke="none"
-                    dot={false}
-                    activeDot={false}
-                    isAnimationActive={false}
-                    legendType="none"
-                  >
-                    <LabelList dataKey={row => row.Vacantes} content={renderTotalLabel} />
-                  </Line>
-                </BarChart>
-              </ResponsiveContainer>
+              <NivelBarChart
+                data={chart1Data}
+                valueKey="Vacantes"
+                valueLabel="Vacantes"
+                pares={GRADIENT_PAIRS}
+                gradienteTitular={TITULAR_ADUANA_GRADIENT}
+                gradienteDirector={DIRECTOR_GRADIENT}
+                formatNumber={formatNumber}
+                onBarClick={handleNJBarClick}
+                mini={mini}
+                chico={chico}
+                angosto={!!only && medido && (rootSize.width < 600 || chico)}
+                animar={!forExport}
+              />
             </div>
 
             {/* Guía de Niveles Jerárquicos */}
-            <div className={`${only ? 'mt-1 pt-1.5' : 'mt-6 pt-5'} border-t border-[#bc955c]/10`}>
+            <div className={`${sinGuia ? 'hidden' : ''} ${only ? 'mt-1 pt-1.5' : 'mt-6 pt-5'} border-t border-[#bc955c]/10`}>
               <h5 className={`${only && chico ? 'hidden' : ''} text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3`}>
                 Guía de Niveles Jerárquicos
               </h5>
@@ -1140,64 +1099,24 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               </p>
             </div>
             <div className="w-full flex-1" style={{ minHeight: only ? (mini ? '50px' : '90px') : '360px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chart1bData}
-                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 10 }}
-                  barCategoryGap="20%"
-                  onClick={(state) => {
-                    if (state && state.activePayload && state.activePayload.length > 0) {
-                      handleNJOcupBarClick(state.activePayload[0].payload);
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={only ? 0 : undefined}
-                    tickFormatter={(v) => (only && medido && rootSize.width < 600 && v === 'Dir. Central' ? 'DC' : v)}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    domain={[0, (dataMax) => niceMax(dataMax * 1.1)]}
-                    tick={{ fontSize: mini ? 8 : 10, fill: '#64748b', fontWeight: 700 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={formatAxisTick}
-                    width={mini ? 26 : 45}
-                  />
-                  <Tooltip content={<NJTooltip />} cursor={{ fill: 'rgba(98,31,50,0.04)' }} />
-                  <Bar
-                    dataKey="Ocupadas"
-                    shape={<GradientBar />}
-                    background={{ fill: 'transparent', cursor: 'pointer' }}
-                    onClick={handleNJOcupBarClick}
-                    style={{ cursor: 'pointer' }}
-                    isAnimationActive={!forExport}
-                    animationBegin={80}
-                    animationDuration={900}
-                    animationEasing={MODERN_EASING}
-                  />
-                  <Line
-                    dataKey={row => row.Ocupadas}
-                    stroke="none"
-                    dot={false}
-                    activeDot={false}
-                    isAnimationActive={false}
-                    legendType="none"
-                  >
-                    <LabelList dataKey={row => row.Ocupadas} content={renderTotalLabel} />
-                  </Line>
-                </BarChart>
-              </ResponsiveContainer>
+              <NivelBarChart
+                data={chart1bData}
+                valueKey="Ocupadas"
+                valueLabel="Ocupadas"
+                pares={GRADIENT_PAIRS}
+                gradienteTitular={TITULAR_ADUANA_GRADIENT}
+                gradienteDirector={DIRECTOR_GRADIENT}
+                formatNumber={formatNumber}
+                onBarClick={handleNJOcupBarClick}
+                mini={mini}
+                chico={chico}
+                angosto={!!only && medido && (rootSize.width < 600 || chico)}
+                animar={!forExport}
+              />
             </div>
 
             {/* Guía de Niveles Jerárquicos */}
-            <div className={`${only ? 'mt-1 pt-1.5' : 'mt-6 pt-5'} border-t border-[#bc955c]/10`}>
+            <div className={`${sinGuia ? 'hidden' : ''} ${only ? 'mt-1 pt-1.5' : 'mt-6 pt-5'} border-t border-[#bc955c]/10`}>
               <h5 className={`${only && chico ? 'hidden' : ''} text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3`}>
                 Guía de Niveles Jerárquicos
               </h5>
@@ -1263,7 +1182,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2Data}
-                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: chart2Data.length > 6 ? (mini ? 34 : 50) : 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 4 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1283,6 +1202,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     axisLine={false}
                     tickLine={false}
                     interval={0}
+                    height={chart2Data.length > 6 ? (mini ? 30 : 40) : 24}
+                    tickMargin={4}
                     angle={chart2Data.length > 6 ? -40 : 0}
                     textAnchor={chart2Data.length > 6 ? 'end' : 'middle'}
                   />
@@ -1473,7 +1394,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart2bData}
-                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: chart2bData.length > 6 ? (mini ? 34 : 50) : 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 4 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1493,6 +1414,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     axisLine={false}
                     tickLine={false}
                     interval={0}
+                    height={chart2bData.length > 6 ? (mini ? 30 : 40) : 24}
+                    tickMargin={4}
                     angle={chart2bData.length > 6 ? -40 : 0}
                     textAnchor={chart2bData.length > 6 ? 'end' : 'middle'}
                   />
@@ -1673,7 +1596,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={chart3Data}
-                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: chart3Data.length > 6 ? 50 : 10 }}
+                  margin={{ top: mini ? 16 : 34, right: mini ? 4 : 15, left: -15, bottom: 4 }}
                   barCategoryGap="20%"
                   onClick={(state) => {
                     if (state && state.activePayload && state.activePayload.length > 0) {
@@ -1693,6 +1616,8 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     axisLine={false}
                     tickLine={false}
                     interval={0}
+                    height={chart3Data.length > 6 ? (mini ? 30 : 40) : 24}
+                    tickMargin={4}
                     angle={chart3Data.length > 6 ? -40 : 0}
                     textAnchor={chart3Data.length > 6 ? 'end' : 'middle'}
                   />

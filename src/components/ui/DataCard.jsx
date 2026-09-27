@@ -17,12 +17,13 @@ import { ChevronRight } from "lucide-react";
  * @param {(row: Object) => (string|JSX.Element)} [props.config.getSubtitle] - Subtítulo (mono).
  * @param {(row: Object) => JSX.Element} [props.config.renderBadge] - Badge superior derecho (estado).
  * @param {(row: Object) => (JSX.Element|null)} [props.config.renderLeading] - Elemento a la izquierda del título (p. ej. foto del empleado).
+ * @param {(row: Object) => (JSX.Element|null)} [props.config.renderFooter] - Pie de la tarjeta, bajo los campos (p. ej. una leyenda de estatus).
  * @param {Array<{key?: string, label: string, mono?: boolean, render?: (row: Object) => *, onClick?: (row: Object) => void, valueClassName?: (row: Object) => string}>} [props.config.fields] - Pares clave/valor del cuerpo. `onClick` hace el valor clicable (detiene la propagación al tap de la tarjeta).
  * @param {(row: Object, index: number) => void} [props.onClick] - Tap en la tarjeta (abrir expediente).
  * @returns {JSX.Element}
  */
 export default function DataCard({ row, index = 0, config = {}, onClick }) {
-  const { getTitle, getSubtitle, renderBadge, renderLeading, fields = [] } = config;
+  const { getTitle, getSubtitle, renderBadge, renderLeading, renderFooter, fields = [] } = config;
   const leading = renderLeading ? renderLeading(row) : null;
   // `title` no existe en táctil: los valores largos ("Agencia Nacional de
   // Adua…", una CURP) quedaban truncados sin forma de leerlos. Un toque sobre
@@ -100,6 +101,7 @@ export default function DataCard({ row, index = 0, config = {}, onClick }) {
           })}
         </div>
       )}
+      {renderFooter ? renderFooter(row) : null}
     </motion.button>
   );
 }

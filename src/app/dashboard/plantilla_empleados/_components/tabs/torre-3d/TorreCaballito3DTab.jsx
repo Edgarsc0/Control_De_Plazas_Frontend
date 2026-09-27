@@ -10,7 +10,7 @@ import * as THREE from "three";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 
-const extractFloorNumber = (pisoStr) => {
+export const extractFloorNumber = (pisoStr) => {
   if (!pisoStr) return 0;
   if (pisoStr.includes(" PB")) return 0;
   const match = pisoStr.match(/P(\d+)/);
@@ -251,7 +251,7 @@ const ElCaballito = () => {
   );
 };
 
-const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelectedInfo, mode, hoveredUaRemote, selectedUaRemote }) => {
+export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelectedInfo, mode, hoveredUaRemote, selectedUaRemote, colorBase = "#0f172a" }) => {
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const totalFloors = 32;
   const floorHeight = 1.8; // Made taller
@@ -304,7 +304,7 @@ const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelect
       {/* Ground Plaza Base */}
       <mesh position={[0, -0.5, 0]}>
         <cylinderGeometry args={[30, 32, 1, 64]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.9} metalness={0.1} />
+        <meshStandardMaterial color={colorBase} roughness={0.9} metalness={0.1} />
       </mesh>
 
       {/* Concrete Inner Core (Elevator shaft) */}
@@ -364,7 +364,7 @@ const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelect
   );
 };
 
-const CameraRig = ({ targetCamera }) => {
+export const CameraRig = ({ targetCamera }) => {
   const [intro, setIntro] = useState(true);
   const controlsRef = useRef();
   const isFlyingTo = useRef(false);

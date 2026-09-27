@@ -599,7 +599,14 @@ function CadenaTreeNode({
   );
 }
 
-export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates, isActiveTab = true }) {
+// Orden por defecto de la pestaña (nivel jerárquico ascendente). El modal "Plantilla de la unidad"
+// (widget Plazas por UA) monta este mismo componente con otro orden inicial (nivel tabular) y
+// otra clave de persistencia, para no pisar el orden que el usuario dejó en la pestaña.
+const SORT_INICIAL_DEFAULT = { key: "nj", direction: "asc" };
+// `barraMinima` (modal "Plantilla de la unidad"): la barra de herramientas solo lleva Restablecer
+// filtros, Filtros avanzados, Columnas y Excel; sin Cadena de Mando, plantillas pasadas ni Historial.
+
+export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates, isActiveTab = true, persistSortKey = "plantilla_detalle_sort_v2", initialSort = SORT_INICIAL_DEFAULT, barraMinima = false }) {
   const { hasPermission, isLoading: authLoading, unScope, columnasDetallePermitidas } = useAuth();
   // Un rol con alcance de datos por Unidad de Negocio (ver RolUnScope en el
   // backend) solo debe operar sobre su propia UN, así que se le ocultan los
@@ -1300,7 +1307,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // 7.3 QA: persistir configuración por usuario — orden de tabla en localStorage.
   // Default: Nivel Jerárquico ascendente (menor a mayor) — key "_v2" para que
   // usuarios con el viejo default ({key:null}) ya guardado también lo reciban.
-  const [sortConfig, setSortConfig] = usePersistedState("plantilla_detalle_sort_v2", { key: "nj", direction: "asc" });
+  const [sortConfig, setSortConfig] = usePersistedState(persistSortKey, initialSort);
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const suscripcionesPosicion = useSuscripcionesPosicion();
@@ -2204,7 +2211,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       setColumnFilters({});
       setTextFilters({});
       setGlobalSearch("");
-      setSortConfig({ key: "nj", direction: "asc" });
+      setSortConfig(initialSort);
     });
   };
 
@@ -4143,12 +4150,12 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               { icon: Filter, label: "Filtros avanzados", onClick: () => setIsAdvancedFiltersOpen(true), badge: appliedAdvancedFilters.length },
               // Oculto para un rol con alcance por Unidad de Negocio: la cadena de
               // mando recorre la estructura completa fuera de su UN autorizada.
-              ...(sinRestriccionUN ? [{ icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) }] : []),
+              ...(sinRestriccionUN && !barraMinima ? [{ icon: Network, label: "Cadena de Mando", onClick: () => setIsCadenaModalOpen(true) }] : []),
               { icon: Columns, label: "Columnas", onClick: () => setIsColumnsModalOpen(true) },
               // Oculto para un rol con alcance por Unidad de Negocio: no edita
               // celdas, así que no tiene sentido que consulte el historial.
-              ...(sinRestriccionUN ? [{ icon: History, label: "Historial de Cambios", onClick: openHistorialModal, badge: remoteUpdatesCount }] : []),
-              ...(canViewHistorico ? (historicoActivo
+              ...(sinRestriccionUN && !barraMinima ? [{ icon: History, label: "Historial de Cambios", onClick: openHistorialModal, badge: remoteUpdatesCount }] : []),
+              ...(canViewHistorico && !barraMinima ? (historicoActivo
                 ? [
                   { icon: CalendarDays, label: "Consultar otra fecha", onClick: () => setIsPlantillaHistoricaPickerOpen(true) },
                   { icon: RotateCcw, label: "Consultar la plantilla normal", onClick: salirHistorico },
@@ -4244,10 +4251,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               <AdvancedFiltersButton onClick={() => setIsAdvancedFiltersOpen(true)} appliedCount={appliedAdvancedFilters.length} />
               {/* Oculto para un rol con alcance por Unidad de Negocio — ver
                   comentario en la entrada equivalente del toolbar móvil. */}
-              {sinRestriccionUN && (
+              {sinRestriccionUN && !barraMinima && (
                 <button onClick={() => setIsCadenaModalOpen(true)} className="flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-100 to-white dark:from-slate-900 dark:to-slate-950 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0"><Network className="size-3.5" /><span>Cadena de Mando</span></button>
               )}
-              {canViewHistorico && (
+              {canViewHistorico && !barraMinima && (
                 historicoActivo ? (
                   <>
                     {/* Nav rápida día a día en la misma barra de controles —
@@ -4287,7 +4294,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
               )}
               {/* Oculto para un rol con alcance por Unidad de Negocio — ver
                   comentario en la entrada equivalente del toolbar móvil. */}
-              {sinRestriccionUN && (
+              {sinRestriccionUN && !barraMinima && (
                 <button onClick={openHistorialModal} title={remoteUpdatesCount > 0 ? `${remoteUpdatesCount} cambio${remoteUpdatesCount === 1 ? "" : "s"} de otros usuarios sin ver` : "Ver historial de cambios de la tabla"} className="relative flex items-center gap-2 h-12 px-5 border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 text-[#621f32] dark:text-[#bc955c] font-black rounded-2xl text-[10px] uppercase transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex-shrink-0">
                   <History className="size-3.5" />
                   <span>Historial de Cambios</span>

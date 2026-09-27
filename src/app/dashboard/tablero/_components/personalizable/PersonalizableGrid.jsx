@@ -169,7 +169,7 @@ export default function PersonalizableGrid({
   // escritorio al cabo de RETENCION_BORDE_MS (ver el efecto más abajo, que
   // arma/desarma un `setTimeout` cada vez que este valor cambia).
   const [ladoBorde, setLadoBorde] = useState(null);
-  // 'catalogo' (arrastre nuevo desde CatalogSidebar) | 'existente' (moviendo
+  // 'catalogo' (arrastre nuevo desde WidgetStoreModal) | 'existente' (moviendo
   // un widget ya colocado) | null. Decide qué hace `dispararCambioEscritorio`.
   const arrastreTipoRef = useRef(null);
   // Evita que sostener el cursor pegado al margen encadene un cambio de
@@ -483,14 +483,9 @@ export default function PersonalizableGrid({
     const w = clamp(def.defaultW, 1, GRID_COLS);
     const h = clamp(def.defaultH, 1, GRID_MAX_ROWS);
 
-    const celda = celdaDesdePuntero(
-      anchoEscritorio,
-      rowHeight,
-      xAbsoluto - apuntado * anchoEscritorio,
-      clientY - rect.top + scrollY,
-      w,
-      h
-    );
+    const offsetX = xAbsoluto - apuntado * anchoEscritorio;
+    const offsetY = clientY - rect.top + scrollY;
+    const celda = celdaDesdePuntero(anchoEscritorio, rowHeight, offsetX, offsetY, w, h);
 
     // Desde el escritorio apuntado hacia adelante; el índice `totalEscritorios`
     // representa uno nuevo al final, que por estar vacío siempre admite el
@@ -502,10 +497,33 @@ export default function PersonalizableGrid({
     const minH = clamp(def.minH ?? 2, 1, h);
     const hayMinimoDistinto = minW < w || minH < h;
 
+    // Tamaños posibles, del de por defecto al mínimo, de mayor a menor área: el widget se
+    // encoge solo lo necesario para caber justo donde el usuario lo está soltando.
+    const tamanos = [];
+    for (let hh = h; hh >= minH; hh -= 1) {
+      for (let ww = w; ww >= minW; ww -= 1) tamanos.push([ww, hh]);
+    }
+    tamanos.sort((a, b) => b[0] * b[1] - a[0] * a[1]);
+    // Desplazamientos permitidos alrededor del punto exacto, del más cercano al más lejano.
+    const RADIO_AJUSTE = 2;
+    const desplazamientos = [];
+    for (let dy = -RADIO_AJUSTE; dy <= RADIO_AJUSTE; dy += 1) {
+      for (let dx = -RADIO_AJUSTE; dx <= RADIO_AJUSTE; dx += 1) desplazamientos.push([dx, dy]);
+    }
+    desplazamientos.sort((a, b) => Math.abs(a[0]) + Math.abs(a[1]) - (Math.abs(b[0]) + Math.abs(b[1])));
+
     for (let e = apuntado; e <= totalEscritorios; e += 1) {
       const items = widgetsRef.current.filter((it) => escritorioDe(it) === e);
-      if (e === apuntado && !colisiona(items, celda.x, celda.y, w, h)) {
-        return { escritorio: e, x: celda.x, y: celda.y, w, h };
+      if (e === apuntado) {
+        for (const [ww, hh] of tamanos) {
+          const c = ww === w && hh === h ? celda : celdaDesdePuntero(anchoEscritorio, rowHeight, offsetX, offsetY, ww, hh);
+          for (const [dx, dy] of desplazamientos) {
+            const x = c.x + dx;
+            const y = c.y + dy;
+            if (x < 0 || y < 0 || x + ww > GRID_COLS || y + hh > GRID_MAX_ROWS) continue;
+            if (!colisiona(items, x, y, ww, hh)) return { escritorio: e, x, y, w: ww, h: hh };
+          }
+        }
       }
       const hueco = buscarHueco(items, w, h);
       if (hueco) return { escritorio: e, x: hueco.x, y: hueco.y, w, h };

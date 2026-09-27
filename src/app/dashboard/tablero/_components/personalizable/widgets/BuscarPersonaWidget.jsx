@@ -134,6 +134,7 @@ export default function BuscarPersonaWidget() {
       <div className="flex-1 min-h-0 overflow-y-auto mt-2">
         {query.trim() ? (
           <MobileCardList
+            compact
             data={results}
             config={cardConfig}
             onCardClick={(row) => setSelectedRow(row)}
