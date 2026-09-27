@@ -14,13 +14,12 @@ import {
   TorreCaballito,
   CameraRig,
   extractFloorNumber,
+  PALETA_DASHBOARD,
 } from "@/app/dashboard/plantilla_empleados/_components/tabs/torre-3d/TorreCaballito3DTab";
 
 const DEBOUNCE_MS = 350;
 const MIN_CARACTERES = 3;
 const ALTO_PISO = 1.8; // debe coincidir con `floorHeight` de TorreCaballito
-// Negro más claro para la base (plaza) de la torre; el tab de Plantilla conserva el original.
-const COLOR_BASE = "#3f4552";
 const VISTA_INICIAL = { position: [70, 45, 70], lookAt: [0, 25, 0] };
 // Columnas del listado del piso (las que trae torre-caballito/empleados/).
 const COLUMNAS_LISTADO = ["id_empleado", "nombres", "posicion", "unidad_administrativa", "ubicacion", "estado_nomina"];
@@ -195,7 +194,7 @@ export default function TorreCaballitoWidget() {
   const infoHover = !empleado ? hoverInfo : null;
 
   return (
-    <div ref={(el) => { contenedorRef.current = el; tamRef.current = el; }} className="relative w-full h-full min-h-0 bg-white dark:bg-slate-900">
+    <div ref={(el) => { contenedorRef.current = el; tamRef.current = el; }} className="relative w-full h-full min-h-0 bg-gradient-to-b from-white via-[#faf7f1] to-[#efe6d4] dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
       <Canvas camera={{ position: [20, 5, 20], fov: 45 }}>
         <ambientLight intensity={0.4} />
         <directionalLight position={[10, 50, 20]} intensity={1.5} />
@@ -216,9 +215,9 @@ export default function TorreCaballitoWidget() {
           mode="heat"
           hoveredUaRemote={null}
           selectedUaRemote={null}
-          colorBase={COLOR_BASE}
+          paleta={PALETA_DASHBOARD}
         />
-        <ContactShadows resolution={1024} scale={100} blur={2.5} opacity={0.6} far={20} color="#000000" position={[0, -0.49, 0]} />
+        <ContactShadows resolution={1024} scale={100} blur={3} opacity={0.28} far={20} color="#10243e" position={[0, -0.49, 0]} />
         <CameraRig targetCamera={targetCamera} />
       </Canvas>
 
@@ -317,6 +316,15 @@ export default function TorreCaballitoWidget() {
           {!compacto && <span className="flex items-center gap-1 rounded-lg bg-black/45 px-2 py-1 text-[10px] font-bold text-white/85 backdrop-blur">
             <MousePointerClick className="size-3" />Clic en un piso para ver sus empleados
           </span>}
+        </div>
+      )}
+
+      {/* Leyenda del mapa de calor: de menos a más empleados por piso (mismos tres puntos de color). */}
+      {!compacto && !empleado && (
+        <div className="absolute top-12 right-2 z-10 flex items-center gap-1.5 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur px-2 py-1 shadow pointer-events-none">
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Menos</span>
+          <span className="h-1.5 w-16 rounded-full" style={{ background: `linear-gradient(to right, ${PALETA_DASHBOARD.calorMin}, ${PALETA_DASHBOARD.calorMedio}, ${PALETA_DASHBOARD.calorMax})` }} />
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Más</span>
         </div>
       )}
 

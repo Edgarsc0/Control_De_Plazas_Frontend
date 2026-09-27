@@ -17,13 +17,37 @@ export const extractFloorNumber = (pisoStr) => {
   return match ? parseInt(match[1], 10) : 0;
 };
 
+// Paletas de la torre. La original (amarillo → rojo sobre pizarra oscura) la usa la pestaña de
+// Plantilla; `PALETA_DASHBOARD` (dorado → guinda sobre azul marino) es la del widget del tablero,
+// con los colores institucionales del dashboard.
+export const PALETA_ORIGINAL = {
+  estilo: "clasico", calorMin: "#fcd34d", calorMedio: null, calorMax: "#e11d48", vacio: "#0f172a", losa: "#1e293b",
+  columnas: "#1e293b", nucleo: "#020617", base: "#0f172a", azotea: "#1e293b", estatua: "#facc15", anillo: null,
+};
+// Estilo "claro" (dashboard): pisos de vidrio translúcido con una cinta del color del calor, losas
+// marfil, marcos dorados, núcleo azul marino visible a través del vidrio y una base chica marfil
+// con aro dorado — pensado para el fondo claro del tablero.
+export const PALETA_DASHBOARD = {
+  estilo: "claro", calorMin: "#f1dfae", calorMedio: "#bc955c", calorMax: "#621f32", vacio: "#c9d3e2", losa: "#f3eee3",
+  columnas: "#bc955c", nucleo: "#10243e", base: "#efe8d8", azotea: "#10243e", estatua: "#bc955c", anillo: "#bc955c",
+};
+
 // Heatmap color logic
-const getColor = (count, maxCount) => {
-  if (count === 0) return new THREE.Color("#0f172a"); // Dark slate for empty floors
-  if (maxCount === 0) return new THREE.Color("#fbbf24"); 
-  const ratio = Math.min(count / maxCount, 1);
-  const c1 = new THREE.Color("#fcd34d"); // Light yellow
-  const c2 = new THREE.Color("#e11d48"); // Deep red
+const getColor = (count, maxCount, paleta = PALETA_ORIGINAL) => {
+  if (count === 0) return new THREE.Color(paleta.vacio); // pisos sin empleados
+  if (maxCount === 0) return new THREE.Color(paleta.calorMin);
+  let ratio = Math.min(count / maxCount, 1);
+  // Paleta de dashboard: tres puntos (dorado claro → dorado → guinda) y una curva que abre la
+  // parte baja de la escala, para que pisos con pocos empleados no queden todos del mismo tono.
+  if (paleta.calorMedio) {
+    ratio = Math.pow(ratio, 0.6);
+    const min = new THREE.Color(paleta.calorMin);
+    const medio = new THREE.Color(paleta.calorMedio);
+    const max = new THREE.Color(paleta.calorMax);
+    return ratio < 0.5 ? min.lerp(medio, ratio / 0.5) : medio.lerp(max, (ratio - 0.5) / 0.5);
+  }
+  const c1 = new THREE.Color(paleta.calorMin);
+  const c2 = new THREE.Color(paleta.calorMax);
   return c1.lerp(c2, ratio);
 };
 
@@ -43,7 +67,7 @@ const getUaColor = (uaName) => {
 };
 
 // Individual Floor Component
-const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, uas, dominantUa, mode, onHover, onClick, isSelected, isHoveredRemote, employeeName }) => {
+const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, uas, dominantUa, mode, onHover, onClick, isSelected, isHoveredRemote, employeeName, paleta = PALETA_ORIGINAL }) => {
   const [hovered, setHovered] = useState(false);
   const isHovered = hovered || isHoveredRemote;
   const ringRef = useRef();
@@ -75,12 +99,15 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
   });
   
   const baseColor = useMemo(() => {
-    if (count === 0) return new THREE.Color("#0f172a");
-    if (mode === "heat") return getColor(count, maxCount);
+    if (count === 0) return new THREE.Color(paleta.vacio);
+    if (mode === "heat") return getColor(count, maxCount, paleta);
     return getUaColor(dominantUa);
-  }, [count, maxCount, mode, dominantUa]);
+  }, [count, maxCount, mode, dominantUa, paleta]);
   
   const isEmpty = count === 0;
+  const claro = paleta.estilo === "claro";
+  // Vidrio tintado: el color del calor mezclado con blanco (la cinta lleva el color pleno).
+  const colorVidrio = useMemo(() => baseColor.clone().lerp(new THREE.Color("#ffffff"), 0.15), [baseColor]);
 
   return (
     <group 
@@ -106,9 +133,9 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
         <boxGeometry args={[width, height * 0.95, depth]} />
         {isEmpty ? (
           <meshPhysicalMaterial
-            color={isSelected ? "#bc955c" : "#0f172a"}
+            color={isSelected ? "#bc955c" : paleta.vacio}
             transparent
-            opacity={isSelected ? 0.6 : 0.3}
+            opacity={isSelected ? 0.6 : paleta === PALETA_ORIGINAL ? 0.3 : 0.5}
             roughness={0}
             metalness={1}
             transmission={0.9}
@@ -116,6 +143,17 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
             envMapIntensity={2}
             emissive={isSelected ? "#8d6a3a" : "#000000"}
             emissiveIntensity={isSelected ? 1 : 0}
+          />
+        ) : claro ? (
+          <meshPhysicalMaterial
+            color={isSelected ? "#ffffff" : colorVidrio}
+            transparent
+            opacity={isSelected ? 0.95 : 0.9}
+            roughness={0.12}
+            metalness={0.05}
+            envMapIntensity={1.4}
+            emissive={isSelected ? "#bc955c" : baseColor}
+            emissiveIntensity={isSelected ? 2.5 : (isHovered ? 0.7 : 0.4)}
           />
         ) : (
           <meshStandardMaterial
@@ -128,10 +166,18 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
         )}
       </mesh>
 
+      {/* Cinta del piso (estilo claro): el color pleno del calor en el canto de la losa */}
+      {claro && !isEmpty && (
+        <mesh position={[0, -height * 0.26, 0]}>
+          <boxGeometry args={[width + 0.15, height * 0.34, depth + 0.15]} />
+          <meshStandardMaterial color={baseColor} emissive={baseColor} emissiveIntensity={isHovered || isSelected ? 0.9 : 0.5} roughness={0.35} metalness={0.1} />
+        </mesh>
+      )}
+
       {/* Solid floor slab */}
       <mesh position={[0, -height / 2 + 0.05, 0]}>
         <boxGeometry args={[width + 0.2, 0.1, depth + 0.2]} />
-        <meshStandardMaterial color={isSelected ? "#bc955c" : "#1e293b"} roughness={0.8} metalness={0.2} emissive={isSelected ? "#bc955c" : "#000000"} emissiveIntensity={isSelected ? 1 : 0} />
+        <meshStandardMaterial color={isSelected ? "#bc955c" : paleta.losa} roughness={0.8} metalness={0.2} emissive={isSelected ? "#bc955c" : "#000000"} emissiveIntensity={isSelected ? 1 : 0} />
       </mesh>
       
       {/* Highlight glowing border when hovered or selected */}
@@ -232,12 +278,12 @@ const Floor = ({ yPosition, width, depth, height, count, maxCount, pisoLabel, ua
 };
 
 // The yellow Caballito statue approximation at the base
-const ElCaballito = () => {
+const ElCaballito = ({ color = "#facc15" }) => {
   return (
     <group position={[12, 4, 12]} rotation={[0, Math.PI / 4, 0]}>
       <mesh position={[0, 0, 0]}>
         <cylinderGeometry args={[0, 2, 8, 4]} />
-        <meshStandardMaterial color="#facc15" roughness={0.4} metalness={0.1} />
+        <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
       </mesh>
       <mesh position={[0, -3.5, 0]}>
         <boxGeometry args={[3, 1, 3]} />
@@ -251,7 +297,7 @@ const ElCaballito = () => {
   );
 };
 
-export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelectedInfo, mode, hoveredUaRemote, selectedUaRemote, colorBase = "#0f172a" }) => {
+export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, setSelectedInfo, mode, hoveredUaRemote, selectedUaRemote, paleta = PALETA_ORIGINAL }) => {
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   const totalFloors = 32;
   const floorHeight = 1.8; // Made taller
@@ -293,6 +339,7 @@ export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, se
         isSelected={isSelected}
         isHoveredRemote={isHoveredRemote}
         employeeName={isSelected ? selectedInfo?.employeeName : undefined}
+        paleta={paleta}
       />
     );
   });
@@ -302,28 +349,36 @@ export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, se
   return (
     <group position={[0, 0, 0]}>
       {/* Ground Plaza Base */}
-      <mesh position={[0, -0.5, 0]}>
-        <cylinderGeometry args={[30, 32, 1, 64]} />
-        <meshStandardMaterial color={colorBase} roughness={0.9} metalness={0.1} />
+      <mesh position={[0, paleta.estilo === "claro" ? -0.3 : -0.5, 0]}>
+        <cylinderGeometry args={paleta.estilo === "claro" ? [24, 25, 0.6, 96] : [30, 32, 1, 64]} />
+        <meshStandardMaterial color={paleta.base} roughness={0.9} metalness={0.1} />
       </mesh>
+
+      {/* Aro dorado sobre la base (estilo claro) */}
+      {paleta.anillo && (
+        <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[23.2, 24, 96]} />
+          <meshStandardMaterial color={paleta.anillo} emissive={paleta.anillo} emissiveIntensity={0.35} side={THREE.DoubleSide} />
+        </mesh>
+      )}
 
       {/* Concrete Inner Core (Elevator shaft) */}
       <mesh position={[0, buildingTotalHeight / 2, 0]}>
         <boxGeometry args={[buildingWidth * 0.4, buildingTotalHeight, buildingDepth * 0.4]} />
-        <meshStandardMaterial color="#020617" roughness={1} metalness={0} />
+        <meshStandardMaterial color={paleta.nucleo} roughness={1} metalness={0} />
       </mesh>
 
       {/* Exterior Vertical Columns for Architectural Detail */}
       {[-buildingWidth/2 + 0.5, 0, buildingWidth/2 - 0.5].map((x, i) => (
         <mesh key={`col-front-${i}`} position={[x, buildingTotalHeight / 2, buildingDepth/2 + 0.1]}>
           <boxGeometry args={[0.5, buildingTotalHeight, 0.5]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.5} roughness={0.5} />
+          <meshStandardMaterial color={paleta.columnas} metalness={0.5} roughness={0.5} />
         </mesh>
       ))}
       {[-buildingWidth/2 + 0.5, 0, buildingWidth/2 - 0.5].map((x, i) => (
         <mesh key={`col-back-${i}`} position={[x, buildingTotalHeight / 2, -buildingDepth/2 - 0.1]}>
           <boxGeometry args={[0.5, buildingTotalHeight, 0.5]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.5} roughness={0.5} />
+          <meshStandardMaterial color={paleta.columnas} metalness={0.5} roughness={0.5} />
         </mesh>
       ))}
 
@@ -335,7 +390,7 @@ export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, se
         {/* Roof Base */}
         <mesh position={[0, 1, 0]}>
           <boxGeometry args={[buildingWidth - 2, 2, buildingDepth - 2]} />
-          <meshStandardMaterial color="#1e293b" />
+          <meshStandardMaterial color={paleta.azotea} />
         </mesh>
 
         {/* Helipad "H" Markings (resting directly on the roof base) */}
@@ -359,7 +414,7 @@ export const TorreCaballito = ({ data, hoverInfo, setHoverInfo, selectedInfo, se
       </group>
 
       {/* The El Caballito Statue */}
-      <ElCaballito />
+      <ElCaballito color={paleta.estatua} />
     </group>
   );
 };
