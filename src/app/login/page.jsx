@@ -120,7 +120,7 @@ export default function Login() {
             de este panel, no al viewport) para caber siempre en una sola
             línea — a 46% de un viewport angosto el panel es más estrecho
             que en móvil apilado, un breakpoint fijo no alcanza ahí. */}
-        <div className="relative flex flex-col items-center justify-center overflow-hidden px-8 py-14 @container md:w-[46%] md:py-0">
+        <div className="relative flex flex-col items-center justify-center overflow-hidden px-8 py-14 @container md:w-[50%] md:py-0">
           <div
             className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40 mix-blend-soft-light"
             style={{ backgroundImage: "url('/pleca.png')" }}
@@ -173,7 +173,7 @@ export default function Login() {
         {/* Panel del formulario — animado con GSAP (ver useEffect arriba) */}
         <div
           ref={rightPanelRef}
-          className="relative z-10 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-white to-[#f7f8fa] px-6 py-12 shadow-[0_0_60px_rgba(0,0,0,0.06)] md:-ml-7 md:w-[calc(54%+1.75rem)] md:rounded-l-[28px] md:px-10"
+          className="relative z-10 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-white to-[#f7f8fa] px-6 py-12 shadow-[0_0_60px_rgba(0,0,0,0.06)] md:-ml-7 md:w-[calc(50%+1.75rem)] md:rounded-l-[28px] md:px-10"
         >
           <div
             className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.16]"
