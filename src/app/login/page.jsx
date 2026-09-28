@@ -11,6 +11,8 @@ import { AuthService } from '@/services/auth.service';
 import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import BlurText from '@/components/ui/BlurText';
+import ImageCarousel from '@/components/ui/ImageCarousel';
+import { LOGIN_CAROUSEL_IMAGES } from '@/data/loginCarouselImages';
 
 // Tipografía propia de esta pantalla (no Noto Sans, la del resto del sitio
 // vía `font-sans` en <html>): al aplicarse directo sobre el contenedor raíz,
@@ -29,19 +31,43 @@ export default function Login() {
   const [loadingText, setLoadingText] = useState('Cargando...');
   const [error, setError] = useState('');
 
-  // Panel del formulario: entra deslizándose desde la derecha hasta su
-  // posición final (GSAP, no framer) — el panel guinda se anima aparte.
-  // `panelReady` se prende en el onComplete de ese tween y de ahí cuelgan,
-  // encadenados (no en paralelo), el BlurText del título y el Zoom del
-  // contenido del formulario.
+  // Panel del formulario: entra hasta su posición final (GSAP, no framer) —
+  // el panel guinda se anima aparte. `panelReady` se prende en el
+  // onComplete de ese tween y de ahí cuelgan, encadenados (no en paralelo),
+  // el BlurText del título y el Zoom del contenido del formulario.
+  //
+  // Dirección por breakpoint: en desktop los paneles van lado a lado, así
+  // que entra deslizando desde la derecha (xPercent). En móvil van
+  // apilados uno debajo del otro — deslizar en horizontal ahí no tiene
+  // sentido (el panel vive en la fila de abajo, no al costado), así que
+  // entra deslizando hacia arriba (yPercent) como el resto de la pila.
+  //
+  // Chequeo directo con matchMedia del navegador (no gsap.matchMedia): en
+  // Strict Mode de React el efecto corre-limpia-vuelve a correr al montar,
+  // y con gsap.matchMedia() ese primer tween se mata a medio vuelo por el
+  // revert del cleanup — el onComplete del segundo nunca llegaba a
+  // engancharse bien y panelReady se quedaba en false para siempre.
   const rightPanelRef = useRef(null);
   const [panelReady, setPanelReady] = useState(false);
+
+  // Carrusel de fondo: se monta recién cuando termina el deslizamiento del
+  // panel DERECHO (blanco, GSAP — el mismo onComplete que prende
+  // panelReady), más un pequeño respiro.
+  const [carouselReady, setCarouselReady] = useState(false);
+  useEffect(() => {
+    if (!panelReady) return;
+    const id = setTimeout(() => setCarouselReady(true), 100);
+    return () => clearTimeout(id);
+  }, [panelReady]);
   useEffect(() => {
     const el = rightPanelRef.current;
     if (!el) return;
+
+    const isDesktop = window.matchMedia?.('(min-width: 768px)').matches;
     const reduceMotion = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)'
     ).matches;
+
     if (reduceMotion) {
       setPanelReady(true);
       return;
@@ -50,11 +76,14 @@ export default function Login() {
     const ctx = gsap.context(() => {
       gsap.fromTo(
         el,
-        { xPercent: 100, opacity: 0 },
+        isDesktop
+          ? { xPercent: 100, opacity: 0 }
+          : { yPercent: 12, opacity: 0 },
         {
           xPercent: 0,
+          yPercent: 0,
           opacity: 1,
-          duration: 0.9,
+          duration: isDesktop ? 0.9 : 0.6,
           ease: 'power3.out',
           onComplete: () => setPanelReady(true),
         }
@@ -110,7 +139,7 @@ export default function Login() {
 
   return (
     <div
-      className={`relative h-stack-nav-dvh md:h-stack-dvh overflow-hidden bg-gradient-to-br from-[#4a1726] via-[#621f32] to-[#7a2740] ${loginFont.className}`}
+      className={`relative h-stack-nav-dvh md:h-stack-dvh overflow-hidden bg-gradient-to-br from-[#521c2f] via-[#6c2439] to-[#82304a] ${loginFont.className}`}
     >
       <LoadingOverlay isLoading={isLoading} text={loadingText} />
 
@@ -120,7 +149,18 @@ export default function Login() {
             de este panel, no al viewport) para caber siempre en una sola
             línea — a 46% de un viewport angosto el panel es más estrecho
             que en móvil apilado, un breakpoint fijo no alcanza ahí. */}
-        <div className="relative flex flex-col items-center justify-center overflow-hidden px-8 py-14 @container md:w-[50%] md:py-0">
+        <div className="relative flex grow flex-col items-center justify-center overflow-hidden px-8 pt-14 pb-32 @container md:w-[68%] md:grow-0 md:py-0">
+          {carouselReady && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+              className="absolute inset-0"
+            >
+              <ImageCarousel images={LOGIN_CAROUSEL_IMAGES} opacity={0.68} interval={5000} />
+            </motion.div>
+          )}
+
           <div
             className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40 mix-blend-soft-light"
             style={{ backgroundImage: "url('/pleca.png')" }}
@@ -173,7 +213,7 @@ export default function Login() {
         {/* Panel del formulario — animado con GSAP (ver useEffect arriba) */}
         <div
           ref={rightPanelRef}
-          className="relative z-10 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-white to-[#f7f8fa] px-6 py-12 shadow-[0_0_60px_rgba(0,0,0,0.06)] md:-ml-7 md:w-[calc(50%+1.75rem)] md:rounded-l-[28px] md:px-10"
+          className="relative z-10 flex grow flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-white to-[#f7f8fa] px-6 py-12 shadow-[0_0_60px_rgba(0,0,0,0.06)] md:shadow-[-32px_0_55px_-18px_rgba(0,0,0,0.45)] md:-ml-7 md:w-[calc(32%+1.75rem)] md:grow-0 md:rounded-l-[28px] md:px-10"
         >
           <div
             className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.16]"
