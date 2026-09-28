@@ -44,7 +44,7 @@ export default function DiagramaBD() {
   const [ambito, setAmbito] = useState('ambos');
   const [colFoco, setColFoco] = useState(null);
   const [abierto, setAbierto] = useState(false);
-  const [grupo, setGrupo] = useState('');
+  const [grupos, setGrupos] = useState([]);
   const [mostrarD, setMostrarD] = useState(true);
   const [mostrarR, setMostrarR] = useState(true);
   const [soloSel, setSoloSel] = useState(false);
@@ -81,8 +81,8 @@ export default function DiagramaBD() {
     return (t, j) => coincide(t.cNom[j], n, op) || (op === 'contiene' && t.cDes[j].includes(n));
   }, [query, colFoco, op, ambito]);
   const grupoSet = useMemo(
-    () => (grupo ? new Set(M.tablas.filter((t) => t.g.includes(grupo)).map((t) => t.i)) : null),
-    [M, grupo],
+    () => (grupos.length ? new Set(M.tablas.filter((t) => t.g.some((g) => grupos.includes(g))).map((t) => t.i)) : null),
+    [M, grupos],
   );
   const vecinos = useMemo(() => {
     if (sel < 0) return null;
@@ -540,7 +540,7 @@ export default function DiagramaBD() {
                   )}
                   {T.g.length > 0 && (
                     <Seccion titulo={`Grupos de acceso (${T.g.length})`}>
-                      <div className="flex flex-wrap gap-1.5">{T.g.map((g) => <button key={g} type="button" onClick={() => setGrupo(g)} className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">{g}</button>)}</div>
+                      <div className="flex flex-wrap gap-1.5">{T.g.map((g) => <button key={g} type="button" onClick={() => setGrupos([g])} className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700">{g}</button>)}</div>
                     </Seccion>
                   )}
                   {colSel && (
@@ -611,12 +611,9 @@ export default function DiagramaBD() {
                   <label className="flex items-center gap-2"><input type="checkbox" checked={mostrarD} onChange={(e) => setMostrarD(e.target.checked)} />Relaciones de detalle</label>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={mostrarR} onChange={(e) => setMostrarR(e.target.checked)} />Relaciones de referencia</label>
                   <label className={`flex items-center gap-2 ${T ? '' : 'opacity-50'}`}><input type="checkbox" disabled={!T} checked={soloSel} onChange={(e) => setSoloSel(e.target.checked)} />Solo relaciones de la tabla seleccionada</label>
-                  <label className="flex flex-col gap-1">Grupo de acceso
-                    <select value={grupo} onChange={(e) => setGrupo(e.target.value)} className="rounded-md border border-slate-300 dark:border-slate-600 bg-transparent px-2 py-1.5 font-mono text-[11px]">
-                      <option value="">Todos ({M.tablas.length} tablas)</option>
-                      {M.grupos.map((g) => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                  </label>
+                  <div className="flex flex-col gap-1">Grupo de acceso
+                    <GrupoMulti opciones={M.gruposConteo} total={M.tablas.length} valor={grupos} onChange={setGrupos} />
+                  </div>
                 </div>
               </Seccion>
               <p className="text-[10.5px] text-slate-400">Datos: {M.generado?.slice(0, 10)} · Relaciones deducidas de las llaves; PeopleSoft no declara llaves foráneas.</p>
@@ -624,6 +621,55 @@ export default function DiagramaBD() {
           </aside>
         )}
       </div>
+    </div>
+  );
+}
+
+/* Selector múltiple de grupos de acceso: "GRUPO (n)" con n = tablas a las que da acceso.
+   Por defecto ordenado del que más tiene al que menos; varios grupos = unión de sus tablas. */
+function GrupoMulti({ opciones, total, valor, onChange }) {
+  const [abierto, setAbierto] = useState(false);
+  const [alfa, setAlfa] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!abierto) return undefined;
+    const fuera = (e) => { if (ref.current && !ref.current.contains(e.target)) setAbierto(false); };
+    const esc = (e) => { if (e.key === 'Escape') setAbierto(false); };
+    document.addEventListener('mousedown', fuera);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', esc); };
+  }, [abierto]);
+  const lista = useMemo(
+    () => (alfa ? [...opciones].sort((a, b) => a.g.localeCompare(b.g)) : opciones),
+    [opciones, alfa],
+  );
+  const alternar = (g) => onChange(valor.includes(g) ? valor.filter((x) => x !== g) : [...valor, g]);
+  const resumen = valor.length === 0 ? `Todos (${total} tablas)` : valor.length === 1 ? valor[0] : `${valor.length} grupos seleccionados`;
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" aria-haspopup="listbox" aria-expanded={abierto} onClick={() => setAbierto((a) => !a)}
+        className="w-full flex items-center justify-between gap-2 rounded-md border border-slate-300 dark:border-slate-600 bg-transparent px-2 py-1.5 font-mono text-[11px] text-left">
+        <span className="truncate">{resumen}</span>
+        <ChevronDown className="size-3.5 shrink-0" />
+      </button>
+      {abierto && (
+        <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-lg">
+          <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-200 dark:border-slate-700 text-[10.5px]">
+            <button type="button" onClick={() => onChange([])} disabled={!valor.length} className="text-sky-600 dark:text-sky-400 disabled:opacity-40">Limpiar</button>
+            <button type="button" onClick={() => setAlfa((a) => !a)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">{alfa ? 'Orden: A–Z' : 'Orden: más registros'}</button>
+          </div>
+          <ul role="listbox" aria-multiselectable="true" className="max-h-64 overflow-y-auto py-1">
+            {lista.map(({ g, n }) => (
+              <li key={g} role="option" aria-selected={valor.includes(g)}>
+                <label className="flex items-center gap-2 px-2 py-1 font-mono text-[11px] cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <input type="checkbox" checked={valor.includes(g)} onChange={() => alternar(g)} />
+                  <span className="truncate">{g} ({n})</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

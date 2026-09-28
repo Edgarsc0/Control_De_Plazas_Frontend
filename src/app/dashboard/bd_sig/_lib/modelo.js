@@ -131,8 +131,12 @@ export function buildModel(data) {
     t.cDes = t.c.map((col) => normalizar(col[1]));
   });
   const grupos = [...new Set(tablas.flatMap((t) => t.g))].sort();
+  // registros (tablas) a los que da acceso cada grupo, del que más tiene al que menos
+  const gruposConteo = grupos
+    .map((g) => ({ g, n: tablas.reduce((a, t) => a + (t.g.includes(g) ? 1 : 0), 0) }))
+    .sort((a, b) => b.n - a.n || a.g.localeCompare(b.g));
 
-  return { tablas, porNombre, aristas, vec, W, H, ncol, colIdx, grupos, ents, generado: data.generado };
+  return { tablas, porNombre, aristas, vec, W, H, ncol, colIdx, grupos, gruposConteo, ents, generado: data.generado };
 }
 
 /** Rectángulo que contiene a un conjunto de tablas. */
