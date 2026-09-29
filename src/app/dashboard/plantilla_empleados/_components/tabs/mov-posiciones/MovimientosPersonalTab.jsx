@@ -2764,6 +2764,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
       {/* Columns Select Modal */}
             <ColumnsModal
+        tablaMemoria="mov_posiciones"
         open={isColumnsModalOpen}
         columns={tableColumns}
         onToggle={toggleColumnVisibility}

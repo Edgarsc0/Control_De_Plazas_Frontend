@@ -9,6 +9,8 @@ import { PERMISSIONS } from "@/config/permissions";
 
 const DEBOUNCE_MS = 250;
 const MIN_CARACTERES = 2;
+// "2022-12-01" → "12/2022" (sin Date: evita corrimientos por zona horaria).
+const fmtMesAnio = (iso) => { const [a, m] = String(iso).split("-"); return m && a ? `${m}/${a}` : iso; };
 
 /**
  * Árbol de movimientos de una plaza (el mismo que se abre al hacer clic en la
@@ -80,7 +82,11 @@ export default function ArbolMovimientosWidget({ config, onConfigChange }) {
       setIndiceActivo((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      elegir(indiceActivo >= 0 && sugerencias[indiceActivo] ? sugerencias[indiceActivo].posicion : borrador);
+      // Un nombre no es una posición: con texto que tiene letras, Enter elige la primera sugerencia.
+      const porNombre = /[a-zA-ZÀ-ÿ]/.test(borrador);
+      const sugerencia = sugerencias[indiceActivo >= 0 ? indiceActivo : 0];
+      if (porNombre) { if (sugerencia) elegir(sugerencia.posicion); }
+      else elegir(indiceActivo >= 0 && sugerencias[indiceActivo] ? sugerencias[indiceActivo].posicion : borrador);
     } else if (e.key === "Escape") {
       setAbierto(false);
     }
@@ -99,13 +105,13 @@ export default function ArbolMovimientosWidget({ config, onConfigChange }) {
             onChange={(e) => { setBorrador(e.target.value); setAbierto(true); }}
             onFocus={() => setAbierto(true)}
             onKeyDown={onKeyDown}
-            placeholder="Buscar posición (ej. 12345)"
-            aria-label="Posición a consultar"
+            placeholder="Buscar posición o nombre del ocupante"
+            aria-label="Posición o nombre a consultar"
             role="combobox"
             aria-expanded={mostrarLista}
             aria-autocomplete="list"
             autoComplete="off"
-            className="w-full pl-8 pr-14 py-1.5 text-xs font-mono rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 placeholder:font-sans focus:outline-none focus:border-[#621f32]/50 dark:focus:border-[#bc955c]/50"
+            className={`w-full pl-8 pr-14 py-1.5 text-xs ${/[a-zA-ZÀ-ÿ]/.test(borrador) ? "font-sans" : "font-mono"} rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 placeholder:font-sans focus:outline-none focus:border-[#621f32]/50 dark:focus:border-[#bc955c]/50`}
           />
           <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
             {cargando && <Loader2 className="size-3.5 text-slate-400 animate-spin" />}
@@ -133,7 +139,7 @@ export default function ArbolMovimientosWidget({ config, onConfigChange }) {
             )}
             {sugerencias.map((s, i) => (
               <li
-                key={s.posicion}
+                key={`${s.posicion}-${s.historico ? s.ocupante : "actual"}`}
                 role="option"
                 aria-selected={i === indiceActivo}
                 // mousedown (no click): se elige antes de que el input pierda el foco.
@@ -151,6 +157,12 @@ export default function ArbolMovimientosWidget({ config, onConfigChange }) {
                 <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300 truncate">
                   {s.ocupada ? s.ocupante : <span className="italic text-amber-700 dark:text-amber-400">Vacante</span>}
                 </div>
+                {/* Ocupante anterior: sale del histórico de movimientos (ya no ocupa la plaza). */}
+                {s.historico && (
+                  <div className="text-[10px] leading-tight font-semibold text-indigo-700 dark:text-indigo-300 truncate">
+                    Ocupante anterior{s.desde ? ` · movimientos ${fmtMesAnio(s.desde)}${s.hasta && s.hasta !== s.desde ? ` – ${fmtMesAnio(s.hasta)}` : ""}` : ""}
+                  </div>
+                )}
                 {s.puesto && <div className="text-[10px] leading-tight text-slate-400 dark:text-slate-500 truncate">{s.puesto}</div>}
               </li>
             ))}

@@ -35,6 +35,11 @@ const MAX_NOMBRE_ESCRITORIO = 60; // igual que TableroLayoutView.MAX_NOMBRE en e
 // izq/der del tablero, y cuánto hay que sostener el cursor ahí para disparar
 // el cambio ("un segundo y medio", pedido explícitamente).
 const ZONA_BORDE_PX = 56;
+// Navegación por hover (sin arrastrar): la franja aparece solo con el cursor en el extremo
+// (ZONA_APARICION_PX) y, ya visible, se mantiene en todo su ancho (ZONA_BORDE_PX). Esa
+// histéresis evita el parpadeo en la frontera.
+const ZONA_APARICION_PX = 20;
+const ANCHO_FRANJA_NAV_PX = 40; // ancho de la franja visible (y de su zona de permanencia)
 const RETENCION_BORDE_MS = 650;
 
 const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
@@ -183,6 +188,7 @@ export default function PersonalizableGrid({
   // un arrastre en curso: ese caso ya tiene su propio indicador.
   const [hoverLado, setHoverLado] = useState(null);
   useEffect(() => { if (autoScroll) setHoverLado(null); }, [autoScroll]);
+  const envolturaNavRef = useRef(null);
 
   // Compactador que hace REVERSIBLE el empuje entre widgets durante un
   // arrastre. Con `noCompactor` a secas, react-grid-layout empuja a los
@@ -393,12 +399,12 @@ export default function PersonalizableGrid({
   // tablero, o `null`. La izquierda no cuenta en el primer escritorio (no hay
   // adónde ir) — así el indicador nunca aparece prometiendo un cambio que no
   // va a pasar; a la derecha siempre se puede: si no hay más, se crea uno.
-  const calcularLadoBorde = useCallback((clientX) => {
+  const calcularLadoBorde = useCallback((clientX, zona = ZONA_BORDE_PX) => {
     const cont = viewportRef.current;
     if (!cont) return null;
     const rect = cont.getBoundingClientRect();
-    if (clientX <= rect.left + ZONA_BORDE_PX) return escritorioActivo > 0 ? "izq" : null;
-    if (clientX >= rect.right - ZONA_BORDE_PX) return "der";
+    if (clientX <= rect.left + zona) return escritorioActivo > 0 ? "izq" : null;
+    if (clientX >= rect.right - zona) return "der";
     return null;
   }, [viewportRef, escritorioActivo]);
 
@@ -719,11 +725,62 @@ export default function PersonalizableGrid({
   // "sostén para mover" (que sí puede crear un escritorio nuevo a la
   // derecha), estos solo navegan entre los que ya existen — mismo criterio
   // que las flechas de la barra inferior.
+  // Hover de las franjas, escuchado en `window` y no en el lienzo por dos razones:
+  //  1. Si se escuchara en el lienzo, pasar el cursor a la franja contaría como salir de él, la
+  //     franja se apagaría, el cursor volvería al lienzo, se encendería otra vez… (parpadeo).
+  //  2. Con el cursor pegado al borde de la PANTALLA el cursor queda fuera del lienzo (entre él
+  //     y la orilla hay margen), así que el lienzo nunca se enteraba. Aquí, cualquier punto a la
+  //     altura del lienzo y más allá de su orilla cuenta como dentro de la franja.
+  useEffect(() => {
+    if (autoScroll) return undefined;
+    const onMove = (e) => {
+      const rect = envolturaNavRef.current?.getBoundingClientRect();
+      if (!rect || e.clientY < rect.top || e.clientY > rect.bottom) { setHoverLado(null); return; }
+      setHoverLado((actual) => {
+        const zona = actual ? ANCHO_FRANJA_NAV_PX : ZONA_APARICION_PX;
+        if (e.clientX <= rect.left + zona) return "izq";
+        if (e.clientX >= rect.right - zona) return "der";
+        return null;
+      });
+    };
+    const onSalir = (e) => { if (!e.relatedTarget) setHoverLado(null); }; // el cursor dejó la ventana
+    // Clic en el MARGEN entre el lienzo y la orilla de la pantalla (fuera de la franja dibujada,
+    // que vive dentro del lienzo): también cambia de escritorio.
+    const onClic = (e) => {
+      const rect = envolturaNavRef.current?.getBoundingClientRect();
+      if (!rect || e.button !== 0 || e.clientY < rect.top || e.clientY > rect.bottom) return;
+      const nav = navHoverRef.current;
+      if (e.clientX < rect.left && nav.puedeIzq) nav.ir(-1);
+      else if (e.clientX > rect.right && nav.puedeDer) nav.ir(1);
+    };
+    window.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseout", onSalir);
+    window.addEventListener("click", onClic);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseout", onSalir);
+      window.removeEventListener("click", onClic);
+    };
+  }, [autoScroll]);
   const mostrarNavIzq = hoverLado === "izq" && escritorioActivo > 0;
   const mostrarNavDer = hoverLado === "der" && escritorioActivo < totalEscritorios - 1;
-  const claseNav = (visible) =>
-    `absolute top-1/2 -translate-y-1/2 z-30 size-11 rounded-full bg-white dark:bg-slate-900 border-2 border-[#621f32]/70 dark:border-[#bc955c]/70 shadow-lg flex items-center justify-center text-[#621f32] dark:text-[#bc955c] cursor-pointer transition-all duration-300 ease-out hover:scale-110 hover:border-[#621f32] dark:hover:border-[#bc955c] ${visible ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"
-    }`;
+  const navHoverRef = useRef(null);
+  navHoverRef.current = {
+    puedeIzq: mostrarNavIzq,
+    puedeDer: mostrarNavDer,
+    ir: (delta) => irAEscritorio(escritorioActivo + delta),
+  };
+  // Franja vertical a todo lo alto del lienzo (solo el área de widgets: ni encabezado ni barra
+  // inferior), sombreada y clicable en cualquier punto.
+  // Aparición suave: opacidad + un leve deslizamiento desde la orilla, con curva ease-out larga.
+  // El degradado va fijo (los degradados no se pueden animar en CSS: cambiarlo en hover hacía un
+  // salto); la intensidad extra del hover es una capa aparte que solo cambia de opacidad.
+  const claseNav = (visible, lado) =>
+    `group absolute inset-y-0 ${lado === "izq" ? "left-0 bg-gradient-to-r rounded-r-2xl" : "right-0 bg-gradient-to-l rounded-l-2xl"} z-30 flex items-center justify-center overflow-hidden from-[#621f32]/25 via-[#621f32]/10 to-transparent dark:from-[#bc955c]/30 dark:via-[#bc955c]/10 text-[#621f32] dark:text-[#bc955c] cursor-pointer will-change-[opacity,transform] transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 translate-x-0" : `opacity-0 pointer-events-none ${lado === "izq" ? "-translate-x-3" : "translate-x-3"}`}`;
+  const capaHoverNav = (lado) =>
+    `absolute inset-0 ${lado === "izq" ? "bg-gradient-to-r" : "bg-gradient-to-l"} from-[#621f32]/15 to-transparent dark:from-[#bc955c]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out`;
+  const claseFlechaNav = (visible) =>
+    `relative drop-shadow transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${visible ? "opacity-100 scale-100 delay-75" : "opacity-0 scale-90"}`;
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
@@ -731,20 +788,14 @@ export default function PersonalizableGrid({
           `absolute` normal (sin cálculo manual de rect ni `fixed`) — a
           diferencia del contenido de abajo, este wrapper nunca se desplaza,
           así que sus hijos absolutos tampoco se van con el scroll interno. */}
-      <div className="relative flex-1 min-h-0">
+      {/* Franjas de navegación: ver el efecto de `hoverLado` (escucha en window). */}
+      <div ref={envolturaNavRef} className="relative flex-1 min-h-0">
         <div
           ref={viewportRef}
           onScroll={(e) => {
             if (!anchoEscritorio) return;
             setEscritorioActivo(Math.round(e.currentTarget.scrollLeft / anchoEscritorio));
           }}
-          onMouseMove={(e) => {
-            // Mientras algo se arrastra ya está el indicador de "sostén para
-            // mover/cambiar" (ver `ladoBorde`) — este es solo para hover simple.
-            if (autoScroll) return;
-            setHoverLado(calcularLadoBorde(e.clientX));
-          }}
-          onMouseLeave={() => setHoverLado(null)}
           className="escritorios-scroll h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
         >
         {escritorios.map((items, indice) => (
@@ -842,9 +893,11 @@ export default function PersonalizableGrid({
           aria-hidden={!mostrarNavIzq}
           title="Escritorio anterior"
           aria-label="Escritorio anterior"
-          className={`${claseNav(mostrarNavIzq)} left-3`}
+          className={claseNav(mostrarNavIzq, "izq")}
+          style={{ width: ANCHO_FRANJA_NAV_PX }}
         >
-          <ChevronLeft className="size-5" />
+          <span className={capaHoverNav("izq")} />
+          <ChevronLeft className={`size-7 ${claseFlechaNav(mostrarNavIzq)}`} strokeWidth={2.5} />
         </button>
         <button
           type="button"
@@ -853,9 +906,11 @@ export default function PersonalizableGrid({
           aria-hidden={!mostrarNavDer}
           title="Escritorio siguiente"
           aria-label="Escritorio siguiente"
-          className={`${claseNav(mostrarNavDer)} right-3`}
+          className={claseNav(mostrarNavDer, "der")}
+          style={{ width: ANCHO_FRANJA_NAV_PX }}
         >
-          <ChevronRight className="size-5" />
+          <span className={capaHoverNav("der")} />
+          <ChevronRight className={`size-7 ${claseFlechaNav(mostrarNavDer)}`} strokeWidth={2.5} />
         </button>
       </div>
 

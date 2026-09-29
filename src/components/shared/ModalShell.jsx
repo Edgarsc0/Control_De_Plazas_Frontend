@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ModalLayerProvider, useModalLayerZ } from "./modalLayer";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { X } from "lucide-react";
@@ -83,6 +84,9 @@ export default function ModalShell({
 }) {
   const isRight = anchor === "right";
   const isEdge = anchor === "right-edge";
+  // z de siempre según el modo; si este modal se abrió DENTRO de otro, se
+  // coloca encima de aquél en vez de usar su valor fijo (ver modalLayer.js).
+  const zCapa = useModalLayerZ(isRight ? 10000 : isEdge ? 40 : 1000);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -200,17 +204,21 @@ export default function ModalShell({
   if (!mounted || !rendered) return null;
 
   return createPortal(
+    // `zCapa` va inline y no como clase de Tailwind porque depende del modal
+    // que lo contenga (ver modalLayer.js): Tailwind no puede generar clases
+    // con un valor calculado en tiempo de ejecución.
     <div
       ref={rootRef}
+      style={{ zIndex: zCapa }}
       className={
         isRight
-          ? `fixed inset-0 z-[10000] ${showBackdrop ? "" : "pointer-events-none"}`
+          ? `fixed inset-0 ${showBackdrop ? "" : "pointer-events-none"}`
           : isEdge
           ? // top-16/md:top-40 + overflow-hidden: recorta TODO lo del sidebar
             // (panel + su boxShadow) por debajo del Navbar, para que la sombra
             // no sangre hacia arriba encima de la barra (mismo z-40).
-            `fixed inset-x-0 top-16 md:top-40 bottom-0 z-40 overflow-hidden ${showBackdrop ? "" : "pointer-events-none"}`
-          : "fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-6"
+            `fixed inset-x-0 top-16 md:top-40 bottom-0 overflow-hidden ${showBackdrop ? "" : "pointer-events-none"}`
+          : "fixed inset-0 flex items-end sm:items-center justify-center sm:p-6"
       }
     >
       {showBackdrop && (
@@ -309,8 +317,11 @@ export default function ModalShell({
           </div>
         </div>
 
+        {/* Todo modal que se abra DESDE aquí dentro (Columnas, Filtros
+            Avanzados, el expediente…) hereda esta capa y se coloca encima,
+            no detrás — ver modalLayer.js. */}
         <div className={`flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-slate-950 ${bodyClassName}`}>
-          {children}
+          <ModalLayerProvider value={zCapa}>{children}</ModalLayerProvider>
         </div>
 
         {footer && (

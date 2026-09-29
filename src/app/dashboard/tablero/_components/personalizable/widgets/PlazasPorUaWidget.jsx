@@ -8,6 +8,8 @@ import { ESTADOS, mapEstadoNomina, cargarEstatusNomina } from "./estatusNominaDa
 import { useElementSize } from "./useElementSize";
 
 // El modal monta la pestaña Plantilla Detalle completa (muy pesada): solo se descarga al abrirlo.
+const MAX_ANCHO_BARRA = 44; // px
+
 const PlantillaUaModal = dynamic(() => import("./PlantillaUaModal"), { ssr: false });
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-MX");
@@ -170,6 +172,10 @@ export default function PlazasPorUaWidget() {
                   data={filas}
                   margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
                   barCategoryGap="15%"
+                  // Ancho máximo por barra: con pocas unidades (p. ej. al buscar una sola) la barra
+                  // ya no se estira a todo el ancho del widget; se queda delgada y centrada en su
+                  // categoría. Con muchas unidades no cambia nada (ya son más angostas que esto).
+                  maxBarSize={MAX_ANCHO_BARRA}
                   style={{ cursor: "pointer" }}
                   // Recharts 3 ya no entrega `activePayload` en el onClick del gráfico: se usa el
                   // índice de la barra activa (y cada <Bar> abajo también resuelve su propia fila).

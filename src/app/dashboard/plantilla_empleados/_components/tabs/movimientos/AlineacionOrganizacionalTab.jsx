@@ -1045,6 +1045,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
 
       {mounted && (
         <ColumnsModal
+          tablaMemoria="alineacion"
           open={isColumnsModalOpen}
           columns={columns}
           onToggle={toggleColumnVisibility}

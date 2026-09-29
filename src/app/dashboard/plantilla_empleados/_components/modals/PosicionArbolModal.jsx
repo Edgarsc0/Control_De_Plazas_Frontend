@@ -44,6 +44,7 @@ import {
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import { VacantesService } from "@/services/vacantes.service";
 import FotoEmpleadoCell from "../shared/FotoEmpleadoCell";
+import { useExpedienteEmpleado } from "../shared/useExpedienteEmpleado";
 
 gsap.registerPlugin(useGSAP, Draggable);
 
@@ -204,6 +205,33 @@ function Nodo({ node, origin, seleccionado, onSelect, onAbrirPlaza, canViewPhoto
     );
 }
 
+// Nivel y SMN (salario mensual neto) de la plaza, junto al pill de Ocupada/Vacante. Vienen de
+// EMPLEADOS_COMPLETOS_SIG (ver HistoriaPlazaView._datos_basicos); si la plaza ya no está en la
+// plantilla no se muestra nada.
+const fmtMoneda = (v) => {
+    const n = Number(String(v).replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n.toLocaleString("es-MX", { style: "currency", currency: "MXN" }) : v;
+};
+function DatosBasicosPlaza({ plaza, className = "inline-flex" }) {
+    if (!plaza?.nivel && !plaza?.smn) return null;
+    return (
+        <span className={`${className} min-w-0 items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400`}>
+            {plaza.nivel && (
+                <span className="whitespace-nowrap">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Nivel</span>{" "}
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{plaza.nivel}</span>
+                </span>
+            )}
+            {plaza.smn && (
+                <span className="whitespace-nowrap">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">SMN</span>{" "}
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{fmtMoneda(plaza.smn)}</span>
+                </span>
+            )}
+        </span>
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /* Panel de detalle del nodo seleccionado (fijo, no se mueve con el    */
 /* canvas: evita medir posiciones DOM bajo pan/zoom).                  */
@@ -216,7 +244,7 @@ function PanelDetalle({ node, onCerrar }) {
     const Icono = estilo.icon;
 
     return (
-        <div className="absolute bottom-3 left-3 right-3 z-20 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/98 p-4 shadow-2xl backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 md:left-4 md:right-auto">
+        <div className="absolute bottom-3 left-3 right-3 z-30 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/98 p-4 shadow-2xl backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 md:left-4 md:right-auto">
             <button
                 onClick={onCerrar}
                 className="absolute right-2.5 top-2.5 flex size-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
@@ -349,6 +377,13 @@ export default function PosicionArbolModal({
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState(null);
     const [seleccionado, setSeleccionado] = useState(null);
+    // Expediente de la persona del nodo: mismo modal que Buscar persona / Buscar baja (ver
+    // useExpedienteEmpleado). Solo los periodos de ocupación tienen persona.
+    const { abrirExpediente: abrirExpedienteNum, expedienteUI } = useExpedienteEmpleado({ canViewPhoto });
+    const abrirExpediente = useCallback((periodo) => {
+        if ((periodo?.tipo_periodo || "ocupacion") !== "ocupacion" || !periodo?.num_empleado) return;
+        abrirExpedienteNum(periodo.num_empleado, periodo.nombre_completo);
+    }, [abrirExpedienteNum]);
     const [zoom, setZoom] = useState(1);
     // clave del nodo (mov:<id_registro_inicio>) -> { posicion, focoId } de
     // dónde vino ese ocupante, resuelta cruzando la historia de CADA empleado
@@ -841,7 +876,10 @@ export default function PosicionArbolModal({
                     <>
                         <div
                             ref={viewportRef}
-                            className="relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950/40"
+                            // `isolate z-0`: contexto de apilamiento propio para toda la rama. Así
+                            // ningún z-index interno (foto del nodo, etiquetas) puede quedar por
+                            // encima del panel de detalle ni de los controles de zoom.
+                            className="relative isolate z-0 h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950/40"
                             style={{
                                 backgroundImage: "radial-gradient(circle, #94a3b8 1.5px, transparent 1.5px)",
                                 backgroundSize: "22px 22px",
@@ -877,7 +915,10 @@ export default function PosicionArbolModal({
                                         node={n}
                                         origin={origin}
                                         seleccionado={seleccionado === n.id}
-                                        onSelect={(node) => setSeleccionado(node.id)}
+                                        onSelect={(node) => {
+                                            setSeleccionado(node.id);
+                                            abrirExpediente(node.periodo);
+                                        }}
                                         onAbrirPlaza={abrirPlaza}
                                         canViewPhoto={canViewPhoto}
                                     />
@@ -907,6 +948,7 @@ export default function PosicionArbolModal({
                         </div>
 
                         <PanelDetalle node={nodoSeleccionado} onCerrar={() => setSeleccionado(null)} />
+                        {expedienteUI}
                     </>
                 )}
             </div>
@@ -920,6 +962,7 @@ export default function PosicionArbolModal({
                     <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-3 py-1.5 dark:border-slate-800/60">
                         <span className="font-mono text-xs font-black text-slate-800 dark:text-white">{posActual}</span>
                         <Pill tone={plaza.ocupada ? "emerald" : "amber"}>{plaza.ocupada ? "Ocupada" : "Vacante"}</Pill>
+                        <DatosBasicosPlaza plaza={plaza} />
                         {plaza.tiene_inconsistencias && (
                             <Pill tone="rose">
                                 <AlertTriangle className="mr-1 size-3" />
@@ -961,6 +1004,7 @@ export default function PosicionArbolModal({
                         <Pill tone={plaza.ocupada ? "emerald" : "amber"} className="hidden sm:inline-flex">
                             {plaza.ocupada ? "Ocupada" : "Vacante"}
                         </Pill>
+                        <DatosBasicosPlaza plaza={plaza} className="hidden sm:inline-flex" />
                         {plaza.tiene_inconsistencias && (
                             <Pill tone="rose" className="hidden sm:inline-flex">
                                 <AlertTriangle className="mr-1 size-3" />

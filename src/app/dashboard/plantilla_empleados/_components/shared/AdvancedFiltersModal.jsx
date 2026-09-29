@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { ModalLayerProvider, useModalLayerZ } from "@/components/shared/modalLayer";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2, Bookmark, BookmarkPlus } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
@@ -11,6 +12,8 @@ import { useToast } from "@/hooks/useToast";
 
 /** Select con panel flotante (portal), usado por las condiciones del modal de filtros avanzados. */
 function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar...", searchable = false }) {
+  // Panel flotante DENTRO de este modal: paso chico (ver modalLayer.js).
+  const zPanel = useModalLayerZ(210, 10);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [panelRect, setPanelRect] = useState(null);
@@ -61,8 +64,8 @@ function AdvFilterSelect({ value, options, onChange, placeholder = "Seleccionar.
       {isOpen && panelRect && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
-          style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
-          className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+          style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width, zIndex: zPanel }}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col"
         >
           {searchable && (
             <div className="p-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -121,6 +124,8 @@ function toDateInputValue(val) {
  * un ref local a esta instancia del modal.
  */
 function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetchSuggestions }) {
+  // Panel flotante DENTRO de este modal: paso chico (ver modalLayer.js).
+  const zPanel = useModalLayerZ(210, 10);
   const [suggestions, setSuggestions] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [panelRect, setPanelRect] = useState(null);
@@ -232,8 +237,8 @@ function AdvValueAutocomplete({ column, value, onChange, isDate, isNumber, fetch
       {isOpen && panelRect && column && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
-          style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width }}
-          className="z-[210] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar p-1"
+          style={{ position: "fixed", top: panelRect.top, left: panelRect.left, width: panelRect.width, zIndex: zPanel }}
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar p-1"
         >
             {loading && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Cargando...</div>}
             {!loading && suggestions.length === 0 && <div className="py-3 text-center text-[10px] font-bold text-slate-400 uppercase">Sin sugerencias</div>}
@@ -390,6 +395,7 @@ export default function AdvancedFiltersModal({
   isDateColumn, isNumericColumn = () => false, fetchSuggestions,
   savedFilters = [], onLoadSavedFilter, onSaveFilter, onDeleteSavedFilter,
 }) {
+  const zCapa = useModalLayerZ(100);
   const { toast } = useToast();
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -436,11 +442,15 @@ export default function AdvancedFiltersModal({
   };
 
   return createPortal(
+    // Publica su propia capa para que los paneles flotantes de sus controles
+    // (AdvFilterSelect / AdvValueAutocomplete) queden sobre ESTE modal y no
+    // sobre el que lo contenga — ver modalLayer.js.
+    <ModalLayerProvider value={zCapa}>
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div style={{ zIndex: zCapa }} className="fixed inset-0 flex items-center justify-center p-4">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
-          <motion.div initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-3xl w-full flex flex-col z-[100] overflow-hidden max-h-[85vh]">
+          <motion.div initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-3xl w-full flex flex-col overflow-hidden max-h-[85vh]">
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="size-8 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 rounded-lg">
@@ -597,7 +607,8 @@ export default function AdvancedFiltersModal({
           </motion.div>
         </div>
       )}
-    </AnimatePresence>,
+    </AnimatePresence>
+    </ModalLayerProvider>,
     document.body
   );
 }

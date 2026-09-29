@@ -18,7 +18,7 @@ export default function VacantesPorNivelWidget() {
 
   useEffect(() => {
     let active = true;
-    VacantesService.getVacantesPorNivelResumen()
+    VacantesService.getVacantesPorNivelResumen({ plantillaOficial: true }) // widgets: siempre plantilla oficial
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo cargar el resumen de vacantes."))))
       .then((data) => { if (active) setResumenVacantes(data); })
       .catch((err) => { if (active) setError(err.message || "Error al cargar el resumen de vacantes."); })

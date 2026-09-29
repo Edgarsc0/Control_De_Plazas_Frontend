@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import DonaEChart from "./DonaEChart";
 import { ESTADOS, mapEstadoNomina, cargarEstatusNomina } from "./estatusNominaData";
 import { useElementSize } from "./useElementSize";
+
+// Mismo modal que abre una barra de "Plazas por unidad administrativa", aquí sin unidad (toda la
+// plantilla) y filtrado por el estatus elegido.
+const PlantillaUaModal = dynamic(() => import("./PlantillaUaModal"), { ssr: false });
 
 const fmt = (n) => n.toLocaleString("es-MX");
 
@@ -12,6 +17,7 @@ export default function EstadosNominaWidget() {
   const [ref, { width, height }] = useElementSize();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [estatusSeleccionado, setEstatusSeleccionado] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -61,7 +67,7 @@ export default function EstadosNominaWidget() {
           {/* Dona a la izquierda: el contenedor tiene tamaño propio (flex-1 + alto completo) y
               ECharts toma de él su diámetro, así que no colapsa al redimensionar el widget. */}
           <div className="relative flex-1 h-full min-w-0 min-h-0">
-            <DonaEChart items={visibles} total={total} />
+            <DonaEChart items={visibles} total={total} onSliceClick={(it) => setEstatusSeleccionado(it.name)} />
             {mostrarTotal && (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-lg font-black tabular-nums text-gray-900 dark:text-white leading-none">{fmt(total)}</span>
@@ -72,11 +78,19 @@ export default function EstadosNominaWidget() {
 
           {mostrarLeyenda && (
             <ul
-              className={`flex flex-col shrink-0 overflow-y-auto max-h-full ${leyendaCompacta ? "gap-0.5" : "gap-1.5"}`}
+              className={`flex flex-col shrink-0 overflow-y-auto overflow-x-hidden max-h-full ${leyendaCompacta ? "gap-0.5" : "gap-1.5"}`}
               style={{ width: anchoLeyenda }}
             >
               {items.map((i) => (
-                <li key={i.name} className={`flex items-center justify-between gap-2 ${leyendaCompacta ? "text-[10px]" : "text-xs"}`}>
+                <li
+                  key={i.name}
+                  role="button"
+                  tabIndex={0}
+                  title={`Ver la plantilla con estatus ${i.name}`}
+                  onClick={() => setEstatusSeleccionado(i.name)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEstatusSeleccionado(i.name); } }}
+                  className={`flex items-center justify-between gap-2 rounded-md px-1 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 ${leyendaCompacta ? "text-[10px]" : "text-xs"}`}
+                >
                   <span className="flex items-center gap-1.5 min-w-0">
                     <span className={`${leyendaCompacta ? "size-2" : "size-2.5"} rounded-full shrink-0`} style={{ backgroundColor: i.color }} />
                     <span className="font-bold text-gray-600 dark:text-gray-300 truncate" title={i.name}>{i.name}</span>
@@ -96,6 +110,9 @@ export default function EstadosNominaWidget() {
         </>
       )}
     </div>
+    {estatusSeleccionado && (
+      <PlantillaUaModal estatus={estatusSeleccionado} onClose={() => setEstatusSeleccionado(null)} />
+    )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { ModalLayerProvider, useModalLayerZ } from "@/components/shared/modalLayer"
 
 function Dialog({
   ...props
@@ -32,13 +33,15 @@ function DialogClose({
 
 function DialogOverlay({
   className,
+  zCapa,
   ...props
 }) {
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
+      style={{ zIndex: zCapa }}
       className={cn(
-        "fixed inset-0 z-[200] bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        "fixed inset-0 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className
       )}
       {...props} />
@@ -52,17 +55,22 @@ function DialogContent({
   hideClose = false,
   ...props
 }) {
+  // Un Dialog abierto DESDE otro modal (p.ej. el expediente que se abre con
+  // el ojo dentro del modal "Plantilla de la unidad") tiene que quedar encima
+  // de aquél, no en su z fijo de 200 — ver modalLayer.js.
+  const zCapa = useModalLayerZ(200);
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay className={overlayClassName} />
+      <DialogOverlay className={overlayClassName} zCapa={zCapa} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        style={{ zIndex: zCapa }}
         className={cn(
-          "fixed left-1/2 top-1/2 z-[200] grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-3xl bg-white p-6 shadow-2xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:max-w-lg lg:max-w-4xl",
+          "fixed left-1/2 top-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-3xl bg-white p-6 shadow-2xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:max-w-lg lg:max-w-4xl",
           className
         )}
         {...props}>
-        {children}
+        <ModalLayerProvider value={zCapa}>{children}</ModalLayerProvider>
         {!hideClose && (
           <DialogPrimitive.Close
             className="absolute right-6 top-6 rounded-full p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-gray-100 transition-colors">

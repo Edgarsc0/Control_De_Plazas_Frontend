@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
+import { useModalLayerZ } from "@/components/shared/modalLayer";
 import { 
   Search, Download, Columns, Filter, ArrowUpDown, ChevronLeft, 
   ChevronRight as ChevronRightIcon, ChevronDown, ChevronsLeft, ChevronsRight, 
@@ -48,6 +49,7 @@ import { useColumnFilters } from "../../../_hooks/useColumnFilters";
 import { useSuscripcionesPosicion } from "../../../_hooks/useSuscripcionesPosicion";
 import { useAdvancedFilters } from "../../../_hooks/useAdvancedFilters";
 import { useFiltrosGuardados } from "../../../_hooks/useFiltrosGuardados";
+import { filasQueCoinciden } from "@/utils/busquedaFlexible";
 import { matchesTextCondition, getUniqueColumnValues, finalizeFilterDropdownValues, resolveColumnFilterCommit, normalizeForSearch, getConditionLabel, formatDateEsMx, parseDateParts, applyColumnFilters, defaultGetCellValue } from "@/utils/columnFilters";
 import { evaluateAdvancedFilters, isColumnNumericByData, flattenAdvancedConditions, getValidAdvancedConditions } from "@/utils/advancedFilters";
 import { getDeptoInfo } from "@/utils/organigramaCatalog";
@@ -606,8 +608,16 @@ const SORT_INICIAL_DEFAULT = { key: "nj", direction: "asc" };
 // `barraMinima` (modal "Plantilla de la unidad"): la barra de herramientas solo lleva Restablecer
 // filtros, Filtros avanzados, Columnas y Excel; sin Cadena de Mando, plantillas pasadas ni Historial.
 
-export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates, isActiveTab = true, persistSortKey = "plantilla_detalle_sort_v2", initialSort = SORT_INICIAL_DEFAULT, barraMinima = false }) {
+// Filtros con los que arranca la tabla. Los modales del tablero (Plazas por UA, Estados de
+// nómina) pasan los suyos y `filtersStorageKey={null}`: así no heredan ni pisan los filtros que el
+// usuario dejó guardados en la pestaña Plantilla Detalle (que se persisten en localStorage).
+const FILTROS_INICIALES_DEFAULT = { estado_nomina: ["Activo"] };
+
+export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellEdited, resumen = {}, isPending, startTransition, cardRef, isLoading: isLoadingLive, remoteUpdatesCount = 0, onClearRemoteUpdates, isActiveTab = true, persistSortKey = "plantilla_detalle_sort_v2", initialSort = SORT_INICIAL_DEFAULT, barraMinima = false, filtersStorageKey = "plantilla_detalle_filters", initialColumnFilters = FILTROS_INICIALES_DEFAULT }) {
   const { hasPermission, isLoading: authLoading, unScope, columnasDetallePermitidas } = useAuth();
+  // Esta pestaña se reutiliza DENTRO del modal "Plantilla de la unidad" del
+  // tablero; sus propios modales tienen que quedar sobre él (ver modalLayer.js).
+  const zCapaModal = useModalLayerZ(100);
   // Un rol con alcance de datos por Unidad de Negocio (ver RolUnScope en el
   // backend) solo debe operar sobre su propia UN, así que se le ocultan los
   // controles que implican ver/editar la plantilla completa: el resumen de
@@ -1311,7 +1321,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const [scrollTop, setScrollTop] = useState(0);
   const { selectedCell, setSelectedCell, selectedRowData, setSelectedRowData, contextMenu, setContextMenu } = useCellSelection();
   const suscripcionesPosicion = useSuscripcionesPosicion();
-  const filters = useColumnFilters({ initialColumnFilters: { estado_nomina: ["Activo"] }, storageKey: "plantilla_detalle_filters" });
+  const filters = useColumnFilters({ initialColumnFilters, storageKey: filtersStorageKey });
   const {
     globalSearch, setGlobalSearch,
     columnFilters, setColumnFilters,
@@ -2339,16 +2349,21 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     return map;
   }, [detalle]);
 
+  // Filas que pasan la búsqueda global (null = sin búsqueda). Por palabras en cualquier orden,
+  // sin acentos/mayúsculas y, solo si no hay coincidencias exactas, con tolerancia a errores de
+  // dedo leves — ver utils/busquedaFlexible. Se calcula una vez por consulta y la comparten el
+  // filtrado y los contadores de los dropdowns.
+  const coincidenciasBusqueda = useMemo(
+    () => (deferredGlobalSearch ? filasQueCoinciden(detalle, searchIndex, deferredGlobalSearch) : null),
+    [detalle, searchIndex, deferredGlobalSearch]
+  );
+
   // Filtro y orden se memoizan por separado: cambiar sólo el orden (click en encabezado)
   // no debe re-ejecutar todo el pipeline de filtros (búsqueda global, columnas, texto,
   // filtros avanzados), sólo re-ordenar el resultado ya filtrado.
   const filteredData = useMemo(() => {
     return detalle.filter(row => {
-      if (deferredGlobalSearch) {
-        const searchText = normalizeForSearch(deferredGlobalSearch);
-        const blob = searchIndex.get(row) || "";
-        if (!blob.includes(searchText)) return false;
-      }
+      if (coincidenciasBusqueda && !coincidenciasBusqueda.has(row)) return false;
       for (const [colKey, selectedVals] of Object.entries(columnFilters)) {
         // BUG QA 2026-08-05: el dropdown de esta columna (uniqueColumnValues/
         // computeReachableCounts, ver datosParaColumnaActiva más arriba) ya
@@ -2400,7 +2415,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       if (!evaluateAdvancedFilters(row, appliedAdvancedFilters, { getCellValue: getAdvCellValue, isDateColumn, isNumericColumn })) return false;
       return true;
     });
-  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, searchIndex, filtroIncluyeVacantes]);
+  }, [detalle, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, coincidenciasBusqueda, filtroIncluyeVacantes]);
 
   const filteredSortedData = useMemo(() => {
     if (!sortConfig.key || !sortConfig.direction) return filteredData;
@@ -2459,11 +2474,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
     // de solicitud) nunca es alcanzable ni seleccionable en su propio dropdown.
     const sourceRows = isVacancyScopedColumn(colKey) ? detalle : datosParaColumnaActiva;
     sourceRows.forEach(row => {
-      if (deferredGlobalSearch) {
-        const searchText = normalizeForSearch(deferredGlobalSearch);
-        const blob = searchIndex.get(row) || "";
-        if (!blob.includes(searchText)) return;
-      }
+      if (coincidenciasBusqueda && !coincidenciasBusqueda.has(row)) return;
       for (const [ck, selectedVals] of Object.entries(columnFilters)) {
         if (ck === colKey) continue;
         if (!selectedVals.includes(getFilterCellValue(row, ck))) return;
@@ -2494,7 +2505,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       counts[val] = (counts[val] || 0) + 1;
     });
     return counts;
-  }, [detalle, datosParaColumnaActiva, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, searchIndex]);
+  }, [detalle, datosParaColumnaActiva, deferredGlobalSearch, columnFilters, deferredTextFilters, isMonoColumn, appliedAdvancedFilters, getAdvCellValue, isDateColumn, isNumericColumn, coincidenciasBusqueda]);
 
   const reachableCounts = useMemo(
     () => (activeFilterDropdown ? computeReachableCounts(activeFilterDropdown) : {}),
@@ -3905,7 +3916,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         open={movHoyTimelineOpen}
         onOpenChange={setMovHoyTimelineOpen}
         numEmpleado={movHoyTimelineNumEmpleado}
-        zIndexClass="z-[1100]"
+        zCapa={zCapaModal + 200}
       />
 
       {/* Modo histórico: sustituye el donut de estatus en vivo (que depende de
@@ -4105,7 +4116,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 </div>
               )}
             </div>
-            <div className={`lg:col-span-9 grid grid-cols-3 md:grid-cols-3 ${historicoActivo ? "xl:grid-cols-6" : "xl:grid-cols-7"} gap-3`}>
+            <div className={`lg:col-span-9 min-w-0 grid grid-cols-3 md:grid-cols-3 ${historicoActivo ? "xl:grid-cols-6" : "xl:grid-cols-7"} gap-3 [&>*]:min-w-0`}>
               {isLoading ? (
                 Array.from({ length: historicoActivo ? 6 : 7 }).map((_, i) => (
                   <div key={i} className="rounded-xl px-3 py-3 border-2 border-slate-200/50 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60 flex flex-col justify-between animate-pulse">
@@ -4412,6 +4423,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       {mounted && createPortal(
         <>
         <ColumnsModal
+          tablaMemoria="plantilla_detalle"
           open={isColumnsModalOpen}
           columns={tableColumns}
           onToggle={toggleColumnVisibility}
@@ -4422,9 +4434,9 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
 
       <AnimatePresence>
         {isCadenaModalOpen && (
-          <div key="cadena-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div key="cadena-modal" style={{ zIndex: zCapaModal }} className="fixed inset-0 flex items-center justify-center p-4 sm:p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCadenaModalOpen(false)} className="fixed inset-0 bg-slate-950/70 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-slate-50 dark:bg-slate-950 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col z-[100] overflow-hidden">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-slate-50 dark:bg-slate-950 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden">
               <div className="p-6 sm:p-8 border-b border-slate-200/60 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-50 sticky top-0">
                 <div className="flex items-start sm:items-center justify-between gap-4 mb-6">
                   <div className="flex items-center gap-4">

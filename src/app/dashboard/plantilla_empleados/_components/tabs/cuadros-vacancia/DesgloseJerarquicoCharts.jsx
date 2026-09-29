@@ -7,23 +7,8 @@ import EmployeesModal from '../../shared/EmployeesModal';
 import { mapVacanteRowToEmployeeRow } from '../../shared/mapVacanteRow';
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
+import { classifyPos, classifyOcupada, THREE_WAY_FAMILIES, TWO_WAY_FAMILIES, familiaDeNivel, VACANCIA_CATEGORY_TABS } from "./clasificacionPlazas";
 
-// Pestañas del modal de detalle al hacer clic en un nivel dentro de una familia
-// en "Ocupadas vs Vacantes por familia de nivel" (gráfica 3, segundo nivel de
-// profundidad). Mismas reglas de partida presupuestal que usa el backend en
-// EmpleadosPorNivelYEstatusView: Ocupadas Permanentes = estado_nomina != ' ' +
-// posición 103% + partida 11301; Ocupadas Eventuales = estado_nomina != ' ' +
-// partida 12201 sin posición 2026%; Ocupadas Eventuales Nueva Creación =
-// estado_nomina != ' ' + partida 12201 + posición 2026%. Vacantes: mismas
-// reglas de partida/posición pero con estado_nomina = ' '.
-const VACANCIA_CATEGORY_TABS = [
-  { key: 'ocup_permanente', label: 'Ocup. Permanentes', estatus: 'Ocupadas Permanentes' },
-  { key: 'ocup_eventual', label: 'Ocup. Eventuales', estatus: 'Ocupadas Eventuales' },
-  { key: 'ocup_eventual_nc', label: 'Ocup. Event. N.C.', estatus: 'Ocupadas Eventuales Nueva Creación' },
-  { key: 'vac_eventual', label: 'Vac. Eventuales', estatus: 'Vacantes Eventuales' },
-  { key: 'vac_permanente', label: 'Vac. Permanentes', estatus: 'Vacantes Permanentes' },
-  { key: 'vac_eventual_nc', label: 'Vac. Event. N.C.', estatus: 'Vacantes Eventuales Nueva Creación' },
-];
 
 const formatNumber = (num) => {
   if (num === null || num === undefined) return "0";
@@ -104,27 +89,6 @@ const FAMILY_COLORS = {
 
 /* ── Desglose por tipo de plaza (Eventuales / Evt. Nueva Creación / Permanentes),
    igual clasificación que "Detalle de Vacantes" (DetalleVacantesTablas.jsx) ── */
-const classifyPos = (pos) => {
-  const p = (pos || '').trim();
-  if (p.startsWith('103')) return 'permanente';
-  if (p.startsWith('2026')) return 'nuevaCreacion';
-  return 'eventual';
-};
-
-// Desglose de OCUPADAS por tipo de plaza: mismas reglas de partida que usa el
-// backend en EmpleadosPorNivelYEstatusView, pero para estado_nomina != ' '.
-// Permanentes = posición 103% + partida 11301; Eventuales Nueva Creación =
-// posición 2026% + partida 12201; Eventuales = partida 12201 sin 2026%.
-// Todo registro ocupado cae en 11301 o 12201 (verificado contra la BD), así
-// que no hace falta categoría "otras".
-const classifyOcupada = (item) => {
-  const pos = (item['Posición'] || '').trim();
-  const partida = (item['Partida'] || '').trim();
-  if (pos.startsWith('103') && partida === '11301') return 'permanente';
-  if (partida === '12201' && pos.startsWith('2026')) return 'nuevaCreacion';
-  return 'eventual';
-};
-
 const SEGMENT_META = {
   permanente: { label: 'Vacantes Permanentes', color: '#621f32' },
   eventual: { label: 'Vacantes Eventuales', color: '#2e5890' },
@@ -138,12 +102,6 @@ const OCUPADA_SEGMENT_META = {
   eventual: { label: 'Ocupadas Eventuales', color: '#57b788' },
   nuevaCreacion: { label: 'Ocupadas Eventuales Nueva Creación', color: '#9fd9bb' },
 };
-
-// P's, D's, S's, A's, J's: 3 divisiones. Operativos y K's: 2 (nueva creación
-// se suma a eventuales). J's se trata igual que P/D/S/A (supuesto — no hay
-// forma de confirmarlo desde el query de referencia de niveles).
-const THREE_WAY_FAMILIES = new Set(["P's", "D's", "S's", "A's", "J's"]);
-const TWO_WAY_FAMILIES = new Set(["Operativos", "K's"]);
 
 // Construye los segmentos (mayor a menor) de un conteo {eventual, nuevaCreacion,
 // permanente} según la familia sea de 3 o 2 divisiones. `null` si la familia
@@ -482,11 +440,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       .sort((a, b) => a.sortKey - b.sortKey);
   }, [ocupadosData, chart1bWidth]);
 
-  const getPrefix = useCallback((nivel) => {
-    if (!nivel) return "Sin Nivel";
-    const c = nivel.trim().charAt(0).toUpperCase();
-    return /[A-Z]/.test(c) ? `${c}'s` : "Operativos";
-  }, []);
+  const getPrefix = useCallback((nivel) => familiaDeNivel(nivel), []);
 
   // Conteo de posiciones ocupadas por familia, desglosado por tipo de plaza
   // (mismo criterio getPrefix que familyData), para la gráfica "Posiciones
@@ -509,6 +463,13 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       const p = getPrefix(item.Nivel);
       if (!counts[p]) counts[p] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
       counts[p][classifyPos(item['Posición'])] += 1;
+    });
+    // Familias 100% ocupadas (sin ninguna vacante, p. ej. J's): no tienen filas en `data`, así
+    // que antes no aparecían en la gráfica aunque sí tuvieran posiciones. Se agregan con 0
+    // vacantes para que la gráfica muestre TODAS las posiciones (igual que drillData3 con los
+    // niveles, y que el widget "Estatus de posiciones por UA").
+    Object.keys(ocupadaCountsPorFamilia).forEach((p) => {
+      if (!counts[p]) counts[p] = { eventual: 0, nuevaCreacion: 0, permanente: 0 };
     });
 
     return Object.entries(counts)

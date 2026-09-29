@@ -146,7 +146,7 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
         {mostrarLista && (
           <ul className="absolute left-2 right-2 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1">
             {sugerencias.map((s, i) => (
-              <li key={s.posicion} onMouseDown={(e) => { e.preventDefault(); elegir(s.posicion); }} onMouseEnter={() => setIndiceActivo(i)} className={`px-3 py-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 ${i === indiceActivo ? "bg-slate-100 dark:bg-slate-800" : ""}`}>
+              <li key={`${s.posicion}-${s.historico ? s.ocupante : "actual"}`} onMouseDown={(e) => { e.preventDefault(); elegir(s.posicion); }} onMouseEnter={() => setIndiceActivo(i)} className={`px-3 py-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 ${i === indiceActivo ? "bg-slate-100 dark:bg-slate-800" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-100">{s.posicion}</span>
                   <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${s.activa ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
@@ -156,6 +156,7 @@ export default function BuscarPlazaWidget({ config, onConfigChange }) {
                 <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300 truncate">
                   {s.ocupada ? s.ocupante : <span className="italic text-amber-700 dark:text-amber-400">Vacante</span>}
                 </div>
+                {s.historico && <div className="text-[10px] leading-tight font-semibold text-indigo-700 dark:text-indigo-300 truncate">Ocupante anterior (ya no ocupa esta plaza)</div>}
                 {s.puesto && <div className="text-[10px] leading-tight text-slate-400 truncate">{s.puesto}</div>}
               </li>
             ))}

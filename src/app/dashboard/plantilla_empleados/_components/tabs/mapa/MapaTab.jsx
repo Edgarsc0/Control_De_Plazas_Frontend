@@ -14,7 +14,15 @@ import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 
-export default function MapaTab({ distribucionGeografica = [] }) {
+/**
+ * `compacto`: modo widget del tablero personalizable (ver
+ * MapaNacionalWidget). Quita el encabezado de página —título, descripción y
+ * buscador, que no caben en una celda de la cuadrícula— y deja el mapa
+ * ocupando todo el alto disponible en vez del alto de pantalla. Los
+ * marcadores, los filtros por tipo de aduana y el detalle nominal del punto
+ * son exactamente los mismos: un solo lugar que mantener.
+ */
+export default function MapaTab({ distribucionGeografica = [], compacto = false }) {
   const [mapFilter, setMapFilter] = useState("all");
   const mapRef = useRef(null);
   const { hasPermission } = useAuth();
@@ -104,11 +112,11 @@ export default function MapaTab({ distribucionGeografica = [] }) {
   // de filtros y la atribución quedaban por debajo de la barra fija. `100dvh`
   // evita además el salto de la barra dinámica de Safari iOS.
   return (
-    <div className="w-full h-stack-nav-dvh md:h-stack-dvh md:pt-9 flex justify-center">
-      <div className="w-full h-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex flex-col relative">
+    <div className={compacto ? "w-full h-full flex" : "w-full h-stack-nav-dvh md:h-stack-dvh md:pt-9 flex justify-center"}>
+      <div className={`w-full h-full bg-slate-100 dark:bg-slate-950 overflow-hidden flex flex-col relative${compacto ? " rounded-2xl" : ""}`}>
         {/* Header Bar (docked, no flota sobre el mapa) */}
-        <div className="shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 z-10">
-          <div className="flex items-center gap-3.5 md:shrink-0">
+        <div className={`shrink-0 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 z-10 ${compacto ? "p-2.5" : "p-4"}`}>
+          <div className={`items-center gap-3.5 md:shrink-0 ${compacto ? "hidden" : "flex"}`}>
             <div className="p-2.5 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] text-white rounded-2xl shadow-md shrink-0">
               <Globe className="size-5" />
             </div>
@@ -124,7 +132,7 @@ export default function MapaTab({ distribucionGeografica = [] }) {
 
           <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 md:ml-auto">
             {/* Filters */}
-            <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider">
+            <div className={`flex flex-wrap gap-2 font-black uppercase tracking-wider ${compacto ? "text-[9px]" : "text-[10px]"}`}>
               {[
                 { key: "all", label: "Todos", gradient: "from-[#621f32] to-[#8d2c48]" },
                 { key: "Fronteriza", label: "Fronteriza", gradient: "from-red-500 to-orange-500" },
@@ -135,7 +143,7 @@ export default function MapaTab({ distribucionGeografica = [] }) {
                 <button
                   key={key}
                   onClick={() => setMapFilter(key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 min-h-11 rounded-xl border transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 rounded-xl border transition-all cursor-pointer ${compacto ? "px-2 py-1 min-h-0" : "px-3 py-1.5 min-h-11"} ${
                     mapFilter === key
                       ? `bg-gradient-to-r ${gradient} text-white border-transparent shadow-md`
                       : "bg-white dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100"
@@ -150,7 +158,7 @@ export default function MapaTab({ distribucionGeografica = [] }) {
             </div>
 
             {/* Search Bar: buscar empleado por nombre y centrar el mapa en su ubicación */}
-            <div className="relative w-full md:w-80 shrink-0">
+            <div className={`relative w-full md:w-80 shrink-0${compacto ? " hidden" : ""}`}>
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Search className="size-5 text-[#621f32] dark:text-[#bc955c]" />
               </div>

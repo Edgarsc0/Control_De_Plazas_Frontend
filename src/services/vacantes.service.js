@@ -31,8 +31,8 @@ export const VacantesService = {
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
-    getVacantesPorNivelResumen: (options = {}) => {
-        return apiFetch('/plantilla/estatus_nomina_por_nivel/resumen', {
+    getVacantesPorNivelResumen: ({ plantillaOficial = false, ...options } = {}) => {
+        return apiFetch(`/plantilla/estatus_nomina_por_nivel/resumen${plantillaOficial ? '?plantilla_oficial=1' : ''}`, {
             method: 'GET',
             ...options
         });
@@ -43,8 +43,8 @@ export const VacantesService = {
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
-    getEmpleadosCompletosEstatusResumen: (options = {}) => {
-        return apiFetch('/plantilla/empleados_completos_estatus_resumen/', {
+    getEmpleadosCompletosEstatusResumen: ({ plantillaOficial = false, ...options } = {}) => {
+        return apiFetch(`/plantilla/empleados_completos_estatus_resumen/${plantillaOficial ? '?plantilla_oficial=1' : ''}`, {
             method: 'GET',
             ...options
         });
@@ -176,8 +176,9 @@ export const VacantesService = {
      * @param {RequestInit} [options={}] - Opciones extra para `fetch`.
      * @returns {Promise<Response>} Respuesta cruda; usar `.json()`.
      */
-    getEmpleadosEstatusPorNivelUa: (options = {}) => {
-        return apiFetch('/plantilla/empleados_estatus_por_nivel_ua/', {
+    getEmpleadosEstatusPorNivelUa: ({ plantillaOficial = false, ...options } = {}) => {
+        const qs = plantillaOficial ? '?plantilla_oficial=1' : '';
+        return apiFetch(`/plantilla/empleados_estatus_por_nivel_ua/${qs}`, {
             method: 'GET',
             ...options
         });

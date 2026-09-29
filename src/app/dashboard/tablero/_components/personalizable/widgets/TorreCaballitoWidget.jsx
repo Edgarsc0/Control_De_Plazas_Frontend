@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, Lightformer, ContactShadows } from "@react-three/drei";
-import { Search, MapPin, X, RotateCcw, Loader2, MousePointerClick } from "lucide-react";
+import { Search, MapPin, X, RotateCcw, Loader2, MousePointerClick, Users, ChevronDown } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
 import EmployeesModal from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
@@ -14,7 +14,8 @@ import {
   TorreCaballito,
   CameraRig,
   extractFloorNumber,
-  PALETA_DASHBOARD,
+  getColor,
+  PALETA_ORIGINAL,
 } from "@/app/dashboard/plantilla_empleados/_components/tabs/torre-3d/TorreCaballito3DTab";
 
 const DEBOUNCE_MS = 350;
@@ -74,6 +75,13 @@ export default function TorreCaballitoWidget() {
   const [empleadosData, setEmpleadosData] = useState([]);
   const [cargandoEmpleados, setCargandoEmpleados] = useState(false);
   const [tituloModal, setTituloModal] = useState("");
+
+  // Pill de activos + ranking de pisos (igual que la pestaña): el pill muestra el total de la
+  // torre y al hacer clic despliega/oculta el ranking.
+  const [rankingAbierto, setRankingAbierto] = useState(false);
+  const pisosOrdenados = useMemo(() => [...data].sort((a, b) => b.count - a.count).filter((d) => d.count > 0), [data]);
+  const totalActivos = useMemo(() => data.reduce((acc, p) => acc + (p.count || 0), 0), [data]);
+  const maxConteo = useMemo(() => Math.max(0, ...data.map((d) => d.count || 0)), [data]);
 
   useEffect(() => {
     let active = true;
@@ -140,6 +148,7 @@ export default function TorreCaballitoWidget() {
     setSelectedInfo(null);
     setHoverInfo(null);
     setAbierto(false);
+    setRankingAbierto(false);
     setTargetCamera({ ...VISTA_INICIAL });
   }, []);
 
@@ -194,10 +203,10 @@ export default function TorreCaballitoWidget() {
   const infoHover = !empleado ? hoverInfo : null;
 
   return (
-    <div ref={(el) => { contenedorRef.current = el; tamRef.current = el; }} className="relative w-full h-full min-h-0 bg-gradient-to-b from-white via-[#faf7f1] to-[#efe6d4] dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
+    <div ref={(el) => { contenedorRef.current = el; tamRef.current = el; }} className="relative w-full h-full min-h-0 bg-transparent overflow-hidden">
       <Canvas camera={{ position: [20, 5, 20], fov: 45 }}>
         <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 50, 20]} intensity={1.5} />
+        <directionalLight position={[10, 50, 20]} intensity={1.5} castShadow />
         <pointLight position={[-20, 30, -20]} intensity={1} color="#38bdf8" />
         {/* Entorno procedural (sin fetch a CDN): mismo criterio que el tab. */}
         <Environment resolution={256}>
@@ -215,9 +224,9 @@ export default function TorreCaballitoWidget() {
           mode="heat"
           hoveredUaRemote={null}
           selectedUaRemote={null}
-          paleta={PALETA_DASHBOARD}
+          paleta={PALETA_ORIGINAL}
         />
-        <ContactShadows resolution={1024} scale={100} blur={3} opacity={0.28} far={20} color="#10243e" position={[0, -0.49, 0]} />
+        <ContactShadows resolution={1024} scale={100} blur={2.5} opacity={0.6} far={20} color="#000000" position={[0, -0.49, 0]} />
         <CameraRig targetCamera={targetCamera} />
       </Canvas>
 
@@ -319,12 +328,68 @@ export default function TorreCaballitoWidget() {
         </div>
       )}
 
-      {/* Leyenda del mapa de calor: de menos a más empleados por piso (mismos tres puntos de color). */}
-      {!compacto && !empleado && (
-        <div className="absolute top-12 right-2 z-10 flex items-center gap-1.5 rounded-lg bg-white/85 dark:bg-slate-900/85 backdrop-blur px-2 py-1 shadow pointer-events-none">
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Menos</span>
-          <span className="h-1.5 w-16 rounded-full" style={{ background: `linear-gradient(to right, ${PALETA_DASHBOARD.calorMin}, ${PALETA_DASHBOARD.calorMedio}, ${PALETA_DASHBOARD.calorMax})` }} />
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Más</span>
+      {/* Pill de activos (como en la pestaña): total de la torre; clic despliega el ranking de pisos. */}
+      {!empleado && !mostrarLista && (
+        <div className={`absolute z-10 left-2 right-2 flex flex-col items-center gap-2 pointer-events-none ${muyChico ? "top-9" : "top-12"}`}>
+          <button
+            type="button"
+            onClick={() => setRankingAbierto((o) => !o)}
+            aria-expanded={rankingAbierto}
+            title={rankingAbierto ? "Ocultar ranking de pisos" : "Ver ranking de pisos"}
+            className={`pointer-events-auto flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-full border border-slate-200 dark:border-slate-800/80 shadow-lg active:scale-95 transition-transform cursor-pointer ${compacto ? "px-3 py-1.5" : "px-4 py-2"}`}
+          >
+            <Users className="size-4 text-[#621f32] dark:text-[#bc955c]" />
+            <span className="font-black text-sm text-[#621f32] dark:text-[#f3dcd4]">{totalActivos.toLocaleString("es-MX")}</span>
+            {!muyChico && <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Activos</span>}
+            <ChevronDown className={`size-3.5 text-slate-400 transition-transform ${rankingAbierto ? "rotate-180" : ""}`} />
+          </button>
+
+          {rankingAbierto && (
+            <div className="pointer-events-auto w-full max-w-sm flex flex-col gap-2">
+              <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800/80">
+                <span className="size-3 rounded-full shrink-0" style={{ background: PALETA_ORIGINAL.calorMin }} />
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Menos</span>
+                <span className="flex-1 h-1.5 rounded-full" style={{ background: `linear-gradient(to right, ${PALETA_ORIGINAL.calorMin}, ${PALETA_ORIGINAL.calorMax})` }} />
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">Más empleados</span>
+                <span className="size-3 rounded-full shrink-0" style={{ background: PALETA_ORIGINAL.calorMax }} />
+              </div>
+              <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-[1.25rem] border border-slate-200 dark:border-slate-800/80 shadow-lg flex flex-col min-h-0">
+                <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Ranking de pisos</h4>
+                {pisosOrdenados.length === 0 ? (
+                  <p className="text-xs text-slate-400">Sin empleados registrados en la torre.</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1" style={{ maxHeight: Math.max(96, height - (compacto ? 170 : 200)) }}>
+                    {pisosOrdenados.map((piso) => {
+                      const color = getColor(piso.count, maxConteo, PALETA_ORIGINAL).getHexString();
+                      const info = {
+                        pisoLabel: piso.piso,
+                        count: piso.count,
+                        uas: piso.uas,
+                        dominantUa: piso.uas?.length ? piso.uas.reduce((p, c) => (p.count > c.count ? p : c)).nombre : null,
+                      };
+                      return (
+                        <button
+                          type="button"
+                          key={piso.piso}
+                          onMouseEnter={() => setHoverInfo(info)}
+                          onMouseLeave={() => setHoverInfo(null)}
+                          onClick={() => alClicPiso(info)}
+                          title={`Ver empleados de ${piso.piso}`}
+                          className="flex justify-between items-center gap-3 bg-slate-100 dark:bg-slate-800/60 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer text-left"
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="size-3 rounded-full shrink-0" style={{ backgroundColor: `#${color}` }} />
+                            <span className="text-xs text-slate-800 dark:text-slate-200 font-medium truncate">{piso.piso}</span>
+                          </span>
+                          <span className="font-extrabold text-[#621f32] dark:text-[#f3dcd4] bg-[#621f32]/5 dark:bg-[#621f32]/15 border border-[#621f32]/10 dark:border-[#bc955c]/25 px-2 py-0.5 rounded-xl text-[11px] shrink-0">{piso.count} emp.</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -17,7 +17,7 @@ export default function PlantillaEmpleadosWidget() {
 
   useEffect(() => {
     let active = true;
-    VacantesService.getEmpleadosCompletosEstatusResumen()
+    VacantesService.getEmpleadosCompletosEstatusResumen({ plantillaOficial: true }) // widgets: siempre plantilla oficial
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo cargar el resumen de plantilla."))))
       .then((data) => { if (active) setResumenEmpleados(data); })
       .catch((err) => { if (active) setError(err.message || "Error al cargar el resumen de plantilla."); })

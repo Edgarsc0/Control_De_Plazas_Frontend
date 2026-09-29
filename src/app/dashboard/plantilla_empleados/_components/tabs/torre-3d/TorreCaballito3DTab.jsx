@@ -33,7 +33,7 @@ export const PALETA_DASHBOARD = {
 };
 
 // Heatmap color logic
-const getColor = (count, maxCount, paleta = PALETA_ORIGINAL) => {
+export const getColor = (count, maxCount, paleta = PALETA_ORIGINAL) => {
   if (count === 0) return new THREE.Color(paleta.vacio); // pisos sin empleados
   if (maxCount === 0) return new THREE.Color(paleta.calorMin);
   let ratio = Math.min(count / maxCount, 1);

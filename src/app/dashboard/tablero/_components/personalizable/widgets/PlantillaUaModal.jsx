@@ -22,7 +22,17 @@ const CLAVE_ORDEN_MODAL = "plantilla_detalle_ua_modal_sort_v1"; // distinta a la
  *
  * Se dibuja por portal en <body> (ModalShell), así que no queda atrapado en el widget.
  */
-export default function PlantillaUaModal({ unidad, onClose }) {
+// Etiquetas de `estado_nomina` que activa cada estatus del tablero. "Vacante" incluye también
+// "Solicitada" y "No Disponible", igual que la tarjeta Vacante de la pestaña (ver
+// handleVacanteCardClick): así la tabla cuadra con el conteo del widget.
+const ETIQUETAS_ESTATUS = { Vacante: ["Vacante", "Solicitada", "No Disponible"] };
+
+/**
+ * `unidad` opcional: sin ella se carga la plantilla COMPLETA (widget Resumen de estados de
+ * nómina). `estatus` opcional: arranca filtrado por ese estado de nómina; sin él, en "Activo"
+ * como la pestaña.
+ */
+export default function PlantillaUaModal({ unidad, estatus, onClose }) {
   const [filas, setFilas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -33,7 +43,7 @@ export default function PlantillaUaModal({ unidad, onClose }) {
     let active = true;
     setCargando(true);
     setError(null);
-    VacantesService.getEmpleadosCompletosActivosDetalle({ unidad_administrativa: unidad })
+    VacantesService.getEmpleadosCompletosActivosDetalle(unidad ? { unidad_administrativa: unidad } : {})
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo cargar la plantilla de la unidad."))))
       .then((d) => { if (active) setFilas(Array.isArray(d) ? d : []); })
       .catch((err) => { if (active) setError(err.message || "No se pudo cargar la plantilla de la unidad."); })
@@ -48,8 +58,8 @@ export default function PlantillaUaModal({ unidad, onClose }) {
       size="2xl"
       fixedHeight
       icon={LayoutList}
-      eyebrow="Plantilla Detalle"
-      title={unidad}
+      eyebrow={unidad ? "Plantilla Detalle" : "Plantilla Detalle · plantilla completa"}
+      title={unidad || (estatus ? `Estado de nómina: ${estatus}` : "Plantilla completa")}
       subtitle={cargando ? "Cargando plantilla…" : `${filas.length.toLocaleString("es-MX")} registros en EMPLEADOS_COMPLETOS_SIG`}
       bodyClassName="p-0 flex-1 min-h-0 overflow-y-auto"
     >
@@ -71,6 +81,8 @@ export default function PlantillaUaModal({ unidad, onClose }) {
             persistSortKey={CLAVE_ORDEN_MODAL}
             initialSort={ORDEN_NIVEL_TABULAR}
             barraMinima
+            filtersStorageKey={null}
+            initialColumnFilters={{ estado_nomina: estatus ? (ETIQUETAS_ESTATUS[estatus] || [estatus]) : ["Activo"] }}
           />
         )}
       </div>

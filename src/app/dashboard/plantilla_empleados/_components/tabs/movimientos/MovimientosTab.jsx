@@ -2730,6 +2730,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       {mounted && createPortal(
         <AnimatePresence>
                     <ColumnsModal
+            tablaMemoria="movimientos"
             open={isColumnsModalOpen}
             columns={columns}
             onToggle={toggleColumnVisibility}

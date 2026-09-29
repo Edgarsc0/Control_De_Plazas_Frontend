@@ -11,6 +11,27 @@ import {
   duracion,
 } from "@/app/dashboard/plantilla_empleados/_components/tabs/mov-posiciones/RotacionAduanasSubTab";
 import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
+import { useExpedienteEmpleado } from "@/app/dashboard/plantilla_empleados/_components/shared/useExpedienteEmpleado";
+
+// Foto clicable que abre el expediente (activo o baja) en vez de ampliar la imagen:
+// `pointer-events-none` en la foto para que el clic lo reciba el botón, y stopPropagation para
+// no expandir/colapsar la fila de la aduana.
+function FotoExpediente({ numEmpleado, nombre, size, caption, onAbrir }) {
+  if (!numEmpleado) return <FotoEmpleadoCell numempleado={numEmpleado} size={size} caption={caption} />;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onAbrir(numEmpleado, nombre); }}
+      title={nombre ? `Ver expediente de ${nombre}` : "Ver expediente"}
+      aria-label={nombre ? `Ver expediente de ${nombre}` : "Ver expediente"}
+      className="inline-flex rounded-full cursor-pointer transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#621f32]/50"
+    >
+      <span className="pointer-events-none inline-flex">
+        <FotoEmpleadoCell numempleado={numEmpleado} size={size} caption={caption} />
+      </span>
+    </button>
+  );
+}
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import { formatDateEsMx } from "@/utils/columnFilters";
@@ -123,7 +144,7 @@ const ETIQUETA_TIPO_SALIDA = {
  * un poco más — mismo `ref` en el <tbody>, un solo useEffect al montar (esta
  * fila se desmonta/monta entera al colapsar/expandir, así que "montar" y
  * "abrir" son el mismo evento, no hace falta trackear el estado aparte). */
-function HistorialTitulares({ aduana, colSpan, puedeVerFoto }) {
+function HistorialTitulares({ aduana, colSpan, puedeVerFoto, onAbrirExpediente }) {
   const tbodyRef = useRef(null);
   const gestiones = useMemo(
     () => [...(aduana.gestiones || [])].sort((a, b) => String(b.fecha_entrada).localeCompare(String(a.fecha_entrada))),
@@ -182,7 +203,7 @@ function HistorialTitulares({ aduana, colSpan, puedeVerFoto }) {
                 {puedeVerFoto && (
                   <td className="px-3 py-1.5">
                     <div data-foto-historial className="flex justify-center">
-                      <FotoEmpleadoCell numempleado={g.num_empleado} size={32} caption={g.nombre ? `${g.nombre}` : undefined} />
+                      <FotoExpediente numEmpleado={g.num_empleado} nombre={g.nombre} size={32} caption={g.nombre ? `${g.nombre}` : undefined} onAbrir={onAbrirExpediente} />
                     </div>
                   </td>
                 )}
@@ -207,6 +228,7 @@ export function TitularesAduanasActualesWidget() {
   const { hasPermission } = useAuth();
   const puedeVerFoto = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO) || hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOVIMIENTOS_FOTO);
   const [abiertas, setAbiertas] = useState(() => new Set());
+  const { abrirExpediente, expedienteUI } = useExpedienteEmpleado({ canViewPhoto: puedeVerFoto });
 
   const filas = useMemo(
     () => aduanas.map((a) => ({
@@ -235,6 +257,7 @@ export function TitularesAduanasActualesWidget() {
     });
 
   return (
+    <>
     <Marco>
       <thead className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300">
         <tr>
@@ -272,7 +295,7 @@ export function TitularesAduanasActualesWidget() {
                 <td className={TD}>{f.codigo}</td>
                 {puedeVerFoto && (
                   <td className="px-3 py-1.5">
-                    <FotoEmpleadoCell numempleado={f.numEmpleado} size={40} caption={f.titular ? `${f.titular} — ${f.corta}` : undefined} />
+                    <FotoExpediente numEmpleado={f.numEmpleado} nombre={f.titular} size={40} caption={f.titular ? `${f.titular} — ${f.corta}` : undefined} onAbrir={abrirExpediente} />
                   </td>
                 )}
                 <td className={`${TD} text-left font-medium whitespace-nowrap ${f.titular ? "" : "italic text-rose-700 dark:text-rose-400"}`}>
@@ -281,7 +304,7 @@ export function TitularesAduanasActualesWidget() {
                 <td className={`${TD} whitespace-nowrap`}>{f.desde ? formatDateEsMx(f.desde) : "—"}</td>
                 <td className={`${TD} whitespace-nowrap`}>{f.dias !== null ? duracion(f.dias) : "—"}</td>
               </tr>
-              {abierta && <HistorialTitulares aduana={f.raw} colSpan={colSpan + 1} puedeVerFoto={puedeVerFoto} />}
+              {abierta && <HistorialTitulares aduana={f.raw} colSpan={colSpan + 1} puedeVerFoto={puedeVerFoto} onAbrirExpediente={abrirExpediente} />}
             </React.Fragment>
           );
         })}
@@ -293,5 +316,7 @@ export function TitularesAduanasActualesWidget() {
         </tr>
       </tfoot>
     </Marco>
+    {expedienteUI}
+    </>
   );
 }

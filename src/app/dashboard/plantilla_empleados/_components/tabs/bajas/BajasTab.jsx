@@ -1537,6 +1537,7 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
       {mounted && createPortal(
         <AnimatePresence>
                     <ColumnsModal
+            tablaMemoria="bajas"
             open={isColumnsModalOpen}
             columns={tableColumns}
             onToggle={toggleColumnVisibility}

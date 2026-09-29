@@ -1669,7 +1669,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
 // universo completo de ALL_AVAILABLE_COLUMNS. Pensado para datasets que no
 // traen todos los campos de empleado (p.ej. desglose_jerarquico, que es de
 // plazas): sin esto, el selector listaría columnas que siempre salen vacías.
-export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, categoryTabs = null, rows = null, rowsLoading = false, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
+export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, cdUa = null, categoryTabs = null, rows = null, rowsLoading = false, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
     const isLocalMode = Array.isArray(rows);
     const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
     const [isExportingConFotos, setIsExportingConFotos] = useState(false);
@@ -1900,6 +1900,13 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                     }
                     results = filtered;
                 }
+                // `cdUa`: recorte por CÓDIGO de unidad administrativa (widget "Estatus de
+                // posiciones por UA"): más confiable que `ua`, que compara nombres y el catálogo
+                // de UA no siempre los redacta igual que la plantilla.
+                if (cdUa) {
+                    const codigo = String(cdUa).trim();
+                    results = results.filter((r) => String(r.cd_ua ?? "").trim() === codigo);
+                }
                 setRowData(results);
             } else {
                 setError(data.mensaje || data.error || "Error al cargar los datos.");
@@ -1909,7 +1916,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         } finally {
             setLoading(false);
         }
-    }, [isLocalMode, nivel, effectiveEstatus, ua]);
+    }, [isLocalMode, nivel, effectiveEstatus, ua, cdUa]);
 
     useEffect(() => {
         if (open) {

@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import { PERMISSIONS as P } from "@/config/permissions";
-import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2, Rocket } from "lucide-react";
+import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2, Rocket, Globe } from "lucide-react";
 import { ELEMENTOS_CUADROS_VACANCIA, prefijoTipoCuadrosVacancia } from "./widgets/cuadrosVacanciaElementos";
 import { MODULES } from "@/config/modules";
 import { crearAccesoRapidoWidget } from "./widgets/AccesoRapidoWidget";
@@ -131,6 +131,21 @@ export const WIDGET_REGISTRY = {
     component: lazyWidget(() => import("./widgets/PlazasPorUaWidget")),
     defaultW: 8,
     defaultH: 5,
+    minW: 4,
+    minH: 3,
+  },
+  estatus_posiciones_ua: {
+    type: "estatus_posiciones_ua",
+    // Mismas fuentes que "Ocupadas vs Vacantes por familia de nivel" (desglose_jerarquico y
+    // desglose_jerarquico_ocupados): mismo permiso, y ambas recortan sus filas por UN.
+    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES],
+    alcanceUnSoportado: true,
+    enCatalogo: true,
+    label: "Estatus de posiciones por unidad administrativa",
+    icon: ChartColumnStacked,
+    component: lazyWidget(() => import("./widgets/EstatusPosicionesUaWidget")),
+    defaultW: 8,
+    defaultH: 6,
     minW: 4,
     minH: 3,
   },
@@ -285,9 +300,12 @@ export const WIDGET_REGISTRY = {
   },
   torre_caballito: {
     type: "torre_caballito",
-    // Mismos permisos que TorreCaballito3DView / TorreCaballitoSearchView /
-    // TorreCaballitoEmpleadosView (basta uno, criterio OR).
-    permisos: [P.VIEW_PLANTILLA_GEOGRAFIA, P.VIEW_ORGANIGRAMA_INSTITUCIONAL, P.VIEW_ORGANIGRAMA_ALINEACION],
+    // Espejo del `extra_permission` de TorreCaballito3DView /
+    // TorreCaballitoSearchView / TorreCaballitoEmpleadosView: el sub-tab tiene
+    // permiso propio (`view_plantilla_geografia_torre`), así que tener el tab
+    // de Geografía ya no basta. Los codenames de Organigrama siguen porque
+    // esas vistas también los aceptan. Basta uno (criterio OR).
+    permisos: [P.VIEW_PLANTILLA_GEOGRAFIA_TORRE, P.VIEW_ORGANIGRAMA_INSTITUCIONAL, P.VIEW_ORGANIGRAMA_ALINEACION],
     // Las tres vistas declaran `un_scope = UN_SCOPE_APLICADO`: recortan por UN.
     alcanceUnSoportado: true,
     enCatalogo: true,
@@ -298,6 +316,23 @@ export const WIDGET_REGISTRY = {
     defaultH: 7,
     minW: 2,
     minH: 3,
+  },
+  mapa_nacional: {
+    type: "mapa_nacional",
+    // Espejo de EmpleadosDistribucionGeograficaView / EmpleadosPorUbicacionView.
+    permisos: [P.VIEW_PLANTILLA_GEOGRAFIA_MAPA],
+    // Ambas declaran `un_scope = UN_SCOPE_APLICADO`: el mapa cachea los grupos
+    // crudos por coordenada × UN y agrega por petición, y el detalle del punto
+    // filtra en el WHERE.
+    alcanceUnSoportado: true,
+    enCatalogo: true,
+    label: "Mapa Nacional — Distribución de personal",
+    icon: Globe,
+    component: lazyWidget(() => import("./widgets/MapaNacionalWidget")),
+    defaultW: 6,
+    defaultH: 7,
+    minW: 3,
+    minH: 4,
   },
 };
 

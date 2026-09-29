@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { useModalLayerZ } from "@/components/shared/modalLayer";
 import { motion, AnimatePresence } from "motion/react";
 import { Columns, Search, X, Check } from "lucide-react";
 import { normalizeForSearch } from "@/utils/columnFilters";
 import { useEscapeToClose } from "../../_hooks/useEscapeToClose";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import MemoriasColumnas from "./MemoriasColumnas";
 
 /**
  * Modal genérico para configurar la visibilidad de columnas de una tabla.
@@ -20,9 +22,12 @@ import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
  * @param {() => void} props.onShowAll - Muestra todas las columnas.
  * @param {() => void} props.onHideAll - Oculta todas las columnas.
  * @param {() => void} props.onClose - Cierra el modal.
+ * @param {string} [props.tablaMemoria] - Identificador de la tabla (plantilla_detalle, bajas,
+ *   mov_posiciones, movimientos, alineacion). Si viene, se muestran las memorias de columnas.
  * @returns {JSX.Element|null}
  */
-export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, onHideAll, onClose }) {
+export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, onHideAll, onClose, tablaMemoria }) {
+  const zCapa = useModalLayerZ(100);
   const [search, setSearch] = useState("");
 
   useEscapeToClose(open, onClose);
@@ -50,10 +55,22 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
     });
   };
 
+  // Aplicar una memoria: visibles exactamente sus columnas (ya filtradas a las que existen aquí).
+  // Vía onToggle columna por columna, igual que "Borrar todas" (los toggles usan updater funcional).
+  const aplicarMemoria = (claves) => {
+    const quiero = new Set(claves);
+    if (quiero.size === 0) return;
+    columns.forEach((c) => {
+      if (Boolean(c.visible) !== quiero.has(c.key)) onToggle(c.key);
+    });
+  };
+
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div key="columns-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        // `zCapa` inline (no clase Tailwind): dentro del modal "Plantilla de
+        // la unidad" del tablero hay que quedar ENCIMA de él — ver modalLayer.js.
+        <div key="columns-modal" style={{ zIndex: zCapa }} className="fixed inset-0 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -68,7 +85,7 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
             role="dialog"
             aria-modal="true"
             aria-label="Configurar Columnas"
-            className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-4xl w-full flex flex-col z-[100] overflow-hidden max-h-[90dvh]"
+            className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl max-w-4xl w-full flex flex-col overflow-hidden max-h-[90dvh]"
           >
             <div className="shrink-0 p-4 sm:p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
               <div className="flex items-center justify-between mb-6">
@@ -112,6 +129,7 @@ export default function ColumnsModal({ open, columns = [], onToggle, onShowAll, 
                   </button>
                 </div>
               </div>
+              {tablaMemoria && <MemoriasColumnas tabla={tablaMemoria} columns={columns} onApply={aplicarMemoria} />}
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-8 custom-scrollbar">

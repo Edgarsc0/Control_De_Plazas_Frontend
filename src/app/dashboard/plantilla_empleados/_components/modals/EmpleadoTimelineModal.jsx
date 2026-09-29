@@ -71,7 +71,10 @@ const COLUMNS = [
 
 // `zIndexClass` permite abrirlo encima de otro modal (p. ej. desde la tabla del
 // modal "Movimientos realizados hoy", que vive en un ModalShell con z-[1000]).
-export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado, targetMovimiento = null, zIndexClass = "z-[110]" }) {
+export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado, targetMovimiento = null, zIndexClass = "z-[110]", zCapa }) {
+  // `zCapa` (número) gana sobre `zIndexClass` (cadena): la clase fija sirve
+  // suelto, pero dentro de otro modal el z tiene que calcularse — ver
+  // modalLayer.js. Se conserva `zIndexClass` por los llamadores que ya lo pasan.
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline"); // "timeline" | "table"
@@ -204,7 +207,7 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado,
   if (!open) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4`}>
+    <div style={zCapa ? { zIndex: zCapa } : undefined} className={`fixed inset-0 ${zCapa ? "" : zIndexClass} flex items-center justify-center p-4`}>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -216,7 +219,7 @@ export default function EmpleadoTimelineModal({ open, onOpenChange, numEmpleado,
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className={`relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full ${zIndexClass} flex flex-col overflow-hidden h-[80vh] transition-[max-width] duration-500 ease-in-out ${activeTab === "table" ? "max-w-[95vw]" : "max-w-3xl"}`}
+        className={`relative bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl w-full ${zCapa ? "" : zIndexClass} flex flex-col overflow-hidden h-[80vh] transition-[max-width] duration-500 ease-in-out ${activeTab === "table" ? "max-w-[95vw]" : "max-w-3xl"}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">

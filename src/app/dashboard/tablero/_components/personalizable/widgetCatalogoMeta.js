@@ -19,6 +19,10 @@ const META = {
     preview: "barras",
     descripcion: "Plazas ocupadas y vacantes por unidad administrativa, en barras apiladas para comparar unidades rápidamente.",
   },
+  estatus_posiciones_ua: {
+    preview: "barras",
+    descripcion: "Posiciones de cada unidad administrativa por estatus (ocupadas y vacantes, permanentes, eventuales y de nueva creación); clic en una unidad para verla por familia de nivel.",
+  },
   alineacion_organizacional: {
     preview: "comparar",
     descripcion: "Contrasta la estructura organizacional con la alineación registrada e identifica diferencias.",

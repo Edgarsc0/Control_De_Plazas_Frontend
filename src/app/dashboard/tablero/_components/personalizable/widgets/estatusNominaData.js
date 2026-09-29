@@ -26,7 +26,10 @@ let cache = null;
 
 export function cargarEstatusNomina() {
   if (cache && Date.now() - cache.t < TTL_MS) return cache.promise;
-  const promise = VacantesService.getEmpleadosEstatusPorNivelUa()
+  // `plantilla_oficial=1`: los widgets siempre muestran la plantilla oficial (sin laudos 103L,
+  // rango 1039 ni PASEM), como Plantilla Detalle con su switch encendido; ver
+  // EmpleadosEstatusPorNivelUaView. El universo completo solo se ve en la pestaña.
+  const promise = VacantesService.getEmpleadosEstatusPorNivelUa({ plantillaOficial: true })
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo cargar el resumen."))))
     .catch((err) => {
       cache = null; // no cachear fallos

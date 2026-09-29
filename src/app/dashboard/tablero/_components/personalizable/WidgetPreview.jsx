@@ -318,6 +318,18 @@ const PlazasUa = () => (
   </div>
 );
 
+const ESTATUS_POS = [["Ocup. Perm.", "#2f855a", 0.38], ["Ocup. Event.", "#57b788", 0.3], ["Ocup. N.C.", "#9fd9bb", 0.12], ["Vac. Perm.", "#621f32", 0.08], ["Vac. Event.", "#2e5890", 0.07], ["Vac. N.C.", "#bc955c", 0.05]];
+const EstatusPosicionesUa = () => (
+  <div className="w-full h-full flex flex-col p-2">
+    <div className="shrink-0 flex items-center gap-x-3 flex-wrap px-1 pb-1">
+      {ESTATUS_POS.map(([n, c]) => (
+        <span key={n} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="size-2 rounded-full" style={{ background: c }} />{n}</span>
+      ))}
+    </div>
+    <div className="flex-1 min-h-0"><BarrasApiladas series={ESTATUS_POS.map(([, c, v]) => [c, v])} /></div>
+  </div>
+);
+
 const Alineacion = () => (
   <div className="w-full h-full flex flex-col justify-center gap-1 p-3 bg-gradient-to-br from-[#621f32] to-[#8d2c48] text-white">
     <div className="flex items-center gap-2">
@@ -1269,6 +1281,7 @@ function AccesoRapidoPrev({ entry, descripcion }) {
 const MAQUETAS = {
   estados_nomina: Estados,
   plazas_por_ua: PlazasUa,
+  estatus_posiciones_ua: EstatusPosicionesUa,
   alineacion_organizacional: Alineacion,
   movimientos_hoy_accion: MovAccion,
   movimientos_hoy_detalle: MovDetalle,
