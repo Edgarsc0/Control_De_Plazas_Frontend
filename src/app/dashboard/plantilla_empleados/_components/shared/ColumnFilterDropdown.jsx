@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useModalLayerZ } from "@/components/shared/modalLayer";
 import { motion, AnimatePresence } from "motion/react";
 import { Filter, X, Search, Check, ChevronDown, ChevronRight as ChevronRightIcon } from "lucide-react";
 import {
@@ -364,10 +365,16 @@ export default function ColumnFilterDropdown({
   const emptyDateCount = dateValues ? null : data.filter((row) => !getCellValue(row, columnKey).trim()).length;
   const toggleEmptyDate = () => (isEmptyDateSelected ? unmarkValues([""]) : markValues([""]));
 
+  // Dentro de un modal (p. ej. "Plantilla de la unidad" del tablero, z 1000) hay que quedar
+  // ENCIMA de él: z relativo a la capa contenedora — ver modalLayer.js. Suelto conserva el z-60
+  // de siempre. Un `zIndexClass` explícito distinto del default se respeta tal cual.
+  const zCapa = useModalLayerZ(60);
+  const usarCapa = zIndexClass === "z-[60]";
+
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div key="filter-dropdown" className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4`}>
+        <div key="filter-dropdown" style={usarCapa ? { zIndex: zCapa } : undefined} className={`fixed inset-0 ${usarCapa ? "" : zIndexClass} flex items-center justify-center p-4`}>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className={`fixed inset-0 ${dimBackdrop ? "bg-black/40 backdrop-blur-sm" : ""}`} />
           <motion.div
             ref={panelRef}

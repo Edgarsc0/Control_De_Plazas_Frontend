@@ -13,6 +13,9 @@ const MAX_ANCHO_BARRA = 44; // px
 const PlantillaUaModal = dynamic(() => import("./PlantillaUaModal"), { ssr: false });
 
 const fmt = (n) => Number(n || 0).toLocaleString("es-MX");
+// Unidad de Negocio de la Dirección General de Operación Aduanera: sus UA son las aduanas, que se
+// muestran una por barra (ver `todasLasFilas`).
+const UN_DGOA = "00100";
 const ANCHO_POR_BARRA = 34;
 const ALTO_SCROLL = 14; // franja reservada para la barra de desplazamiento
 
@@ -61,6 +64,24 @@ function UaTooltip({ active, payload }) {
           <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">Total</span>
           <span className="text-xs font-black text-[#621f32] dark:text-[#bc955c]">{fmt(row.total)}</span>
         </div>
+        {row.adscritaA && (
+          <p className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+            Adscrita a {row.adscritaA.codigo} · {row.adscritaA.nombre} (también incluida en su barra)
+          </p>
+        )}
+        {row.adscritas?.length > 0 && (
+          <div className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Incluye</p>
+            <div className="flex justify-between gap-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              <span className="truncate">{row.codigo} · {row.nombre}</span><span className="shrink-0">{fmt(row.totalPrincipal)}</span>
+            </div>
+            {row.adscritas.map((a) => (
+              <div key={a.nombre} className="flex justify-between gap-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="truncate" title={a.nombre}>{a.codigo} · {a.nombre}</span><span className="shrink-0">{fmt(a.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <p className="pt-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">Clic para ver la plantilla de esta unidad</p>
       </div>
     </div>
@@ -87,24 +108,64 @@ export default function PlazasPorUaWidget() {
 
   const [busqueda, setBusqueda] = useState("");
 
-  // Una barra por UA (mayor a menor), dividida por estado de nómina.
+  // Una barra por unidad (mayor a menor), dividida por estado de nómina.
+  //
+  // Agrupación: las direcciones generales se agrupan por UNIDAD DE NEGOCIO, no por unidad
+  // administrativa, para que una barra incluya también las UA adscritas a ella (hoy: las dos
+  // Direcciones Operativas de Administración y Finanzas, CDMX y Chichimequillas, dentro de la
+  // UAF). La excepción es la DGOA (UN 00100), cuyas UA son las aduanas: esas siguen una por barra.
+  // Para toda UN con una sola UA el resultado es idéntico a agrupar por UA. La barra toma el
+  // código y nombre de su UA principal (la de más plazas) y guarda en `unidades` todas sus UA,
+  // que es lo que el modal consulta.
   const todasLasFilas = useMemo(() => {
     const codigos = data?.ua_codigos || {};
-    return Object.entries(data?.por_ua || {})
-      .map(([nombre, niveles]) => {
-        const row = { nombre, codigo: codigos[nombre] || nombre, total: 0 };
-        ESTADOS.forEach((e) => { row[e.key] = 0; });
-        Object.values(niveles).forEach((conteos) => {
-          Object.entries(conteos || {}).forEach(([codigo, n]) => {
-            const v = Number(n) || 0;
-            row[mapEstadoNomina(codigo)] += v;
-            row.total += v;
-          });
+    const uaUn = data?.ua_un || {};
+    const filaVacia = () => {
+      const r = { total: 0 };
+      ESTADOS.forEach((e) => { r[e.key] = 0; });
+      return r;
+    };
+    const sumarEn = (destino, origen) => {
+      ESTADOS.forEach((e) => { destino[e.key] += origen[e.key]; });
+      destino.total += origen.total;
+    };
+    // 1) Conteo por UA individual.
+    const porUa = Object.entries(data?.por_ua || {}).map(([nombre, niveles]) => {
+      const row = { ...filaVacia(), nombre, codigo: codigos[nombre] || nombre };
+      Object.values(niveles).forEach((conteos) => {
+        Object.entries(conteos || {}).forEach(([codigo, n]) => {
+          const v = Number(n) || 0;
+          row[mapEstadoNomina(codigo)] += v;
+          row.total += v;
         });
-        return row;
-      })
-      .filter((r) => r.total > 0)
-      .sort((a, b) => b.total - a.total);
+      });
+      return row;
+    });
+    // 2) Agrupar por UN (salvo la DGOA).
+    const grupos = new Map();
+    porUa.forEach((ua) => {
+      const un = uaUn[ua.nombre];
+      const clave = un && un !== UN_DGOA ? `un:${un}` : `ua:${ua.nombre}`;
+      if (!grupos.has(clave)) grupos.set(clave, []);
+      grupos.get(clave).push(ua);
+    });
+    const filas = [];
+    grupos.forEach((miembros) => {
+      miembros.sort((a, b) => b.total - a.total);
+      const [principal, ...adscritas] = miembros;
+      const barra = { ...filaVacia(), nombre: principal.nombre, codigo: principal.codigo, clave: `g:${principal.nombre}` };
+      miembros.forEach((m) => sumarEn(barra, m));
+      barra.unidades = miembros.map((m) => m.nombre);
+      barra.adscritas = adscritas.map((m) => ({ nombre: m.nombre, codigo: m.codigo, total: m.total }));
+      barra.totalPrincipal = principal.total;
+      filas.push(barra);
+      // 3) Cada UA adscrita TAMBIÉN tiene su propia barra, solo con sus plazas (ya están sumadas
+      //    en la de su dirección general; esta es para verla y buscarla por separado).
+      adscritas.forEach((m) => {
+        filas.push({ ...m, clave: `a:${m.nombre}`, unidades: [m.nombre], adscritas: [], adscritaA: { nombre: principal.nombre, codigo: principal.codigo } });
+      });
+    });
+    return filas.filter((r) => r.total > 0).sort((a, b) => b.total - a.total);
   }, [data]);
 
   // Buscador: por nombre o código de la unidad, sin acentos ni mayúsculas ("aduana ver" encuentra
@@ -114,7 +175,7 @@ export default function PlazasPorUaWidget() {
     if (!q) return todasLasFilas;
     const palabras = q.split(/\s+/);
     return todasLasFilas.filter((f) => {
-      const texto = normalizarBusqueda(`${f.nombre} ${f.codigo}`);
+      const texto = normalizarBusqueda(`${f.nombre} ${f.codigo} ${f.adscritas.map((a) => `${a.nombre} ${a.codigo}`).join(" ")}`);
       return palabras.every((p) => texto.includes(p));
     });
   }, [todasLasFilas, busqueda]);
@@ -181,7 +242,7 @@ export default function PlazasPorUaWidget() {
                   // índice de la barra activa (y cada <Bar> abajo también resuelve su propia fila).
                   onClick={(state) => {
                     const i = Number(state?.activeTooltipIndex ?? state?.activeIndex);
-                    if (Number.isInteger(i) && filas[i]?.nombre) setUaSeleccionada(filas[i].nombre);
+                    if (Number.isInteger(i) && filas[i]?.nombre) setUaSeleccionada(filas[i]);
                   }}
                 >
                   <CartesianGrid strokeDasharray="4 4" stroke="currentColor" className="text-slate-200/50 dark:text-slate-800/40" vertical={false} />
@@ -198,8 +259,8 @@ export default function PlazasPorUaWidget() {
                       cursor="pointer"
                       // Clic directo sobre un segmento: la fila (UA) viene en `payload`.
                       onClick={(barra) => {
-                        const nombre = barra?.payload?.nombre ?? barra?.nombre;
-                        if (nombre) setUaSeleccionada(nombre);
+                        const fila = barra?.payload ?? barra;
+                        if (fila?.nombre) setUaSeleccionada(fila);
                       }}
                     />
                   ))}
@@ -211,7 +272,7 @@ export default function PlazasPorUaWidget() {
         </>
       )}
       {uaSeleccionada && (
-        <PlantillaUaModal unidad={uaSeleccionada} onClose={() => setUaSeleccionada(null)} />
+        <PlantillaUaModal unidad={uaSeleccionada.nombre} unidades={uaSeleccionada.unidades} onClose={() => setUaSeleccionada(null)} />
       )}
     </div>
   );

@@ -32,7 +32,13 @@ const ETIQUETAS_ESTATUS = { Vacante: ["Vacante", "Solicitada", "No Disponible"] 
  * nómina). `estatus` opcional: arranca filtrado por ese estado de nómina; sin él, en "Activo"
  * como la pestaña.
  */
-export default function PlantillaUaModal({ unidad, estatus, onClose }) {
+export default function PlantillaUaModal({ unidad, unidades, estatus, onClose }) {
+  // `unidades`: todas las UA que forman la barra (la principal + sus adscritas, p. ej. la UAF con
+  // sus dos DOAF). Se consulta cada una con el mismo endpoint y se juntan las filas: la tabla,
+  // las tarjetas y la exportación a Excel incluyen así las plazas adscritas. Cada consulta pasa
+  // por el recorte por UN del backend igual que siempre.
+  const listaUnidades = unidades?.length ? unidades : unidad ? [unidad] : [];
+  const claveUnidades = listaUnidades.join("\u001f");
   const [filas, setFilas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
@@ -43,13 +49,18 @@ export default function PlantillaUaModal({ unidad, estatus, onClose }) {
     let active = true;
     setCargando(true);
     setError(null);
-    VacantesService.getEmpleadosCompletosActivosDetalle(unidad ? { unidad_administrativa: unidad } : {})
+    const consulta = (params) => VacantesService.getEmpleadosCompletosActivosDetalle(params)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo cargar la plantilla de la unidad."))))
-      .then((d) => { if (active) setFilas(Array.isArray(d) ? d : []); })
+      .then((d) => (Array.isArray(d) ? d : []));
+    (listaUnidades.length
+      ? Promise.all(listaUnidades.map((u) => consulta({ unidad_administrativa: u }))).then((partes) => partes.flat())
+      : consulta({}))
+      .then((d) => { if (active) setFilas(d); })
       .catch((err) => { if (active) setError(err.message || "No se pudo cargar la plantilla de la unidad."); })
       .finally(() => { if (active) setCargando(false); });
     return () => { active = false; };
-  }, [unidad]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveUnidades]);
 
   return (
     <ModalShell
@@ -60,7 +71,7 @@ export default function PlantillaUaModal({ unidad, estatus, onClose }) {
       icon={LayoutList}
       eyebrow={unidad ? "Plantilla Detalle" : "Plantilla Detalle · plantilla completa"}
       title={unidad || (estatus ? `Estado de nómina: ${estatus}` : "Plantilla completa")}
-      subtitle={cargando ? "Cargando plantilla…" : `${filas.length.toLocaleString("es-MX")} registros en EMPLEADOS_COMPLETOS_SIG`}
+      subtitle={cargando ? "Cargando plantilla…" : `${filas.length.toLocaleString("es-MX")} registros en EMPLEADOS_COMPLETOS_SIG${listaUnidades.length > 1 ? ` · incluye ${listaUnidades.length - 1} unidad${listaUnidades.length > 2 ? "es" : ""} adscrita${listaUnidades.length > 2 ? "s" : ""}` : ""}`}
       bodyClassName="p-0 flex-1 min-h-0 overflow-y-auto"
     >
       {/* `--stack-h` es la altura de "banner + navbar" que el tab descuenta de su tarjeta de tabla

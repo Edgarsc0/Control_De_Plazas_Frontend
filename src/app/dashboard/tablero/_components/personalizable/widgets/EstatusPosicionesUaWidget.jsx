@@ -63,6 +63,8 @@ const ANCHO_POR_BARRA = 34;
 const ALTO_SCROLL = 14;
 const MAX_CHARS = 8;
 const fmt = (n) => Number(n || 0).toLocaleString("es-MX");
+// UN de la Dirección General de Operación Aduanera: sus UA (las aduanas) van una por barra.
+const UN_DGOA = "00100";
 const normalizar = (t) => (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 const filaVacia = (extra) => {
@@ -142,6 +144,21 @@ function TooltipEstatus({ active, payload, vista }) {
       <p className="font-extrabold text-xs text-[#621f32] dark:text-[#bc955c] mb-2 pb-2 border-b border-slate-100 dark:border-slate-800 break-words">{titulo}</p>
       <div className="space-y-1">
         <FilasEstatus row={row} />
+        {vista === "ua" && row.adscritaA && (
+          <p className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+            Adscrita a {row.adscritaA.codigo} · {row.adscritaA.nombre} (también incluida en su barra)
+          </p>
+        )}
+        {vista === "ua" && row.adscritas?.length > 0 && (
+          <div className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Incluye</p>
+            {[{ codigo: row.codigo, nombre: row.nombre, total: row.totalPrincipal }, ...row.adscritas].map((a) => (
+              <div key={a.codigo} className="flex justify-between gap-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="truncate" title={a.nombre}>{a.codigo} · {a.nombre}</span><span className="shrink-0">{fmt(a.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {vista === "ua" && row.hijos?.length > 0 && (
           <div className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800">
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">Por familia de nivel</p>
@@ -181,33 +198,74 @@ export default function EstatusPosicionesUaWidget() {
   const arbol = useMemo(() => {
     const mapa = new Map();
     if (!datos) return mapa;
+    // Misma agrupación que "Plazas por UA": las direcciones generales van por UNIDAD DE NEGOCIO
+    // (así la UAF incluye sus dos DOAF adscritas); la DGOA, cuyas UA son las aduanas, sigue una UA
+    // por barra. La barra toma el código y nombre de su UA con más posiciones. Además, cada UA
+    // adscrita conserva su PROPIA barra (solo sus posiciones), para verla y buscarla por separado.
+    const individuales = new Map(); // codigoUa → nodo, solo de UA que se agrupan por UN
+    const meter = (destino, clave, crear, familia, nivel, claveEstatus, esOcupada) => {
+      let nodo = destino.get(clave);
+      if (!nodo) { nodo = crear(); destino.set(clave, nodo); }
+      let fam = nodo.familias.get(familia);
+      if (!fam) { fam = { fila: filaVacia({ etiqueta: familia }), niveles: new Map() }; nodo.familias.set(familia, fam); }
+      let niv = fam.niveles.get(nivel);
+      if (!niv) { niv = filaVacia({ etiqueta: nivel }); fam.niveles.set(nivel, niv); }
+      sumar(nodo.fila, claveEstatus, esOcupada);
+      sumar(fam.fila, claveEstatus, esOcupada);
+      sumar(niv, claveEstatus, esOcupada);
+      return nodo;
+    };
     const agregar = (item, esOcupada) => {
-      const codigo = String(item["Cd UA"] ?? "").trim() || "Sin UA";
-      const nombre = String(item.nombre_ua ?? "").trim() || codigo;
+      const codigoUa = String(item["Cd UA"] ?? "").trim() || "Sin UA";
+      const nombreUa = String(item.nombre_ua ?? "").trim() || codigoUa;
+      const cdUn = String(item["Cd UN"] ?? "").trim();
+      const porUn = cdUn && cdUn !== UN_DGOA;
       const familia = familiaDeNivel(item.Nivel);
       const nivel = String(item.Nivel ?? "").trim() || "Vacío";
       const tipo = tipoEfectivo(esOcupada ? classifyOcupada(item) : classifyPos(item["Posición"]), familia);
-      const clave = CLAVE[esOcupada ? "ocupada" : "vacante"][tipo];
+      const claveEstatus = CLAVE[esOcupada ? "ocupada" : "vacante"][tipo];
+      const nuevo = (codigo, nombre) => () => ({ fila: filaVacia({ codigo, nombre }), familias: new Map(), uas: new Map() });
 
-      let ua = mapa.get(codigo);
-      if (!ua) { ua = { fila: filaVacia({ codigo, nombre }), familias: new Map() }; mapa.set(codigo, ua); }
-      let fam = ua.familias.get(familia);
-      if (!fam) { fam = { fila: filaVacia({ etiqueta: familia }), niveles: new Map() }; ua.familias.set(familia, fam); }
-      let niv = fam.niveles.get(nivel);
-      if (!niv) { niv = filaVacia({ etiqueta: nivel }); fam.niveles.set(nivel, niv); }
-      sumar(ua.fila, clave, esOcupada);
-      sumar(fam.fila, clave, esOcupada);
-      sumar(niv, clave, esOcupada);
+      const grupo = meter(mapa, porUn ? `un:${cdUn}` : codigoUa, nuevo(codigoUa, nombreUa), familia, nivel, claveEstatus, esOcupada);
+      const miembro = grupo.uas.get(codigoUa) || { codigo: codigoUa, nombre: nombreUa, total: 0 };
+      miembro.total += 1;
+      grupo.uas.set(codigoUa, miembro);
+      if (porUn) meter(individuales, codigoUa, nuevo(codigoUa, nombreUa), familia, nivel, claveEstatus, esOcupada);
     };
     datos.desglose.forEach((it) => agregar(it, false));
     datos.ocupados.forEach((it) => agregar(it, true));
+    // Cada barra se rotula con su UA principal (la de más posiciones); `adscritas` y `codigosUa`
+    // (todas sus UA) alimentan el tooltip y el recorte del listado por nivel.
+    const extras = [];
+    mapa.forEach((grupo) => {
+      const miembros = [...grupo.uas.values()].sort((a, b) => b.total - a.total);
+      const [principal, ...adscritas] = miembros;
+      Object.assign(grupo.fila, {
+        codigo: principal.codigo,
+        nombre: principal.nombre,
+        adscritas,
+        totalPrincipal: principal.total,
+        codigosUa: miembros.map((m) => m.codigo),
+      });
+      adscritas.forEach((m) => {
+        const nodo = individuales.get(m.codigo);
+        if (!nodo) return;
+        Object.assign(nodo.fila, {
+          adscritas: [],
+          codigosUa: [m.codigo],
+          adscritaA: { codigo: principal.codigo, nombre: principal.nombre },
+        });
+        extras.push([`adscrita:${m.codigo}`, nodo]);
+      });
+    });
+    extras.forEach(([clave, nodo]) => mapa.set(clave, nodo));
     return mapa;
   }, [datos]);
 
   const porTotal = (a, b) => b.total - a.total;
   const unidades = useMemo(
-    () => [...arbol.values()]
-      .map(({ fila, familias }) => ({ ...fila, hijos: [...familias.values()].map((f) => f.fila).sort(porTotal) }))
+    () => [...arbol.entries()]
+      .map(([clave, { fila, familias }]) => ({ ...fila, clave, hijos: [...familias.values()].map((f) => f.fila).sort(porTotal) }))
       .sort(porTotal),
     [arbol]
   );
@@ -221,7 +279,7 @@ export default function EstatusPosicionesUaWidget() {
     if (!q) return unidades;
     const palabras = q.split(/\s+/);
     return unidades.filter((f) => {
-      const texto = normalizar(`${f.nombre} ${f.codigo}`);
+      const texto = normalizar(`${f.nombre} ${f.codigo} ${(f.adscritas || []).map((a) => `${a.nombre} ${a.codigo}`).join(" ")}`);
       return palabras.every((p) => texto.includes(p));
     });
   }, [unidades, busqueda]);
@@ -235,14 +293,14 @@ export default function EstatusPosicionesUaWidget() {
 
   const bajar = (row) => {
     if (!row) return;
-    if (vista === "ua") { setUaSel(row.codigo); setFamiliaSel(null); }
+    if (vista === "ua") { setUaSel(row.clave); setFamiliaSel(null); }
     else if (vista === "familia") setFamiliaSel(row.etiqueta);
     else {
       const ua = uaNodo.fila;
       setNivelModal({
         // El backend espera "SIN NIVEL" (no "Vacío", que es solo la etiqueta de interfaz).
         nivel: row.etiqueta === "Vacío" ? "SIN NIVEL" : row.etiqueta,
-        cdUa: ua.codigo,
+        cdUa: ua.codigosUa, // todas las UA de la barra (la UAF con sus DOAF)
         titulo: `${row.etiqueta} · ${ua.nombre}`,
       });
     }

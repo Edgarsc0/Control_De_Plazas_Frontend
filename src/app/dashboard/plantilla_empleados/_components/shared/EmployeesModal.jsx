@@ -1903,9 +1903,10 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                 // `cdUa`: recorte por CÓDIGO de unidad administrativa (widget "Estatus de
                 // posiciones por UA"): más confiable que `ua`, que compara nombres y el catálogo
                 // de UA no siempre los redacta igual que la plantilla.
-                if (cdUa) {
-                    const codigo = String(cdUa).trim();
-                    results = results.filter((r) => String(r.cd_ua ?? "").trim() === codigo);
+                // Acepta uno o varios códigos (una dirección general con sus UA adscritas).
+                if (cdUa && (!Array.isArray(cdUa) || cdUa.length)) {
+                    const codigos = new Set((Array.isArray(cdUa) ? cdUa : [cdUa]).map((c) => String(c).trim()));
+                    results = results.filter((r) => codigos.has(String(r.cd_ua ?? "").trim()));
                 }
                 setRowData(results);
             } else {
@@ -1916,7 +1917,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         } finally {
             setLoading(false);
         }
-    }, [isLocalMode, nivel, effectiveEstatus, ua, cdUa]);
+    }, [isLocalMode, nivel, effectiveEstatus, ua, Array.isArray(cdUa) ? cdUa.join(",") : cdUa]);
 
     useEffect(() => {
         if (open) {
