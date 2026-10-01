@@ -250,10 +250,28 @@ export default function ClientComponent() {
     prevStatusRef.current = currentStatus;
   }, [logs]);
 
+  const pollRunningLog = async () => {
+    try {
+      const response = await apiFetch('/plantilla/bitacora/en-curso/');
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data) {
+        setLogs(prev => (prev.length && prev[0].id === data.id)
+          ? [{ ...prev[0], ...data }, ...prev.slice(1)]
+          : prev);
+      } else {
+        // la corrida RUNNING ya terminó: traer la bitácora completa una sola vez
+        fetchLogs(false);
+      }
+    } catch (error) {
+      console.error('Error polling running log:', error);
+    }
+  };
+
   useEffect(() => {
     let interval;
     if (logs.length > 0 && logs[0].status === 'RUNNING') {
-      interval = setInterval(() => fetchLogs(false), 2000);
+      interval = setInterval(pollRunningLog, 2000);
     }
     return () => { if (interval) clearInterval(interval); };
   }, [logs]);
