@@ -176,6 +176,16 @@ const HISTORIAL_COLUMNS_MOV_POS = [{ key: "fecha_anuencia", label: "Fecha de Anu
 // refetch vía `patchMovPosCachedRow`).
 const MOV_POS_CACHE_BASE_KEY = "mov_pos_detalle";
 
+// Código seleccionable para "Agregar a Anexo 2": el backend rotula las plazas sin código con el
+// TEXTO "Sin Código" (82 hoy). Tratado como código real, todas esas plazas colapsaban en una sola
+// entrada del Set de selección (por eso "Seleccionar todo" contaba menos que las filas) y además
+// se habría enviado "Sin Código" al Anexo 2 como si fuera un código. Una plaza sin código no puede
+// ir a un anexo, así que no es seleccionable.
+const codigoSeleccionable = (fila) => {
+  const c = String(fila?.codigo || "").trim();
+  return c && c.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() !== "sin codigo" ? c : "";
+};
+
 export default function MovimientosTab({ detalle = [], isPending, startTransition, cardRef, onCardTitleChange }) {
   const [movPosData, setMovPosData] = useState([]);
 
@@ -1965,14 +1975,14 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   const handleSelectCell = useCallback((cell, e) => {
     setSelectedCell(cell);
     if (cell.col !== codigoColIdx) return;
-    const codigo = String(filteredSortedData[cell.row]?.codigo || "").trim();
+    const codigo = codigoSeleccionable(filteredSortedData[cell.row]);
     if (!codigo) return;
     if (e?.shiftKey && shiftAnchorRowRef.current !== null) {
       const desde = Math.min(shiftAnchorRowRef.current, cell.row);
       const hasta = Math.max(shiftAnchorRowRef.current, cell.row);
       const siguiente = new Set();
       for (let i = desde; i <= hasta; i += 1) {
-        const c = String(filteredSortedData[i]?.codigo || "").trim();
+        const c = codigoSeleccionable(filteredSortedData[i]);
         if (c) siguiente.add(c);
       }
       setSelectedCodigos(siguiente);
@@ -2000,7 +2010,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   // eso basta con tomarlo tal cual para que "Seleccionar todo" respete
   // cualquier filtro aplicado antes, sin repetir la consulta al backend.
   const handleSeleccionarTodoCodigos = useCallback(() => {
-    const todos = filteredSortedData.map((r) => String(r.codigo || "").trim()).filter(Boolean);
+    const todos = filteredSortedData.map(codigoSeleccionable).filter(Boolean);
     setSelectedCodigos(new Set(todos));
     shiftAnchorRowRef.current = null;
   }, [filteredSortedData]);
@@ -2018,7 +2028,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
     // "Agregar a Anexo 2" y abriría un modal que sólo cosecha 403.
     if (!sinRestriccionUN) return null;
     if (contextMenu?.colKey !== "codigo") return null;
-    const codigoClic = String(contextMenu.row?.codigo || "").trim();
+    const codigoClic = codigoSeleccionable(contextMenu.row);
     if (!codigoClic) return null;
     const codigos = selectedCodigos.has(codigoClic) ? Array.from(selectedCodigos) : [codigoClic];
     return codigos.map((codigo) => {
