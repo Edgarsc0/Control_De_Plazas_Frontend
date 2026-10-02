@@ -9,4 +9,8 @@ export const VisitsService = {
         const params = new URLSearchParams({ email, ...(date ? { date } : {}) });
         return apiFetch(`/auth/visits/?${params.toString()}`);
     },
+    getUserVisitsHeatmap: (email, month) => {
+        const params = new URLSearchParams({ email, ...(month ? { month } : {}) });
+        return apiFetch(`/auth/visits/heatmap/?${params.toString()}`);
+    },
 };
