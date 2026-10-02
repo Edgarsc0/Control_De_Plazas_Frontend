@@ -189,6 +189,7 @@ function MonthHeatmap({ month, data, selectedDate, onSelectDate, onPrevMonth, on
 }
 
 export default function UserActivityDialog({ entry, onClose }) {
+    const [tab, setTab] = useState('detalle');
     const [date, setDate] = useState(todayStr());
     const [summary, setSummary] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -238,6 +239,7 @@ export default function UserActivityDialog({ entry, onClose }) {
 
     useEffect(() => {
         if (!entry) {
+            setTab('detalle');
             setDate(todayStr());
             setHeatmapMonth(currentMonthStr());
         }
@@ -247,6 +249,11 @@ export default function UserActivityDialog({ entry, onClose }) {
         if (newDate > todayStr()) return;
         setDate(newDate);
         setHeatmapMonth(monthOf(newDate));
+    };
+
+    const selectDateFromHeatmap = (newDate) => {
+        goToDate(newDate);
+        setTab('detalle');
     };
 
     const chartData = buildChartData(summary);
@@ -265,134 +272,160 @@ export default function UserActivityDialog({ entry, onClose }) {
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-slate-700">Día</label>
-                    <NavButton onClick={() => goToDate(shiftDate(date, -1))} label="Día anterior">
-                        <ChevronLeft className="size-4" />
-                    </NavButton>
-                    <input
-                        type="date"
-                        value={date}
-                        max={todayStr()}
-                        onChange={(e) => goToDate(e.target.value)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-[#621f32] focus:ring-1 focus:ring-[#621f32]"
-                    />
-                    <NavButton
-                        onClick={() => goToDate(shiftDate(date, 1))}
-                        disabled={date >= todayStr()}
-                        label="Día siguiente"
-                    >
-                        <ChevronRight className="size-4" />
-                    </NavButton>
+                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 w-fit">
+                    {[
+                        { id: 'detalle', label: 'Detalle del día' },
+                        { id: 'heatmap', label: 'Mapa de calor' },
+                    ].map((t) => (
+                        <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setTab(t.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                                tab === t.id
+                                    ? 'bg-white text-[#621f32] shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
                 </div>
 
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
-                <MonthHeatmap
-                    month={heatmapMonth}
-                    data={heatmapData}
-                    selectedDate={date}
-                    onSelectDate={goToDate}
-                    onPrevMonth={() => setHeatmapMonth((m) => shiftMonth(m, -1))}
-                    onNextMonth={() => setHeatmapMonth((m) => shiftMonth(m, 1))}
-                />
-                {isLoadingHeatmap && !heatmapData && (
-                    <p className="text-xs text-slate-400 -mt-2">Cargando mapa de calor...</p>
-                )}
-
-                {isLoading && !summary ? (
-                    <div className="h-64 flex items-center justify-center text-sm text-slate-400">
-                        Cargando actividad...
+                {tab === 'heatmap' ? (
+                    <div className="space-y-2">
+                        <MonthHeatmap
+                            month={heatmapMonth}
+                            data={heatmapData}
+                            selectedDate={date}
+                            onSelectDate={selectDateFromHeatmap}
+                            onPrevMonth={() => setHeatmapMonth((m) => shiftMonth(m, -1))}
+                            onNextMonth={() => setHeatmapMonth((m) => shiftMonth(m, 1))}
+                        />
+                        {isLoadingHeatmap && !heatmapData && (
+                            <p className="text-xs text-slate-400">Cargando mapa de calor...</p>
+                        )}
                     </div>
-                ) : summary ? (
-                    <div className="space-y-4">
-                        <div className="flex flex-wrap gap-2">
-                            <StatCard icon={ListChecks} label="Visitas del día" value={summary.sessions_count_day} />
-                            <StatCard
-                                icon={Clock}
-                                label="Tiempo activo del día"
-                                value={formatDuration(summary.total_active_seconds_day)}
+                ) : (
+                    <>
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium text-slate-700">Día</label>
+                            <NavButton onClick={() => goToDate(shiftDate(date, -1))} label="Día anterior">
+                                <ChevronLeft className="size-4" />
+                            </NavButton>
+                            <input
+                                type="date"
+                                value={date}
+                                max={todayStr()}
+                                onChange={(e) => goToDate(e.target.value)}
+                                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-[#621f32] focus:ring-1 focus:ring-[#621f32]"
                             />
-                            <StatCard
-                                icon={Eye}
-                                label="Vista más visitada"
-                                value={summary.top_view_all_time?.label || '—'}
-                                sub={
-                                    summary.top_view_all_time
-                                        ? `${summary.top_view_all_time.count} veces · histórico`
-                                        : 'sin datos'
-                                }
-                            />
+                            <NavButton
+                                onClick={() => goToDate(shiftDate(date, 1))}
+                                disabled={date >= todayStr()}
+                                label="Día siguiente"
+                            >
+                                <ChevronRight className="size-4" />
+                            </NavButton>
                         </div>
 
-                        <div className="h-64 rounded-2xl border border-slate-200 bg-white p-3">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis
-                                        dataKey="label"
-                                        tick={{ fontSize: 9, fill: '#94a3b8' }}
-                                        interval={0}
-                                        angle={-45}
-                                        textAnchor="end"
-                                        height={36}
-                                    />
-                                    <YAxis
-                                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                                        allowDecimals={false}
-                                        label={{ value: 'min', position: 'insideTopLeft', fontSize: 10, fill: '#94a3b8' }}
-                                    />
-                                    <Tooltip formatter={(value) => `${value} min`} />
-                                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                                    <Bar dataKey="minutosDelDia" name="Minutos activo ese día" fill="#621f32" radius={[4, 4, 0, 0]} />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="promedioHistorico"
-                                        name="Promedio histórico (min)"
-                                        stroke="#bc955c"
-                                        strokeWidth={2}
-                                        dot={false}
-                                    />
-                                </ComposedChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        <div>
-                            <h4 className="text-xs font-black uppercase tracking-wide text-slate-400 mb-2">
-                                Visitas del {date} ({summary.sessions.length})
-                            </h4>
-                            <div className="max-h-56 overflow-y-auto space-y-2">
-                                {summary.sessions.length === 0 ? (
-                                    <p className="text-sm text-slate-400 px-4 py-6 text-center rounded-2xl border border-slate-200">
-                                        Sin visitas ese día.
-                                    </p>
-                                ) : (
-                                    summary.sessions.map((s, i) => (
-                                        <div key={`${s.start}-${i}`} className="rounded-2xl border border-slate-200 px-3 py-2">
-                                            <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                                                <span>
-                                                    {s.start} — {s.end}
-                                                </span>
-                                                <span className="text-slate-400">{formatDuration(s.duration_seconds)}</span>
-                                            </div>
-                                            <div className="mt-1 flex flex-wrap gap-1">
-                                                {s.views.map((v) => (
-                                                    <span
-                                                        key={v.label}
-                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px]"
-                                                    >
-                                                        {v.label}
-                                                        {v.count > 1 && <span className="text-slate-400">×{v.count}</span>}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+                        {isLoading && !summary ? (
+                            <div className="h-64 flex items-center justify-center text-sm text-slate-400">
+                                Cargando actividad...
                             </div>
-                        </div>
-                    </div>
-                ) : null}
+                        ) : summary ? (
+                            <div className="space-y-4">
+                                <div className="flex flex-wrap gap-2">
+                                    <StatCard icon={ListChecks} label="Visitas del día" value={summary.sessions_count_day} />
+                                    <StatCard
+                                        icon={Clock}
+                                        label="Tiempo activo del día"
+                                        value={formatDuration(summary.total_active_seconds_day)}
+                                    />
+                                    <StatCard
+                                        icon={Eye}
+                                        label="Vista más visitada"
+                                        value={summary.top_view_all_time?.label || '—'}
+                                        sub={
+                                            summary.top_view_all_time
+                                                ? `${summary.top_view_all_time.count} veces · histórico`
+                                                : 'sin datos'
+                                        }
+                                    />
+                                </div>
+
+                                <div className="h-64 rounded-2xl border border-slate-200 bg-white p-3">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis
+                                                dataKey="label"
+                                                tick={{ fontSize: 9, fill: '#94a3b8' }}
+                                                interval={0}
+                                                angle={-45}
+                                                textAnchor="end"
+                                                height={36}
+                                            />
+                                            <YAxis
+                                                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                                allowDecimals={false}
+                                                label={{ value: 'min', position: 'insideTopLeft', fontSize: 10, fill: '#94a3b8' }}
+                                            />
+                                            <Tooltip formatter={(value) => `${value} min`} />
+                                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                                            <Bar dataKey="minutosDelDia" name="Minutos activo ese día" fill="#621f32" radius={[4, 4, 0, 0]} />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="promedioHistorico"
+                                                name="Promedio histórico (min)"
+                                                stroke="#bc955c"
+                                                strokeWidth={2}
+                                                dot={false}
+                                            />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wide text-slate-400 mb-2">
+                                        Visitas del {date} ({summary.sessions.length})
+                                    </h4>
+                                    <div className="max-h-56 overflow-y-auto space-y-2">
+                                        {summary.sessions.length === 0 ? (
+                                            <p className="text-sm text-slate-400 px-4 py-6 text-center rounded-2xl border border-slate-200">
+                                                Sin visitas ese día.
+                                            </p>
+                                        ) : (
+                                            summary.sessions.map((s, i) => (
+                                                <div key={`${s.start}-${i}`} className="rounded-2xl border border-slate-200 px-3 py-2">
+                                                    <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                                                        <span>
+                                                            {s.start} — {s.end}
+                                                        </span>
+                                                        <span className="text-slate-400">{formatDuration(s.duration_seconds)}</span>
+                                                    </div>
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {s.views.map((v) => (
+                                                            <span
+                                                                key={v.label}
+                                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px]"
+                                                            >
+                                                                {v.label}
+                                                                {v.count > 1 && <span className="text-slate-400">×{v.count}</span>}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
+                    </>
+                )}
             </DialogContent>
         </Dialog>
     );
