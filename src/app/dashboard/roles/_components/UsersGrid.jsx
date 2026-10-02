@@ -24,8 +24,8 @@ const COLUMNS = [
 
 const MONO_KEYS = [];
 
-// Sólo el correo queda congelado; "Acceso" scrollea con el resto.
-const STICKY_KEYS = ['email'];
+// Sin columnas congeladas: todas scrollean con el resto.
+const STICKY_KEYS = [];
 
 const SELECT_CELL_CLASS =
     'h-7 w-full rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-100 focus-visible:border-[#621f32] focus-visible:ring-[#621f32]/20';

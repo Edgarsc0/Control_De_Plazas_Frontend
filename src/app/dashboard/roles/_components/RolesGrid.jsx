@@ -113,6 +113,7 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete }) {
             getRowId={(row) => row.id}
             renderCell={renderCell}
             renderRowAction={renderRowAction}
+            stickyColumnKeys={[]}
             rowActionHeaderLabel="EDIT"
             monoKeys={MONO_KEYS}
             isLoading={isLoading}
