@@ -6,13 +6,6 @@ import { AnimatePresence } from "motion/react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { VacantesService } from "@/services/vacantes.service";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
 import { X, Search, Columns3, Stamp, LayoutGrid, MousePointerClick, UserRound, Loader2, Lock, Download, Eye, EyeOff, ClipboardCopy, ClipboardCheck, IdCard, Briefcase, GraduationCap, Phone, MapPin, AlertTriangle, FileQuestion, Pencil, Check, Plus, Trash2, History, Landmark } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
@@ -24,6 +17,7 @@ import { copyToClipboard } from "@/utils/clipboard";
 import ModalShell, { Pill } from "@/components/shared/ModalShell";
 import VacanciaDetalleModal from "./VacanciaDetalleModal";
 import ExportConFotosModal from "./ExportConFotosModal";
+import ColumnsModal from "./ColumnsModal";
 import { useToast } from "@/hooks/useToast";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import {
@@ -260,176 +254,6 @@ const HighlightText = ({ text, highlight }) => {
                 )
             )}
         </span>
-    );
-};
-
-// Franja ornamental de "membrete" — firma visual del expediente
-const LetterheadBar = () => (
-    <div className="h-1.5 w-full shrink-0 bg-gradient-to-r from-[#bc955c] via-[#621f32] to-[#bc955c]" />
-);
-
-// --- COMPONENTE SELECTOR DE COLUMNAS (MODAL CENTRADO) ---
-// `availableColumns`: universo de columnas ofrecidas — por defecto todas
-// (ALL_AVAILABLE_COLUMNS); en modo restringido (ver `restrictColumnsTo` en
-// EmployeesModal) solo las que la fuente de datos realmente trae, para no
-// listar campos que siempre saldrían vacíos.
-const ColumnsSelectorModal = ({ isOpen, onClose, visibleKeys, setVisibleKeys, availableColumns = ALL_AVAILABLE_COLUMNS, defaultKeys = DEFAULT_COLUMN_KEYS }) => {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [tempVisibleKeys, setTempVisibleKeys] = useState(visibleKeys);
-
-    useEffect(() => {
-        if (isOpen) {
-            setTempVisibleKeys(visibleKeys);
-            setSearchQuery("");
-        }
-    }, [isOpen, visibleKeys]);
-
-    const groupedColumns = useMemo(() => {
-        const groups = {};
-        const normalizedQuery = normalizeForSearch(searchQuery);
-        availableColumns.forEach(col => {
-            if (normalizedQuery && !normalizeForSearch(col.label).includes(normalizedQuery) && !normalizeForSearch(col.key).includes(normalizedQuery)) {
-                return;
-            }
-            if (!groups[col.category]) groups[col.category] = [];
-            groups[col.category].push(col);
-        });
-        return groups;
-    }, [searchQuery, availableColumns]);
-
-    const toggleColumn = (key) => {
-        setTempVisibleKeys(prev => {
-            if (prev.includes(key)) {
-                if (prev.length <= 1) return prev;
-                return prev.filter(k => k !== key);
-            } else {
-                return [...prev, key];
-            }
-        });
-    };
-
-    const handleSelectDefault = () => setTempVisibleKeys(defaultKeys);
-    const handleClearAll = () => setTempVisibleKeys([availableColumns[0]?.key].filter(Boolean));
-    const handleSelectAll = () => setTempVisibleKeys(availableColumns.map(col => col.key));
-    const handleConfirm = () => {
-        setVisibleKeys(tempVisibleKeys);
-        onClose();
-    };
-
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent
-                hideClose
-                overlayClassName="z-[1100]"
-                className="z-[1100] w-full max-w-xl max-h-[80vh] flex flex-col p-0 bg-transparent border-none shadow-none overflow-hidden data-[state=closed]:animate-out data-[state=closed]:zoom-out-90 data-[state=closed]:fade-out-0 duration-300"
-            >
-                <div className="w-full max-h-[80vh] min-h-0 bg-white dark:bg-slate-950 flex flex-col rounded-[28px] shadow-2xl border border-[#621f32]/10 dark:border-slate-800/80 overflow-hidden">
-                    <LetterheadBar />
-                    <div className="flex flex-col flex-1 min-h-0 p-7">
-                        <DialogHeader className="mb-5 shrink-0 flex flex-row justify-between items-center border-b-2 border-dashed border-[#621f32]/15 dark:border-slate-800/60 pb-5">
-                            <div className="flex items-center gap-3.5">
-                                <div className="p-3 bg-gradient-to-tr from-[#621f32] to-[#8d2c48] rounded-full shadow-md text-white border-2 border-double border-[#bc955c]/60">
-                                    <Columns3 className="size-6 text-[#bc955c]" />
-                                </div>
-                                <div className="text-left">
-                                    <DialogTitle className="text-xl font-black text-[#621f32] dark:text-[#bc955c] tracking-tight font-serif">
-                                        Configurar columnas
-                                    </DialogTitle>
-                                    <DialogDescription className="text-xs font-bold text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-wider">
-                                        Campos visibles en el registro
-                                    </DialogDescription>
-                                </div>
-                            </div>
-                            <button
-                                onClick={onClose}
-                                className="p-2.5 rounded-full bg-white dark:bg-slate-900 border border-[#621f32]/15 dark:border-slate-800 text-slate-450 dark:text-slate-550 hover:text-red-500 transition-all cursor-pointer"
-                            >
-                                <X className="size-5" />
-                            </button>
-                        </DialogHeader>
-
-                        <div className="mb-5 flex flex-col gap-3">
-                            <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-[#621f32]/15 dark:border-slate-800 focus-within:border-[#bc955c]/60 transition-all">
-                                <Search className="size-4 text-[#621f32]/50 dark:text-slate-500" />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar columna..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="bg-transparent border-none focus:ring-0 text-sm font-semibold w-full p-0 text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 outline-none"
-                                />
-                                {searchQuery && (
-                                    <button onClick={() => setSearchQuery("")} className="text-slate-400 hover:text-slate-600">
-                                        <X className="size-4" />
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex items-center justify-between px-1">
-                                <button onClick={handleSelectDefault} className="text-xs font-black text-[#bc955c] uppercase hover:underline cursor-pointer">
-                                    Por defecto
-                                </button>
-                                <div className="flex gap-3.5 items-center">
-                                    <button onClick={handleSelectAll} className="text-xs font-black text-slate-500 hover:text-[#621f32] dark:hover:text-white uppercase cursor-pointer">
-                                        Todas
-                                    </button>
-                                    <span className="text-slate-300 dark:text-slate-750">|</span>
-                                    <button onClick={handleClearAll} className="text-xs font-black text-slate-550 hover:text-red-500 uppercase cursor-pointer">
-                                        Limpiar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 flex flex-col gap-5 border-y-2 border-dashed border-[#621f32]/10 dark:border-slate-900 py-4">
-                            {Object.keys(groupedColumns).length === 0 ? (
-                                <p className="text-sm text-slate-400 italic text-center py-12 font-serif">Sin resultados</p>
-                            ) : (
-                                Object.entries(groupedColumns).map(([category, cols]) => (
-                                    <div key={category} className="flex flex-col gap-2.5">
-                                        <span className="text-xs font-black text-[#bc955c] uppercase tracking-widest font-serif italic border-b border-[#621f32]/10 dark:border-slate-900/50 pb-1.5 mb-1">
-                                            {category}
-                                        </span>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            {cols.map(col => {
-                                                const isChecked = tempVisibleKeys.includes(col.key);
-                                                return (
-                                                    <label key={col.key} className="flex items-center gap-3 py-2 hover:bg-[#621f32]/6 dark:hover:bg-slate-900/40 rounded-lg px-2.5 cursor-pointer transition-colors group">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isChecked}
-                                                            onChange={() => toggleColumn(col.key)}
-                                                            className="size-4 rounded border-gray-300 dark:border-slate-750 text-[#621f32] dark:text-[#bc955c] focus:ring-[#621f32]/20 cursor-pointer"
-                                                        />
-                                                        <span className={`text-sm font-semibold uppercase truncate ${isChecked ? 'text-slate-800 dark:text-white' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                                                            {col.label}
-                                                        </span>
-                                                    </label>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-
-                        <div className="pt-5 flex justify-between items-center shrink-0 mt-2">
-                            <span className="text-sm font-bold text-slate-400 dark:text-slate-500">
-                                {tempVisibleKeys.length} / {availableColumns.length} Columnas
-                            </span>
-                            <div className="flex gap-3">
-                                <button onClick={onClose} className="px-6 py-2.5 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 rounded-full text-xs font-black uppercase tracking-wider hover:bg-slate-100 dark:hover:bg-slate-800 border border-[#621f32]/10 transition-all cursor-pointer">
-                                    Cancelar
-                                </button>
-                                <button onClick={handleConfirm} className="px-7 py-2.5 bg-[#621f32] dark:bg-[#bc955c] text-white dark:text-slate-950 rounded-full text-xs font-black uppercase tracking-wider hover:bg-[#4a1726] dark:hover:opacity-90 transition-all shadow-md shadow-[#621f32]/10 cursor-pointer">
-                                    Confirmar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
     );
 };
 
@@ -1869,6 +1693,22 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
         visible: visibleKeys.includes(col.key),
     })), [orderedColumns, visibleKeys, columnWidths]);
 
+    // Shape que espera el `ColumnsModal` compartido (mismo que
+    // PlantillaDetalleTab) — `category` de ALL_AVAILABLE_COLUMNS hace de
+    // `group`, e `isBasic` marca las columnas que el backend nunca deja
+    // fuera del detalle (COLUMNAS_DETALLE_SIEMPRE_INCLUIDAS).
+    const columnsForColumnsModal = useMemo(() => availableColumns.map(col => ({
+        key: col.key,
+        label: col.label,
+        group: col.category,
+        visible: visibleKeys.includes(col.key),
+        isBasic: COLUMNAS_DETALLE_SIEMPRE_INCLUIDAS.has(col.key),
+    })), [availableColumns, visibleKeys]);
+
+    const toggleColumnVisibility = useCallback((key) => {
+        setVisibleKeys(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
+    }, []);
+
     const fetchData = useCallback(async () => {
         if (isLocalMode) return;
         if (!nivel || !effectiveEstatus) return;
@@ -2397,6 +2237,25 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                         </div>
                     )}
                 </div>
+
+                {/* Mismo componente que PlantillaDetalleTab (shared/ColumnsModal) —
+                    dentro de ModalShell para heredar su capa de z-index vía
+                    ModalLayerProvider (ver ModalShell.jsx); fuera de aquí
+                    caía a su z base (200), por debajo del modal de detalle. */}
+                <ColumnsModal
+                    open={showColumnsModal}
+                    columns={columnsForColumnsModal}
+                    onToggle={toggleColumnVisibility}
+                    onShowAll={() => setVisibleKeys(availableColumns.map(col => col.key))}
+                    onHideAll={() => setVisibleKeys([availableColumns[0]?.key].filter(Boolean))}
+                    onClose={() => setShowColumnsModal(false)}
+                    // Dos cubetas: modo local (rows precargados — Detalle de
+                    // Vacantes, Plazas creadas/desactivadas, etc., universo de
+                    // columnas restringido vía `restrictColumnsTo`) separado
+                    // del listado general, para no mezclar memorias de
+                    // columnas que casi no se traslapan entre sí.
+                    tablaMemoria={isLocalMode ? "empleados_modal_local" : "empleados_modal"}
+                />
             </ModalShell>
 
             <AnimatePresence>
@@ -2417,15 +2276,6 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                     />
                 )}
             </AnimatePresence>
-
-            <ColumnsSelectorModal
-                isOpen={showColumnsModal}
-                onClose={() => setShowColumnsModal(false)}
-                visibleKeys={visibleKeys}
-                setVisibleKeys={setVisibleKeys}
-                availableColumns={availableColumns}
-                defaultKeys={defaultColumnKeys || (isLocalMode ? LOCAL_MODE_DEFAULT_COLUMN_KEYS : DEFAULT_COLUMN_KEYS)}
-            />
 
             <EmployeeRecordModal
                 isOpen={!!selectedEmployeeRecord}
