@@ -39,7 +39,7 @@ const parseJsonResponse = (responsePromise, label) =>
 // Posiciones). `EstatusTab`/`PlantillaDetalleTab`/`MovimientosTab` lo siguen
 // recibiendo como prop, pero ahora ese prop lo llena `ClientComponent` desde
 // su propio estado (`detalleData`), no desde este Server Component.
-async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromise }) {
+async function PlantillaEmpleadosData({ criticalDataPromise }) {
     const [
         resumenResult,
         estatusResult,
@@ -55,7 +55,6 @@ async function PlantillaEmpleadosData({ criticalDataPromise, secondaryDataPromis
             resumen={resumen}
             estatusPorNivelUa={estatusPorNivelUa}
             distribucionGeografica={distribucionGeografica}
-            secondaryDataPromise={secondaryDataPromise}
         />
     );
 }
@@ -67,28 +66,31 @@ export default async function PlantillaEmpleadosPage() {
         parseJsonResponse(VacantesService.getEmpleadosDistribucionGeografica(), "distribución geográfica")
     ]);
 
-    // Datos secundarios: solo los usa "Cuadros de Vacancia". No se esperan
-    // aquí — se pasan como promesa al cliente, que los resuelve (vía `use()`)
-    // recién cuando ese tab se abre, sin bloquear el resto.
+    // Los 4 datasets de "Cuadros de Vacancia" (cuadro_vacancia,
+    // desglose_jerarquico[_ocupados], conteo_plazas_historico_serie) YA NO
+    // viajan por acá: aunque no se esperaban en este Server Component,
+    // arrancarlos aquí (una de ellas ~975KB) hacía que Next.js no cerrara el
+    // stream RSC del documento hasta que las 4 resolvían — retrasando CADA
+    // carga de la página sin importar qué tab estuviera abierto. Reportado
+    // 2026-10-05: ~2.2s extra de servidor-a-servidor en toda carga de
+    // Plantilla de Empleados, incluso sin abrir nunca "Cuadros de Vacancia".
+    // Ahora `CuadrosVacanciaSection` (ClientComponent.jsx) las pide client-side
+    // (cargarFuente, mismo cache de 5 min que ya usan los widgets de tablero
+    // equivalentes) solo cuando ese tab se abre — igual que "Bajas" y "Mov.
+    // Posiciones" (ver comentario de abajo).
     //
-    // "Bajas" y "Mov. Posiciones" (mov_pos_detalle) YA NO viajan por acá: se
+    // "Bajas" y "Mov. Posiciones" (mov_pos_detalle) tampoco viajan por acá: se
     // movieron a fetch client-side cacheado en IndexedDB (ver
     // PLAN_CACHE_NAVEGADOR_PLANTILLA_EMPLEADOS_2026-09-16.md) — mandarlos
     // embebidos en el documento RSC en cada carga/refresh era la causa
     // principal de los ~89MB/17-21s medidos en ese plan. `BajasTab` y
     // `MovimientosTab` ahora hacen su propio fetch (cache-first) vía
     // `VacantesService`, igual que ya hacía `MovimientosPersonalTab`.
-    const secondaryDataPromise = Promise.allSettled([
-        parseJsonResponse(VacantesService.getCuadroVacancia(), "cuadro vacancia"),
-        parseJsonResponse(VacantesService.getDesgloseJerarquico(), "desglose jerarquico"),
-        parseJsonResponse(VacantesService.getDesgloseJerarquicoOcupados(), "desglose jerarquico ocupados"),
-        parseJsonResponse(VacantesService.getConteoPlazasHistoricoSerie(), "conteo plazas historico serie"),
-    ]);
 
     return (
         <RequirePermission permission={PLANTILLA_TAB_PERMISSIONS}>
             <Suspense fallback={<PlantillaEmpleadosSkeleton />}>
-                <PlantillaEmpleadosData criticalDataPromise={criticalDataPromise} secondaryDataPromise={secondaryDataPromise} />
+                <PlantillaEmpleadosData criticalDataPromise={criticalDataPromise} />
             </Suspense>
         </RequirePermission>
     );

@@ -710,10 +710,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   );
 
   // Una "Baja" deja la posición sin titular: no está en `detalle`. El
-  // dataset de bajas es pesado (~700KB) y vive detrás de un Suspense propio
-  // (ver ClientComponent.jsx: `secondaryDataPromise` sólo se resuelve cuando
-  // se visita el tab "Bajas") — precargarlo aquí para este único caso ya
-  // rompió el render de esta pestaña una vez (bloqueaba/crasheaba el tab
+  // dataset de bajas es pesado (~700KB) y BajasTab lo pide cache-first
+  // (IndexedDB) solo cuando se visita ese tab (ver BajasTab.jsx) — precargarlo
+  // aquí para este único caso ya rompió el render de esta pestaña una vez
+  // (bloqueaba/crasheaba el tab
   // "Detalle", que es el que carga por defecto para TODOS). En vez de eso,
   // se pide bajo demanda sólo cuando de verdad hace falta (clic en el ojo de
   // una fila sin match en `detalle`) y se cachea en memoria para no repetir

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useCallback, useMemo, use, Suspense } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback, useMemo } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Zoom } from "@/components/shared/Reveal";
@@ -31,6 +31,7 @@ import { PERMISSIONS } from "@/config/permissions";
 import PageTabBar from "@/components/ui/PageTabBar";
 import TourGroup from "@/components/shared/tour/TourGroup";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
+import ContinuidadesSubTab from "./_components/tabs/plantilla-detalle/ContinuidadesSubTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
 import AlineacionOrganizacionalTab from "./_components/tabs/movimientos/AlineacionOrganizacionalTab";
@@ -47,6 +48,7 @@ import { useCeldaUpdatesRealtime } from "./_hooks/useCeldaUpdatesRealtime";
 import { useAnuenciaAnexoUpdatesRealtime } from "./_hooks/useAnuenciaAnexoUpdatesRealtime";
 import { VacantesService } from "@/services/vacantes.service";
 import { getDataset, setDataset, patchDataset, clearDataset, trackEndpointFetch } from "@/lib/plantillaBrowserCache";
+import { cargarFuente } from "../tablero/_components/personalizable/widgets/cuadrosFuentes";
 
 const TABS = [
   { id: "detalle", label: "Plantilla Detalle", icon: LayoutList, permission: PERMISSIONS.VIEW_PLANTILLA_DETALLE },
@@ -78,18 +80,46 @@ function MovimientosTabSection({ detalle, isPending, startTransition, cardRef, o
   );
 }
 
-function CuadrosVacanciaSection({ secondaryDataPromise, onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, sinRestriccionUN }) {
-  const [cuadrosResult, desgloseResult, ocupadosResult, conteoPlazasSerieResult] = use(secondaryDataPromise);
-  const cuadrosData = cuadrosResult.status === 'fulfilled' ? (cuadrosResult.value || []) : [];
-  const desgloseJerarquicoData = desgloseResult.status === 'fulfilled' ? (desgloseResult.value || []) : [];
-  const ocupadosJerarquicoData = ocupadosResult.status === 'fulfilled' ? (ocupadosResult.value || []) : [];
-  const conteoPlazasSerieData = conteoPlazasSerieResult.status === 'fulfilled' ? (conteoPlazasSerieResult.value || []) : [];
+// Los 4 datasets de "Cuadros de Vacancia" ya NO viajan por secondaryDataPromise
+// desde el Server Component (page.jsx): aunque nadie los `await`-eaba ahí,
+// Next.js no cerraba el stream RSC del documento hasta que esa promesa
+// también resolvía, así que esas 4 llamadas (una de ~975KB) se disparaban y
+// retrasaban CADA carga de la página sin importar qué tab estuviera abierto.
+// Mismo fetch client-side cacheado (cargarFuente, TTL 5 min) que ya usan los
+// widgets de tablero equivalentes (CuadrosVacanciaElementoWidget) — se pide
+// solo cuando de verdad se abre este tab.
+function useCuadrosVacanciaDatasets() {
+  const [datos, setDatos] = useState(null);
+  useEffect(() => {
+    let activo = true;
+    Promise.all([
+      cargarFuente("cuadros"),
+      cargarFuente("desglose"),
+      cargarFuente("ocupados"),
+      cargarFuente("serie"),
+    ]).then(([cuadros, desglose, ocupados, serie]) => {
+      if (!activo) return;
+      setDatos({
+        cuadrosData: cuadros || [],
+        desgloseJerarquicoData: desglose || [],
+        ocupadosJerarquicoData: ocupados || [],
+        conteoPlazasSerieData: serie || [],
+      });
+    });
+    return () => { activo = false; };
+  }, []);
+  return datos;
+}
+
+function CuadrosVacanciaSection({ onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, sinRestriccionUN }) {
+  const datos = useCuadrosVacanciaDatasets();
+  if (!datos) return <CuadrosVacanciaSkeleton />;
   return (
     <CuadrosVacanciaTab
-      cuadrosData={cuadrosData}
-      desgloseJerarquicoData={desgloseJerarquicoData}
-      ocupadosJerarquicoData={ocupadosJerarquicoData}
-      conteoPlazasSerieData={conteoPlazasSerieData}
+      cuadrosData={datos.cuadrosData}
+      desgloseJerarquicoData={datos.desgloseJerarquicoData}
+      ocupadosJerarquicoData={datos.ocupadosJerarquicoData}
+      conteoPlazasSerieData={datos.conteoPlazasSerieData}
       onSwitchToTablaPrincipal={onSwitchToTablaPrincipal}
       activeSectionTab={activeSectionTab}
       setActiveSectionTab={setActiveSectionTab}
@@ -118,7 +148,6 @@ export default function PlantillaEmpleadosDetalle({
   resumen,
   estatusPorNivelUa = { por_nivel: {}, por_ua: {} },
   distribucionGeografica = [],
-  secondaryDataPromise
 }) {
   const { isLoading: authLoading, hasPermission, email, unScopeFingerprint, unScope } = useAuth();
   // Un rol con alcance por Unidad de Negocio no ve:
@@ -196,7 +225,10 @@ export default function PlantillaEmpleadosDetalle({
   // otro tab (`notifyLocalUpdate`, ver ZafiroUpdatesContext — cubre acciones
   // como "aplicar prioridad"/bulk-assign de nivel jerárquico, que cambian
   // EMPLEADOS_COMPLETOS_SIG fuera del ciclo del ETL).
-  const refetchDetalle = useCallback(async () => {
+  // `rethrow`: el refetch manual del Navbar (borrar cachés) necesita saber si
+  // falló para no anunciar "datos recargados" en falso; la carga inicial y el
+  // resto de llamadas siguen tragándose el error como siempre.
+  const refetchDetalle = useCallback(async ({ rethrow = false } = {}) => {
     if (!detalleCacheKey) return; // identidad aún no resuelta — el efecto de abajo reintenta
     try {
       const { response, fresh } = await trackEndpointFetch(detalleCacheKey, async () => {
@@ -206,9 +238,12 @@ export default function PlantillaEmpleadosDetalle({
       if (response.ok) {
         setDetalleData(fresh);
         await setDataset(detalleCacheKey, fresh);
+      } else if (rethrow) {
+        throw new Error(`plantilla_detalle: HTTP ${response.status}`);
       }
     } catch (err) {
       console.error("Error al refrescar plantilla_detalle:", err);
+      if (rethrow) throw err;
     } finally {
       setIsRefrescandoDetalleTrasNivel(false);
       setIsCargandoDetalleInicial(false);
@@ -240,7 +275,7 @@ export default function PlantillaEmpleadosDetalle({
   // → refetch completo, siempre por red (nunca sirve la copia de IndexedDB,
   // que en este punto ya sabemos desactualizada).
   const { subscribe } = useZafiroUpdates();
-  useEffect(() => subscribe(refetchDetalle), [subscribe, refetchDetalle]);
+  useEffect(() => subscribe(() => refetchDetalle({ rethrow: true })), [subscribe, refetchDetalle]);
 
   const updateDetalleCell = useCallback((posicion, columna, valorNuevo) => {
     setDetalleData((prev) => prev.map((row) =>
@@ -295,6 +330,11 @@ export default function PlantillaEmpleadosDetalle({
       setActiveTab(visibleTabs[0].id);
     }
   }, [authLoading, visibleTabs, activeTab]);
+  const [activeDetalleSubTab, setActiveDetalleSubTab] = useState("tabla");
+  const [continuidadesVisited, setContinuidadesVisited] = useState(false);
+  useEffect(() => {
+    if (activeDetalleSubTab === "continuidades") setContinuidadesVisited(true);
+  }, [activeDetalleSubTab]);
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   // Si el rol solo tiene Torre Caballito, el default "nacional" dejaría el
@@ -405,6 +445,7 @@ export default function PlantillaEmpleadosDetalle({
   // el clamp de scroll de abajo (offsetTop de un nodo oculto es 0 → maxScroll 0 →
   // el scroll saltaba siempre hasta arriba).
   const cardRefDetalle = useRef(null);
+  const cardRefContinuidades = useRef(null);
   const cardRefMovimientos = useRef(null);
   const cardRefCuadros = useRef(null);
   const cardRefAlineacion = useRef(null);
@@ -413,7 +454,7 @@ export default function PlantillaEmpleadosDetalle({
   const cardRefMovPersonal = useRef(null);
   const cardRefBajas = useRef(null);
   const activeCardRef =
-    activeTab === "detalle" ? cardRefDetalle :
+    activeTab === "detalle" ? (activeDetalleSubTab === "continuidades" ? cardRefContinuidades : cardRefDetalle) :
     activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : activeMovimientosSubTab === "aduanas" ? cardRefAduanas : activeMovimientosSubTab === "anuencia" ? cardRefAnuencia : cardRefMovimientos) :
     activeTab === "movimientos_personal" ? cardRefMovPersonal :
     activeTab === "bajas" ? cardRefBajas :
@@ -464,7 +505,7 @@ export default function PlantillaEmpleadosDetalle({
 
   useEffect(() => subscribe(() => {
     if (visitedTabsRef.current.has("movimientos")) return;
-    backgroundRefetchMovPos();
+    return backgroundRefetchMovPos();
   }), [subscribe, backgroundRefetchMovPos]);
 
   // Cambios en Anexo 2 también afectan mov_pos_detalle (columna "En
@@ -520,7 +561,7 @@ export default function PlantillaEmpleadosDetalle({
     },
     {
       scope: tabContentRef,
-      dependencies: [activeTab, activeMovimientosSubTab, activeMapaSubTab, activeCatalogoSubTab, activeMovPersonalSubTab],
+      dependencies: [activeTab, activeDetalleSubTab, activeMovimientosSubTab, activeMapaSubTab, activeCatalogoSubTab, activeMovPersonalSubTab],
       revertOnUpdate: true,
     }
   );
@@ -533,6 +574,14 @@ export default function PlantillaEmpleadosDetalle({
   }, [startTransition]);
 
   const subtabConfigs = useMemo(() => ({
+    detalle: {
+      options: [
+        { id: "tabla", label: "Tabla Principal" },
+        { id: "continuidades", label: "Continuidades", icon: TrendingUp },
+      ],
+      active: activeDetalleSubTab,
+      setActive: setActiveDetalleSubTab,
+    },
     estatus: {
       options: [{ id: "nivel", label: "Por Nivel" }, { id: "ua", label: "Por UA" }],
       active: activeEstatusSubTab,
@@ -587,6 +636,7 @@ export default function PlantillaEmpleadosDetalle({
       setActive: setActiveCatalogoSubTab,
     },
   }), [
+    activeDetalleSubTab,
     activeEstatusSubTab,
     activeMovimientosSubTab,
     activeMapaSubTab,
@@ -770,7 +820,7 @@ export default function PlantillaEmpleadosDetalle({
     return () => {
       window.removeEventListener("scroll", handleWindowScroll);
     };
-  }, [activeTab, activeMovimientosSubTab]);
+  }, [activeTab, activeDetalleSubTab, activeMovimientosSubTab]);
 
   return (
     <section className={`bg-transparent relative transition-all duration-300 overflow-hidden ${isTightLayout ? "pb-0" : "pb-20"}`}>
@@ -858,6 +908,10 @@ export default function PlantillaEmpleadosDetalle({
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Catálogos Estructura Organizacional
                         </span>
+                      ) : activeTab === "detalle" && activeDetalleSubTab === "continuidades" ? (
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
+                          Continuidades
+                        </span>
                       ) : activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" ? (
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Cuadros de Vacancia
@@ -887,7 +941,9 @@ export default function PlantillaEmpleadosDetalle({
                         ? "Administración y consulta de catálogos base que definen la estructura organizacional, puestos, acciones y tabuladores presupuestales de la ANAM."
                         : activeTab === "movimientos_personal"
                           ? "Gestión, consulta e histórico de los movimientos de personal, incluyendo altas, bajas y cambios de adscripción en la ANAM."
-                          : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion"
+                          : activeTab === "detalle" && activeDetalleSubTab === "continuidades"
+                            ? "Personal civil con fecha prevista de salida capturada: desglose por año, mes y día, y comparativo de plazas eventuales vs. permanentes por unidad administrativa."
+                            : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion"
                             ? "Comparación campo a campo entre MOV_POS y EMPLEADOS_COMPLETOS_SIG para las plazas activas: detecta discrepancias entre la estructura de la plaza y los datos de la persona que la ocupa."
                             : activeTab === "movimientos" && activeMovimientosSubTab === "aduanas"
                               ? "Ocupación y vacancia de cada aduana, desglosadas por Nivel Jerárquico y Nivel, ubicadas sobre el mapa nacional."
@@ -909,7 +965,7 @@ export default function PlantillaEmpleadosDetalle({
               se mantienen montados una vez visitados y se ocultan con CSS al salir,
               en vez de desmontarse, para no perder su estado ni re-fetchear. */}
           {visitedTabs.has("detalle") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE) && (
-            <div className={activeTab === "detalle" ? "block" : "hidden"}>
+            <div className={activeTab === "detalle" && activeDetalleSubTab === "tabla" ? "block" : "hidden"}>
               <PlantillaDetalleTab
                 detalle={detalleData}
                 onCellEdited={updateDetalleCell}
@@ -920,7 +976,18 @@ export default function PlantillaEmpleadosDetalle({
                 cardRef={cardRefDetalle}
                 remoteUpdatesCount={remoteUpdatesCount}
                 onClearRemoteUpdates={clearRemoteUpdatesCount}
-                isActiveTab={activeTab === "detalle"}
+                isActiveTab={activeTab === "detalle" && activeDetalleSubTab === "tabla"}
+              />
+            </div>
+          )}
+          {continuidadesVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE) && (
+            <div className={activeTab === "detalle" && activeDetalleSubTab === "continuidades" ? "block" : "hidden"}>
+              <ContinuidadesSubTab
+                detalle={detalleData}
+                isPending={isPending}
+                isLoading={isCargandoDetalleInicial}
+                startTransition={startTransition}
+                cardRef={cardRefContinuidades}
               />
             </div>
           )}
@@ -946,15 +1013,12 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
             <div ref={cardRefCuadros}>
-              <Suspense fallback={<CuadrosVacanciaSkeleton />}>
-                <CuadrosVacanciaSection
-                  secondaryDataPromise={secondaryDataPromise}
-                  onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
-                  activeSectionTab={activeSectionTab}
-                  setActiveSectionTab={setActiveSectionTab}
-                  sinRestriccionUN={sinRestriccionUN}
-                />
-              </Suspense>
+              <CuadrosVacanciaSection
+                onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
+                activeSectionTab={activeSectionTab}
+                setActiveSectionTab={setActiveSectionTab}
+                sinRestriccionUN={sinRestriccionUN}
+              />
             </div>
           )}
           {alineacionVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
