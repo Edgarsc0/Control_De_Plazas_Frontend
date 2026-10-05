@@ -39,7 +39,7 @@ import { useToast } from '@/hooks/useToast';
 import { RoleService } from '@/services/role.service';
 import { WhitelistService } from '@/services/whitelist.service';
 import { UaService } from '@/services/ua.service';
-import { PresenceService } from '@/services/presence.service';
+import { useUsuariosActivos } from '@/hooks/useUsuariosActivos';
 import { useTableroUsuario } from './_components/useTableroUsuario';
 import UserActivityDialog from './_components/UserActivityDialog';
 import { PERMISSIONS } from '@/config/permissions';
@@ -56,8 +56,6 @@ import StaggerIn from './_components/StaggerIn';
 import { prefersReducedMotion } from './_components/motion';
 
 gsap.registerPlugin(useGSAP);
-
-const PRESENCE_POLL_MS = 15000;
 
 // Mismo catálogo que TABLERO_CHOICES en el backend (authentication/models.py)
 // — sin endpoint propio porque es un puñado fijo de opciones, no un catálogo
@@ -178,7 +176,6 @@ function RolesAdminContent() {
 
     const [activeTab, setActiveTab] = useState('roles');
     const [userRoleFilter, setUserRoleFilter] = useState('');
-    const [activeSessionsByEmail, setActiveSessionsByEmail] = useState({});
     const [activityEntry, setActivityEntry] = useState(null);
     const panelRef = useRef(null);
     const tableroUsuario = useTableroUsuario();
@@ -228,33 +225,18 @@ function RolesAdminContent() {
         loadAll();
     }, [loadAll]);
 
-    // Presencia: quién está activo ahora y en qué página, refrescado por
-    // polling (ver PresenceHeartbeat, que es quien alimenta este endpoint).
-    useEffect(() => {
-        let active = true;
-
-        const pollActiveSessions = async () => {
-            try {
-                const response = await PresenceService.listActive();
-                if (!response.ok || !active) return;
-                const data = await response.json();
-                const byEmail = {};
-                data.forEach((entry) => {
-                    byEmail[entry.email] = entry;
-                });
-                if (active) setActiveSessionsByEmail(byEmail);
-            } catch (error) {
-                console.error('Error cargando usuarios activos:', error);
-            }
-        };
-
-        pollActiveSessions();
-        const interval = setInterval(pollActiveSessions, PRESENCE_POLL_MS);
-        return () => {
-            active = false;
-            clearInterval(interval);
-        };
-    }, []);
+    // Presencia: quién está activo ahora y en qué página (ver PresenceHeartbeat,
+    // que es quien alimenta este endpoint). useUsuariosActivos es un poll
+    // compartido a nivel módulo — si UsuariosActivosWidget.jsx (tablero)
+    // también está montado, no duplica el request.
+    const activosRaw = useUsuariosActivos();
+    const activeSessionsByEmail = useMemo(() => {
+        const byEmail = {};
+        (activosRaw || []).forEach((entry) => {
+            byEmail[entry.email] = entry;
+        });
+        return byEmail;
+    }, [activosRaw]);
 
     const openNewRole = () => {
         setEditingRole('new');

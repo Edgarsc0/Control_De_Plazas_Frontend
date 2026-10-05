@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Loader2, UsersRound } from "lucide-react";
-import { PresenceService } from "@/services/presence.service";
-
-const POLL_MS = 15000; // mismo intervalo que dashboard/roles/page.jsx (PRESENCE_POLL_MS)
+import { useUsuariosActivos } from "@/hooks/useUsuariosActivos";
 
 function timeAgoLabel(ts) {
   if (!ts) return "";
@@ -17,23 +14,7 @@ const pageLabel = (s) => `${s.title}${s.subtab ? ` › ${s.subtab}` : ""}`;
 
 /** Quién está conectado ahora mismo y en qué página, usando el mismo endpoint de presencia que Roles > Usuarios. */
 export default function UsuariosActivosWidget() {
-  const [activos, setActivos] = useState(null);
-
-  useEffect(() => {
-    let activo = true;
-    const poll = async () => {
-      try {
-        const res = await PresenceService.listActive();
-        if (!res.ok || !activo) return;
-        setActivos(await res.json());
-      } catch (err) {
-        console.error("Error cargando usuarios activos:", err);
-      }
-    };
-    poll();
-    const interval = setInterval(poll, POLL_MS);
-    return () => { activo = false; clearInterval(interval); };
-  }, []);
+  const activos = useUsuariosActivos();
 
   if (!activos) {
     return (
