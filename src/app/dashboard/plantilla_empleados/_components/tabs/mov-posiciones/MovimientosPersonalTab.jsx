@@ -473,36 +473,37 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   }, [activeStatsList, pieTotal]);
 
   // Conteo real de "motivos diferentes" por acción (reemplaza mapa hardcodeado).
-  // Se calcula bajo demanda por acción visible, cacheado por contexto de filtro (bitácora/fecha).
+  // Un solo request agrupado por acción (GROUP BY en el backend), cacheado
+  // por contexto de filtro (bitácora/fecha) — antes era un request POR cada
+  // accion_nombre visible en el pie (hasta 16 en paralelo, ~6s en total por
+  // el límite de 6 conexiones concurrentes del navegador).
   const motivosCountRef = useRef({});
+  const motivosCountFetchedContextsRef = useRef(new Set());
   const [motivosCountVersion, setMotivosCountVersion] = useState(0);
 
   useEffect(() => {
     const contextKey = activeSubTab === "bitacora" ? `bitacora:${bitacoraDates.join(",")}` : "global";
-    const namesToFetch = activeStatsList
-      .map((d) => d.accion_nombre)
-      .filter((name) => name && !(`${contextKey}|${name}` in motivosCountRef.current));
-
-    if (namesToFetch.length === 0) return;
+    if (motivosCountFetchedContextsRef.current.has(contextKey)) return;
 
     const controller = new AbortController();
-    Promise.all(
-      namesToFetch.map((accion) => {
-        const params = { accion_nombre: accion };
-        if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
-          params.fecha_captura__in = bitacoraDates.join(",");
-        }
-        return VacantesService.getMovimientosPersonalStats(params, { signal: controller.signal })
-          .then((res) => res.json())
-          .then((resData) => {
-            motivosCountRef.current[`${contextKey}|${accion}`] = (resData?.all || []).length;
-          })
-          .catch((err) => { if (err.name !== "AbortError") console.error("Error fetching motivos count:", err); });
+    const params = { motivos_count_por_accion: 1 };
+    if (activeSubTab === "bitacora" && bitacoraDates.length > 0) {
+      params.fecha_captura__in = bitacoraDates.join(",");
+    }
+    VacantesService.getMovimientosPersonalStats(params, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((resData) => {
+        const counts = resData?.motivos_count || {};
+        Object.entries(counts).forEach(([accion, count]) => {
+          motivosCountRef.current[`${contextKey}|${accion}`] = count;
+        });
+        motivosCountFetchedContextsRef.current.add(contextKey);
+        setMotivosCountVersion((v) => v + 1);
       })
-    ).then(() => setMotivosCountVersion((v) => v + 1));
+      .catch((err) => { if (err.name !== "AbortError") console.error("Error fetching motivos count:", err); });
 
     return () => controller.abort();
-  }, [activeStatsList, activeSubTab, bitacoraDates]);
+  }, [activeSubTab, bitacoraDates]);
 
   const getMotivosCount = useCallback((accion) => {
     const contextKey = activeSubTab === "bitacora" ? `bitacora:${bitacoraDates.join(",")}` : "global";
