@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
-import { Search, ChevronRight, TrendingUp, Network, GitCompareArrows, Briefcase, GitBranch, Building2, MapPin, Sparkles, Clock, User, Ban, Layers, Plus, Minus, Scan, Loader2 } from "lucide-react";
+import { Search, ChevronRight, TrendingUp, Network, GitCompareArrows, Briefcase, GitBranch, Building2, MapPin, Sparkles, Clock, User, Ban, Layers, Plus, Minus, Scan, Loader2, Flame } from "lucide-react";
 import WidgetFrame from "./WidgetFrame";
 import { tamanoEnPx } from "./gridGeometry";
 import { useElementSize } from "./widgets/useElementSize";
@@ -987,7 +987,10 @@ const TitularesActuales = () => (
    ejes, colores y columnas de las reales. */
 const CV_ANCHO_VIRTUAL = 230;
 /** Ancho (px) del lienzo virtual de otros widgets con tablas/listas densas. */
-const ANCHO_VIRTUAL = { titulares_aduanas_resumen: 330, titulares_aduanas_actuales: 300, movimientos_hoy_detalle: 250, torre_caballito: 300 };
+const ANCHO_VIRTUAL = {
+  titulares_aduanas_resumen: 330, titulares_aduanas_actuales: 300, movimientos_hoy_detalle: 250, torre_caballito: 300,
+  zafiro_bitacora: 260, roles_resumen: 220, usuarios_activos: 240, usuario_mapa_calor: 240,
+};
 
 const CvCuerpo = ({ titulo, sub, children }) => (
   <div className="w-full h-full min-h-0 flex flex-col p-2">
@@ -1253,6 +1256,110 @@ const TorreCaballitoPrev = () => (
   </div>
 );
 
+/* ZAFIRO: corrida en curso */
+const ZafiroCorridaPrev = () => (
+  <div className="w-full h-full flex flex-col justify-between p-3.5 bg-gradient-to-br from-sky-600 to-sky-800 text-white">
+    <div className="flex items-center gap-2">
+      <span className="size-2.5 rounded-full bg-white shrink-0" />
+      <span className="text-[10px] font-black uppercase tracking-[0.2em] font-mono">Sincronización en curso</span>
+    </div>
+    <div className="flex items-end justify-between">
+      <span className="text-3xl font-black font-mono tabular-nums">04m 12s</span>
+      <Clock className="size-6 opacity-70" />
+    </div>
+    <p className="text-[10px] font-mono text-white/70">Inició 14:30:00</p>
+  </div>
+);
+
+/* ZAFIRO: bitácora de ejecuciones */
+const ZAFIRO_FILAS = [
+  ["05 oct · 14:30", "OK", "38s"],
+  ["05 oct · 14:00", "OK", "41s"],
+  ["05 oct · 13:30", "ERR", "—"],
+  ["05 oct · 13:00", "OK", "36s"],
+  ["05 oct · 12:30", "OK", "39s"],
+  ["05 oct · 12:00", "OK", "40s"],
+];
+const ZafiroBitacoraPrev = () => (
+  <Tabla cols={["Fecha", "Status", "Dur."]} filas={ZAFIRO_FILAS} rojo={2} />
+);
+
+/* ZAFIRO: duración promedio por hora */
+const ZafiroDuracionHoraPrev = () => (
+  <div className="w-full h-full p-2">
+    <Lineas series={[[G, [0.3, 0.52, 0.42, 0.95, 0.6, 0.38, 0.5]]]} etiquetas={["06h", "09h", "12h", "15h", "18h", "21h", "00h"]} />
+  </div>
+);
+
+/* ROLES: resumen */
+const ROLES_PREV = [["Administrador", G, 0.95], ["Captura UA", D, 0.65], ["Consulta", "#3b82f6", 0.4], ["Solo lectura", "#8b5cf6", 0.22]];
+const RolesResumenPrev = () => (
+  <div className="w-full h-full flex flex-col p-3 gap-2.5">
+    <div className="shrink-0 flex gap-2">
+      <Kpi label="Roles" valor="4" i={0} />
+      <Kpi label="Usuarios" valor="38" i={1} />
+    </div>
+    <ul className="flex-1 min-h-0 flex flex-col justify-center gap-2">
+      {ROLES_PREV.map(([n, c, v], i) => (
+        <li key={n} className="wp-fila" style={dl(i, 0.1)}>
+          <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate mb-0.5">{n}</p>
+          <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div className="h-full rounded-full" style={{ width: `${v * 100}%`, background: c }} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+/* USUARIOS: activos ahora */
+const USUARIOS_ACTIVOS_PREV = [
+  ["ana.lopez@anam.gob.mx", "Plantilla de Empleados"],
+  ["jorge.ramos@anam.gob.mx", "Monitoreo ZAFIRO"],
+  ["m.cruz@anam.gob.mx", "Roles y Permisos"],
+];
+const UsuariosActivosPrev = () => (
+  <div className="w-full h-full flex flex-col p-3 gap-2.5">
+    <div className="shrink-0"><Kpi label="Activos ahora" valor={USUARIOS_ACTIVOS_PREV.length} i={0} /></div>
+    <ul className="flex-1 min-h-0 flex flex-col justify-center gap-2">
+      {USUARIOS_ACTIVOS_PREV.map(([email, pagina], i) => (
+        <li key={email} className="wp-fila flex items-start gap-2" style={dl(i, 0.1)}>
+          <span className="size-1.5 rounded-full bg-emerald-500 shrink-0 mt-1" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate">{email}</p>
+            <p className="text-[9px] text-slate-400 truncate">{pagina}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+/* USUARIO: mapa de calor */
+const CALOR_SEMANAS = [
+  [0, 1, 3, 2, 0, 0, 1],
+  [2, 3, 4, 3, 1, 0, 0],
+  [1, 2, 3, 4, 3, 1, 0],
+  [0, 1, 2, 3, 2, 0, 0],
+];
+const colorCalorUsuario = (n) => (n === 0 ? "bg-slate-100 dark:bg-slate-800" : n === 1 ? "bg-[#621f32]/25" : n === 2 ? "bg-[#621f32]/45" : n === 3 ? "bg-[#621f32]/70" : "bg-[#621f32]");
+const UsuarioMapaCalorPrev = () => (
+  <div className="w-full h-full flex flex-col p-3 gap-2">
+    <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold text-slate-500 truncate">
+      <Flame className="size-3 text-[#bc955c] shrink-0" /> ana.lopez@anam.gob.mx
+    </div>
+    <div className="flex-1 grid grid-rows-4 gap-1">
+      {CALOR_SEMANAS.map((semana, i) => (
+        <div key={i} className="grid grid-cols-7 gap-1">
+          {semana.map((n, j) => (
+            <div key={j} className={`wp-fila rounded ${colorCalorUsuario(n)}`} style={dl(i * 7 + j, 0.025)} />
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 /**
  * Vista previa de un widget de "acceso rápido" (una página del sistema, ver
  * widgetRegistry.js). A diferencia del resto del catálogo no es una maqueta
@@ -1294,6 +1401,12 @@ const MAQUETAS = {
   titulares_aduanas_actuales: TitularesActuales,
   buscar_movimiento: BuscarMovimiento,
   torre_caballito: TorreCaballitoPrev,
+  zafiro_corrida_actual: ZafiroCorridaPrev,
+  zafiro_bitacora: ZafiroBitacoraPrev,
+  zafiro_duracion_hora: ZafiroDuracionHoraPrev,
+  roles_resumen: RolesResumenPrev,
+  usuarios_activos: UsuariosActivosPrev,
+  usuario_mapa_calor: UsuarioMapaCalorPrev,
 };
 
 function maquetaDe(type) {

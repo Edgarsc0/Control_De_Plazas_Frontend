@@ -71,6 +71,30 @@ const META = {
     preview: "buscador",
     descripcion: "Encuentra un movimiento de personal específico por persona, plaza o folio.",
   },
+  zafiro_corrida_actual: {
+    preview: "estado",
+    descripcion: "¿Hay una sincronización de ZAFIRO ejecutándose en este momento? Estado en vivo con duración transcurrida.",
+  },
+  zafiro_bitacora: {
+    preview: "tabla",
+    descripcion: "Historial de las últimas sincronizaciones de ZAFIRO: fecha, resultado y duración.",
+  },
+  zafiro_duracion_hora: {
+    preview: "linea",
+    descripcion: "Duración promedio de la sincronización de ZAFIRO por hora del día, solo casos exitosos.",
+  },
+  roles_resumen: {
+    preview: "barras",
+    descripcion: "Cuántos roles existen y cuántos usuarios tiene asignado cada uno.",
+  },
+  usuarios_activos: {
+    preview: "lista",
+    descripcion: "Quién está conectado al sistema en este momento y en qué página se encuentra.",
+  },
+  usuario_mapa_calor: {
+    preview: "calendario",
+    descripcion: "Mapa de calor mensual de actividad de un usuario de la whitelist, a elegir desde el propio widget.",
+  },
 };
 
 const PREVIEW_CV = { tab: "linea", desglose: "barras", detalle: "tabla" };

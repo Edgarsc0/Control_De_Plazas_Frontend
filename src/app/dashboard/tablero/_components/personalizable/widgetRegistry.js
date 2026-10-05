@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import { PERMISSIONS as P } from "@/config/permissions";
-import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2, Rocket, Globe } from "lucide-react";
+import { Search, ArrowRightLeft, BarChart3, Users, ListTree, ClipboardList, LineChart, Table2, GitBranch, PieChart, GitCompareArrows, ChartColumnStacked, ArrowUpDown, ListChecks, UserX, Briefcase, Network, Building2, Rocket, Globe, Radio, History, Timer, ShieldCheck, UsersRound, Flame } from "lucide-react";
 import { ELEMENTOS_CUADROS_VACANCIA, prefijoTipoCuadrosVacancia } from "./widgets/cuadrosVacanciaElementos";
 import { MODULES } from "@/config/modules";
 import { crearAccesoRapidoWidget } from "./widgets/AccesoRapidoWidget";
@@ -331,6 +331,91 @@ export const WIDGET_REGISTRY = {
     component: lazyWidget(() => import("./widgets/MapaNacionalWidget")),
     defaultW: 6,
     defaultH: 7,
+    minW: 3,
+    minH: 4,
+  },
+  zafiro_corrida_actual: {
+    type: "zafiro_corrida_actual",
+    permisos: [P.VIEW_MONITOREO_ZAFIRO],
+    // La bitácora de ZAFIRO no se recorta por UN: es una sola sincronización
+    // global de todo el sistema, no hay nada que filtrar por unidad.
+    alcanceUnSoportado: false,
+    enCatalogo: true,
+    label: "ZAFIRO — Corrida en curso",
+    icon: Radio,
+    component: lazyWidget(() => import("./widgets/ZafiroCorridaActualWidget")),
+    defaultW: 4,
+    defaultH: 3,
+    minW: 2,
+    minH: 2,
+  },
+  zafiro_bitacora: {
+    type: "zafiro_bitacora",
+    permisos: [P.VIEW_MONITOREO_ZAFIRO],
+    alcanceUnSoportado: false,
+    enCatalogo: true,
+    label: "ZAFIRO — Bitácora de ejecuciones",
+    icon: History,
+    component: lazyWidget(() => import("./widgets/ZafiroBitacoraWidget")),
+    defaultW: 6,
+    defaultH: 5,
+    minW: 3,
+    minH: 3,
+  },
+  zafiro_duracion_hora: {
+    type: "zafiro_duracion_hora",
+    permisos: [P.VIEW_MONITOREO_ZAFIRO],
+    alcanceUnSoportado: false,
+    enCatalogo: true,
+    label: "ZAFIRO — Duración promedio por hora",
+    icon: Timer,
+    component: lazyWidget(() => import("./widgets/ZafiroDuracionHoraWidget")),
+    defaultW: 6,
+    defaultH: 4,
+    minW: 3,
+    minH: 3,
+  },
+  roles_resumen: {
+    type: "roles_resumen",
+    permisos: [P.MANAGE_ROLES],
+    // /auth/roles/ y /auth/whitelist/ devuelven el catálogo COMPLETO sin
+    // recortar por UN (solo lo usan roles con MANAGE_ROLES, que en la
+    // práctica no tienen alcance restringido) — no ofrecerlo si lo tuvieran.
+    alcanceUnSoportado: false,
+    enCatalogo: true,
+    label: "Roles — Resumen",
+    icon: ShieldCheck,
+    component: lazyWidget(() => import("./widgets/RolesResumenWidget")),
+    defaultW: 4,
+    defaultH: 4,
+    minW: 2,
+    minH: 3,
+  },
+  usuarios_activos: {
+    type: "usuarios_activos",
+    permisos: [P.MANAGE_ROLES],
+    // /auth/presence/active/ devuelve la presencia de TODOS los usuarios, sin recorte por UN.
+    alcanceUnSoportado: false,
+    enCatalogo: true,
+    label: "Usuarios activos ahora",
+    icon: UsersRound,
+    component: lazyWidget(() => import("./widgets/UsuariosActivosWidget")),
+    defaultW: 4,
+    defaultH: 4,
+    minW: 2,
+    minH: 3,
+  },
+  usuario_mapa_calor: {
+    type: "usuario_mapa_calor",
+    permisos: [P.MANAGE_ROLES],
+    // /auth/visits/heatmap/ expone la actividad de CUALQUIER usuario de la whitelist, sin recorte por UN.
+    alcanceUnSoportado: false,
+    enCatalogo: true,
+    label: "Mapa de calor de un usuario",
+    icon: Flame,
+    component: lazyWidget(() => import("./widgets/UsuarioMapaCalorWidget")),
+    defaultW: 5,
+    defaultH: 5,
     minW: 3,
     minH: 4,
   },
