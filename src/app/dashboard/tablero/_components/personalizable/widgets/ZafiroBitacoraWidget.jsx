@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/fetch-interceptor";
 import { CheckCircle2, Loader2, RefreshCw, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { useZafiroEnCursoRealtime } from "@/hooks/useZafiroEnCursoRealtime";
 
 const LIMITE = 30;
-const POLL_MS = 20000;
 
 function Badge({ status }) {
   if (status === "EXITO") return (
@@ -32,6 +32,8 @@ export default function ZafiroBitacoraWidget() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const liveLog = useZafiroEnCursoRealtime();
+  const prevStatusRef = useRef(null);
 
   const fetchLogs = async (showLoading) => {
     if (showLoading) setLoading(true);
@@ -47,11 +49,19 @@ export default function ZafiroBitacoraWidget() {
     }
   };
 
+  useEffect(() => { fetchLogs(true); }, []);
+
+  // Sin polling: refresca la lista solo cuando el SSE de corrida en curso
+  // avisa un cambio real (arrancó una corrida nueva, o una terminó) — no en
+  // cada mensaje de progreso intermedio.
   useEffect(() => {
-    fetchLogs(true);
-    const interval = setInterval(() => fetchLogs(false), POLL_MS);
-    return () => clearInterval(interval);
-  }, []);
+    const currentStatus = liveLog?.status ?? null;
+    const prevStatus = prevStatusRef.current;
+    if (currentStatus !== prevStatus && (currentStatus === "RUNNING" || prevStatus === "RUNNING")) {
+      fetchLogs(false);
+    }
+    prevStatusRef.current = currentStatus;
+  }, [liveLog]);
 
   const visibles = logs.slice(0, LIMITE);
 

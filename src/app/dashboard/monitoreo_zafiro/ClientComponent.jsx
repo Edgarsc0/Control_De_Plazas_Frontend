@@ -16,6 +16,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Link from 'next/link';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useZafiroEnCursoRealtime } from '@/hooks/useZafiroEnCursoRealtime';
 import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -250,31 +251,17 @@ export default function ClientComponent() {
     prevStatusRef.current = currentStatus;
   }, [logs]);
 
-  const pollRunningLog = async () => {
-    try {
-      const response = await apiFetch('/plantilla/bitacora/en-curso/');
-      if (!response.ok) return;
-      const data = await response.json();
-      if (data) {
-        setLogs(prev => (prev.length && prev[0].id === data.id)
-          ? [{ ...prev[0], ...data }, ...prev.slice(1)]
-          : prev);
-      } else {
-        // la corrida RUNNING ya terminó: traer la bitácora completa una sola vez
-        fetchLogs(false);
-      }
-    } catch (error) {
-      console.error('Error polling running log:', error);
-    }
-  };
-
+  // Progreso de la corrida en curso por SSE (useZafiroEnCursoRealtime), sin
+  // polling: cada mensaje push reemplaza la fila RUNNING en `logs` (o la
+  // antepone, si el cron automático arrancó una corrida que esta pestaña
+  // todavía no tenía en su lista local).
+  const liveLog = useZafiroEnCursoRealtime();
   useEffect(() => {
-    let interval;
-    if (logs.length > 0 && logs[0].status === 'RUNNING') {
-      interval = setInterval(pollRunningLog, 2000);
-    }
-    return () => { if (interval) clearInterval(interval); };
-  }, [logs]);
+    if (!liveLog) return;
+    setLogs(prev => (prev.length && prev[0].id === liveLog.id)
+      ? [{ ...prev[0], ...liveLog }, ...prev.slice(1)]
+      : [liveLog, ...prev]);
+  }, [liveLog]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

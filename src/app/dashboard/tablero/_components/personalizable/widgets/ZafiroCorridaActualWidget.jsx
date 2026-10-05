@@ -6,9 +6,7 @@ import { CheckCircle2, Loader2, Radio, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { useElementSize } from "./useElementSize";
-
-const POLL_RUNNING_MS = 2500;
-const POLL_IDLE_MS = 20000;
+import { useZafiroEnCursoRealtime } from "@/hooks/useZafiroEnCursoRealtime";
 
 function formatDuracion(segundos) {
   if (segundos === null || segundos === undefined) return "—";
@@ -38,15 +36,16 @@ function parsearUltimasLineas(logsEnVivo, n = MAX_LINEAS_MOSTRADAS) {
 
 /**
  * "¿Hay una corrida de ZAFIRO en este momento?" — espejo reducido del bloque
- * "Live Terminal" de monitoreo_zafiro/ClientComponent.jsx: mismo endpoint
- * `en-curso/` y la misma lógica (solo se hace polling rápido mientras de
- * verdad hay una ejecución RUNNING).
+ * "Live Terminal" de monitoreo_zafiro/ClientComponent.jsx: mismo hook de
+ * tiempo real (useZafiroEnCursoRealtime, SSE) y la misma lógica de
+ * actualización, sin polling.
  */
 export default function ZafiroCorridaActualWidget() {
   const [ref, { height }] = useElementSize();
   const [log, setLog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
+  const liveLog = useZafiroEnCursoRealtime();
 
   const fetchUltimo = async () => {
     try {
@@ -62,27 +61,15 @@ export default function ZafiroCorridaActualWidget() {
     }
   };
 
-  const pollEnCurso = async () => {
-    try {
-      const res = await apiFetch("/plantilla/bitacora/en-curso/");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data) setLog((prev) => (prev?.id === data.id ? { ...prev, ...data } : data));
-      else fetchUltimo(); // la corrida terminó: traer el registro final completo
-    } catch (err) {
-      console.error("Error consultando corrida en curso de ZAFIRO:", err);
-    }
-  };
-
+  // Única llamada de red por montaje: trae la "última corrida" para mostrar
+  // algo mientras no haya nada RUNNING. Las actualizaciones en vivo (inicio,
+  // progreso, fin de una corrida) llegan por el SSE de abajo, no por poll.
   useEffect(() => { fetchUltimo(); }, []);
 
-  // Mientras hay una corrida RUNNING, se vigila de cerca (2.5s); en reposo
-  // basta revisar cada rato por si alguien arrancó una sincronización manual.
   useEffect(() => {
-    const enCurso = log?.status === "RUNNING";
-    const interval = setInterval(enCurso ? pollEnCurso : fetchUltimo, enCurso ? POLL_RUNNING_MS : POLL_IDLE_MS);
-    return () => clearInterval(interval);
-  }, [log?.status]);
+    if (!liveLog) return;
+    setLog((prev) => (prev?.id === liveLog.id ? { ...prev, ...liveLog } : liveLog));
+  }, [liveLog]);
 
   // Cronómetro local (1s) del tiempo transcurrido, para no depender del polling para la sensación "en vivo".
   useEffect(() => {
