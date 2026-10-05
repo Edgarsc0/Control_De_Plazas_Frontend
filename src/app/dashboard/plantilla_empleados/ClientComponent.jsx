@@ -31,7 +31,6 @@ import { PERMISSIONS } from "@/config/permissions";
 import PageTabBar from "@/components/ui/PageTabBar";
 import TourGroup from "@/components/shared/tour/TourGroup";
 import PlantillaDetalleTab from "./_components/tabs/plantilla-detalle/PlantillaDetalleTab";
-import ContinuidadesSubTab from "./_components/tabs/plantilla-detalle/ContinuidadesSubTab";
 import EstatusTab from "./_components/tabs/estatus/EstatusTab";
 import MovimientosTab from "./_components/tabs/movimientos/MovimientosTab";
 import AlineacionOrganizacionalTab from "./_components/tabs/movimientos/AlineacionOrganizacionalTab";
@@ -331,10 +330,6 @@ export default function PlantillaEmpleadosDetalle({
     }
   }, [authLoading, visibleTabs, activeTab]);
   const [activeDetalleSubTab, setActiveDetalleSubTab] = useState("tabla");
-  const [continuidadesVisited, setContinuidadesVisited] = useState(false);
-  useEffect(() => {
-    if (activeDetalleSubTab === "continuidades") setContinuidadesVisited(true);
-  }, [activeDetalleSubTab]);
   const [activeEstatusSubTab, setActiveEstatusSubTab] = useState("nivel");
   const [activeMapaSubTab, setActiveMapaSubTab] = useState("nacional");
   // Si el rol solo tiene Torre Caballito, el default "nacional" dejaría el
@@ -445,7 +440,6 @@ export default function PlantillaEmpleadosDetalle({
   // el clamp de scroll de abajo (offsetTop de un nodo oculto es 0 → maxScroll 0 →
   // el scroll saltaba siempre hasta arriba).
   const cardRefDetalle = useRef(null);
-  const cardRefContinuidades = useRef(null);
   const cardRefMovimientos = useRef(null);
   const cardRefCuadros = useRef(null);
   const cardRefAlineacion = useRef(null);
@@ -454,7 +448,7 @@ export default function PlantillaEmpleadosDetalle({
   const cardRefMovPersonal = useRef(null);
   const cardRefBajas = useRef(null);
   const activeCardRef =
-    activeTab === "detalle" ? (activeDetalleSubTab === "continuidades" ? cardRefContinuidades : cardRefDetalle) :
+    activeTab === "detalle" ? cardRefDetalle :
     activeTab === "movimientos" ? (activeMovimientosSubTab === "cuadros" ? cardRefCuadros : activeMovimientosSubTab === "alineacion" ? cardRefAlineacion : activeMovimientosSubTab === "aduanas" ? cardRefAduanas : activeMovimientosSubTab === "anuencia" ? cardRefAnuencia : cardRefMovimientos) :
     activeTab === "movimientos_personal" ? cardRefMovPersonal :
     activeTab === "bajas" ? cardRefBajas :
@@ -577,7 +571,6 @@ export default function PlantillaEmpleadosDetalle({
     detalle: {
       options: [
         { id: "tabla", label: "Tabla Principal" },
-        { id: "continuidades", label: "Continuidades", icon: TrendingUp },
       ],
       active: activeDetalleSubTab,
       setActive: setActiveDetalleSubTab,
@@ -908,10 +901,6 @@ export default function PlantillaEmpleadosDetalle({
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Catálogos Estructura Organizacional
                         </span>
-                      ) : activeTab === "detalle" && activeDetalleSubTab === "continuidades" ? (
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
-                          Continuidades
-                        </span>
                       ) : activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" ? (
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#621f32] via-[#852a44] to-[#bc955c] dark:from-[#e44a75] dark:via-[#bc955c] dark:to-[#ffda8a]">
                           Cuadros de Vacancia
@@ -941,9 +930,7 @@ export default function PlantillaEmpleadosDetalle({
                         ? "Administración y consulta de catálogos base que definen la estructura organizacional, puestos, acciones y tabuladores presupuestales de la ANAM."
                         : activeTab === "movimientos_personal"
                           ? "Gestión, consulta e histórico de los movimientos de personal, incluyendo altas, bajas y cambios de adscripción en la ANAM."
-                          : activeTab === "detalle" && activeDetalleSubTab === "continuidades"
-                            ? "Personal civil con fecha prevista de salida capturada: desglose por año, mes y día, y comparativo de plazas eventuales vs. permanentes por unidad administrativa."
-                            : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion"
+                          : activeTab === "movimientos" && activeMovimientosSubTab === "alineacion"
                             ? "Comparación campo a campo entre MOV_POS y EMPLEADOS_COMPLETOS_SIG para las plazas activas: detecta discrepancias entre la estructura de la plaza y los datos de la persona que la ocupa."
                             : activeTab === "movimientos" && activeMovimientosSubTab === "aduanas"
                               ? "Ocupación y vacancia de cada aduana, desglosadas por Nivel Jerárquico y Nivel, ubicadas sobre el mapa nacional."
@@ -977,17 +964,6 @@ export default function PlantillaEmpleadosDetalle({
                 remoteUpdatesCount={remoteUpdatesCount}
                 onClearRemoteUpdates={clearRemoteUpdatesCount}
                 isActiveTab={activeTab === "detalle" && activeDetalleSubTab === "tabla"}
-              />
-            </div>
-          )}
-          {continuidadesVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE) && (
-            <div className={activeTab === "detalle" && activeDetalleSubTab === "continuidades" ? "block" : "hidden"}>
-              <ContinuidadesSubTab
-                detalle={detalleData}
-                isPending={isPending}
-                isLoading={isCargandoDetalleInicial}
-                startTransition={startTransition}
-                cardRef={cardRefContinuidades}
               />
             </div>
           )}
