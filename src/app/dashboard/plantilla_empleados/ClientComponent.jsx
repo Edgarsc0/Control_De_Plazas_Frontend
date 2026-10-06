@@ -167,6 +167,18 @@ export default function PlantillaEmpleadosDetalle({
   // backend los exige igual (ver `extra_permission` en las vistas del mapa y
   // de Torre Caballito). Si un rol no tiene ninguno, el tab entero se oculta
   // más abajo en vez de quedar vacío.
+  // Mov. Posiciones funciona igual: el permiso del tab lo abre y cada
+  // sub-pestaña tiene el suyo (el backend los exige con `extra_permission`).
+  // Anuencia además sigue reservada a roles sin alcance por UN (ver arriba).
+  const tieneTabMovPos = hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES);
+  const puedeMovPos = useMemo(() => ({
+    tabla: tieneTabMovPos && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_TABLA),
+    cuadros: tieneTabMovPos && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS),
+    alineacion: tieneTabMovPos && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ALINEACION),
+    aduanas: tieneTabMovPos && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ADUANAS),
+    anuencia: tieneTabMovPos && sinRestriccionUN && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ANUENCIA),
+  }), [tieneTabMovPos, hasPermission, sinRestriccionUN]);
+  const algunaSubtabMovPos = Object.values(puedeMovPos).some(Boolean);
   const puedeVerMapaNacional =
     hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA) &&
     hasPermission(PERMISSIONS.VIEW_PLANTILLA_GEOGRAFIA_MAPA);
@@ -319,9 +331,11 @@ export default function PlantillaEmpleadosDetalle({
       // muestra son sus dos sub-vistas. Sin ninguna de las dos, el tab
       // abriría en blanco, así que se oculta entero.
       if (t.id === "mapa") return puedeVerMapaNacional || puedeVerTorreCaballito;
+      // Igual con Mov. Posiciones: sin ninguna de sus sub-pestañas no hay qué mostrar.
+      if (t.id === "movimientos") return algunaSubtabMovPos;
       return true;
     }),
-    [authLoading, hasPermission, puedeVerMapaNacional, puedeVerTorreCaballito]
+    [authLoading, hasPermission, puedeVerMapaNacional, puedeVerTorreCaballito, algunaSubtabMovPos]
   );
   const [activeTab, setActiveTab] = useState("detalle");
   useEffect(() => {
@@ -343,6 +357,13 @@ export default function PlantillaEmpleadosDetalle({
     }
   }, [authLoading, activeMapaSubTab, puedeVerMapaNacional, puedeVerTorreCaballito]);
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
+  // Si el rol no tiene la sub-pestaña activa (p. ej. solo Cuadros Vacancia y
+  // el default es "tabla"), se pasa a la primera que sí tenga.
+  useEffect(() => {
+    if (authLoading || puedeMovPos[activeMovimientosSubTab]) return;
+    const primera = Object.keys(puedeMovPos).find((id) => puedeMovPos[id]);
+    if (primera) setActiveMovimientosSubTab(primera);
+  }, [authLoading, puedeMovPos, activeMovimientosSubTab]);
   const isCuadrosVacanciaSubtab = activeTab === "movimientos" && activeMovimientosSubTab === "cuadros";
   // Sub-navegación interna del subtab "Cuadros de Vacancia" (Tendencia
   // Histórica / Comparativo por Barras / Cuadros y Detalle de Vacantes) —
@@ -497,8 +518,12 @@ export default function PlantillaEmpleadosDetalle({
     }
   }, []);
 
+  // Solo quien puede ver la Tabla Principal mantiene ese caché: para el
+  // resto el endpoint responde 403.
+  const puedeTablaMovPosRef = useRef(puedeMovPos.tabla);
+  puedeTablaMovPosRef.current = puedeMovPos.tabla;
   useEffect(() => subscribe(() => {
-    if (visitedTabsRef.current.has("movimientos")) return;
+    if (visitedTabsRef.current.has("movimientos") || !puedeTablaMovPosRef.current) return;
     return backgroundRefetchMovPos();
   }), [subscribe, backgroundRefetchMovPos]);
 
@@ -508,7 +533,7 @@ export default function PlantillaEmpleadosDetalle({
   // useAnuenciaAnexoUpdatesRealtime allá). Mismo hueco si el tab nunca se
   // visitó, mismo respaldo aquí.
   useAnuenciaAnexoUpdatesRealtime(() => {
-    if (visitedTabsRef.current.has("movimientos")) return;
+    if (visitedTabsRef.current.has("movimientos") || !puedeTablaMovPosRef.current) return;
     backgroundRefetchMovPos();
   });
 
@@ -586,10 +611,8 @@ export default function PlantillaEmpleadosDetalle({
         { id: "cuadros", label: "Cuadros Vacancia" },
         { id: "alineacion", label: "Comprobar Alineación", icon: GitCompareArrows },
         { id: "aduanas", label: "Aduanas Ocupación vs Vacantes", icon: Globe },
-        ...(sinRestriccionUN
-          ? [{ id: "anuencia", label: "Anuencia", icon: FileSpreadsheet, tourId: "movpos-anuencia-subtab-option" }]
-          : []),
-      ],
+        { id: "anuencia", label: "Anuencia", icon: FileSpreadsheet, tourId: "movpos-anuencia-subtab-option" },
+      ].filter((o) => authLoading || puedeMovPos[o.id]),
       active: activeMovimientosSubTab,
       setActive: setActiveMovimientosSubTab,
     },
@@ -635,6 +658,8 @@ export default function PlantillaEmpleadosDetalle({
     activeMapaSubTab,
     activeCatalogoSubTab,
     activeMovPersonalSubTab,
+    puedeMovPos,
+    authLoading,
   ]);
 
   // Pasos del tour de Anuencia (ver `anuenciaTourDropdownForced` arriba). El
@@ -689,7 +714,7 @@ export default function PlantillaEmpleadosDetalle({
   ], []);
   // `sinRestriccionUN`: sin el subtab no hay nada que recorrer, y el paso 2
   // del tour lo activa por código (setActiveMovimientosSubTab("anuencia")).
-  const anuenciaTourEnabled = sinRestriccionUN && activeTab === "movimientos" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES);
+  const anuenciaTourEnabled = puedeMovPos.anuencia && activeTab === "movimientos";
   // Si el usuario sale de "Mov. Posiciones" a la mitad del tour, ProductTour
   // oculta y reinicia su paso solo (ver `enabled` ahí abajo), pero no avisa
   // — sin esto, el dropdown se quedaría forzado abierto para siempre.
@@ -976,7 +1001,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {visitedTabs.has("movimientos") && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+          {visitedTabs.has("movimientos") && puedeMovPos.tabla && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "tabla" ? "block" : "hidden"}>
               <MovimientosTabSection
                 detalle={detalleData}
@@ -987,17 +1012,17 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+          {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && puedeMovPos.cuadros && (
             <div ref={cardRefCuadros}>
               <CuadrosVacanciaSection
-                onSwitchToTablaPrincipal={() => setActiveMovimientosSubTab("tabla")}
+                onSwitchToTablaPrincipal={puedeMovPos.tabla ? () => setActiveMovimientosSubTab("tabla") : undefined}
                 activeSectionTab={activeSectionTab}
                 setActiveSectionTab={setActiveSectionTab}
                 sinRestriccionUN={sinRestriccionUN}
               />
             </div>
           )}
-          {alineacionVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+          {alineacionVisited && puedeMovPos.alineacion && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "alineacion" ? "block" : "hidden"}>
               <AlineacionOrganizacionalTab
                 isPending={isPending}
@@ -1006,7 +1031,7 @@ export default function PlantillaEmpleadosDetalle({
               />
             </div>
           )}
-          {aduanasVisited && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+          {aduanasVisited && puedeMovPos.aduanas && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "aduanas" ? "block" : "hidden"}>
               <AduanasOcupacionVacanciaTab cardRef={cardRefAduanas} />
             </div>
@@ -1015,7 +1040,7 @@ export default function PlantillaEmpleadosDetalle({
               (ver subtabConfigs), no se monta el tab — el tour de Anuencia y
               el estado guardado pueden llevar aquí sin pasar por el
               dropdown, y montarlo dispararía una ráfaga de 403. */}
-          {anuenciaVisited && sinRestriccionUN && hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES) && (
+          {anuenciaVisited && puedeMovPos.anuencia && (
             <div className={activeTab === "movimientos" && activeMovimientosSubTab === "anuencia" ? "block" : "hidden"}>
               <AnuenciaTab cardRef={cardRefAnuencia} />
             </div>

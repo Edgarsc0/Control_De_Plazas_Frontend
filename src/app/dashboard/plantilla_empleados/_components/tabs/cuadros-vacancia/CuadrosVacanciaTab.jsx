@@ -1361,9 +1361,13 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
                       </p>
                       <p className="text-xs font-medium text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-500/10 p-2 rounded-lg border border-amber-200/50 dark:border-amber-500/20 inline-block">
                         Este cuadro de vacancia ignora las posiciones Laudos, las posiciones 1039 y las plazas con partida presupuestal 11401 PASEM. Si desea consultar el detalle de las plazas COMPLETO consultesé{" "}
-                        <button onClick={onSwitchToTablaPrincipal} className="underline font-bold hover:text-amber-700 dark:hover:text-amber-400 cursor-pointer">
-                          Tabla Principal
-                        </button>
+                        {onSwitchToTablaPrincipal ? (
+                          <button onClick={onSwitchToTablaPrincipal} className="underline font-bold hover:text-amber-700 dark:hover:text-amber-400 cursor-pointer">
+                            Tabla Principal
+                          </button>
+                        ) : (
+                          <span className="font-bold">Tabla Principal</span>
+                        )}
                       </p>
                     </div>
                   </div>

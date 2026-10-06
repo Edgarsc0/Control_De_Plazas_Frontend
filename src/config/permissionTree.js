@@ -48,8 +48,13 @@ export const PERMISSION_TREE = [
       {
         id: 'mov_posiciones',
         codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES,
-        info: 'Incluye: Tabla Principal, Cuadros Vacancia, Comprobar Alineación, Aduanas Ocupación vs Vacantes y Anuencia',
+        info: 'Abre el tab; marca abajo cuáles de sus sub-pestañas ve este rol',
         children: [
+          { id: 'mov_posiciones_tabla', codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_TABLA },
+          { id: 'mov_posiciones_cuadros', codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS },
+          { id: 'mov_posiciones_alineacion', codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ALINEACION },
+          { id: 'mov_posiciones_aduanas', codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ADUANAS },
+          { id: 'mov_posiciones_anuencia', codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ANUENCIA, info: 'Solo para roles sin restricción de Unidad de Negocio' },
           { id: 'mov_posiciones_edit', codename: PERMISSIONS.EDIT_PLANTILLA_MOV_POSICIONES },
           { id: 'mov_posiciones_anuencia_eliminados', codename: PERMISSIONS.VIEW_ANUENCIA_ELIMINADOS },
           { id: 'mov_posiciones_foto', codename: PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_FOTO },

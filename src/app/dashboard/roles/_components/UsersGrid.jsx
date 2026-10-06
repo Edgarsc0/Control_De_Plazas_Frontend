@@ -74,37 +74,65 @@ export default function UsersGrid({
         [tableroOptions]
     );
 
-    const rows = useMemo(
-        () =>
-            [...entries]
-                .sort((a, b) => {
-                    const oa = rolPorId.get(String(a.rol))?.orden ?? Infinity;
-                    const ob = rolPorId.get(String(b.rol))?.orden ?? Infinity;
-                    return oa - ob || a.email.localeCompare(b.email);
-                })
-                .map((entry) => {
-                const sessions = activeSessionsByEmail[entry.email]?.sessions || [];
-                const rol = rolPorId.get(String(entry.rol));
-                return {
-                    id: entry.id,
-                    email: entry.email,
-                    acceso: accesoLabel(entry),
-                    ua_nombre: entry.ua_nombre || '',
-                    estado: sessions.length > 0 ? 'Activo' : 'Sin sesión',
-                    pagina: sessions.map(pageLabel).join(' | '),
-                    rol: rol?.corto || '',
-                    // No es columna: existe para que la búsqueda encuentre también el nombre completo.
-                    rol_largo: rol?.name || '',
-                    tablero: tableroLabelByValue.get(entry.tablero || 'none') || '',
-                    _entry: entry,
-                    _sessions: sessions,
-                };
-            }),
-        [entries, activeSessionsByEmail, rolPorId, tableroLabelByValue]
-    );
+    // Una fila por usuario, agrupadas por rol en el orden del árbol de Roles.
+    // Los 65 titulares de unidad aparecen SIEMPRE: los que no tienen usuario
+    // dejan un renglón "Sin usuario asignado", para ver todas las unidades en
+    // el mismo orden que en la pestaña Roles.
+    const rows = useMemo(() => {
+        const filaDeUsuario = (entry) => {
+            const sessions = activeSessionsByEmail[entry.email]?.sessions || [];
+            const rol = rolPorId.get(String(entry.rol));
+            return {
+                id: entry.id,
+                email: entry.email,
+                acceso: accesoLabel(entry),
+                ua_nombre: entry.ua_nombre || '',
+                estado: sessions.length > 0 ? 'Activo' : 'Sin sesión',
+                pagina: sessions.map(pageLabel).join(' | '),
+                rol: rol?.corto || '',
+                // No es columna: existe para que la búsqueda encuentre también el nombre completo.
+                rol_largo: rol?.name || '',
+                tablero: tableroLabelByValue.get(entry.tablero || 'none') || '',
+                _entry: entry,
+                _sessions: sessions,
+            };
+        };
+        const porRol = new Map();
+        const sinRolConocido = [];
+        for (const entry of entries) {
+            const clave = String(entry.rol);
+            if (!rolPorId.has(clave)) { sinRolConocido.push(entry); continue; }
+            if (!porRol.has(clave)) porRol.set(clave, []);
+            porRol.get(clave).push(entry);
+        }
+        const porCorreo = (a, b) => a.email.localeCompare(b.email);
+        const filas = [];
+        for (const role of rolesOrdenados) {
+            const usuarios = porRol.get(String(role.id)) || [];
+            if (usuarios.length > 0) {
+                usuarios.sort(porCorreo).forEach((entry) => filas.push(filaDeUsuario(entry)));
+            } else if (role.tipo === 'titular' && (!roleFilter || roleFilter === String(role.id))) {
+                filas.push({
+                    id: `vacio-${role.id}`,
+                    email: 'Sin usuario asignado',
+                    acceso: '',
+                    ua_nombre: role.name,
+                    estado: '',
+                    pagina: '',
+                    rol: role.corto,
+                    rol_largo: role.name,
+                    tablero: '',
+                    _vacio: true,
+                    _sessions: [],
+                });
+            }
+        }
+        sinRolConocido.sort(porCorreo).forEach((entry) => filas.push(filaDeUsuario(entry)));
+        return filas;
+    }, [entries, activeSessionsByEmail, rolPorId, rolesOrdenados, roleFilter, tableroLabelByValue]);
 
     const renderRowAction = useCallback(
-        ({ row }) => (
+        ({ row }) => row._vacio ? null : (
             <button
                 onClick={(e) => { e.stopPropagation(); onOpenActivity(row._entry); }}
                 title="Ver actividad"
@@ -121,6 +149,21 @@ export default function UsersGrid({
         const base = { onClick, onContextMenu, onDoubleClick, style };
         const entry = row._entry;
         const sessions = row._sessions;
+
+        // Unidad sin usuario: renglón informativo, sin controles.
+        if (row._vacio) {
+            const texto = col.key === 'email' || col.key === 'ua_nombre' || col.key === 'rol' ? value : '';
+            return (
+                <td
+                    key={col.key}
+                    {...base}
+                    title={texto || undefined}
+                    className={`${cellClassName({ isSelected, muted: true })} ${col.key === 'email' ? 'italic font-normal' : ''}`}
+                >
+                    {texto || '—'}
+                </td>
+            );
+        }
 
         switch (col.key) {
             case 'acceso':
@@ -246,6 +289,7 @@ export default function UsersGrid({
             columns={COLUMNS}
             rows={rows}
             getRowId={(row) => row.id}
+            countLabel={`${entries.length} usuario${entries.length === 1 ? '' : 's'}`}
             renderCell={renderCell}
             renderRowAction={renderRowAction}
             stickyColumnKeys={STICKY_KEYS}

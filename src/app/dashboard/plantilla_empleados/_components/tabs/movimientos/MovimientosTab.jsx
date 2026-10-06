@@ -2038,7 +2038,8 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
     // (ver `sinRestriccionUN` arriba y el bloque-guía en plantilla/views.py):
     // sin esto, el menú contextual de la columna "Código" seguiría ofreciendo
     // "Agregar a Anexo 2" y abriría un modal que sólo cosecha 403.
-    if (!sinRestriccionUN) return null;
+    // También exige el permiso de la sub-pestaña Anuencia (el backend lo pide).
+    if (!sinRestriccionUN || !hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ANUENCIA)) return null;
     if (contextMenu?.colKey !== "codigo") return null;
     const codigoClic = codigoSeleccionable(contextMenu.row);
     if (!codigoClic) return null;

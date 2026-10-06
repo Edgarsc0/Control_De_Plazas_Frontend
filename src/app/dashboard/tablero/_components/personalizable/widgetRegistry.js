@@ -138,7 +138,8 @@ export const WIDGET_REGISTRY = {
     type: "estatus_posiciones_ua",
     // Mismas fuentes que "Ocupadas vs Vacantes por familia de nivel" (desglose_jerarquico y
     // desglose_jerarquico_ocupados): mismo permiso, y ambas recortan sus filas por UN.
-    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES],
+    // Esas fuentes pertenecen a las sub-pestañas Cuadros Vacancia y Aduanas.
+    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS, P.VIEW_PLANTILLA_MOV_POSICIONES_ADUANAS],
     alcanceUnSoportado: true,
     enCatalogo: true,
     label: "Estatus de posiciones por unidad administrativa",
@@ -151,7 +152,7 @@ export const WIDGET_REGISTRY = {
   },
   alineacion_organizacional: {
     type: "alineacion_organizacional",
-    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES],
+    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES_ALINEACION],
     alcanceUnSoportado: false,
     enCatalogo: true,
     label: "Alineación organizacional",
@@ -428,7 +429,7 @@ for (const el of ELEMENTOS_CUADROS_VACANCIA) {
   const type = `${prefijoTipoCuadrosVacancia}${el.id}`;
   WIDGET_REGISTRY[type] = {
     type,
-    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES],
+    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS],
     // Depende de la fuente del elemento, no del módulo:
     //   · "cuadros" (`cuadro_vacancia`) y "serie"
     //     (`sp_conteo_plazas_historico_serie`) son tablas ya agregadas que no

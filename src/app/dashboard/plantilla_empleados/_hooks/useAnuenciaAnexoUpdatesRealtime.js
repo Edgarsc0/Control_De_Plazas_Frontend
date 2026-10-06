@@ -21,6 +21,12 @@ export function useAnuenciaAnexoUpdatesRealtime(onAnexoUpdate) {
 
   useEffect(() => {
     if (!hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES)) return;
+    // El canal lo consumen la Tabla Principal (columna "En Anuencia") y la
+    // sub-pestaña Anuencia: sin ninguna de las dos el backend responde 403.
+    if (
+      !hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_TABLA) &&
+      !hasPermission(PERMISSIONS.VIEW_PLANTILLA_MOV_POSICIONES_ANUENCIA)
+    ) return;
 
     const sseBaseUrl = process.env.NEXT_PUBLIC_SSE_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const token = Cookies.get("auth_token");
