@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ModalLayerProvider, useModalLayerZ } from "@/components/shared/modalLayer";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { Search, ChevronDown, Check, SlidersHorizontal, X, Plus, Trash2, Bookmark, BookmarkPlus } from "lucide-react";
 import { normalizeForSearch, matchesTextCondition, parseFlexibleDate, CONDITION_OPTIONS } from "@/utils/columnFilters";
 import { ADV_DATE_CONDITIONS, ADV_NUMBER_CONDITIONS, ADV_NUMBER_TEXT_CONDITIONS, ADV_COMPARE_TYPE_OPTIONS, ADV_LOGIC_OPTIONS, ADV_EMPTY_CONDITIONS, getValidAdvancedConditions } from "@/utils/advancedFilters";

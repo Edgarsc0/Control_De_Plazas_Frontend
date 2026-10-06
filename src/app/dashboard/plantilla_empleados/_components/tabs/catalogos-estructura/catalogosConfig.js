@@ -1,4 +1,4 @@
-import { Tags, MessageSquareText, Briefcase, Coins, Network, MapPin } from "lucide-react";
+import { Tags, MessageSquareText, Briefcase, Coins, Network, MapPin, Building2 } from "lucide-react";
 import { CatalogoEstructuraService } from "@/services/catalogo_estructura.service";
 
 /**
@@ -6,6 +6,8 @@ import { CatalogoEstructuraService } from "@/services/catalogo_estructura.servic
  * "Catálogos". Cada entrada describe columnas de tabla, campos de
  * formulario y las funciones list/create/update/remove (uniformes pese a
  * que las pk difieren: string simple, autoincremental o compuesta).
+ *
+ * `readOnly: true` (p.ej. `ubicaciones`, también `lazy`): sin alta/edición/borrado ni pegado.
  *
  * `lazy: true` (solo `correccion_posicion`, ~11,432 filas — mucho más grande
  * que el resto): excluido de la carga automática de "todos los catálogos"
@@ -192,11 +194,34 @@ export const CATALOGOS_CONFIG = {
     update: (record, data) => CatalogoEstructuraService.updateCatCorreccionPosicion(record.posicion, data),
     remove: (record) => CatalogoEstructuraService.deleteCatCorreccionPosicion(record.posicion),
   },
+
+  ubicaciones: {
+    key: "ubicaciones",
+    label: "Ubicaciones",
+    icon: Building2,
+    tableName: "cat_ubicaciones",
+    readOnly: true,
+    lazy: true,
+    getRowId: (row) => row.cd_ubicacion,
+    columns: [
+      { key: "cd_ubicacion", label: "Cód. Ubicación", width: 140, visible: true },
+      { key: "descripcion", label: "Descripción", width: 300, visible: true },
+      { key: "estado", label: "Estado", width: 160, visible: true },
+      { key: "id_establecimiento", label: "ID Establecimiento", width: 160, visible: true },
+      { key: "estado_fecha_efectiva", label: "Estatus Efectivo", width: 140, visible: true },
+      { key: "direccion", label: "Dirección", width: 420, visible: true },
+      { key: "scraped_at", label: "Última Carga", width: 170, audit: true, type: "datetime", visible: true },
+    ],
+    formFields: [],
+    emptyRecord: {},
+    list: (options) => CatalogoEstructuraService.getCatUbicaciones(options),
+  },
 };
 
-export const CATALOGOS_ORDER = ["acciones", "motivos", "pto_func", "cod_presupuestal", "organigrama_anam", "correccion_posicion"];
+export const CATALOGOS_ORDER = ["acciones", "motivos", "pto_func", "cod_presupuestal", "organigrama_anam", "correccion_posicion", "ubicaciones"];
 
 export const MONO_CATALOG_COLUMN_KEYS = [
   "action", "accion", "cd_motivo", "cd_pto_funcional", "cd_norm", "codigo_presupuestal", "escala",
   "departamento", "unidad_negocio", "doaf", "num_posicion_gerente", "posicion_director", "posicion",
+  "cd_ubicacion", "id_establecimiento",
 ];

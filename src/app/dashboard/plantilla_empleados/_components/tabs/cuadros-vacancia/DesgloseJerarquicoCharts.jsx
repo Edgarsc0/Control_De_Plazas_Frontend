@@ -382,7 +382,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       }
     });
     const isNarrow = chart1Width > 0 && (chart1Width / 9) < 70;
-    const abbr = { ...NJ_ABBR, '4': isNarrow ? 'Sub' : 'Subdirector' };
+    const abbr = { ...NJ_ABBR, '3': isNarrow ? 'Dr' : 'Director', '4': isNarrow ? 'Sub' : 'Subdirector', '6': isNarrow ? 'E' : 'Enlace' };
     return Object.keys(njCounts)
       .map(nj => ({
         name: abbr[nj] || `NJ ${nj}`,
@@ -426,7 +426,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
       }
     });
     const isNarrow = chart1bWidth > 0 && (chart1bWidth / 9) < 70;
-    const abbr = { ...NJ_ABBR, '4': isNarrow ? 'Sub' : 'Subdirector' };
+    const abbr = { ...NJ_ABBR, '3': isNarrow ? 'Dr' : 'Director', '4': isNarrow ? 'Sub' : 'Subdirector', '6': isNarrow ? 'E' : 'Enlace' };
     return Object.keys(njCounts)
       .map(nj => ({
         name: abbr[nj] || `NJ ${nj}`,

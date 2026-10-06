@@ -39,6 +39,16 @@ export default function CatalogRecordModal({ open, mode, config, initialValues, 
   if (!config) return null;
 
   const isEdit = mode === "edit";
+  // Catálogos de solo lectura: detalle con todas las columnas, sin guardar/eliminar.
+  const viewOnly = !!config.readOnly;
+  const fields = viewOnly
+    ? config.columns.map((c) => ({
+        key: c.key,
+        label: c.label,
+        type: c.key === "direccion" ? "textarea" : "text",
+        format: c.type === "datetime" ? formatAuditDate : undefined,
+      }))
+    : config.formFields;
 
   const handleChange = (field, raw) => {
     const value = field.type === "number" ? (raw === "" ? "" : raw) : raw;
@@ -85,7 +95,7 @@ export default function CatalogRecordModal({ open, mode, config, initialValues, 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <config.icon className="size-4 text-[#621f32]" />
-              {isEdit ? `Editar registro · ${config.label}` : `Nuevo registro · ${config.label}`}
+              {viewOnly ? `Detalle · ${config.label}` : isEdit ? `Editar registro · ${config.label}` : `Nuevo registro · ${config.label}`}
             </DialogTitle>
             <DialogDescription>
               Tabla física: <span className="font-mono">{config.tableName}</span>
@@ -93,9 +103,9 @@ export default function CatalogRecordModal({ open, mode, config, initialValues, 
           </DialogHeader>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-4">
-            {config.formFields.map((f) => {
-              const disabled = isEdit && f.disabledOnEdit;
-              const value = values[f.key] ?? "";
+            {fields.map((f) => {
+              const disabled = viewOnly || (isEdit && f.disabledOnEdit);
+              const value = f.format ? f.format(values[f.key]) : (values[f.key] ?? "");
               const isTextarea = f.type === "textarea";
               return (
                 <div key={f.key} className={isTextarea ? "sm:col-span-2" : ""}>
@@ -128,7 +138,7 @@ export default function CatalogRecordModal({ open, mode, config, initialValues, 
             })}
           </div>
 
-          {isEdit && (
+          {isEdit && !viewOnly && (
             <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-lg text-[10px] text-gray-500 font-medium mb-2">
               <ShieldCheck className="size-3.5 text-gray-400 shrink-0" />
               <span>
@@ -142,6 +152,7 @@ export default function CatalogRecordModal({ open, mode, config, initialValues, 
             <p className="text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-2">{error}</p>
           )}
 
+          {!viewOnly && (
           <DialogFooter className="flex items-center !justify-between gap-2 pt-2">
             {isEdit ? (
               <button
@@ -163,6 +174,7 @@ export default function CatalogRecordModal({ open, mode, config, initialValues, 
               {isEdit ? "Guardar Cambios" : "Crear Registro"}
             </button>
           </DialogFooter>
+          )}
         </form>
       </DialogContent>
     </Dialog>

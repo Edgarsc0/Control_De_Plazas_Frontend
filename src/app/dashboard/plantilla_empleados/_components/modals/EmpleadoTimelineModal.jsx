@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Calendar, Activity, Loader2, ArrowUpRight, MapPin, Search, Copy, Check } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion"; // Note: using framer-motion as it seems imported differently sometimes, I'll use "motion/react" if it was "motion/react" in the tab
+import { motion, AnimatePresence } from "motion/react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { VacantesService } from "@/services/vacantes.service";

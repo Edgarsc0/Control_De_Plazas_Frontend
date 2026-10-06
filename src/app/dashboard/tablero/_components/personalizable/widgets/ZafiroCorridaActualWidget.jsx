@@ -49,7 +49,7 @@ export default function ZafiroCorridaActualWidget() {
 
   const fetchUltimo = async () => {
     try {
-      const res = await apiFetch("/plantilla/bitacora/");
+      const res = await apiFetch("/plantilla/bitacora/?limit=1");
       if (res.ok) {
         const data = await res.json();
         setLog(data[0] || null);

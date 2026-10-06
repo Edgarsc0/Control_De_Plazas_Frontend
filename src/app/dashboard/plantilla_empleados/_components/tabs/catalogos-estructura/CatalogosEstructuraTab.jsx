@@ -31,6 +31,7 @@ const CATALOG_DESCRIPTIONS = {
   pto_func: "Catálogo de Puestos funcionales. Crea o edita códigos de puestos funcionales.",
   cod_presupuestal: "Catálogo de salarios brutos y netos por código presupuestal y escala.",
   organigrama_anam: "Catálogo de estructura organizacional ANAM: unidad de negocio, departamento, nivel de dirección y posiciones de gerente/director.",
+  ubicaciones: "Catálogo de ubicaciones de PeopleSoft (código, descripción, estado, establecimiento y dirección). Solo lectura.",
   correccion_posicion: "Corrige el Código, Tipo de Aduana y DG de Aduana compactada por posición cuando no coinciden con la plantilla del Excel (ej. al realinear una posición a otra unidad).",
 };
 
@@ -126,7 +127,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
   const getCellValue = useCallback((row, key) => {
     const v = row?.[key];
     if (v === null || v === undefined) return "";
-    if (key === "fecha_modificacion") return new Date(v).toLocaleString("es-MX");
+    if (key === "fecha_modificacion" || key === "scraped_at") return new Date(v).toLocaleString("es-MX");
     return String(v);
   }, []);
 
@@ -146,6 +147,13 @@ function GenericCatalogSubtab({ activeCatalog }) {
       const eager = CATALOGOS_ORDER.filter((k) => !CATALOGOS_CONFIG[k].lazy);
       const entries = await Promise.all(eager.map(async (k) => [k, await fetchCatalog(k)]));
       setDataByCatalog(Object.fromEntries(entries));
+      // Precarga en segundo plano de los catálogos lazy: al entrar a su
+      // sub-tab ya están listos (fallo silencioso; el efecto lazy reintenta).
+      CATALOGOS_ORDER.filter((k) => CATALOGOS_CONFIG[k].lazy).forEach((k) => {
+        fetchCatalog(k)
+          .then((d) => setDataByCatalog((prev) => (prev[k] ? prev : { ...prev, [k]: d })))
+          .catch(() => {});
+      });
     } catch {
       setLoadError("No se pudieron cargar los catálogos. Intenta recargar.");
     } finally {
@@ -374,7 +382,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
   // o forman parte de la URL del registro, no del payload editable.
   const isPasteableColumn = useCallback((colKey) => {
     const col = config.columns.find((c) => c.key === colKey);
-    if (!col || col.audit) return false;
+    if (config.readOnly || !col || col.audit) return false;
     const field = config.formFields.find((f) => f.key === colKey);
     return !field?.disabledOnEdit;
   }, [config]);
@@ -437,12 +445,14 @@ function GenericCatalogSubtab({ activeCatalog }) {
           >
             <RefreshCw className="w-3 h-3" /> Recargar
           </button>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#621f32] rounded-xl text-[9px] font-black uppercase text-white hover:bg-[#4d1827] transition-all tracking-wider shadow-sm cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" /> Nuevo Registro
-          </button>
+          {!config.readOnly && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#621f32] rounded-xl text-[9px] font-black uppercase text-white hover:bg-[#4d1827] transition-all tracking-wider shadow-sm cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Nuevo Registro
+            </button>
+          )}
         </div>
       </div>
 
@@ -497,7 +507,7 @@ function GenericCatalogSubtab({ activeCatalog }) {
           onSearch={setGlobalSearch}
           count={sortedData.length}
           searchPlaceholder={`Buscar en ${config?.label || "catálogo"}...`}
-          primaryAction={{ icon: Plus, label: "Nuevo Registro", onClick: openCreateModal }}
+          primaryAction={config.readOnly ? undefined : { icon: Plus, label: "Nuevo Registro", onClick: openCreateModal }}
           actions={[
             { icon: ArrowUpDown, label: "Ordenar", onClick: () => setIsSortDrawerOpen(true) },
             { icon: RotateCcw, label: "Reiniciar filtros", onClick: resetAllFilters, disabled: !hasActiveFilters },

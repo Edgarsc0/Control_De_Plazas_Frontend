@@ -119,6 +119,60 @@ function useTamanoContenedor() {
  * internos. Nosotros calculamos escritorio y celda destino (gridGeometry.js) y
  * agregamos el widget a `widgets`.
  */
+/**
+ * Input para renombrar el escritorio activo, aislado en su propio componente
+ * a propósito: si `valor` viviera como estado de PersonalizableGrid, cada
+ * tecla re-renderizaría TODA la cuadrícula (y con ella, cada widget montado
+ * —gráficas, tablas, pólling— aunque esté memoizado solo con props, porque el
+ * propio padre no lo está). Aislado aquí, cada tecla solo re-renderiza esta
+ * cajita de ~40px.
+ *
+ * Se monta de cero cada vez que `editandoNombre` pasa a `true` (ver más abajo)
+ * y se desmonta al confirmar/cancelar, así que no necesita sincronizar
+ * `valorInicial` con un efecto ni resetear el guard de doble confirmación "a
+ * mano": cada edición es una instancia nueva.
+ */
+function EditorNombreEscritorio({ valorInicial, placeholder, onConfirmar, onCancelar }) {
+  const [valor, setValor] = useState(valorInicial);
+  // Mismo problema que documenta confirmarRenombrar más abajo: Enter dispara
+  // onConfirmar y desmonta este input, lo que dispara un blur nativo que
+  // volvería a llamar onConfirmar con el mismo valor.
+  const confirmandoRef = useRef(false);
+  const confirmar = () => {
+    if (confirmandoRef.current) return;
+    confirmandoRef.current = true;
+    onConfirmar(valor);
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        autoFocus
+        value={valor}
+        maxLength={MAX_NOMBRE_ESCRITORIO}
+        onChange={(e) => setValor(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") confirmar();
+          else if (e.key === "Escape") onCancelar();
+        }}
+        onBlur={confirmar}
+        placeholder={placeholder}
+        aria-label="Nombre del escritorio"
+        className="w-40 px-2 py-1 text-xs font-bold rounded-md bg-white dark:bg-slate-900 border border-[#621f32]/50 dark:border-[#bc955c]/50 text-slate-800 dark:text-slate-100 focus:outline-none"
+      />
+      {/* onMouseDown + preventDefault: evita que el blur del input se
+          dispare antes del clic y confirme dos veces. */}
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); confirmar(); }}
+        title="Guardar nombre"
+        className="p-1 rounded-md text-[#621f32] dark:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+      >
+        <Check className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export default function PersonalizableGrid({
   widgets,
   onWidgetsChange,
@@ -250,23 +304,22 @@ export default function PersonalizableGrid({
     [nombres]
   );
   const [editandoNombre, setEditandoNombre] = useState(false);
-  const [borradorNombre, setBorradorNombre] = useState("");
 
-  const empezarRenombrar = () => {
-    setBorradorNombre(nombres[escritorioActivo] || "");
-    setEditandoNombre(true);
-  };
+  const empezarRenombrar = () => setEditandoNombre(true);
   const cancelarRenombrar = () => setEditandoNombre(false);
-  const confirmarRenombrar = () => {
+  // Recibe el valor ya tecleado por EditorNombreEscritorio (que vive aislado
+  // para no re-renderizar toda la cuadrícula en cada tecla, ver ese
+  // componente más arriba).
+  const confirmarRenombrar = useCallback((valorCrudo) => {
     setEditandoNombre(false);
-    const nuevo = borradorNombre.trim().slice(0, MAX_NOMBRE_ESCRITORIO);
+    const nuevo = valorCrudo.trim().slice(0, MAX_NOMBRE_ESCRITORIO);
     if (nuevo === (nombres[escritorioActivo] || "")) return;
     // Se rellena con "" hasta cubrir todos los escritorios, para que el
     // arreglo guardado conserve también los que no tienen nombre propio.
     const next = Array.from({ length: totalEscritorios }, (_, i) => nombres[i] || "");
     next[escritorioActivo] = nuevo;
     onNombresChange?.(next);
-  };
+  }, [nombres, escritorioActivo, totalEscritorios, onNombresChange]);
   // Cambiar de escritorio mientras se edita descarta la edición.
   useEffect(() => { setEditandoNombre(false); }, [escritorioActivo]);
 
@@ -930,32 +983,13 @@ export default function PersonalizableGrid({
 
         {/* Nombre del escritorio activo, editable. */}
         {editandoNombre ? (
-          <div className="flex items-center gap-1">
-            <input
-              autoFocus
-              value={borradorNombre}
-              maxLength={MAX_NOMBRE_ESCRITORIO}
-              onChange={(e) => setBorradorNombre(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") confirmarRenombrar();
-                else if (e.key === "Escape") cancelarRenombrar();
-              }}
-              onBlur={confirmarRenombrar}
-              placeholder={`Escritorio ${escritorioActivo + 1}`}
-              aria-label="Nombre del escritorio"
-              className="w-40 px-2 py-1 text-xs font-bold rounded-md bg-white dark:bg-slate-900 border border-[#621f32]/50 dark:border-[#bc955c]/50 text-slate-800 dark:text-slate-100 focus:outline-none"
-            />
-            {/* onMouseDown + preventDefault: evita que el blur del input se
-                dispare antes del clic y confirme dos veces. */}
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); confirmarRenombrar(); }}
-              title="Guardar nombre"
-              className="p-1 rounded-md text-[#621f32] dark:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-            >
-              <Check className="size-3.5" />
-            </button>
-          </div>
+          <EditorNombreEscritorio
+            key={escritorioActivo}
+            valorInicial={nombres[escritorioActivo] || ""}
+            placeholder={`Escritorio ${escritorioActivo + 1}`}
+            onConfirmar={confirmarRenombrar}
+            onCancelar={cancelarRenombrar}
+          />
         ) : (
           <button
             type="button"

@@ -10,7 +10,7 @@ import {
   X, RotateCcw, Activity, Briefcase, CheckCircle2, XCircle, Layers, UserCheck,
   MousePointerClick, Loader2, Copy, Check, History, ListFilter, FileCheck2,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "@/hooks/useToast";
 import { Zoom } from "@/components/shared/Reveal";
 import { VacantesService } from "@/services/vacantes.service";
@@ -385,6 +385,13 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   // Component) — el primer render siempre arranca "cargando" hasta que el
   // efecto de abajo resuelva IndexedDB (rápido) o red (solo en frío).
   const [loading, setLoading] = useState(true);
+  // A diferencia de `loading` (se prende en CADA fetch, incluye cambios de
+  // filtro/página posteriores), esta sólo importa para el primerísimo
+  // render: gatea el skeleton de las tarjetas de stats (donut + grid) para
+  // que no muestren "0" mientras se resuelve la carga inicial (bug QA:
+  // "carga en 0, parece que ya cargó pero no es así"). Una vez en true, se
+  // queda así — los refetches posteriores conservan los stats anteriores.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [stats, setStats] = useState({
@@ -750,6 +757,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
         setCount(view.length);
         if (cachedStats) setStats(cachedStats);
         setLoading(false);
+        setHasLoadedOnce(true);
         return;
       }
 
@@ -770,6 +778,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
           setCount(view.length);
           if (cached.stats) setStats(cached.stats);
           setLoading(false);
+          setHasLoadedOnce(true);
           return;
         }
         try {
@@ -788,7 +797,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
         } catch (err) {
           if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err);
         } finally {
-          if (!cancelled) setLoading(false);
+          if (!cancelled) { setLoading(false); setHasLoadedOnce(true); }
         }
       })();
       return () => { cancelled = true; toggleCtrl.abort(); };
@@ -868,6 +877,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
       setCount(cached.count || 0);
       if (cached.stats) setStats(cached.stats);
       setLoading(false);
+      setHasLoadedOnce(true);
       return;
     }
 
@@ -883,7 +893,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
         }
       })
       .catch(err => { if (err.name !== "AbortError") console.error("Error loading MovPosDetalle:", err); })
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setHasLoadedOnce(true); });
     return () => listCtrl.abort();
   }, [page, pageSize, debouncedSearch, debouncedTextFilters, columnFilters, sortConfig, appliedAdvancedFilters, refreshTick, movPosCacheKey]);
 
@@ -2228,6 +2238,10 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
             <div className="lg:col-span-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800/80 shadow-md flex flex-col items-center justify-center min-h-[180px]">
               <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-500 mb-3 w-full text-center">Distribución de Estatus</h3>
               <div className="relative size-28 flex items-center justify-center">
+                {!hasLoadedOnce ? (
+                  <div className="skeleton-box size-24 rounded-full" />
+                ) : (
+                <>
                 <svg viewBox="-1.1 -1.1 2.2 2.2" className="w-full h-full transform -rotate-90 select-none">
                   <defs>
                     <mask id="donut-mask-movimientos">
@@ -2304,6 +2318,8 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
                     )}
                   </AnimatePresence>
                 </div>
+                </>
+                )}
               </div>
             </div>
 
@@ -2363,19 +2379,19 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
                       </div>
                       <div>
                         <h4 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-none">
-                          {formatNumber(card.count)}
+                          {hasLoadedOnce ? formatNumber(card.count) : <span className="skeleton-box inline-block h-5 w-12 rounded align-middle" />}
                         </h4>
                         <div className="w-full bg-slate-100 dark:bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2">
                           <motion.div
                             className="h-full rounded-full"
                             style={{ backgroundColor: card.color }}
                             initial={{ width: 0 }}
-                            animate={{ width: card.percent !== null ? `${card.percent * 100}%` : "100%" }}
+                            animate={{ width: hasLoadedOnce ? (card.percent !== null ? `${card.percent * 100}%` : "100%") : "0%" }}
                             transition={{ duration: 0.8, ease: "easeOut" }}
                           />
                         </div>
                         <p className="text-[8px] font-bold text-slate-400 mt-1">
-                          {card.percent !== null ? `${(card.percent * 100).toFixed(1)}%` : (card.caption || "Historial completo")}
+                          {hasLoadedOnce ? (card.percent !== null ? `${(card.percent * 100).toFixed(1)}%` : (card.caption || "Historial completo")) : <span className="skeleton-box inline-block h-2 w-16 rounded align-middle" />}
                         </p>
                       </div>
                     </motion.div>
@@ -2422,6 +2438,7 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
                ES el total; fuera de ese modo la lista es sólo la página del
                servidor y el total real lo lleva `count`. */
             count={isLatestFilter ? filteredSortedData.length : count}
+            countLoading={!hasLoadedOnce}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleExportExcel, loading: isExportingExcel }}
             actions={[
               // El orden vive en los encabezados de `DataTable` (oculta en móvil).
@@ -2500,7 +2517,11 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
                   <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
-                  <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
+                  {hasLoadedOnce ? (
+                    <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
+                  ) : (
+                    <span className="skeleton-box inline-block h-4 w-10 rounded align-middle" />
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">{activeOcupacionFilter ? (<button key="ocupacion" onClick={(e) => handleOcupacionFilter(e, activeOcupacionFilter)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: activeOcupacionFilter === "Ocupada" ? "#10b98112" : "#bc955c12", color: activeOcupacionFilter === "Ocupada" ? "#059669" : "#8d6a3d", borderColor: activeOcupacionFilter === "Ocupada" ? "#10b98130" : "#bc955c30" }}><span>{activeOcupacionFilter === "Ocupada" ? "Ocupadas" : "Vacantes"}</span><X className="size-3" /></button>) : activeStatusFilter.map(status => (<button key={status} onClick={() => handleStatusFilter(status)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}><span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" /></button>))}</div>

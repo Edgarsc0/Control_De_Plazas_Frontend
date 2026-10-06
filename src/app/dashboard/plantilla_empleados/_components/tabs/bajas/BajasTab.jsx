@@ -101,8 +101,12 @@ const BAJAS_FETCHERS = {
 // rol y el usuario seguiría viendo indefinidamente las bajas de unidades que
 // ya no tiene autorizadas. Mientras la identidad no se conoce (`null`) no se
 // lee ni se escribe cache, para no crear una clave sin namespacear.
+// `loading` sólo cubre esta resolución inicial (cache o red) — antes no
+// existía y el tab mostraba "0"/"Sin coincidencias" como si ya hubiera
+// terminado de cargar (bug QA: parece cargado pero no lo está).
 function useCachedBajasDataset(key, sufijoCache) {
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!sufijoCache) return;
     const cacheKey = `${key}::${sufijoCache}`;
@@ -111,15 +115,16 @@ function useCachedBajasDataset(key, sufijoCache) {
       const cached = await getDataset(cacheKey);
       if (cached && !cancelled) {
         setData(cached);
+        setLoading(false);
         return;
       }
       const fresh = await trackEndpointFetch(key, () => BAJAS_FETCHERS[key]());
-      if (!cancelled) setData(fresh);
+      if (!cancelled) { setData(fresh); setLoading(false); }
       await setDataset(cacheKey, fresh);
     })();
     return () => { cancelled = true; };
   }, [key, sufijoCache]);
-  return [data, setData];
+  return [data, setData, loading];
 }
 
 export default function BajasTab({ isPending, startTransition, cardRef }) {
@@ -136,9 +141,9 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   useEffect(() => setMounted(true), []);
 
-  const [bajasData, setBajasData] = useCachedBajasDataset("bajas_sig", sufijoCache);
-  const [bajasMotivos, setBajasMotivos] = useCachedBajasDataset("bajas_motivos", sufijoCache);
-  const [bajasHistorico, setBajasHistorico] = useCachedBajasDataset("bajas_historico", sufijoCache);
+  const [bajasData, setBajasData, bajasDataLoading] = useCachedBajasDataset("bajas_sig", sufijoCache);
+  const [bajasMotivos, setBajasMotivos, bajasMotivosLoading] = useCachedBajasDataset("bajas_motivos", sufijoCache);
+  const [bajasHistorico, setBajasHistorico, bajasHistoricoLoading] = useCachedBajasDataset("bajas_historico", sufijoCache);
 
   // Purga de una sola vez de las claves viejas sin namespacear, compartidas
   // por todos los usuarios de este navegador antes de este cambio.
@@ -188,7 +193,11 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
     });
     resizeObserver.observe(chartContainerRef.current);
     return () => resizeObserver.disconnect();
-  }, []);
+    // El nodo con `chartContainerRef` sólo existe una vez que el skeleton de
+    // carga (bajasHistoricoLoading) se reemplaza por el gráfico real — sin
+    // esta dependencia, el efecto corría una sola vez al montar (ref aún
+    // null) y el ResizeObserver nunca llegaba a observar nada.
+  }, [bajasHistoricoLoading]);
 
   const lineChartData = useMemo(() => {
     if (!bajasHistorico || bajasHistorico.length === 0) return null;
@@ -1116,13 +1125,30 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-widest text-white/90">Total de Bajas</span>
                 </div>
-                <span className="text-5xl font-black tracking-tighter relative z-10 text-white">{formatNumber(bajasData.length)}</span>
-                <span className="text-xs text-white/60 mt-2 relative z-10 font-semibold">{bajasMotivos.length} motivos distintos</span>
+                {bajasDataLoading ? (
+                  <div className="skeleton-box h-10 w-24 rounded bg-white/20" />
+                ) : (
+                  <span className="text-5xl font-black tracking-tighter relative z-10 text-white">{formatNumber(bajasData.length)}</span>
+                )}
+                {bajasMotivosLoading ? (
+                  <div className="skeleton-box h-3 w-28 rounded mt-2 bg-white/20" />
+                ) : (
+                  <span className="text-xs text-white/60 mt-2 relative z-10 font-semibold">{bajasMotivos.length} motivos distintos</span>
+                )}
               </div>
             </div>
 
             {/* Pie chart */}
-            {pieSlices.length > 0 && (
+            {bajasMotivosLoading ? (
+              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center">
+                <div className="skeleton-box size-[180px] rounded-full shrink-0" />
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 w-full">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="skeleton-box h-3 rounded" />
+                  ))}
+                </div>
+              </div>
+            ) : pieSlices.length > 0 && (
               <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col md:flex-row gap-6 items-center">
                 <div className="relative shrink-0">
                   <svg viewBox="0 0 200 200" width="180" height="180" className="drop-shadow-md">
@@ -1181,7 +1207,15 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
             {/* Line chart (Historial de Bajas) — oculto para roles con
                 alcance por UN: la serie es un total global de la ANAM, ver
                 `sinRestriccionUN` arriba. */}
-            {sinRestriccionUN && lineChartData && (
+            {sinRestriccionUN && (bajasHistoricoLoading ? (
+              <div className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col justify-between">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="skeleton-box size-8 rounded-xl" />
+                  <div className="skeleton-box h-3 w-32 rounded" />
+                </div>
+                <div className="skeleton-box w-full rounded-lg" style={{ height: 125 }} />
+              </div>
+            ) : lineChartData && (
               <div ref={chartContainerRef} className="flex-1 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800/60 rounded-[1.5rem] p-5 shadow-md flex flex-col justify-between select-none">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -1362,7 +1396,7 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
                   </svg>
                 </div>
               </div>
-            )}
+            ))}
           </div>
         </Zoom>
 
@@ -1384,6 +1418,7 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
             searchValue={searchQuery}
             onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
             count={filteredSortedData.length}
+            countLoading={bajasDataLoading}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel }}
             actions={[
               // El orden vive en los encabezados de `DataTable` (oculta en móvil).
@@ -1431,7 +1466,11 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
                   <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
-                  <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
+                  {bajasDataLoading ? (
+                    <span className="skeleton-box inline-block h-4 w-10 rounded align-middle" />
+                  ) : (
+                    <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">{activeStatusFilter.map(status => (<button key={status} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border shadow-sm transition-all hover:opacity-80 active:scale-95 cursor-pointer" style={{ backgroundColor: status === "A" ? "#621f3212" : "#1f293712", color: status === "A" ? "#621f32" : "#1f2937", borderColor: status === "A" ? "#621f3230" : "#1f293730" }}><span>{status === "A" ? "Activo" : "Inactivo"}</span><X className="size-3" /></button>))}</div>
@@ -1494,7 +1533,8 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
             getColumnLetter={getColumnLetter}
             isMonoColumn={isMonoColumn}
             isPending={isPending}
-            isLoading={false}
+            isLoading={bajasDataLoading}
+            loadingVariant="skeleton"
             data={paginatedData}
             startIndex={startIndex}
             endIndex={endIndex}
@@ -1523,7 +1563,7 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
                 ],
               }}
               onCardClick={(row) => setSelectedRowData(row)}
-              isLoading={false}
+              isLoading={bajasDataLoading}
               isPending={isPending}
             />
           </div>

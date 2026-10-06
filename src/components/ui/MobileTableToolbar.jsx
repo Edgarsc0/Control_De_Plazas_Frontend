@@ -22,6 +22,7 @@ import {
  * @param {string} [props.searchPlaceholder]
  * @param {number} [props.count] - Contador de registros (chip).
  * @param {string} [props.countLabel]
+ * @param {boolean} [props.countLoading] - Muestra un skeleton en vez del número (dataset aún cargando de cache/red).
  * @param {{icon: Function, label: string, onClick: Function, loading?: boolean, disabled?: boolean}} [props.primaryAction]
  * @param {Array<{icon: Function, label: string, onClick: Function, disabled?: boolean, badge?: number}>} [props.actions]
  * @param {JSX.Element} [props.chips] - Chips de filtros activos (scroll horizontal).
@@ -33,6 +34,7 @@ export default function MobileTableToolbar({
   searchPlaceholder = "Buscar...",
   count,
   countLabel = "Registros",
+  countLoading = false,
   primaryAction,
   actions = [],
   chips = null,
@@ -141,9 +143,14 @@ export default function MobileTableToolbar({
         )}
       </div>
 
-      {(typeof count === "number" || chips) && (
+      {(countLoading || typeof count === "number" || chips) && (
         <div className="flex items-center gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          {typeof count === "number" && (
+          {countLoading ? (
+            <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20">
+              <span className="text-[9px] font-black uppercase text-slate-400">{countLabel}</span>
+              <span className="skeleton-box inline-block h-3 w-8 rounded align-middle" />
+            </span>
+          ) : typeof count === "number" && (
             <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20">
               <span className="text-[9px] font-black uppercase text-slate-400">{countLabel}</span>
               <span className="text-xs font-black text-[#621f32] dark:text-[#bc955c]">

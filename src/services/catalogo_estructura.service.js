@@ -85,6 +85,9 @@ export const CatalogoEstructuraService = {
         method: "DELETE", ...options,
     }),
 
+    // ── cat_ubicaciones (solo lectura, pk: cd_ubicacion) ───────────────────
+    getCatUbicaciones: (options = {}) => apiFetch("/plantilla/cat-ubicaciones/", { method: "GET", ...options }),
+
     // ── cat_nivel_jerarquico_plaza (pk: plaza) ─────────────────────────────
     getNivelesJerarquicosPlaza: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/", { method: "GET", ...options }),
     getNivelesJerarquicosOpciones: (options = {}) => apiFetch("/plantilla/cat-nivel-jerarquico-plaza/niveles/", { method: "GET", ...options }),

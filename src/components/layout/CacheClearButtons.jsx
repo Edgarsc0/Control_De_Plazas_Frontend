@@ -51,7 +51,7 @@ function IconToggle({ icon: Icon, label, pressed, disabled, onClick, tone = 'def
  */
 export default function CacheClearButtons() {
   const { hasPermission } = useAuth();
-  const { toast } = useToast();
+  const { toast, dismiss, remove } = useToast();
   const { refetchSubscribers } = useZafiroUpdates();
   const [selServer, setSelServer] = useState(false);
   const [selLocal, setSelLocal] = useState(false);
@@ -86,20 +86,35 @@ export default function CacheClearButtons() {
       else failed.push('local');
     }
 
-    if (done.length) {
-      // Sin F5: los suscriptores refetchean por red y reescriben IndexedDB.
-      refetchSubscribers();
-      toast.success('Caché borrada', {
-        description: `${done.join(' y ')}. Recargando datos…`,
-      });
-      setSelServer(false);
-      setSelLocal(false);
-    }
     if (failed.length) {
       toast.error('No se pudo borrar', { description: `Falló: ${failed.join(' y ')}.` });
     }
+    if (done.length) {
+      setSelServer(false);
+      setSelLocal(false);
+      // Sin F5: los suscriptores refetchean por red y reescriben IndexedDB.
+      // Este toast se queda abierto (sin auto-cierre) hasta que la recarga
+      // termina; entonces se reemplaza por el de "Datos recargados".
+      const loadingId = toast.info('Caché borrada', {
+        description: `${done.join(' y ')}. Recargando datos…`,
+        duration: Infinity,
+      });
+      try {
+        const { failed: refetchFailed } = await refetchSubscribers();
+        if (refetchFailed > 0) {
+          toast.warning('Recarga incompleta', {
+            description: 'Algunos datos no se pudieron recargar. Actualiza la página (F5) si algo se ve desactualizado.',
+          });
+        } else {
+          toast.success('Datos recargados', { description: 'La información ya está actualizada.' });
+        }
+      } finally {
+        dismiss(loadingId);
+        setTimeout(() => remove(loadingId), 250);
+      }
+    }
     setBusy(false);
-  }, [serverMarked, selLocal, refetchSubscribers, toast]);
+  }, [serverMarked, selLocal, refetchSubscribers, toast, dismiss, remove]);
 
   return (
     <TooltipProvider delayDuration={150}>

@@ -39,7 +39,7 @@ export default function ZafiroBitacoraWidget() {
     if (showLoading) setLoading(true);
     else setRefreshing(true);
     try {
-      const res = await apiFetch("/plantilla/bitacora/");
+      const res = await apiFetch(`/plantilla/bitacora/?limit=${LIMITE}`);
       if (res.ok) setLogs(await res.json());
     } catch (err) {
       console.error("Error cargando bitácora de ZAFIRO:", err);
@@ -69,7 +69,7 @@ export default function ZafiroBitacoraWidget() {
     <div className="w-full h-full flex flex-col">
       <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-800">
         <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">
-          Últimas {Math.min(LIMITE, logs.length)} de {logs.length}
+          Últimas {logs.length}
         </span>
         <RefreshCw className={`size-3 text-slate-400 ${refreshing ? "animate-spin" : ""}`} />
       </div>

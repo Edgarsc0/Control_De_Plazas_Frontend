@@ -620,6 +620,15 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // Esta pestaña se reutiliza DENTRO del modal "Plantilla de la unidad" del
   // tablero; sus propios modales tienen que quedar sobre él (ver modalLayer.js).
   const zCapaModal = useModalLayerZ(100);
+  // Mismo zBase (1000) que usa el ModalShell de "Movimientos realizados hoy"
+  // (ver ModalShell.jsx: zCapa = useModalLayerZ(1000) para el modo normal) —
+  // EmpleadoTimelineModal vive FUERA de ese ModalShell (no hereda su
+  // ModalLayerProvider), así que para quedar encima necesita partir del mismo
+  // zBase. Reutilizar `zCapaModal` (zBase 100, para CadenaModal) daba
+  // 100+200=300 < 1000 del ModalShell cuando esta tab no está anidada dentro
+  // de otro modal (p. ej. como ruta normal, no dentro de "Plantilla de la
+  // unidad"): el modal de historia del empleado se abría detrás.
+  const zCapaMovimientosHoyModal = useModalLayerZ(1000);
   // Un rol con alcance de datos por Unidad de Negocio (ver RolUnScope en el
   // backend) solo debe operar sobre su propia UN, así que se le ocultan los
   // controles que implican ver/editar la plantilla completa: el resumen de
@@ -782,7 +791,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const { subscribe: subscribeZafiroUpdates } = useZafiroUpdates();
   useEffect(() => {
     let active = true;
-    const fetchMovimientosHoyCount = () => {
+    const fetchMovimientosHoyCount = () =>
       VacantesService.getMovimientosPersonal({ fecha_captura: fechaHoy, page_size: 1 })
         .then(async (response) => {
           if (!response.ok || !active) return;
@@ -790,7 +799,6 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
           setMovimientosHoyCount(data?.count ?? 0);
         })
         .catch((err) => console.error("Error fetching movimientos de hoy:", err));
-    };
     fetchMovimientosHoyCount();
     const unsubscribe = subscribeZafiroUpdates(fetchMovimientosHoyCount);
     return () => {
@@ -3988,7 +3996,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         open={movHoyTimelineOpen}
         onOpenChange={setMovHoyTimelineOpen}
         numEmpleado={movHoyTimelineNumEmpleado}
-        zCapa={zCapaModal + 200}
+        zCapa={zCapaMovimientosHoyModal + 200}
       />
 
       {/* Modo histórico: sustituye el donut de estatus en vivo (que depende de
@@ -4222,6 +4230,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             searchValue={searchQuery}
             onSearch={(v) => { setSearchQuery(v); startTransition(() => setGlobalSearch(v)); }}
             count={filteredSortedData.length}
+            countLoading={isLoading}
             primaryAction={{ icon: Download, label: "Exportar a Excel", onClick: handleOpenExportClick, loading: isExportingExcel }}
             actions={[
               { icon: RotateCcw, label: "Restablecer filtros", onClick: resetAllFilters, disabled: Object.keys(columnFilters).length === 0 && !globalSearch && !sortConfig.key && !Object.values(textFilters).some(v => v && v.value) && appliedAdvancedFilters.length === 0 },
@@ -4305,7 +4314,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 </div>
                 <div className="hidden sm:flex flex-col items-center justify-center px-4 py-2 bg-[#621f32]/5 dark:bg-[#bc955c]/10 border border-[#621f32]/10 dark:border-[#bc955c]/20 rounded-2xl min-w-[100px]">
                   <span className="text-[9px] font-black uppercase text-slate-500 leading-none mb-1">Registros</span>
-                  <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
+                  {isLoading ? (
+                    <span className="skeleton-box inline-block h-4 w-10 rounded align-middle" />
+                  ) : (
+                    <span className="text-sm font-black text-[#621f32] dark:text-[#bc955c] leading-none">{formatNumber(filteredSortedData.length)}</span>
+                  )}
                 </div>
                 {/* Oculto para un rol con alcance por Unidad de Negocio — ver
                     comentario en la copia móvil de este mismo switch. */}

@@ -319,6 +319,52 @@ function DataTable({
     };
   }, [enableKeyboardNav]);
 
+  // Auto-scroll de la celda seleccionada con el teclado (sólo con
+  // `enableKeyboardNav`). Las filas miden `rowHeight` fijo, así que la posición
+  // vertical se calcula sin tocar el DOM (la fila puede no estar renderizada aún
+  // por la virtualización del consumidor). El header sticky (`thead`) y las
+  // columnas congeladas tapan parte del viewport: se descuentan para no dejar la
+  // celda escondida debajo de ellos. `visible`/`stickyMeta` se leen vía ref para
+  // que un resize de columna (cambia `columns` en cada mousemove) no re-dispare
+  // el scroll.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const stickyMetaRef = useRef(stickyMeta);
+  stickyMetaRef.current = stickyMeta;
+  const rowHeightRef = useRef(rowHeight);
+  rowHeightRef.current = rowHeight;
+  const selRow = selectedCell?.row;
+  const selCol = selectedCell?.col;
+  useEffect(() => {
+    if (!enableKeyboardNav || selRow == null || selCol == null) return;
+    const container = containerRef?.current;
+    if (!container) return;
+
+    const rh = rowHeightRef.current;
+    const headerH = container.querySelector("thead")?.offsetHeight ?? 0;
+    const rowTop = selRow * rh;
+    const rowBottom = rowTop + rh;
+    if (rowTop < container.scrollTop) {
+      container.scrollTop = rowTop;
+    } else if (rowBottom + headerH > container.scrollTop + container.clientHeight) {
+      container.scrollTop = rowBottom + headerH - container.clientHeight;
+    }
+
+    const cols = visibleRef.current;
+    const meta = stickyMetaRef.current;
+    if (!cols[selCol] || meta[selCol]?.isSticky) return;
+    let frozenWidth = 95;
+    for (let i = 0; i < cols.length && meta[i]?.isSticky; i++) frozenWidth += cols[i].width;
+    let colLeft = 95;
+    for (let i = 0; i < selCol; i++) colLeft += cols[i].width;
+    const colRight = colLeft + cols[selCol].width;
+    if (colLeft < container.scrollLeft + frozenWidth) {
+      container.scrollLeft = colLeft - frozenWidth;
+    } else if (colRight > container.scrollLeft + container.clientWidth) {
+      container.scrollLeft = colRight - container.clientWidth;
+    }
+  }, [enableKeyboardNav, selRow, selCol, containerRef]);
+
   // Header agrupado (opt-in, no afecta tabs que no usan `col.group`): dos o más
   // columnas consecutivas que comparten `col.group` (p.ej. "MOV_POS"/"PLANTILLA"
   // bajo un mismo campo comparado) se fusionan en una celda superior con el
@@ -422,7 +468,7 @@ function DataTable({
   }, { scope: tbodyRef, dependencies: [isLoading, hasRows] });
 
   return (
-    <div ref={containerRef} data-glass-header={glassHeader ? "" : undefined} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
+    <div ref={containerRef} data-glass-header={glassHeader ? "" : undefined} onScroll={(e) => onScroll(e.currentTarget.scrollTop)} className={`overflow-auto overscroll-contain relative flex-1 min-h-0 border border-slate-200/50 dark:border-slate-800/80 shadow-inner ${edgeToEdge ? "" : "mx-2 lg:mx-6 mb-4"}`} style={fillHeight ? undefined : { height: 'calc(100vh - 280px)' }}>
       <AnimatePresence>{isPending && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/30 backdrop-blur-[3px] z-40 flex items-center justify-center"><div className="flex flex-col items-center gap-3.5 p-6 bg-white/95 rounded-[2rem] shadow-2xl border border-slate-200/50"><div className="size-8 border-[4px] border-[#621f32]/20 border-t-[#621f32] rounded-full animate-spin" /><span className="text-[10px] font-black uppercase text-[#621f32] bg-[#621f32]/5 px-3.5 py-1 rounded-xl">Procesando...</span></div></motion.div>)}</AnimatePresence>
       <table className={`text-left text-gray-500 border-collapse ${centerTable && !fillWidth ? "mx-auto" : ""}`} style={{ tableLayout: "fixed", width: fillWidth ? "100%" : columnsWidth, minWidth: columnsWidth }}>
         {/* `data-col-key` en cada <col>: localiza el nodo real para animar su
