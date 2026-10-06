@@ -36,6 +36,9 @@ export const PERMISSION_TREE = [
             id: 'detalle_historico',
             codename: PERMISSIONS.VIEW_PLANTILLA_HISTORICO,
             info: 'Abre el modo histórico; marca abajo qué ve este rol en sus tarjetas y en la tabla. "Plazas Activas" no tiene checkbox propio (implícita, no se puede quitar) y Ocupadas/Vacantes no se pueden desmarcar ambas a la vez (activas = ocupadas + vacantes)',
+            // Sus 4 hijos no sirven de nada sin este permiso: PermissionTreeSection
+            // los deshabilita en el picker mientras este checkbox esté desmarcado.
+            gateChildren: true,
             children: [
               { id: 'detalle_historico_plazas_totales', codename: PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_TOTALES },
               { id: 'detalle_historico_plazas_inactivas', codename: PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_INACTIVAS },

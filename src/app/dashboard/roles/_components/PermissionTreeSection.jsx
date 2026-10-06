@@ -16,6 +16,7 @@ function PermissionNodeRow({
     previewCodename,
     setPreviewCodename,
     allowedPermissionIds,
+    parentNodeChecked = true,
 }) {
     const perm = permsByCodename.get(node.codename);
     if (!perm) return null; // permiso ya no existe en el catálogo del backend
@@ -23,14 +24,23 @@ function PermissionNodeRow({
     const hasPreview = Boolean(PERMISSION_PREVIEWS[perm.full_codename]);
     const isChecked = selectedPermissionIds.has(perm.id);
     // El rol padre no tiene este permiso: el hijo tampoco puede tenerlo.
-    const isBlocked = Boolean(allowedPermissionIds) && !allowedPermissionIds.has(perm.id);
+    const bloqueadoPorRolPadre = Boolean(allowedPermissionIds) && !allowedPermissionIds.has(perm.id);
+    // Su propio permiso padre EN ESTE árbol (ej. "consultar plantillas
+    // históricas") está desmarcado en este rol: sin él, el hijo no hace nada
+    // — se deja gris e inoperable hasta que se marque el de arriba.
+    const isBlocked = bloqueadoPorRolPadre || !parentNodeChecked;
+    const blockedTitle = bloqueadoPorRolPadre
+        ? 'El rol padre no tiene este permiso'
+        : !parentNodeChecked
+            ? 'Activa primero el permiso de arriba'
+            : undefined;
 
     return (
         <div>
             <label
                 onMouseEnter={() => hasPreview && setPreviewCodename(perm.full_codename)}
                 onFocus={() => hasPreview && setPreviewCodename(perm.full_codename)}
-                title={isBlocked ? 'El rol padre no tiene este permiso' : undefined}
+                title={blockedTitle}
                 className={`flex items-start gap-2 p-2 rounded-lg ${
                     isBlocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'
                 }`}
@@ -66,6 +76,7 @@ function PermissionNodeRow({
                     previewCodename={previewCodename}
                     setPreviewCodename={setPreviewCodename}
                     allowedPermissionIds={allowedPermissionIds}
+                    parentNodeChecked={node.gateChildren ? isChecked : true}
                 />
             ))}
         </div>
