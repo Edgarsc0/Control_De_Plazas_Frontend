@@ -10,6 +10,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AdminDataGrid, { cellClassName } from './AdminDataGrid';
+import { aplanarArbol } from './rolesTree';
+import { nombreCortoRol } from '@/utils/catalogosUnUa';
 
 const COLUMNS = [
     { key: 'email', label: 'Correo', width: 270, visible: true },
@@ -57,7 +59,16 @@ export default function UsersGrid({
     onExportTablero,
     onImportTablero,
 }) {
-    const roleNameById = useMemo(() => new Map(roles.map((r) => [String(r.id), r.name])), [roles]);
+    // Roles en el orden del árbol de la pestaña Roles (unidad por unidad), con
+    // su nombre compactado: así se listan los usuarios y los desplegables.
+    const rolesOrdenados = useMemo(
+        () => aplanarArbol(roles).map(({ role, depth }) => ({ ...role, corto: nombreCortoRol(role), depth })),
+        [roles]
+    );
+    const rolPorId = useMemo(
+        () => new Map(rolesOrdenados.map((r, orden) => [String(r.id), { ...r, orden }])),
+        [rolesOrdenados]
+    );
     const tableroLabelByValue = useMemo(
         () => new Map(tableroOptions.map((o) => [o.value, o.label])),
         [tableroOptions]
@@ -65,8 +76,15 @@ export default function UsersGrid({
 
     const rows = useMemo(
         () =>
-            entries.map((entry) => {
+            [...entries]
+                .sort((a, b) => {
+                    const oa = rolPorId.get(String(a.rol))?.orden ?? Infinity;
+                    const ob = rolPorId.get(String(b.rol))?.orden ?? Infinity;
+                    return oa - ob || a.email.localeCompare(b.email);
+                })
+                .map((entry) => {
                 const sessions = activeSessionsByEmail[entry.email]?.sessions || [];
+                const rol = rolPorId.get(String(entry.rol));
                 return {
                     id: entry.id,
                     email: entry.email,
@@ -74,13 +92,15 @@ export default function UsersGrid({
                     ua_nombre: entry.ua_nombre || '',
                     estado: sessions.length > 0 ? 'Activo' : 'Sin sesión',
                     pagina: sessions.map(pageLabel).join(' | '),
-                    rol: roleNameById.get(String(entry.rol)) || '',
+                    rol: rol?.corto || '',
+                    // No es columna: existe para que la búsqueda encuentre también el nombre completo.
+                    rol_largo: rol?.name || '',
                     tablero: tableroLabelByValue.get(entry.tablero || 'none') || '',
                     _entry: entry,
                     _sessions: sessions,
                 };
             }),
-        [entries, activeSessionsByEmail, roleNameById, tableroLabelByValue]
+        [entries, activeSessionsByEmail, rolPorId, tableroLabelByValue]
     );
 
     const renderRowAction = useCallback(
@@ -158,8 +178,10 @@ export default function UsersGrid({
                             <Select value={String(entry.rol)} onValueChange={(v) => onReassignRole(entry, v)}>
                                 <SelectTrigger size="sm" className={SELECT_CELL_CLASS}><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    {roles.map((role) => (
-                                        <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
+                                    {rolesOrdenados.map((role) => (
+                                        <SelectItem key={role.id} value={String(role.id)} title={role.name} style={{ paddingLeft: `${0.5 + role.depth * 0.9}rem` }}>
+                                            {role.corto}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -231,7 +253,7 @@ export default function UsersGrid({
             monoKeys={MONO_KEYS}
             isLoading={isLoading}
             loadingMessage="Cargando usuarios..."
-            searchPlaceholder="Buscar por correo, UA o rol..."
+            searchPlaceholder="Buscar por correo, UA o rol (siglas o nombre completo)..."
             hasExternalFilters={!!roleFilter}
             onResetExternalFilters={() => onRoleFilterChange('')}
             entityLabel="usuario"
@@ -245,8 +267,10 @@ export default function UsersGrid({
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Todos los roles</SelectItem>
-                        {roles.map((role) => (
-                            <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
+                        {rolesOrdenados.map((role) => (
+                            <SelectItem key={role.id} value={String(role.id)} title={role.name} style={{ paddingLeft: `${0.5 + role.depth * 0.9}rem` }}>
+                                {role.corto}
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>

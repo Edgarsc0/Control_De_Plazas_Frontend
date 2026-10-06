@@ -101,3 +101,53 @@ export const labelUA = (code) => {
   const name = UA_CATALOG[padded];
   return name ? `${raw} (${name})` : raw;
 };
+
+// Nombre compactado de cada Unidad de Negocio (siglas de uso interno).
+export const UN_SIGLAS = {
+  "00001": "ANAM",
+  "00002": "OIC",
+  "00003": "DGE",
+  "00004": "DGPEDA",
+  "00100": "DGOA",
+  "00200": "DGIA",
+  "00300": "DGAAAI",
+  "00400": "DGMEIA",
+  "00500": "DGJA",
+  "00600": "DGR",
+  "00700": "DGTI",
+  "00800": "DGPA",
+  "00900": "UAF",
+};
+
+// Nombre compactado de las UA adscritas. Las aduanas usan el mismo nombre
+// corto que la columna "DG o Aduana compactada" de la plantilla.
+const UA_CORTO_ESPECIAL = {
+  "139": "Aduana AICM",
+  "140": "Aduana AIFA",
+  "909": "DOAF CDMX",
+  "922": "DOAF Chichimequillas",
+};
+
+const cortoDeUA = (cdUa) => {
+  const code = String(cdUa).trim().padStart(3, "0");
+  if (UA_CORTO_ESPECIAL[code]) return UA_CORTO_ESPECIAL[code];
+  const nombre = UA_CATALOG[code];
+  if (!nombre) return null;
+  // "Aduana de Veracruz (Veracruz)" -> "Aduana Veracruz"
+  return nombre.replace(/\s*\([^)]*\)\s*$/, "").replace(/^Aduana de(l)? /, "Aduana ");
+};
+
+/**
+ * Nombre compactado de un rol de la pantalla de Roles: siglas para los
+ * titulares de UN (DGOA, UAF...), nombre corto para aduanas y DOAF. Los
+ * subroles y roles transversales conservan el nombre que se les puso.
+ */
+export const nombreCortoRol = (role) => {
+  if (!role) return "";
+  if (role.tipo === "titular") {
+    if (role.cd_ua) return cortoDeUA(role.cd_ua) || role.name;
+    const sigla = UN_SIGLAS[String(role.cd_un || "").trim().padStart(5, "0")];
+    if (sigla) return sigla;
+  }
+  return role.name;
+};

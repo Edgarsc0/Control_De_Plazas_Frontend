@@ -3,17 +3,18 @@
 import { useRef } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { Activity, KeyRound, Plus, ShieldCheck, UserPlus, Users as UsersIcon } from 'lucide-react';
+import { Activity, Building2, GitBranch, KeyRound, Plus, ShieldCheck, UserPlus, Users as UsersIcon } from 'lucide-react';
 import CountUp from './CountUp';
 import { prefersReducedMotion } from './motion';
 
 gsap.registerPlugin(useGSAP);
 
-function Stat({ label, value, icon: Icon, live, warn, onClick }) {
+function Stat({ label, value, icon: Icon, live, warn, onClick, title }) {
     const Tag = onClick ? 'button' : 'div';
     return (
         <Tag
             type={onClick ? 'button' : undefined}
+            title={title}
             onClick={onClick}
             className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 ${
                 onClick ? 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer' : ''
@@ -31,7 +32,7 @@ function Stat({ label, value, icon: Icon, live, warn, onClick }) {
     );
 }
 
-export default function RolesHero({ stats, activeTab, onCreate, onSelectTab }) {
+export default function RolesHero({ stats, activeTab, onCreate, onOpenStat }) {
     const rootRef = useRef(null);
 
     useGSAP(
@@ -43,11 +44,13 @@ export default function RolesHero({ stats, activeTab, onCreate, onSelectTab }) {
     );
 
     const items = [
-        { id: 'roles', label: 'Roles', value: stats.roles, icon: ShieldCheck, onClick: () => onSelectTab('roles') },
-        { id: 'usuarios', label: 'Usuarios', value: stats.usuarios, icon: UsersIcon, onClick: () => onSelectTab('usuarios') },
+        { id: 'titulares', label: 'Roles', value: stats.titulares, icon: Building2 },
+        { id: 'subroles', label: 'Subroles', value: stats.subroles, icon: GitBranch },
+        { id: 'transversales', label: 'Transversales', value: stats.transversales, icon: ShieldCheck },
+        { id: 'usuarios', label: 'Usuarios', value: stats.usuarios, icon: UsersIcon },
         { id: 'online', label: 'En línea ahora', value: stats.online, icon: Activity, live: true },
-        { id: 'sinpass', label: 'Sin contraseña', value: stats.sinPassword, icon: KeyRound, warn: stats.sinPassword > 0 },
-    ];
+        { id: 'sinPassword', label: 'Sin contraseña', value: stats.sinPassword, icon: KeyRound, warn: stats.sinPassword > 0 },
+    ].map((item) => ({ ...item, title: 'Ver la lista', onClick: () => onOpenStat(item.id) }));
 
     return (
         <div

@@ -43,6 +43,7 @@ import { useUsuariosActivos } from '@/hooks/useUsuariosActivos';
 import { useTableroUsuario } from './_components/useTableroUsuario';
 import UserActivityDialog from './_components/UserActivityDialog';
 import ConfirmModal from '@/components/shared/ConfirmModal';
+import StatDetailDialog from './_components/StatDetailDialog';
 import { PERMISSIONS } from '@/config/permissions';
 import { PERMISSION_PREVIEWS } from '@/config/permissionPreviews';
 import { labelUN, labelUA } from '@/utils/catalogosUnUa';
@@ -166,6 +167,8 @@ function RolesAdminContent() {
     const { isSuperuser } = useAuth();
     const [roles, setRoles] = useState([]);
     const [roleToDelete, setRoleToDelete] = useState(null);
+    // Indicador del banner cuyo detalle está abierto (ver StatDetailDialog).
+    const [statAbierto, setStatAbierto] = useState(null);
     const [permissions, setPermissions] = useState([]);
     const [whitelist, setWhitelist] = useState([]);
     const [uas, setUas] = useState([]);
@@ -654,7 +657,9 @@ function RolesAdminContent() {
         });
 
     const heroStats = {
-        roles: roles.length,
+        titulares: roles.filter((r) => r.tipo === 'titular').length,
+        subroles: roles.filter((r) => r.tipo === 'subrol').length,
+        transversales: roles.filter((r) => r.tipo === 'transversal').length,
         usuarios: whitelist.length,
         online: whitelist.filter((e) => (activeSessionsByEmail[e.email]?.sessions?.length || 0) > 0).length,
         sinPassword: whitelist.filter((e) => !e.tiene_password).length,
@@ -670,7 +675,7 @@ function RolesAdminContent() {
                 stats={heroStats}
                 activeTab={activeTab}
                 onCreate={activeTab === 'roles' ? () => openNewRole() : openNewUser}
-                onSelectTab={changeTab}
+                onOpenStat={setStatAbierto}
             />
 
             <AnimatedTabs
@@ -687,6 +692,7 @@ function RolesAdminContent() {
             {activeTab === 'roles' && (
                 <RolesGrid
                     roles={roles}
+                    whitelist={whitelist}
                     isLoading={isLoading}
                     onEdit={openEditRole}
                     onDelete={setRoleToDelete}
@@ -1142,6 +1148,15 @@ function RolesAdminContent() {
             {tableroUsuario.dialogos}
 
             <UserActivityDialog entry={activityEntry} onClose={() => setActivityEntry(null)} />
+
+            <StatDetailDialog
+                stat={statAbierto}
+                onClose={() => setStatAbierto(null)}
+                roles={roles}
+                whitelist={whitelist}
+                activeSessionsByEmail={activeSessionsByEmail}
+                timeAgoLabel={timeAgoLabel}
+            />
 
             <ConfirmModal
                 open={!!roleToDelete}

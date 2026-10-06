@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   EDIT_PLANTILLA_DETALLE: 'authentication.edit_plantilla_detalle',
   EDIT_DATOS_PERSONALES: 'authentication.edit_datos_personales',
   VIEW_PLANTILLA_HISTORICO: 'authentication.view_plantilla_historico',
+  VIEW_PLANTILLA_SWITCH_OFICIAL: 'authentication.view_plantilla_switch_oficial',
   EDIT_PLANTILLA_MOV_POSICIONES: 'authentication.edit_plantilla_mov_posiciones',
   VIEW_ANUENCIA_ELIMINADOS: 'authentication.view_anuencia_eliminados',
 

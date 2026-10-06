@@ -33,6 +33,7 @@ export const PERMISSION_TREE = [
           { id: 'detalle_edit', codename: PERMISSIONS.EDIT_PLANTILLA_DETALLE },
           { id: 'detalle_foto', codename: PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO },
           { id: 'detalle_historico', codename: PERMISSIONS.VIEW_PLANTILLA_HISTORICO },
+          { id: 'detalle_switch_oficial', codename: PERMISSIONS.VIEW_PLANTILLA_SWITCH_OFICIAL, info: 'Sin este permiso el rol ve siempre la plantilla oficial (sin Laudos, 1039 ni PASEM) y no se le muestra el switch' },
           { id: 'detalle_datos_personales', codename: PERMISSIONS.EDIT_DATOS_PERSONALES },
         ],
       },

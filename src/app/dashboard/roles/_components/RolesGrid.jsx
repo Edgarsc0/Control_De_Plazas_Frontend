@@ -10,22 +10,32 @@ import {
     Pencil,
     ShieldCheck,
     Trash2,
+    User as UserIcon,
     Users as UsersIcon,
 } from 'lucide-react';
 import AdminDataGrid, { cellClassName } from './AdminDataGrid';
+import { aplanarArbol } from './rolesTree';
+import { nombreCortoRol } from '@/utils/catalogosUnUa';
 
 const COLUMNS = [
     { key: 'name', label: 'Rol', width: 460, visible: true },
     { key: 'tipo', label: 'Tipo', width: 150, visible: true },
     { key: 'permisos', label: 'Permisos', width: 120, visible: true },
     { key: 'alcance', label: 'Alcance de datos', width: 200, visible: true },
-    { key: 'usuarios', label: 'Usuarios', width: 120, visible: true },
+    { key: 'usuarios', label: 'Usuarios', width: 210, visible: true },
     { key: 'acciones', label: 'Acciones', width: 110, visible: true, noFilter: true },
 ];
 
 const MONO_KEYS = [];
 
 const TIPO_LABEL = { titular: 'Titular de unidad', transversal: 'Transversal', subrol: 'Subrol' };
+
+// La columna Rol se busca/filtra por nombre compactado Y por nombre completo.
+const getCellValue = (row, key) => {
+    if (key === 'name' && row.nombre_largo && row.nombre_largo !== row.name) return `${row.name} · ${row.nombre_largo}`;
+    const v = row?.[key];
+    return v === null || v === undefined ? '' : String(v);
+};
 
 const TIPO_BADGE = {
     titular: 'bg-[#621f32]/8 text-[#621f32] border-[#621f32]/20 dark:bg-[#bc955c]/10 dark:text-[#bc955c] dark:border-[#bc955c]/30',
@@ -60,37 +70,7 @@ function alcanceEfectivo(role, rolesById) {
     return { restringido: true, label: `${partes.join(' · ')}${heredado ? ' (heredado)' : ''}` };
 }
 
-/** Aplana el árbol en orden padre → hijos (por nombre), anotando la profundidad. */
-function aplanarArbol(roles) {
-    const ids = new Set(roles.map((r) => r.id));
-    const hijosDe = new Map();
-    for (const role of roles) {
-        // Un padre que no vino en la lista se trata como raíz, para no perder el rol.
-        const clave = role.padre && ids.has(role.padre) ? role.padre : null;
-        if (!hijosDe.has(clave)) hijosDe.set(clave, []);
-        hijosDe.get(clave).push(role);
-    }
-    // Raíces: primero los titulares en el orden del catálogo (cd_un), luego el
-    // resto por nombre. Hijos: titulares de UA primero, después subroles.
-    const ordenar = (lista) =>
-        [...lista].sort((a, b) => {
-            const ta = a.tipo === 'titular' ? 0 : 1;
-            const tb = b.tipo === 'titular' ? 0 : 1;
-            if (ta !== tb) return ta - tb;
-            if (ta === 0 && !a.padre && !b.padre) return String(a.cd_un).localeCompare(String(b.cd_un));
-            return a.name.localeCompare(b.name, 'es');
-        });
-    const filas = [];
-    const visitar = (role, depth, ancestros) => {
-        const hijos = ordenar(hijosDe.get(role.id) || []);
-        filas.push({ role, depth, ancestros, numHijos: hijos.length });
-        hijos.forEach((hijo) => visitar(hijo, depth + 1, [...ancestros, role.id]));
-    };
-    ordenar(hijosDe.get(null) || []).forEach((raiz) => visitar(raiz, 0, []));
-    return filas;
-}
-
-export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreateSubrole }) {
+export default function RolesGrid({ roles, whitelist = [], isLoading, onEdit, onDelete, onCreateSubrole }) {
     // Roles con sus hijos desplegados. Arranca todo colapsado: 13 unidades +
     // los roles transversales, y de ahí se abre lo que se necesite.
     const [expanded, setExpanded] = useState(() => new Set());
@@ -106,11 +86,27 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
 
     const rows = useMemo(() => {
         const rolesById = new Map(roles.map((r) => [r.id, r]));
-        return aplanarArbol(roles).map(({ role, depth, ancestros, numHijos }) => {
+        const usuariosDe = new Map();
+        for (const entry of whitelist) {
+            if (!usuariosDe.has(entry.rol)) usuariosDe.set(entry.rol, []);
+            usuariosDe.get(entry.rol).push(entry);
+        }
+        const arbol = aplanarArbol(roles);
+        // Usuarios en los roles que dependen de cada rol (subroles, aduanas...):
+        // cada rol suma los suyos a todos sus ancestros.
+        const enDescendencia = new Map();
+        for (const { role, ancestros } of arbol) {
+            const propios = (usuariosDe.get(role.id) || []).length;
+            if (propios) ancestros.forEach((id) => enDescendencia.set(id, (enDescendencia.get(id) || 0) + propios));
+        }
+        const filas = [];
+        for (const { role, depth, ancestros, numHijos } of arbol) {
             const alcance = alcanceEfectivo(role, rolesById);
-            return {
+            const usuarios = [...(usuariosDe.get(role.id) || [])].sort((a, b) => a.email.localeCompare(b.email));
+            filas.push({
                 id: role.id,
-                name: role.name,
+                name: nombreCortoRol(role),
+                nombre_largo: role.name,
                 tipo: TIPO_LABEL[role.tipo] || role.tipo,
                 permisos: String(role.permissions.length),
                 alcance: alcance.label,
@@ -119,10 +115,29 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
                 _depth: depth,
                 _ancestros: ancestros,
                 _numHijos: numHijos,
+                _numUsuarios: usuarios.length,
+                _usuariosDescendencia: enDescendencia.get(role.id) || 0,
                 _restringido: alcance.restringido,
-            };
-        });
-    }, [roles]);
+            });
+            // Los usuarios del rol cuelgan de él como filas hijas (se ven al
+            // desplegarlo, o al buscar su correo).
+            for (const entry of usuarios) {
+                filas.push({
+                    id: `u-${entry.id}`,
+                    name: entry.email,
+                    tipo: 'Usuario',
+                    permisos: '',
+                    alcance: '',
+                    usuarios: '',
+                    _user: entry,
+                    _depth: depth + 1,
+                    _ancestros: [...ancestros, role.id],
+                    _numHijos: 0,
+                });
+            }
+        }
+        return filas;
+    }, [roles, whitelist]);
 
     const isRowCollapsed = useCallback(
         (row) => row._ancestros.some((id) => !expanded.has(id)),
@@ -130,7 +145,7 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
     );
 
     const renderRowAction = useCallback(
-        ({ row }) => (
+        ({ row }) => row._user ? null : (
             <button
                 onClick={(e) => { e.stopPropagation(); onEdit(row._role); }}
                 title="Editar rol"
@@ -147,7 +162,40 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
         const base = { onClick, onContextMenu, onDoubleClick, style };
         const role = row._role;
 
+        // Fila de usuario colgada de su rol: solo correo y unidad.
+        if (row._user) {
+            if (col.key === 'name') {
+                return (
+                    <td key={col.key} {...base} className={cellClassName({ isSelected })}>
+                        <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${row._depth * 1.5}rem` }}>
+                            <span className="w-5 shrink-0" />
+                            <span className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0">
+                                <UserIcon className="size-3.5 text-slate-500 dark:text-slate-400" />
+                            </span>
+                            <span className="truncate font-medium" title={value}>{value}</span>
+                            {row._user.ua_nombre && (
+                                <span className="truncate text-[11px] font-normal text-slate-400" title={row._user.ua_nombre}>
+                                    · {row._user.ua_nombre}
+                                </span>
+                            )}
+                        </div>
+                    </td>
+                );
+            }
+            if (col.key === 'tipo') {
+                return (
+                    <td key={col.key} {...base} className={cellClassName({ isSelected })}>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30">
+                            Usuario
+                        </span>
+                    </td>
+                );
+            }
+            return <td key={col.key} {...base} className={cellClassName({ isSelected })} />;
+        }
+
         if (col.key === 'name') {
+            const desplegables = row._numHijos + row._numUsuarios;
             const abierto = expanded.has(role.id);
             const Icono = role.tipo === 'titular' ? Building2 : ShieldCheck;
             return (
@@ -156,10 +204,10 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
                         className="flex items-center gap-2 min-w-0"
                         style={{ paddingLeft: `${row._depth * 1.5}rem` }}
                     >
-                        {row._numHijos > 0 ? (
+                        {desplegables > 0 ? (
                             <button
                                 onClick={(e) => { e.stopPropagation(); toggleExpanded(role.id); }}
-                                title={abierto ? 'Ocultar roles que dependen de este' : `Mostrar los ${row._numHijos} roles que dependen de este`}
+                                title={abierto ? 'Ocultar lo que depende de este rol' : `Mostrar ${[row._numHijos ? `${row._numHijos} rol(es)` : '', row._numUsuarios ? `${row._numUsuarios} usuario(s)` : ''].filter(Boolean).join(' y ')}`}
                                 aria-expanded={abierto}
                                 className="p-0.5 rounded-md text-slate-400 hover:text-[#621f32] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                             >
@@ -171,7 +219,7 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
                         <span className="p-1.5 rounded-lg bg-[#621f32]/8 dark:bg-[#bc955c]/10 shrink-0">
                             <Icono className="size-3.5 text-[#621f32] dark:text-[#bc955c]" />
                         </span>
-                        <span className="truncate" title={value}>{value}</span>
+                        <span className="truncate" title={row.nombre_largo}>{value}</span>
                         {row._numHijos > 0 && (
                             <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold">
                                 {row._numHijos}
@@ -226,6 +274,14 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
                     >
                         <UsersIcon className="size-3" /> {value}
                     </span>
+                    {row._usuariosDescendencia > 0 && (
+                        <span
+                            title={`${row._usuariosDescendencia} usuario(s) en los roles que dependen de este (subroles y unidades adscritas)`}
+                            className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400"
+                        >
+                            +{row._usuariosDescendencia} en subroles
+                        </span>
+                    )}
                 </td>
             );
         }
@@ -261,10 +317,12 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
 
     return (
         <AdminDataGrid
-            storageKey="roles_admin_roles_v2"
+            storageKey="roles_admin_roles_v3"
             columns={COLUMNS}
             rows={rows}
             getRowId={(row) => row.id}
+            getCellValue={getCellValue}
+            countLabel={`${roles.length} roles`}
             renderCell={renderCell}
             renderRowAction={renderRowAction}
             stickyColumnKeys={[]}
@@ -272,7 +330,7 @@ export default function RolesGrid({ roles, isLoading, onEdit, onDelete, onCreate
             monoKeys={MONO_KEYS}
             isLoading={isLoading}
             loadingMessage="Cargando roles..."
-            searchPlaceholder="Buscar rol (también encuentra aduanas y subroles)..."
+            searchPlaceholder="Buscar por siglas, nombre completo o correo de usuario..."
             entityLabel="rol"
             entityLabelPlural="roles"
             isRowCollapsed={isRowCollapsed}

@@ -78,6 +78,9 @@ export default function AdminDataGrid({
     // todas las coincidencias en plano, para que una fila hija siempre se
     // pueda encontrar sin tener que expandir a su padre.
     isRowCollapsed = null,
+    // Texto del contador cuando no hay filtros (p. ej. si `rows` mezcla
+    // entidades y contarlas todas bajo `entityLabel` sería engañoso).
+    countLabel = null,
 }) {
     const [sortConfig, setSortConfig] = usePersistedState(`${storageKey}_sort`, { key: null, direction: null });
     const { columns, setColumns, resetWidth } = useColumnState(initialColumns, `${storageKey}_columns`);
@@ -299,7 +302,7 @@ export default function AdminDataGrid({
                 </button>
                 <span className="ml-auto text-xs font-bold text-slate-400 whitespace-nowrap">
                     {sortedData.length === rows.length || treeViewActive
-                        ? `${rows.length} ${rows.length === 1 ? entityLabel : entityLabelPlural}`
+                        ? countLabel || `${rows.length} ${rows.length === 1 ? entityLabel : entityLabelPlural}`
                         : `${sortedData.length} de ${rows.length} ${entityLabelPlural}`}
                 </span>
                 {toolbarRight}

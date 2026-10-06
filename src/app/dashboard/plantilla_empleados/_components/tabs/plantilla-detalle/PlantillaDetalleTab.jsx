@@ -630,6 +630,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // todavía trae el valor por defecto `null` ("sin restricción"), que se
   // vería como falso negativo (mostrar de más un instante) si no se espera.
   const sinRestriccionUN = !authLoading && unScope === null;
+  // Switch "Plantilla oficial": solo lo ve (y puede apagarlo) quien tiene este
+  // permiso; el resto ve siempre la plantilla oficial. El backend lo refuerza:
+  // sin el permiso, Laudos/1039/PASEM ni siquiera llegan al navegador.
+  const canSwitchPlantillaOficial = hasPermission(PERMISSIONS.VIEW_PLANTILLA_SWITCH_OFICIAL);
   // Alcance por columnas (ver RolColumnScope en el backend): las columnas no
   // permitidas ya NO llegan en los datos (el backend las recorta), pero el
   // catálogo de "Configurar Columnas" es estático — sin este filtro, esas
@@ -682,11 +686,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const detalleSinFiltroOficial = historicoActivo ? historicoFilas : detalleLive;
   const detalle = useMemo(
     () => (
-      (soloPlantillaOficial || !sinRestriccionUN)
+      (soloPlantillaOficial || !canSwitchPlantillaOficial)
         ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial)
         : detalleSinFiltroOficial
     ),
-    [detalleSinFiltroOficial, soloPlantillaOficial, sinRestriccionUN]
+    [detalleSinFiltroOficial, soloPlantillaOficial, canSwitchPlantillaOficial]
   );
   const isLoading = historicoActivo ? historicoLoading : isLoadingLive;
   // El donut de arriba (Activo/Vacante/Suspendido...) SÍ se conserva en modo
@@ -4078,7 +4082,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             ver la plantilla oficial, sin poder apagar el filtro (ver
             `sinRestriccionUN` y el `|| !sinRestriccionUN` en el useMemo de
             `detalle` más arriba, que lo refuerza aunque este switch faltara). */}
-        {sinRestriccionUN && (
+        {canSwitchPlantillaOficial && (
           <div className="px-4 mb-3">
             <label
               title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia."
@@ -4305,7 +4309,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
                 </div>
                 {/* Oculto para un rol con alcance por Unidad de Negocio — ver
                     comentario en la copia móvil de este mismo switch. */}
-                {sinRestriccionUN && (
+                {canSwitchPlantillaOficial && (
                   <label
                     title="Excluye Laudos (103L...), el rango 1039... y las plazas PASEM (partida 11401) — el mismo universo de 11,430 plazas que muestra Cuadros de Vacancia. Apagado, se ve la relación completa."
                     className="flex items-center gap-2 px-3 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 cursor-pointer select-none shrink-0"
