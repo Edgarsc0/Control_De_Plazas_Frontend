@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
@@ -933,6 +935,7 @@ export default function Anexo3Editor({ hojas, nombreArchivo, anexoIdActual, onCe
 
   // --- Descarga y versiones --------------------------------------------------
   const handleDescargar = async () => {
+    if (!(await confirmarDescargaExcel({ detalle: 'Anexo 3 (FUMP)' }))) return;
     setGenerando(true);
     try {
       await exportarAnexo3(grupos, `Anexo 3 - ${nombreArchivo || "FUMP"}`);

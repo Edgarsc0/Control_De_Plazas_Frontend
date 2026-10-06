@@ -13,4 +13,11 @@ export const VisitsService = {
         const params = new URLSearchParams({ email, ...(month ? { month } : {}) });
         return apiFetch(`/auth/visits/heatmap/?${params.toString()}`);
     },
+    /** Bitácora de archivos Excel generados por el usuario (UserDescargasExcelView). */
+    getUserDescargasExcel: (email) => {
+        const params = new URLSearchParams({ email });
+        return apiFetch(`/auth/descargas-excel/?${params.toString()}`);
+    },
+    /** Vuelve a generar el Excel de una descarga registrada; usar `.blob()`. */
+    regenerarDescargaExcel: (id) => apiFetch(`/plantilla/descargas_excel/${id}/regenerar/`),
 };

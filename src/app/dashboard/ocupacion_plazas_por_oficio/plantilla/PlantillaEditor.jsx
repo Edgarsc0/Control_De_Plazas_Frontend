@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { PlantillaService } from "@/services/plantilla.service";
 import { 
@@ -522,6 +524,7 @@ export default function PlantillaEditor({ initialData }) {
     };
 
     const exportToExcel = async () => {
+        if (!(await confirmarDescargaExcel({ filas: processedData?.length }))) return;
         setLoading(true);
         try {
             const filename = `Plantilla_1800_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;

@@ -1,3 +1,4 @@
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Zoom } from "@/components/shared/Reveal";
 import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, AlertCircle, ChevronsUpDown, ChevronsDownUp, TrendingUp, Layers, CirclePlus, CircleMinus, EyeOff } from "lucide-react";
@@ -809,6 +810,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
   };
 
   const handleExportExcel = async () => {
+    if (!(await confirmarDescargaExcel())) return;
     setIsExportingExcel(true);
     try {
       const { generateCuadroVacanciaExcel } = await import('@/utils/cuadroVacanciaExcel');

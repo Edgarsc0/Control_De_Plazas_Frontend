@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 /**
  * RotacionAduanasSubTab
  * =====================
@@ -2534,6 +2536,7 @@ export default function RotacionAduanasSubTab({ canViewPhoto = true }) {
     const [exportando, setExportando] = useState(false);
     const handleExportarExcel = useCallback(async () => {
         if (exportando) return;
+        if (!(await confirmarDescargaExcel({ fotos: !!canViewPhoto, detalle: busqueda ? `Búsqueda: "${busqueda}"` : '' }))) return;
         setExportando(true);
         try {
             await exportarRotacionAExcel({ aduanas, entradasPorAduana, destinoSegmentoPorClave, resumen, busqueda, canViewPhoto, fuente });

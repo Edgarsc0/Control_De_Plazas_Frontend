@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Zoom } from "@/components/shared/Reveal";
 import {
@@ -621,6 +623,7 @@ export default function AlineacionOrganizacionalTab({ isPending, startTransition
   }, []);
 
   const handleExportExcel = async () => {
+    if (!(await confirmarDescargaExcel())) return;
     setIsExportingExcel(true);
     try {
       const params = { ...buildBaseParams(), no_pagination: true };

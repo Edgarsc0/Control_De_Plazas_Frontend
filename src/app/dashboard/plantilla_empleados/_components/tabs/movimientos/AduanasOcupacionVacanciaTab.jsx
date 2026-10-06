@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Filter, Download } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
@@ -580,6 +582,7 @@ export default function AduanasOcupacionVacanciaTab({ cardRef }) {
 
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const handleExportExcel = useCallback(async () => {
+    if (!(await confirmarDescargaExcel({ filas: filasFiltradas?.length }))) return;
     setIsExportingExcel(true);
     try {
       const { vacantes, ocupados } = await ensureDetailData();

@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { 
@@ -1149,12 +1151,10 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
   // Botón "Exportar a Excel": con permiso de foto en este tab, se ofrece
   // elegir incluirlas (modal) antes de exportar; sin el permiso, exporta
   // directo como siempre (sin fotos, 100% client-side, sin cambios).
+  // El modal se abre siempre: además de ofrecer las fotos (si hay permiso),
+  // es el que muestra el aviso de confidencialidad antes de generar.
   const handleOpenExportClick = () => {
-    if (canViewFotoMovimientos) {
-      setIsExportFotosModalOpen(true);
-    } else {
-      handleExportExcel();
-    }
+    setIsExportFotosModalOpen(true);
   };
 
   const handleConfirmExportConFotos = async (incluirFotos) => {
@@ -1206,6 +1206,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
 
   const handleDownloadYearReport = async (year) => {
     if (!year || isDownloadingReport) return;
+    if (!(await confirmarDescargaExcel({ detalle: `Reporte anual de movimientos ${year}` }))) return;
     setIsDownloadingReport(true);
     try {
       // Catálogo de departamentos y fetch de movimientos en paralelo
@@ -2935,6 +2936,7 @@ export default function MovimientosPersonalTab({ isPending, startTransition, car
         isExporting={isExportingConFotos}
         onCancelExport={handleCancelExportConFotos}
         rowCount={count}
+        canIncluirFotos={canViewFotoMovimientos}
       />
     </div>
   );

@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
@@ -83,6 +85,7 @@ export default function AnuenciaHistorialModal({ open, onClose, onCargar, anexoI
   };
 
   const handleDescargar = async (id) => {
+    if (!(await confirmarDescargaExcel({ detalle: `Anexo 2 guardado #${id} (historial)` }))) return;
     setIdEnProceso(id);
     try {
       const resDetalle = await VacantesService.getAnuenciaAnexo(id);

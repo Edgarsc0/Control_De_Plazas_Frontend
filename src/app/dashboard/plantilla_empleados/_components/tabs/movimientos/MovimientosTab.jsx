@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -2038,6 +2040,9 @@ export default function MovimientosTab({ detalle = [], isPending, startTransitio
   }, [contextMenu, selectedCodigos, filteredSortedData, sinRestriccionUN]);
 
   const handleExportExcel = async () => {
+    if (!(await confirmarDescargaExcel({
+      columnas: columns.filter(c => c.visible).map(c => ({ key: c.key, label: c.label })),
+    }))) return;
     setIsExportingExcel(true);
     try {
       const visibleCols = columns.filter(c => c.visible);

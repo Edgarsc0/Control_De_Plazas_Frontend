@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ImageIcon, X, Loader2 } from "lucide-react";
+import { ImageIcon, X, Loader2, ShieldAlert } from "lucide-react";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 // Umbral a partir del cual se muestra la advertencia de "esto puede tardar" —
@@ -12,7 +12,12 @@ import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 const FILAS_ADVERTENCIA_TARDANZA = 3000;
 
 /**
- * Modal de confirmación de export a Excel. En MovimientosPersonalTab y
+ * Modal de confirmación de export a Excel. Tiene dos pasos: (1) las opciones
+ * de qué incluir, solo si el usuario tiene permiso para alguna, y (2) el
+ * aviso de confidencialidad, que SIEMPRE se muestra y es el que dispara la
+ * generación. Sin ninguna opción disponible, el modal es solo el aviso.
+ *
+ * En MovimientosPersonalTab y
  * BajasTab se abre ÚNICAMENTE cuando el usuario tiene el permiso "ver
  * fotografía" del tab (VIEW_PLANTILLA_*_FOTO) — si no lo tiene, exportan
  * directo sin abrir este modal. PlantillaDetalleTab lo abre siempre (usa
@@ -37,13 +42,16 @@ export default function ExportConFotosModal({
 }) {
   const [incluirFotos, setIncluirFotos] = useState(false);
   const [incluirDatosPersonales, setIncluirDatosPersonales] = useState(false);
+  const hayOpciones = canIncluirFotos || showDatosPersonalesOption;
+  const [paso, setPaso] = useState(hayOpciones ? "opciones" : "aviso");
 
   useEffect(() => {
     if (open) {
       setIncluirFotos(false);
       setIncluirDatosPersonales(false);
+      setPaso(hayOpciones ? "opciones" : "aviso");
     }
-  }, [open]);
+  }, [open, hayOpciones]);
 
   useBodyScrollLock(open);
 
@@ -79,6 +87,62 @@ export default function ExportConFotosModal({
                 Cancelar
               </button>
             </div>
+          ) : paso === "aviso" ? (
+            <>
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-[#621f32] text-white rounded-xl shadow-md">
+                    <ShieldAlert className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-tight">Aviso de confidencialidad</h3>
+                    <p className="text-xs font-semibold text-slate-400">Lea con atención antes de generar el archivo</p>
+                  </div>
+                </div>
+                <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-850 transition-colors cursor-pointer">
+                  <X className="size-5" />
+                </button>
+              </div>
+
+              <div className="p-6 flex flex-col gap-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                <p>
+                  El archivo que está por generar contiene <strong className="text-slate-800 dark:text-white">información
+                  confidencial</strong> de la Agencia Nacional de Aduanas de México y de su personal
+                  {incluirDatosPersonales || incluirFotos ? (
+                    <>, incluidos <strong className="text-slate-800 dark:text-white">
+                      {incluirDatosPersonales && incluirFotos
+                        ? "datos personales y fotografías"
+                        : incluirDatosPersonales ? "datos personales" : "fotografías"}
+                    </strong></>
+                  ) : null}.
+                </p>
+                <p>
+                  Su uso está limitado estrictamente al ejercicio de sus funciones. La divulgación, reproducción,
+                  transmisión o cualquier uso distinto al autorizado constituye una falta sujeta a las sanciones
+                  administrativas, y en su caso penales, previstas en la normatividad aplicable.
+                </p>
+                <p className="font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 rounded-xl px-3 py-2.5">
+                  Esta descarga quedará registrada en el historial del sistema con su usuario, la fecha y hora, y el
+                  contenido exportado, y podrá ser auditada en cualquier momento.
+                </p>
+                <p>Al confirmar, usted asume la responsabilidad del resguardo y uso adecuado de esta información.</p>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800/80 flex justify-end gap-2">
+                <button
+                  onClick={hayOpciones ? () => setPaso("opciones") : onClose}
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  {hayOpciones ? "Regresar" : "Cancelar"}
+                </button>
+                <button
+                  onClick={() => onConfirm(incluirFotos, incluirDatosPersonales)}
+                  className="px-5 py-2 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all shadow-md shadow-[#621f32]/20 cursor-pointer"
+                >
+                  Confirmar y generar
+                </button>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
@@ -140,7 +204,7 @@ export default function ExportConFotosModal({
                   Cancelar
                 </button>
                 <button
-                  onClick={() => onConfirm(incluirFotos, incluirDatosPersonales)}
+                  onClick={() => setPaso("aviso")}
                   className="px-5 py-2 bg-gradient-to-r from-[#621f32] to-[#8d2c48] text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all shadow-md shadow-[#621f32]/20 cursor-pointer"
                 >
                   Generar Excel

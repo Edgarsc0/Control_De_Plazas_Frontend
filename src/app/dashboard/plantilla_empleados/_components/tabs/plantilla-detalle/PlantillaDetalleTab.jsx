@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel, omitirRegistroDescarga } from '@/lib/excelAudit';
 import React, { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
 import { useModalLayerZ } from "@/components/shared/modalLayer";
@@ -1199,6 +1201,9 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const canEditCeldas = hasPermission(PERMISSIONS.EDIT_PLANTILLA_DETALLE) && !historicoActivo;
   const canViewFotoDetalle = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
   const canViewHistorico = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO);
+  // "Incluir datos personales" del Excel: lo gobierna el permiso de la pestaña
+  // Datos Personales del expediente (el backend lo vuelve a exigir).
+  const canExportDatosPersonales = hasPermission(PERMISSIONS.VIEW_EXPEDIENTE_DATOS_PERSONALES);
   // Tour de descubrimiento de "Consultar plantillas pasadas" (una sola vez
   // por navegador; ver ProductTour). Subir el sufijo -v2, -v3... cuando se
   // agregue un tour nuevo para otra funcionalidad, nunca reusar este id.
@@ -1872,6 +1877,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
 
   const handleExportCadenaDescendente = useCallback(async () => {
     if (!cadenaDisplayRoot) return;
+    if (!(await confirmarDescargaExcel({ detalle: `Cadena de mando descendente de la posición ${cadenaDisplayRoot.Posicion}` }))) return;
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Cadena_Mando_Descendente");
@@ -3171,14 +3177,80 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   }, []);
 
 
+  // Descripción de los filtros con los que se generó el Excel, para la
+  // bitácora de descargas (Roles > Usuarios > Actividad). Solo informativo:
+  // lo que realmente salió queda guardado en el servidor fila por fila.
+  const describirFiltrosExport = () => ({
+    busqueda: globalSearch || "",
+    columnas: Object.entries(columnFilters)
+      .filter(([, vals]) => Array.isArray(vals) && vals.length > 0)
+      .map(([key, vals]) => ({
+        columna: dataColumns.find(c => c.key === key)?.label || key,
+        total: vals.length,
+        valores: vals.slice(0, 30).map(v => String(v ?? "")),
+      })),
+    texto: Object.entries(textFilters)
+      .filter(([, f]) => f && f.value && String(f.value).trim())
+      .map(([key, f]) => ({
+        columna: dataColumns.find(c => c.key === key)?.label || key,
+        condicion: f.condition || "contains",
+        valor: String(f.value),
+      })),
+    avanzados: appliedAdvancedFilters.length,
+    orden: sortConfig.key
+      ? { columna: dataColumns.find(c => c.key === sortConfig.key)?.label || sortConfig.key, direccion: sortConfig.direction }
+      : null,
+    solo_plantilla_oficial: !!soloPlantillaOficial,
+  });
+
+  // Filas históricas mapeadas a valores de pantalla (mismo mapeo que el
+  // export): es lo que se manda al backend, que no puede re-derivarlas.
+  const mapearFilasHistoricas = (visibleCols) => filteredSortedData.map((row) => {
+    const mapped = {};
+    visibleCols.forEach((col) => {
+      if (col.key === "estado_nomina") mapped[col.key] = getEstadoNominaDisplay(row);
+      else if (col.key === "partida") mapped[col.key] = mapPartida(row[col.key], row.posicion);
+      else if (col.key === "tipo_de_contratacion") mapped[col.key] = mapTipoContratacion(row[col.key]);
+      else if (col.key === "rango") mapped[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
+      else mapped[col.key] = row[col.key];
+    });
+    // Necesario para la foto (busca por numempleado) aunque esa
+    // columna no esté entre las visibles/seleccionadas.
+    mapped.numempleado = row.numempleado || row.id_empleado || "";
+    return mapped;
+  });
+
   const handleExportExcel = async (incluirDatosPersonales = false) => {
     setIsExportingExcel(true);
     try {
+      let visibleCols = dataColumns.filter(c => c.visible);
+      const nombreArchivo = historicoActivo
+        ? `Plantilla de Empleados (${historicoFecha}).xlsx`
+        : "Plantilla_Empleados_Activos.xlsx";
+
+      // Toda descarga se registra ANTES de generarse: si la bitácora no
+      // responde, no hay archivo.
+      const columnasExport = visibleCols.map(c => ({ key: c.key, label: c.label }));
+      const registro = await VacantesService.registrarDescargaExcel({
+        ...(historicoActivo
+          ? { fecha: historicoFecha, rows: mapearFilasHistoricas(visibleCols) }
+          : { posiciones: filteredSortedData.map(row => row.posicion) }),
+        columnas: columnasExport,
+        incluirDatosPersonales,
+        filtros: describirFiltrosExport(),
+        nombreArchivo,
+      });
+      if (!registro.ok) {
+        const body = await registro.json().catch(() => null);
+        throw new Error(body?.error || body?.detail || "No se pudo registrar la descarga en la bitácora de auditoría.");
+      }
+      // El servidor decide si este rol puede llevarse datos personales.
+      const registroBody = await registro.json().catch(() => ({}));
+      if (!registroBody?.incluir_datos_personales) incluirDatosPersonales = false;
+
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Plantilla_Empleados");
-
-      let visibleCols = dataColumns.filter(c => c.visible);
 
       // "Incluir datos personales": cruce por numempleado con DATOS_PERSONALES
       // (tabla importada de ZAFIRO, ver DatosPersonalesBulkView en el backend)
@@ -3304,23 +3376,23 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = historicoActivo
-        ? `Plantilla de Empleados (${historicoFecha}).xlsx`
-        : "Plantilla_Empleados_Activos.xlsx";
+      a.download = nombreArchivo;
+      omitirRegistroDescarga(); // ya quedó en la bitácora (registrarDescargaExcel, arriba)
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting to Excel:", error);
-      alert("Error al exportar a Excel: " + error.message);
+      toast.error("Error al exportar a Excel: " + error.message);
     } finally {
       setIsExportingExcel(false);
     }
   };
 
-  // Botón "Exportar a Excel": el modal siempre se abre para ofrecer
-  // "Incluir datos personales" (cruce con DATOS_PERSONALES); el checkbox de
-  // fotografías dentro del modal solo aparece si el usuario tiene el
-  // permiso VIEW_PLANTILLA_DETALLE_FOTO (ver canIncluirFotos más abajo).
+  // Botón "Exportar a Excel": el modal siempre se abre, porque siempre
+  // muestra el aviso de confidencialidad antes de generar. Sus dos opciones
+  // dependen de permisos: fotografías con VIEW_PLANTILLA_DETALLE_FOTO y datos
+  // personales con VIEW_EXPEDIENTE_DATOS_PERSONALES; sin ninguno de los dos,
+  // el modal es solo el aviso con su botón de confirmar.
   const handleOpenExportClick = () => {
     setIsExportFotosModalOpen(true);
   };
@@ -3342,20 +3414,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         // al de HOY, no al de la fecha consultada) — se le mandan las filas
         // ya resueltas por PlantillaHistoricaView, mapeadas a valores de
         // pantalla igual que handleExportExcel (mismo mapeo, sin backend).
-        const rows = filteredSortedData.map((row) => {
-          const mapped = {};
-          visibleCols.forEach((col) => {
-            if (col.key === "estado_nomina") mapped[col.key] = getEstadoNominaDisplay(row);
-            else if (col.key === "partida") mapped[col.key] = mapPartida(row[col.key], row.posicion);
-            else if (col.key === "tipo_de_contratacion") mapped[col.key] = mapTipoContratacion(row[col.key]);
-            else if (col.key === "rango") mapped[col.key] = displayRango(row[col.key], row.tipo_de_personal_sedena_semar);
-            else mapped[col.key] = row[col.key];
-          });
-          // Necesario para la foto (busca por numempleado) aunque esa
-          // columna no esté entre las visibles/seleccionadas.
-          mapped.numempleado = row.numempleado || row.id_empleado || "";
-          return mapped;
-        });
+        const rows = mapearFilasHistoricas(visibleCols);
         res = await VacantesService.exportarPlantillaHistoricaConFotos(
           {
             fecha: historicoFecha,
@@ -3363,6 +3422,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
             incluirFotos: true,
             incluirDatosPersonales,
+            filtros: describirFiltrosExport(),
+            nombreArchivo: historicoActivo
+              ? `Plantilla de Empleados (${historicoFecha})_ConFotos`
+              : "Plantilla_Empleados_ConFotos",
           },
           { signal: controller.signal }
         );
@@ -3374,6 +3437,10 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             columnas: visibleCols.map(c => ({ key: c.key, label: c.label })),
             incluirFotos: true,
             incluirDatosPersonales,
+            filtros: describirFiltrosExport(),
+            nombreArchivo: historicoActivo
+              ? `Plantilla de Empleados (${historicoFecha})_ConFotos`
+              : "Plantilla_Empleados_ConFotos",
           },
           { signal: controller.signal }
         );
@@ -3394,6 +3461,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       a.download = historicoActivo
         ? `Plantilla de Empleados (${historicoFecha})_ConFotos.${extension}`
         : `Plantilla_Empleados_ConFotos.${extension}`;
+      omitirRegistroDescarga(); // el backend ya la registró al generarla
       a.click();
       window.URL.revokeObjectURL(url);
       setIsExportFotosModalOpen(false);
@@ -5000,7 +5068,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
         // por posición) en vez de ExportarPlantillaDetalleConFotosView — ver
         // handleConfirmExportConFotos.
         canIncluirFotos={canViewFotoDetalle}
-        showDatosPersonalesOption
+        showDatosPersonalesOption={canExportDatosPersonales}
       />
     </div>
   );

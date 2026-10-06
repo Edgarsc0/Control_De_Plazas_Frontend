@@ -1,5 +1,7 @@
 "use client";
 
+
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -449,6 +451,7 @@ export default function EstatusTab({ estatusPorNivelUa = { por_nivel: {}, por_ua
   };
 
   const handleExportExcel = async (exportFn, defaultFilename) => {
+    if (!(await confirmarDescargaExcel())) return;
     // Cancel any ongoing export first
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();

@@ -1010,12 +1010,10 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
   // Botón "Exportar a Excel": con permiso de foto en este tab, se ofrece
   // elegir incluirlas (modal) antes de exportar; sin el permiso, exporta
   // directo como siempre (sin fotos, 100% client-side, sin cambios).
+  // El modal se abre siempre: además de ofrecer las fotos (si hay permiso),
+  // es el que muestra el aviso de confidencialidad antes de generar.
   const handleOpenExportClick = () => {
-    if (canViewFotoBajas) {
-      setIsExportFotosModalOpen(true);
-    } else {
-      handleExportExcel();
-    }
+    setIsExportFotosModalOpen(true);
   };
 
   const handleConfirmExportConFotos = async (incluirFotos) => {
@@ -1822,6 +1820,7 @@ export default function BajasTab({ isPending, startTransition, cardRef }) {
         isExporting={isExportingConFotos}
         onCancelExport={handleCancelExportConFotos}
         rowCount={filteredSortedData.length}
+        canIncluirFotos={canViewFotoBajas}
       />
     </div>
   );

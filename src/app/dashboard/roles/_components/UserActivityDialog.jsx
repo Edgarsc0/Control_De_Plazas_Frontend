@@ -5,6 +5,7 @@ import { Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import DayActivityPanel, { formatDuration } from '@/components/shared/DayActivityPanel';
 import { VisitsService } from '@/services/visits.service';
+import ExcelDownloadsPanel from './ExcelDownloadsPanel';
 
 const WEEKDAY_LABELS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
@@ -204,6 +205,7 @@ export default function UserActivityDialog({ entry, onClose }) {
                     {[
                         { id: 'detalle', label: 'Detalle del día' },
                         { id: 'heatmap', label: 'Mapa de calor' },
+                        { id: 'excel', label: 'Historial de descargas de Excel' },
                     ].map((t) => (
                         <button
                             key={t.id}
@@ -220,7 +222,9 @@ export default function UserActivityDialog({ entry, onClose }) {
                     ))}
                 </div>
 
-                {tab === 'heatmap' ? (
+                {tab === 'excel' ? (
+                    <ExcelDownloadsPanel email={entry?.email} />
+                ) : tab === 'heatmap' ? (
                     <div className="space-y-2">
                         <MonthHeatmap
                             month={heatmapMonth}

@@ -1,3 +1,4 @@
+import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
@@ -986,6 +987,7 @@ export default function SimuladorValuacion({ catalogo, searchTerm, setSearchTerm
     };
 
     const exportToExcel = async () => {
+        if (!(await confirmarDescargaExcel())) return;
         const ExcelJS = (await import('exceljs')).default;
         const wb = new ExcelJS.Workbook();
         wb.creator = 'FUMP 2025 · Sistema de Control de Plazas';

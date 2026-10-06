@@ -316,10 +316,10 @@ export const VacantesService = {
      * @param {RequestInit} [options={}]
      * @returns {Promise<Response>} Respuesta cruda; usar `.blob()` para el archivo.
      */
-    exportarPlantillaDetalleConFotos: ({ posiciones, columnas, incluirFotos, incluirDatosPersonales = false }, options = {}) => {
+    exportarPlantillaDetalleConFotos: ({ posiciones, columnas, incluirFotos, incluirDatosPersonales = false, filtros = {}, nombreArchivo = '' }, options = {}) => {
         return apiFetch('/plantilla/exportar_plantilla_detalle_con_fotos/', {
             method: 'POST',
-            body: JSON.stringify({ posiciones, columnas, incluir_fotos: incluirFotos, incluir_datos_personales: incluirDatosPersonales }),
+            body: JSON.stringify({ posiciones, columnas, incluir_fotos: incluirFotos, incluir_datos_personales: incluirDatosPersonales, filtros, nombre_archivo: nombreArchivo }),
             ...options
         });
     },
@@ -336,10 +336,26 @@ export const VacantesService = {
      * @param {RequestInit} [options={}]
      * @returns {Promise<Response>} Respuesta cruda; usar `.blob()` para el archivo.
      */
-    exportarPlantillaHistoricaConFotos: ({ fecha, rows, columnas, incluirFotos, incluirDatosPersonales = false }, options = {}) => {
+    exportarPlantillaHistoricaConFotos: ({ fecha, rows, columnas, incluirFotos, incluirDatosPersonales = false, filtros = {}, nombreArchivo = '' }, options = {}) => {
         return apiFetch('/plantilla/exportar_plantilla_historica_con_fotos/', {
             method: 'POST',
-            body: JSON.stringify({ fecha, rows, columnas, incluir_fotos: incluirFotos, incluir_datos_personales: incluirDatosPersonales }),
+            body: JSON.stringify({ fecha, rows, columnas, incluir_fotos: incluirFotos, incluir_datos_personales: incluirDatosPersonales, filtros, nombre_archivo: nombreArchivo }),
+            ...options
+        });
+    },
+
+    /**
+     * Registra en la bitácora de auditoría un Excel de Plantilla Detalle que
+     * se va a armar en el navegador (ExcelJS). Paso obligatorio: el archivo
+     * solo se genera si esto responde 201. Los exports con fotografías no lo
+     * llaman — el backend los registra al generarlos.
+     * @param {{posiciones?: string[], fecha?: string, rows?: object[], columnas: {key:string,label:string}[], incluirDatosPersonales?: boolean, filtros?: object, nombreArchivo?: string}} payload
+     * @returns {Promise<Response>} `.json()` -> `{ id, incluir_datos_personales }`.
+     */
+    registrarDescargaExcel: ({ posiciones, fecha, rows, columnas, incluirDatosPersonales = false, filtros = {}, nombreArchivo = '' }, options = {}) => {
+        return apiFetch('/plantilla/registrar_descarga_excel/', {
+            method: 'POST',
+            body: JSON.stringify({ posiciones, fecha, rows, columnas, incluir_datos_personales: incluirDatosPersonales, filtros, nombre_archivo: nombreArchivo }),
             ...options
         });
     },

@@ -13,6 +13,7 @@ import Toaster from "@/components/ui/Toaster"
 import { MaintenanceProvider, MaintenanceGate } from "@/context/MaintenanceContext"
 import MaintenanceScreen from "@/components/system/MaintenanceScreen"
 import PresenceHeartbeat from "@/components/system/PresenceHeartbeat"
+import ExcelAuditHost from "@/components/system/ExcelAuditHost"
 
 
 const notoSans = Noto_Sans({
@@ -71,6 +72,7 @@ export default function RootLayout({ children }) {
             <MaintenanceProvider>
             <PageTabsProvider>
               <PresenceHeartbeat />
+              <ExcelAuditHost />
               <Fade>
                 {/* pt-16 fijo (no pt-[var(--navbar-h)]): el override móvil de
                     --stack-h/--navbar-h en globals.css (@media

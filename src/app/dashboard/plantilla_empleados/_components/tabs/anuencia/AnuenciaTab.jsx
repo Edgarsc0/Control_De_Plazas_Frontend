@@ -35,6 +35,7 @@ import {
   OFICIO_AUTORIZACION_EVENTUAL,
 } from "./anexo2Schema";
 import { exportarAnexo2 } from "./anexo2Excel";
+import { confirmarDescargaExcel } from "@/lib/excelAudit";
 
 // Estado del autollenado por fila, para pintar el estado de la celda "Código
 // Federal de Puesto" sin bloquear la captura del resto del cuadro.
@@ -960,6 +961,7 @@ export default function AnuenciaTab({ cardRef }) {
   }, []);
 
   const handleExportar = useCallback(async () => {
+    if (!(await confirmarDescargaExcel({ detalle: 'Anexo 2 (Anuencia)' }))) return;
     setExportando(true);
     ultimoGuardadoLocalRef.current = Date.now();
     try {

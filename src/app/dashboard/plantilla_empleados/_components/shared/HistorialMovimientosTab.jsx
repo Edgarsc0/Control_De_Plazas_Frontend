@@ -1067,9 +1067,10 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
     // historial de posición).
     const handleDownloadExcel = useCallback(() => {
         if (movimientos.length === 0 || downloading) return;
-        if (offersFotoOption) setShowExportExcelModal(true);
-        else void runExportExcel(false);
-    }, [movimientos, downloading, offersFotoOption, runExportExcel]);
+        // Siempre pasa por el modal: muestra el aviso de confidencialidad y,
+        // solo si aplica, la opción de incluir la fotografía.
+        setShowExportExcelModal(true);
+    }, [movimientos, downloading]);
 
     const toggleExpanded = useCallback((id) => {
         setExpandedIds((prev) => {
@@ -1404,7 +1405,7 @@ export default function HistorialMovimientosTab({ estado, numEmpleado, canViewPh
                 isExporting={downloading}
                 onCancelExport={() => exportExcelAbortRef.current?.abort()}
                 rowCount={movimientos.length}
-                canIncluirFotos
+                canIncluirFotos={offersFotoOption}
                 showDatosPersonalesOption={false}
             />
         </div>
