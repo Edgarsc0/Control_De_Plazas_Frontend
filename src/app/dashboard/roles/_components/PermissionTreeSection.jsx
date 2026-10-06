@@ -15,25 +15,32 @@ function PermissionNodeRow({
     togglePermission,
     previewCodename,
     setPreviewCodename,
+    allowedPermissionIds,
 }) {
     const perm = permsByCodename.get(node.codename);
     if (!perm) return null; // permiso ya no existe en el catálogo del backend
 
     const hasPreview = Boolean(PERMISSION_PREVIEWS[perm.full_codename]);
     const isChecked = selectedPermissionIds.has(perm.id);
+    // El rol padre no tiene este permiso: el hijo tampoco puede tenerlo.
+    const isBlocked = Boolean(allowedPermissionIds) && !allowedPermissionIds.has(perm.id);
 
     return (
         <div>
             <label
                 onMouseEnter={() => hasPreview && setPreviewCodename(perm.full_codename)}
                 onFocus={() => hasPreview && setPreviewCodename(perm.full_codename)}
-                className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                title={isBlocked ? 'El rol padre no tiene este permiso' : undefined}
+                className={`flex items-start gap-2 p-2 rounded-lg ${
+                    isBlocked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'
+                }`}
                 style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
             >
                 <input
                     type="checkbox"
                     checked={isChecked}
                     onChange={() => togglePermission(perm.id)}
+                    disabled={isBlocked}
                     className="mt-0.5 accent-[#621f32]"
                 />
                 <span className={depth === 0 ? 'text-sm font-semibold text-slate-800' : 'text-sm text-slate-700'}>
@@ -58,6 +65,7 @@ function PermissionNodeRow({
                     togglePermission={togglePermission}
                     previewCodename={previewCodename}
                     setPreviewCodename={setPreviewCodename}
+                    allowedPermissionIds={allowedPermissionIds}
                 />
             ))}
         </div>
@@ -76,12 +84,17 @@ export default function PermissionTreeSection({
     toggleManyIds,
     previewCodename,
     setPreviewCodename,
+    allowedPermissionIds = null,
 }) {
+    // "Seleccionar todos" solo alcanza a los permisos que el rol puede tener.
     const moduleIds = collectCodenames(moduleNode)
         .map((cn) => permsByCodename.get(cn)?.id)
-        .filter((id) => id !== undefined);
+        .filter((id) => id !== undefined)
+        .filter((id) => !allowedPermissionIds || allowedPermissionIds.has(id));
 
-    if (moduleIds.length === 0) return null; // ningún permiso de este módulo existe en el catálogo actual
+    // Ningún permiso de este módulo existe en el catálogo o, para un rol con
+    // padre, el padre no tiene ninguno: no hay nada que ofrecer aquí.
+    if (moduleIds.length === 0) return null;
 
     const allSelected = moduleIds.every((id) => selectedPermissionIds.has(id));
 
@@ -115,6 +128,7 @@ export default function PermissionTreeSection({
                         togglePermission={togglePermission}
                         previewCodename={previewCodename}
                         setPreviewCodename={setPreviewCodename}
+                        allowedPermissionIds={allowedPermissionIds}
                     />
                 ))}
             </div>

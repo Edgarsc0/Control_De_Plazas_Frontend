@@ -11,16 +11,36 @@ import { PLANTILLA_DETALLE_COLUMNS_CATALOG } from '@/config/plantillaDetalleColu
  * el backend, que además se encarga de que las columnas no permitidas ni
  * siquiera viajen en la respuesta — este selector solo decide QUÉ puede
  * elegir ver el usuario, no es lo que hace cumplir la restricción.
+ *
+ * `allowedKeys` (string[] | null): techo que impone el rol padre. null = el
+ * padre no restringe (o no hay padre) y se ofrece el catálogo completo.
+ * `unrestrictedLabel` / `inheritedHint`: textos de la opción "sin lista
+ * propia", que para un rol con padre significa heredar las del padre.
  */
-export default function ColumnScopeSelector({ value, onChange }) {
+export default function ColumnScopeSelector({
+    value,
+    onChange,
+    allowedKeys = null,
+    unrestrictedLabel = 'Sin restricción',
+    inheritedHint = null,
+}) {
     const isRestricted = Array.isArray(value);
     const [search, setSearch] = useState('');
 
+    // Con rol padre restringido, el catálogo ofrecido es solo lo que el padre
+    // puede ver: un hijo nunca tiene más columnas que su padre (el backend lo
+    // valida igual y, además, intersecta en vivo al resolver el alcance).
+    const catalog = useMemo(() => {
+        if (!Array.isArray(allowedKeys)) return PLANTILLA_DETALLE_COLUMNS_CATALOG;
+        const permitidas = new Set(allowedKeys);
+        return PLANTILLA_DETALLE_COLUMNS_CATALOG.filter((c) => permitidas.has(c.key));
+    }, [allowedKeys]);
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return PLANTILLA_DETALLE_COLUMNS_CATALOG;
-        return PLANTILLA_DETALLE_COLUMNS_CATALOG.filter((c) => c.label.toLowerCase().includes(q));
-    }, [search]);
+        if (!q) return catalog;
+        return catalog.filter((c) => c.label.toLowerCase().includes(q));
+    }, [search, catalog]);
 
     const toggleKey = (key) => {
         const current = value || [];
@@ -40,7 +60,7 @@ export default function ColumnScopeSelector({ value, onChange }) {
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${!isRestricted ? 'bg-white text-[#621f32] shadow-sm' : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
-                    Sin restricción
+                    {unrestrictedLabel}
                 </button>
                 <button
                     type="button"
@@ -52,24 +72,26 @@ export default function ColumnScopeSelector({ value, onChange }) {
                 </button>
             </div>
 
+            {!isRestricted && inheritedHint && <p className="text-xs text-slate-500">{inheritedHint}</p>}
+
             {isRestricted && (
                 <div className="border border-slate-200 rounded-xl p-3 space-y-2">
                     <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold text-slate-400">
-                            {value.length} de {PLANTILLA_DETALLE_COLUMNS_CATALOG.length} columnas seleccionadas
+                            {value.length} de {catalog.length} columnas seleccionadas
                         </span>
                         <button
                             type="button"
                             onClick={() =>
                                 onChange(
-                                    value.length === PLANTILLA_DETALLE_COLUMNS_CATALOG.length
+                                    value.length === catalog.length
                                         ? []
-                                        : PLANTILLA_DETALLE_COLUMNS_CATALOG.map((c) => c.key)
+                                        : catalog.map((c) => c.key)
                                 )
                             }
                             className="text-[11px] font-bold text-[#621f32] hover:underline cursor-pointer"
                         >
-                            {value.length === PLANTILLA_DETALLE_COLUMNS_CATALOG.length ? 'Ninguna' : 'Seleccionar todas'}
+                            {value.length === catalog.length ? 'Ninguna' : 'Seleccionar todas'}
                         </button>
                     </div>
 

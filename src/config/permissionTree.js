@@ -147,6 +147,19 @@ export const PERMISSION_TREE = [
   },
 ];
 
+/**
+ * Distribución de los módulos del árbol en las 3 columnas del modal de
+ * edición de rol (izquierda a derecha). `OTROS_ID` es la sección de permisos
+ * del catálogo que no están en el árbol. Un módulo nuevo que no se agregue
+ * aquí cae al final de la última columna, para que nunca quede oculto.
+ */
+export const OTROS_ID = '__otros';
+export const PERMISSION_COLUMNS = [
+  ['plantilla_empleados'],
+  ['expediente_personal', 'ocupacion_plazas', 'valuacion', 'oficios_turnados'],
+  ['organigrama', 'monitoreo_zafiro', 'administracion', OTROS_ID],
+];
+
 /** Junta recursivamente todos los `codename` bajo un nodo (incluido él mismo). */
 export function collectCodenames(node) {
   const own = node.codename ? [node.codename] : [];

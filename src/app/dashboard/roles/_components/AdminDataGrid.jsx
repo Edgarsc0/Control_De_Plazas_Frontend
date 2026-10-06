@@ -72,6 +72,12 @@ export default function AdminDataGrid({
     onResetExternalFilters,
     entityLabel = 'registro',
     entityLabelPlural = `${entityLabel}s`,
+    // Modo árbol (opcional): `isRowCollapsed(row)` devuelve true para las
+    // filas que quedan ocultas por tener un ancestro colapsado. Sólo se aplica
+    // en la vista "natural": con búsqueda, filtros u orden activos se muestran
+    // todas las coincidencias en plano, para que una fila hija siempre se
+    // pueda encontrar sin tener que expandir a su padre.
+    isRowCollapsed = null,
 }) {
     const [sortConfig, setSortConfig] = usePersistedState(`${storageKey}_sort`, { key: null, direction: null });
     const { columns, setColumns, resetWidth } = useColumnState(initialColumns, `${storageKey}_columns`);
@@ -108,7 +114,7 @@ export default function AdminDataGrid({
         [rows, globalSearch, columnFilters, textFilters, getCellValue, isMonoColumn]
     );
 
-    const sortedData = useMemo(() => {
+    const orderedData = useMemo(() => {
         if (!sortConfig.key || !sortConfig.direction) return filteredData;
         const { key, direction } = sortConfig;
         return [...filteredData].sort((a, b) => {
@@ -121,6 +127,18 @@ export default function AdminDataGrid({
             return direction === 'asc' ? cmp : -cmp;
         });
     }, [filteredData, sortConfig, getCellValue]);
+
+    const treeViewActive =
+        Boolean(isRowCollapsed) &&
+        !globalSearch &&
+        !sortConfig.key &&
+        Object.keys(columnFilters).length === 0 &&
+        !Object.values(textFilters).some((f) => f?.value);
+
+    const sortedData = useMemo(
+        () => (treeViewActive ? orderedData.filter((row) => !isRowCollapsed(row)) : orderedData),
+        [orderedData, treeViewActive, isRowCollapsed]
+    );
 
     const handleSort = useCallback((key) => {
         setSortConfig((prev) => {
@@ -280,7 +298,7 @@ export default function AdminDataGrid({
                     <RotateCcw className="size-3" /> Reiniciar filtros
                 </button>
                 <span className="ml-auto text-xs font-bold text-slate-400 whitespace-nowrap">
-                    {sortedData.length === rows.length
+                    {sortedData.length === rows.length || treeViewActive
                         ? `${rows.length} ${rows.length === 1 ? entityLabel : entityLabelPlural}`
                         : `${sortedData.length} de ${rows.length} ${entityLabelPlural}`}
                 </span>
