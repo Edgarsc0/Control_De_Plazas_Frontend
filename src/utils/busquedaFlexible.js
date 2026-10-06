@@ -25,7 +25,7 @@ const toleranciaPara = (token) => {
 };
 
 // Damerau-Levenshtein (transposición adyacente incluida: "cuveas" ~ "cuevas") con corte temprano.
-function distanciaAcotada(a, b, max) {
+export function distanciaAcotada(a, b, max) {
   if (Math.abs(a.length - b.length) > max) return max + 1;
   let prev2 = null;
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);

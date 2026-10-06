@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { Search, X, Loader2, UserCheck, UserMinus, UserX, CalendarDays, Activity } from "lucide-react";
-import { VacantesService } from "@/services/vacantes.service";
+import { crearIndicePersonas, buscarPersonas } from "@/utils/busquedaRanking";
+import { usePlantillaDetalleDataset } from "./usePlantillaDetalleDataset";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
@@ -56,14 +57,21 @@ const PERSONA_CARD_CONFIG = {
   ],
 };
 
-const SEARCH_DEBOUNCE_MS = 400;
+const MAX_RESULTADOS = 100;
+const nombreDe = (row) => row.nombres;
+const otrosDatosDe = (row) => [
+  row.posicion, row.id_empleado ?? row.num_empleado, row.rfc, row.curp,
+  row.unidad_administrativa, row.nombre_puesto_funcional, row.nivel,
+];
 
 /**
  * Widget del tablero personalizable: búsqueda de personas (Plantilla Detalle)
- * por nombre, RFC, CURP, unidad administrativa, etc. — mismo panel que ya
- * existía inline en TableroRH.jsx, extraído para poder colocarse
- * independientemente en la cuadrícula (ver widgetRegistry.js). Búsqueda
- * server-side (no trae el dataset completo), igual que TableroRH.
+ * por nombre, RFC, CURP, posición, unidad administrativa, etc.
+ *
+ * Busca en el navegador sobre el mismo dataset que carga el tab Plantilla
+ * Detalle (ver usePlantillaDetalleDataset): una vez cargado, el resultado es
+ * inmediato en cada tecla, ordenado del más al menos parecido y tolerante a
+ * errores de escritura (ver utils/busquedaRanking).
  */
 export default function BuscarPersonaWidget() {
   const { hasPermission } = useAuth();
@@ -77,34 +85,17 @@ export default function BuscarPersonaWidget() {
       : undefined,
   }), [canViewFoto]);
 
+  const { filas, cargando: isLoading, error } = usePlantillaDetalleDataset();
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const consulta = useDeferredValue(query);
   const [selectedRow, setSelectedRow] = useState(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  useEffect(() => {
-    if (!debouncedQuery) {
-      setResults([]);
-      setError(null);
-      setIsLoading(false);
-      return;
-    }
-    let active = true;
-    setIsLoading(true);
-    VacantesService.getEmpleadosCompletosActivosDetalle({ search: debouncedQuery })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("No se pudo buscar en la plantilla."))))
-      .then((data) => { if (active) setResults(Array.isArray(data) ? data : []); })
-      .catch((err) => { if (active) setError(err.message || "Error al buscar en la plantilla."); })
-      .finally(() => { if (active) setIsLoading(false); });
-    return () => { active = false; };
-  }, [debouncedQuery]);
+  // El índice se arma una vez por dataset, no por tecla.
+  const indice = useMemo(() => crearIndicePersonas(filas, nombreDe, otrosDatosDe), [filas]);
+  const { results, total } = useMemo(() => {
+    const hits = consulta.trim() ? buscarPersonas(indice, consulta) : [];
+    return { results: hits.slice(0, MAX_RESULTADOS), total: hits.length };
+  }, [indice, consulta]);
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden p-3">
@@ -133,6 +124,10 @@ export default function BuscarPersonaWidget() {
 
       <div className="flex-1 min-h-0 overflow-y-auto mt-2">
         {query.trim() ? (
+          <>
+            {total > MAX_RESULTADOS && (
+              <p className="text-[10px] font-bold text-slate-400 mb-1">Mostrando los {MAX_RESULTADOS} más parecidos de {total}. Afina la búsqueda.</p>
+            )}
           <MobileCardList
             compact
             data={results}
@@ -141,6 +136,7 @@ export default function BuscarPersonaWidget() {
             isLoading={isLoading && results.length === 0}
             pageSize={10}
           />
+          </>
         ) : !error ? (
           <p className="text-center text-xs font-bold text-slate-400 dark:text-slate-600 mt-10">
             Empieza a escribir para ver resultados.

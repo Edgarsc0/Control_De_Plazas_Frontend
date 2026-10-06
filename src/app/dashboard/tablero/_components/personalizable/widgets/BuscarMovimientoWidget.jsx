@@ -8,6 +8,8 @@ import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
 import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
 import { formatDateEsMx } from "@/utils/columnFilters";
+import { tokenizarBusqueda } from "@/utils/busquedaFlexible";
+import { crearIndicePersonas, buscarPersonas } from "@/utils/busquedaRanking";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
 
 // Igual que `buildFullName` en MovimientosPersonalTab.jsx/TableroRH.jsx: el
@@ -86,7 +88,29 @@ const MOVIMIENTO_CARD_CONFIG = {
   ],
 };
 
-const SEARCH_DEBOUNCE_MS = 400;
+// Son más de 150 mil movimientos: no se pueden traer al navegador, así que la
+// búsqueda sigue en el servidor. Para que se sienta inmediata: espera corta,
+// se cancela la consulta anterior al seguir escribiendo, los resultados ya
+// vistos se guardan en memoria (borrar una letra o repetir una búsqueda no
+// vuelve al servidor) y, mientras llega lo nuevo, se filtra al instante lo
+// que ya está en pantalla.
+const SEARCH_DEBOUNCE_MS = 220;
+const TTL_CACHE_MS = 5 * 60 * 1000;
+const MAX_CACHE = 60;
+const cacheBusquedas = new Map(); // consulta normalizada -> { t, filas }
+
+const claveConsulta = (q) => tokenizarBusqueda(q).join(" ");
+const otrosDatosMov = (row) => [row.posicion, row.num_empleado, row.rfc, row.curp, row.accion_nombre, row.motivo_nombre, row.un_admin];
+
+// Del más al menos parecido a lo escrito; a igual parecido, el movimiento más reciente primero.
+function ordenarPorRelevancia(filas, consulta) {
+  const recientes = [...filas].sort((a, b) => String(b.fecha_efectiva || "").localeCompare(String(a.fecha_efectiva || "")));
+  const ordenadas = buscarPersonas(crearIndicePersonas(recientes, buildMovNombreCompleto, otrosDatosMov), consulta);
+  // El servidor también encuentra por campos que este índice no ve: lo que no entró al ranking va al final.
+  if (ordenadas.length === recientes.length) return ordenadas;
+  const vistas = new Set(ordenadas);
+  return [...ordenadas, ...recientes.filter((f) => !vistas.has(f))];
+}
 const LOTE_ESTATUS = 300; // máximo de No. Empleado por consulta (ver EmpleadosEstatusPlantillaView)
 
 const claveEmpleado = (row) => String(row.num_empleado ?? "").trim();
@@ -170,11 +194,19 @@ export default function BuscarMovimientoWidget() {
       setResults([]);
       setError(null);
       setIsLoading(false);
-      return;
+      return undefined;
     }
-    let active = true;
+    const clave = claveConsulta(debouncedQuery);
+    const guardada = cacheBusquedas.get(clave);
+    if (guardada && Date.now() - guardada.t < TTL_CACHE_MS) {
+      setResults(guardada.filas);
+      setError(null);
+      setIsLoading(false);
+      return undefined;
+    }
+    const ctrl = new AbortController();
     setIsLoading(true);
-    VacantesService.getMovimientosPersonal({ no_pagination: true, search: debouncedQuery })
+    VacantesService.getMovimientosPersonal({ no_pagination: true, search: debouncedQuery }, { signal: ctrl.signal })
       .then((res) => {
         // 403 = el backend no autoriza esta búsqueda a este rol (por permiso de
         // módulo o por alcance de Unidad de Negocio). Para quien busca no es un
@@ -185,15 +217,29 @@ export default function BuscarMovimientoWidget() {
         if (!res.ok) throw new Error("No se pudieron cargar los movimientos.");
         return res.json();
       })
-      .then((data) => { if (active) setResults(Array.isArray(data) ? data : []); })
-      .catch((err) => { if (active) setError(err.message || "Error al buscar movimientos."); })
-      .finally(() => { if (active) setIsLoading(false); });
-    return () => { active = false; };
+      .then((data) => {
+        const filas = ordenarPorRelevancia(Array.isArray(data) ? data : [], debouncedQuery);
+        if (cacheBusquedas.size >= MAX_CACHE) cacheBusquedas.delete(cacheBusquedas.keys().next().value);
+        cacheBusquedas.set(clave, { t: Date.now(), filas });
+        if (!ctrl.signal.aborted) { setResults(filas); setError(null); }
+      })
+      .catch((err) => { if (err.name !== "AbortError" && !ctrl.signal.aborted) setError(err.message || "Error al buscar movimientos."); })
+      .finally(() => { if (!ctrl.signal.aborted) setIsLoading(false); });
+    return () => ctrl.abort();
   }, [debouncedQuery]);
+
+  // Mientras el servidor responde a lo último que se escribió, se muestra al
+  // instante lo que ya está en pantalla y sigue coincidiendo (afinar una
+  // búsqueda casi siempre es un subconjunto de la anterior).
+  const visibles = useMemo(() => {
+    const q = query.trim();
+    if (!q || q === debouncedQuery && !isLoading) return results;
+    return buscarPersonas(crearIndicePersonas(results, buildMovNombreCompleto, otrosDatosMov), q);
+  }, [results, query, debouncedQuery, isLoading]);
 
   // Tras cada búsqueda, un solo viaje (por lotes) para saber quién sigue en plantilla y quién causó baja.
   useEffect(() => {
-    const ids = [...new Set(results.map(claveEmpleado).filter((i) => i && i.toUpperCase() !== "VACANTE"))];
+    const ids = [...new Set(results.slice(0, 600).map(claveEmpleado).filter((i) => i && i.toUpperCase() !== "VACANTE"))];
     if (ids.length === 0) { setEstatus({}); setCargandoEstatus(false); return undefined; }
     const ctrl = new AbortController();
     setCargandoEstatus(true);
@@ -251,10 +297,10 @@ export default function BuscarMovimientoWidget() {
         {query.trim() ? (
           <MobileCardList
             compact
-            data={results}
+            data={visibles}
             config={cardConfig}
             onCardClick={handleSelectRow}
-            isLoading={isLoading && results.length === 0}
+            isLoading={isLoading && visibles.length === 0}
             pageSize={10}
           />
         ) : !error ? (

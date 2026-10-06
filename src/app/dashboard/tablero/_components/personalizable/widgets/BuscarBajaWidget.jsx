@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Search, X, Loader2, UserX } from "lucide-react";
 import { VacantesService } from "@/services/vacantes.service";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,12 +8,14 @@ import { PERMISSIONS } from "@/config/permissions";
 import MobileCardList from "@/components/ui/MobileCardList";
 import FotoEmpleadoCell from "@/app/dashboard/plantilla_empleados/_components/shared/FotoEmpleadoCell";
 import { EmployeeRecordModal } from "@/app/dashboard/plantilla_empleados/_components/shared/EmployeesModal";
-import { formatDateEsMx, normalizeForSearch } from "@/utils/columnFilters";
-import { filasQueCoinciden } from "@/utils/busquedaFlexible";
+import { formatDateEsMx } from "@/utils/columnFilters";
+import { crearIndicePersonas, buscarPersonas } from "@/utils/busquedaRanking";
 import { cargarBajas, buildBajaRecord, BAJA_RECORD_COLUMNS } from "@/app/dashboard/plantilla_empleados/_components/shared/bajasExpediente";
 
 
-const CAMPOS_BUSQUEDA = ["nombre_completo", "no_empleado", "posicion", "rfc", "curp", "motivo_descr", "accion_descr", "unidad_admon", "departamento", "puesto"];
+const OTROS_CAMPOS = ["no_empleado", "posicion", "rfc", "curp", "motivo_descr", "accion_descr", "unidad_admon", "departamento", "puesto"];
+const nombreDe = (b) => b.nombre_completo;
+const otrosDatosDe = (b) => OTROS_CAMPOS.map((k) => b[k]);
 const MAX_RESULTADOS = 100;
 
 
@@ -57,20 +59,14 @@ export default function BuscarBajaWidget() {
     return () => { active = false; };
   }, []);
 
-  // Se normaliza cada baja una sola vez (no por tecla): Map baja → texto normalizado.
-  const indice = useMemo(
-    () => new Map((bajas || []).map((b) => [b, normalizeForSearch(CAMPOS_BUSQUEDA.map((k) => b[k] ?? "").join(" "))])),
-    [bajas]
-  );
-
-  // Búsqueda flexible (palabras en cualquier orden, sin acentos, errores de dedo leves solo si
-  // no hay coincidencias exactas) — la misma de Plantilla Detalle, ver utils/busquedaFlexible.
+  // El índice se arma una vez por dataset (no por tecla). Resultados ordenados del más al
+  // menos parecido y tolerantes a errores de escritura — ver utils/busquedaRanking.
+  const indice = useMemo(() => crearIndicePersonas(bajas, nombreDe, otrosDatosDe), [bajas]);
+  const consulta = useDeferredValue(query);
   const { resultados, total } = useMemo(() => {
-    const coinciden = query.trim() ? filasQueCoinciden(bajas || [], indice, query) : null;
-    if (!coinciden) return { resultados: [], total: 0 };
-    const hits = (bajas || []).filter((b) => coinciden.has(b));
+    const hits = consulta.trim() ? buscarPersonas(indice, consulta) : [];
     return { resultados: hits.slice(0, MAX_RESULTADOS), total: hits.length };
-  }, [bajas, indice, query]);
+  }, [indice, consulta]);
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden p-3">
@@ -95,7 +91,7 @@ export default function BuscarBajaWidget() {
         {query.trim() ? (
           <>
             {total > MAX_RESULTADOS && (
-              <p className="text-[10px] font-bold text-slate-400 mb-1">Mostrando {MAX_RESULTADOS} de {total}. Afina la búsqueda.</p>
+              <p className="text-[10px] font-bold text-slate-400 mb-1">Mostrando los {MAX_RESULTADOS} más parecidos de {total}. Afina la búsqueda.</p>
             )}
             <MobileCardList
             compact data={resultados} config={cardConfig} onCardClick={setSelected} isLoading={!bajas && !error} pageSize={10} />
