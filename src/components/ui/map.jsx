@@ -18,6 +18,14 @@ import { X, Minus, Plus, Locate, Maximize, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+// maplibre-gl 6 carga su worker como archivo aparte; se sirve desde public/
+// (ver scripts/copy-maplibre-worker.mjs).
+if (typeof window !== "undefined") {
+  MapLibreGL.setWorkerUrl(
+    `${window.location.origin}/maplibre/${MapLibreGL.getVersion()}/maplibre-gl-worker.mjs`
+  );
+}
+
 const defaultStyles = {
   dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
   light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
