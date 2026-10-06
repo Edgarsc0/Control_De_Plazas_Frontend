@@ -22,6 +22,16 @@ export const PERMISSIONS = {
   EDIT_PLANTILLA_DETALLE: 'authentication.edit_plantilla_detalle',
   EDIT_DATOS_PERSONALES: 'authentication.edit_datos_personales',
   VIEW_PLANTILLA_HISTORICO: 'authentication.view_plantilla_historico',
+  // Tarjetas/filas del banner de plantillas históricas (tab Detalle): cada
+  // una se puede ocultar por separado sin quitar el permiso general de
+  // arriba. "Plazas Activas" NO tiene permiso propio: es la implícita de
+  // VIEW_PLANTILLA_HISTORICO y no se puede revocar (ver RoleFormModal, que
+  // además bloquea revocar OCUPADAS y VACANTES a la vez: activas = ocupadas
+  // + vacantes).
+  VIEW_PLANTILLA_HISTORICO_PLAZAS_TOTALES: 'authentication.view_plantilla_historico_plazas_totales',
+  VIEW_PLANTILLA_HISTORICO_PLAZAS_INACTIVAS: 'authentication.view_plantilla_historico_plazas_inactivas',
+  VIEW_PLANTILLA_HISTORICO_PLAZAS_OCUPADAS: 'authentication.view_plantilla_historico_plazas_ocupadas',
+  VIEW_PLANTILLA_HISTORICO_PLAZAS_VACANTES: 'authentication.view_plantilla_historico_plazas_vacantes',
   VIEW_PLANTILLA_SWITCH_OFICIAL: 'authentication.view_plantilla_switch_oficial',
   EDIT_PLANTILLA_MOV_POSICIONES: 'authentication.edit_plantilla_mov_posiciones',
   VIEW_ANUENCIA_ELIMINADOS: 'authentication.view_anuencia_eliminados',

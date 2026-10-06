@@ -321,10 +321,35 @@ function RolesAdminContent() {
     }, [parentRole, roles]);
 
     const togglePermission = (id) => {
+        // "Plazas Ocupadas" y "Plazas Vacantes" (plantillas históricas) no se
+        // pueden revocar a la vez: juntas forman "Plazas Activas", que es
+        // implícita de VIEW_PLANTILLA_HISTORICO y no tiene checkbox propio —
+        // dejar ambas fuera la vaciaría sin haber quitado el permiso que la
+        // sostiene. Al conceder VIEW_PLANTILLA_HISTORICO por primera vez se
+        // conceden también las 2 de entrada (se pueden revocar después, de
+        // una a la vez), igual que hace el backfill de la migración 0034
+        // para roles que ya tenían el permiso general.
+        const permOcupadas = permsByCodename.get(PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_OCUPADAS);
+        const permVacantes = permsByCodename.get(PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_VACANTES);
+        const permHistorico = permsByCodename.get(PERMISSIONS.VIEW_PLANTILLA_HISTORICO);
         setSelectedPermissionIds((current) => {
             const next = new Set(current);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(id)) {
+                if (permOcupadas && permVacantes && (id === permOcupadas.id || id === permVacantes.id)) {
+                    const otraId = id === permOcupadas.id ? permVacantes.id : permOcupadas.id;
+                    if (!next.has(otraId)) {
+                        toast.error('No se pueden quitar "Ocupadas" y "Vacantes" al mismo tiempo: juntas forman "Plazas Activas", que no se puede revocar.');
+                        return current;
+                    }
+                }
+                next.delete(id);
+            } else {
+                next.add(id);
+                if (permHistorico && id === permHistorico.id) {
+                    if (permOcupadas && (!allowedPermissionIds || allowedPermissionIds.has(permOcupadas.id))) next.add(permOcupadas.id);
+                    if (permVacantes && (!allowedPermissionIds || allowedPermissionIds.has(permVacantes.id))) next.add(permVacantes.id);
+                }
+            }
             return next;
         });
     };

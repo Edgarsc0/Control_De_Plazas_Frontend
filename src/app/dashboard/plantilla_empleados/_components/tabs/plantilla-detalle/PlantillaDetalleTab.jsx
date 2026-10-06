@@ -643,6 +643,14 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // permiso; el resto ve siempre la plantilla oficial. El backend lo refuerza:
   // sin el permiso, Laudos/1039/PASEM ni siquiera llegan al navegador.
   const canSwitchPlantillaOficial = hasPermission(PERMISSIONS.VIEW_PLANTILLA_SWITCH_OFICIAL);
+  // Filas del banner de plantillas históricas (ver `detalle` más abajo):
+  // "Plazas Activas" (estado_plaza="A") no tiene permiso propio — es
+  // implícita de VIEW_PLANTILLA_HISTORICO y nunca se filtra — pero dentro de
+  // ella, Ocupadas/Vacantes sí se pueden revocar por separado (nunca ambas a
+  // la vez, ver RoleFormModal). Inactivas (estado_plaza="I") también.
+  const canViewHistoricoPlazasInactivas = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_INACTIVAS);
+  const canViewHistoricoPlazasOcupadas = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_OCUPADAS);
+  const canViewHistoricoPlazasVacantes = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_VACANTES);
   // Alcance por columnas (ver RolColumnScope en el backend): las columnas no
   // permitidas ya NO llegan en los datos (el backend las recorta), pero el
   // catálogo de "Configurar Columnas" es estático — sin este filtro, esas
@@ -693,14 +701,22 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // aplica el universo completo a un usuario restringido, sin importar el
   // valor de este estado).
   const detalleSinFiltroOficial = historicoActivo ? historicoFilas : detalleLive;
-  const detalle = useMemo(
-    () => (
-      (soloPlantillaOficial || !canSwitchPlantillaOficial)
-        ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial)
-        : detalleSinFiltroOficial
-    ),
-    [detalleSinFiltroOficial, soloPlantillaOficial, canSwitchPlantillaOficial]
-  );
+  const detalle = useMemo(() => {
+    const base = (soloPlantillaOficial || !canSwitchPlantillaOficial)
+      ? detalleSinFiltroOficial.filter(esPosicionPlantillaOficial)
+      : detalleSinFiltroOficial;
+    // Recorte por permiso: solo aplica en modo histórico (en vivo no existen
+    // estos permisos). "Activa" sin permiso de Ocupadas/Vacantes NUNCA
+    // desaparece del todo — el picker de Roles no deja revocar ambas a la
+    // vez (ver RoleFormModal) — pero cada una filtra su mitad por separado,
+    // igual que Inactivas filtra el resto del universo.
+    if (!historicoActivo) return base;
+    return base.filter((row) => {
+      if (row.estado_plaza !== "A") return canViewHistoricoPlazasInactivas;
+      const esVacante = mapEstadoNomina(row.estado_nomina, row.val_estat) === "Vacante";
+      return esVacante ? canViewHistoricoPlazasVacantes : canViewHistoricoPlazasOcupadas;
+    });
+  }, [detalleSinFiltroOficial, soloPlantillaOficial, canSwitchPlantillaOficial, historicoActivo, canViewHistoricoPlazasInactivas, canViewHistoricoPlazasOcupadas, canViewHistoricoPlazasVacantes]);
   const isLoading = historicoActivo ? historicoLoading : isLoadingLive;
   // El donut de arriba (Activo/Vacante/Suspendido...) SÍ se conserva en modo
   // histórico (se calcula sobre `detalle`, ver `resumenEfectivo` más abajo,
@@ -1213,6 +1229,11 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   const canEditCeldas = hasPermission(PERMISSIONS.EDIT_PLANTILLA_DETALLE) && !historicoActivo;
   const canViewFotoDetalle = hasPermission(PERMISSIONS.VIEW_PLANTILLA_DETALLE_FOTO);
   const canViewHistorico = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO);
+  // Tarjeta "Plazas Totales" del banner histórico: se puede ocultar por
+  // separado sin quitar `canViewHistorico`. Inactivas/Ocupadas/Vacantes
+  // (que ADEMÁS filtran filas de la tabla, no solo su tarjeta) se calculan
+  // más arriba, antes de `detalle` — ver `canViewHistoricoPlazasInactivas`.
+  const canViewHistoricoPlazasTotales = hasPermission(PERMISSIONS.VIEW_PLANTILLA_HISTORICO_PLAZAS_TOTALES);
   // "Incluir datos personales" del Excel: lo gobierna el permiso de la pestaña
   // Datos Personales del expediente (el backend lo vuelve a exigir).
   const canExportDatosPersonales = hasPermission(PERMISSIONS.VIEW_EXPEDIENTE_DATOS_PERSONALES);
@@ -1378,18 +1399,16 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
   // Las tarjetas del resumen histórico (Plazas Totales/Activas/Inactivas/
   // Ocupadas/Vacantes) vienen "de fábrica" de `historicoResumen` (backend,
   // universo completo de la fecha — ver `activarHistorico`), pero eso las
-  // desincroniza del switch "Plantilla oficial": con el switch prendido
-  // (default) la tabla y su dropdown "Estado de la Plaza" ya excluyen Laudos/
-  // 1039/PASEM vía `detalle` (línea ~628), así que filtrar ahí por "Activa"
-  // daba menos filas que lo que anunciaba la tarjeta "Plazas Activas". Con el
-  // switch prendido se recalculan las 5 métricas contando directo sobre
-  // `detalle` (ya recortado a ese universo); con el switch apagado se vuelve
-  // a mostrar tal cual el resumen oficial del backend (mismo universo que
-  // `detalle` en ese caso). Las 2 columnas de anomalías no dependen del
-  // switch (no las calcula este conteo) y se preservan del backend siempre.
+  // desincroniza tanto del switch "Plantilla oficial" (con el switch
+  // prendido, la tabla ya excluye Laudos/1039/PASEM vía `detalle`) como de
+  // los permisos de fila (Inactivas/Ocupadas/Vacantes, ver más arriba): el
+  // backend no sabe de ninguno de los dos, así que SIEMPRE se recalculan las
+  // 5 métricas contando directo sobre `detalle` (ya recortado a ambos) en
+  // vez de usar el agregado crudo del backend. Las 2 columnas de anomalías
+  // no dependen de ninguno (no las calcula este conteo) y se preservan del
+  // backend siempre.
   const historicoResumenEfectivo = useMemo(() => {
     if (!historicoActivo) return historicoResumen;
-    if (!soloPlantillaOficial) return historicoResumen;
     let activas = 0, inactivas = 0, ocupadas = 0, vacantes = 0;
     for (const row of detalle) {
       if (row.estado_plaza === "A") {
@@ -1408,7 +1427,7 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
       ocupadas,
       vacantes,
     };
-  }, [historicoActivo, soloPlantillaOficial, detalle, historicoResumen]);
+  }, [historicoActivo, detalle, historicoResumen]);
 
   // Refs de la navegación día a día (< >, definida más abajo) — declaradas
   // aquí porque `activarHistorico` necesita limpiarlas en cada llamada,
@@ -4043,12 +4062,12 @@ export default function PlantillaDetalleTab({ detalle: detalleLive = [], onCellE
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
               {[
-                { key: "plazas_totales", label: "Plazas Totales", icon: Briefcase, filtro: {} },
-                { key: "plazas_activas", label: "Plazas Activas", icon: UserCheck, filtro: { estado_plaza: ["Activa"] } },
-                { key: "plazas_inactivas", label: "Plazas Inactivas", icon: UserX, filtro: { estado_plaza: ["Inactiva"] } },
-                { key: "ocupadas", label: "Ocupadas", icon: UserPlus, filtro: { estado_plaza: ["Activa"], estado_nomina: historicoEstadosOcupados } },
-                { key: "vacantes", label: "Vacantes", icon: UserMinus, filtro: { estado_plaza: ["Activa"], estado_nomina: ["Vacante"] } },
-              ].map(({ key, label, icon: Icon, filtro }) => {
+                { key: "plazas_totales", label: "Plazas Totales", icon: Briefcase, filtro: {}, permitida: canViewHistoricoPlazasTotales },
+                { key: "plazas_activas", label: "Plazas Activas", icon: UserCheck, filtro: { estado_plaza: ["Activa"] }, permitida: true /* implícita de canViewHistorico, no revocable */ },
+                { key: "plazas_inactivas", label: "Plazas Inactivas", icon: UserX, filtro: { estado_plaza: ["Inactiva"] }, permitida: canViewHistoricoPlazasInactivas },
+                { key: "ocupadas", label: "Ocupadas", icon: UserPlus, filtro: { estado_plaza: ["Activa"], estado_nomina: historicoEstadosOcupados }, permitida: canViewHistoricoPlazasOcupadas },
+                { key: "vacantes", label: "Vacantes", icon: UserMinus, filtro: { estado_plaza: ["Activa"], estado_nomina: ["Vacante"] }, permitida: canViewHistoricoPlazasVacantes },
+              ].filter((c) => c.permitida).map(({ key, label, icon: Icon, filtro }) => {
                 const isActive = JSON.stringify(columnFilters) === JSON.stringify(filtro);
                 return (
                   <button
