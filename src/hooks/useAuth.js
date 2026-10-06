@@ -22,6 +22,8 @@ const EMPTY_SESSION = {
     // informativo — el backend ya recorta los campos reales de la
     // respuesta, esto solo decide qué ofrecer en "Configurar Columnas".
     columnasDetallePermitidas: null,
+    // Aviso de confidencialidad aceptado (ver TerminosGate).
+    terminosAceptados: true,
 };
 
 /**
@@ -57,6 +59,8 @@ export function AuthProvider({ children }) {
                 unScope: data.un_scope ?? null,
                 unScopeFingerprint: data.un_scope_fingerprint || 'all',
                 columnasDetallePermitidas: data.columnas_detalle_permitidas ?? null,
+                // Solo `false` explícito bloquea: una respuesta vieja sin el campo no debe encerrar a nadie.
+                terminosAceptados: data.terminos_aceptados !== false,
             });
         } catch (error) {
             console.error('Error al obtener el perfil de usuario:', error);
@@ -107,6 +111,7 @@ export function AuthProvider({ children }) {
             unScope: session.unScope,
             unScopeFingerprint: session.unScopeFingerprint,
             columnasDetallePermitidas: session.columnasDetallePermitidas,
+            terminosAceptados: session.terminosAceptados,
             hasPermission,
             hasAnyPermission,
             refresh,

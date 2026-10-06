@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { DatabaseZap, HardDriveDownload, Check, Loader2 } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { DatabaseZap, HardDriveDownload, Check, Loader2, Gauge } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
@@ -9,6 +9,7 @@ import { useZafiroUpdates } from '@/context/ZafiroUpdatesContext';
 import { PERMISSIONS } from '@/config/permissions';
 import { apiFetch } from '@/lib/fetch-interceptor';
 import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
+import { isPerfMode, setPerfMode } from '@/lib/perfMode';
 
 /** Botón de solo icono con tooltip. `pressed` lo marca como seleccionado. */
 function IconToggle({ icon: Icon, label, pressed, disabled, onClick, tone = 'default' }) {
@@ -56,6 +57,10 @@ export default function CacheClearButtons() {
   const [selServer, setSelServer] = useState(false);
   const [selLocal, setSelLocal] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Modo Rendimiento (ver lib/perfMode.js). Se lee tras montar para no
+  // desalinear el HTML del servidor; cambiarlo recarga la página.
+  const [perfMode, setPerfModeState] = useState(false);
+  useEffect(() => { setPerfModeState(isPerfMode()); }, []);
 
   const canClearServer = hasPermission(PERMISSIONS.VIEW_MONITOREO_ZAFIRO);
   const serverMarked = canClearServer && selServer;
@@ -156,6 +161,17 @@ export default function CacheClearButtons() {
               label={`Ejecutar: borrar ${[serverMarked && 'caché del servidor', selLocal && 'caché local'].filter(Boolean).join(' y ')}.`}
             />
           ))}
+        <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden="true" />
+        <IconToggle
+          icon={Gauge}
+          pressed={perfMode}
+          onClick={() => setPerfMode(!perfMode)}
+          label={
+            perfMode
+              ? 'Modo Rendimiento ACTIVADO: sin animaciones ni efectos, para que la información cargue lo más rápido posible. Clic para desactivarlo (recarga la página).'
+              : 'Activar Modo Rendimiento: apaga animaciones, transiciones y efectos visuales pesados para priorizar la velocidad (recarga la página).'
+          }
+        />
       </div>
     </TooltipProvider>
   );

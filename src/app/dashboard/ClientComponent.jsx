@@ -9,6 +9,7 @@ import {
   GitFork,
 } from 'lucide-react';
 import MagicBento from '@/components/ui/MagicBento';
+import { usePerfMode } from '@/components/system/PerfModeProvider';
 import {
   VacantesPorNivelResumen,
   OcupacionVacantes,
@@ -30,6 +31,7 @@ export default function Dashboard({
   resumenEmpleados,
 }) {
   const auth = useAuth();
+  const perfMode = usePerfMode();
   useRefreshOnZafiroUpdate();
   const cardConfigs = [
     {
@@ -176,7 +178,7 @@ export default function Dashboard({
           {/* Contenedor Centrado del Magic Bento */}
           <Zoom triggerOnce>
             <div className="flex justify-center items-center w-full">
-              <MagicBento cards={visibleCardConfigs} />
+              <MagicBento cards={visibleCardConfigs} disableAnimations={perfMode} />
             </div>
           </Zoom>
         </div>

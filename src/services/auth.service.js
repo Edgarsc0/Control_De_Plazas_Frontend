@@ -80,4 +80,9 @@ export const AuthService = {
     getMe: () => {
         return apiFetch('/auth/me/permissions/');
     },
+
+    /** Registra la aceptación del aviso de confidencialidad y términos de uso. */
+    aceptarTerminos: () => {
+        return apiFetch('/auth/me/aceptar-terminos/', { method: 'POST' });
+    },
 };

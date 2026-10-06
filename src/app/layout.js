@@ -14,6 +14,9 @@ import { MaintenanceProvider, MaintenanceGate } from "@/context/MaintenanceConte
 import MaintenanceScreen from "@/components/system/MaintenanceScreen"
 import PresenceHeartbeat from "@/components/system/PresenceHeartbeat"
 import ExcelAuditHost from "@/components/system/ExcelAuditHost"
+import PerfModeProvider from "@/components/system/PerfModeProvider"
+import TerminosGate from "@/components/system/TerminosGate"
+import { PERF_MODE_BOOT_SCRIPT } from "@/lib/perfMode"
 
 
 const notoSans = Noto_Sans({
@@ -61,12 +64,19 @@ export default function RootLayout({ children }) {
     <html
       lang="es"
       className={`${notoSans.variable} h-full antialiased font-sans`}
+      // El script de abajo puede agregar data-perf antes de hidratar.
+      suppressHydrationWarning
     >
+      <head>
+        {/* Modo Rendimiento: debe aplicarse antes del primer pintado. */}
+        <script dangerouslySetInnerHTML={{ __html: PERF_MODE_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col relative">
         <div className="absolute inset-0 -z-10 bg-[url('/pleca.png')] bg-cover bg-no-repeat opacity-5"></div>
 
         {/* Banner fuera de cualquier animación */}
         <Banner />
+        <PerfModeProvider>
         <AuthProvider>
           <ToastProvider>
             <MaintenanceProvider>
@@ -91,7 +101,7 @@ export default function RootLayout({ children }) {
                     <Navbar />
                     <TooltipProvider>
                       <MaintenanceGate screen={<MaintenanceScreen />}>
-                        {children}
+                        <TerminosGate>{children}</TerminosGate>
                       </MaintenanceGate>
                     </TooltipProvider>
                   </ZafiroUpdatesProvider>
@@ -103,6 +113,7 @@ export default function RootLayout({ children }) {
             </MaintenanceProvider>
           </ToastProvider>
         </AuthProvider>
+        </PerfModeProvider>
       </body>
     </html>
   );

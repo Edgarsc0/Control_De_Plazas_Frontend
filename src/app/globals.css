@@ -485,3 +485,33 @@ body::before {
   .group:hover .wp-barra, .group:hover .wp-dona, .group:hover .wp-linea, .group:hover .wp-fila, .group:hover .wp-tipeo,
   .group:hover .wp-pulso, .group:hover .wp-cursor, .group:hover .wp-brillo, .wp-flota { animation: none; }
 }
+
+
+/* ── Modo Rendimiento (ver lib/perfMode.js) ──────────────────────────────
+   Prioridad: que la información se pinte ya. Sin animaciones ni
+   transiciones (terminan al instante en su estado final), sin desenfoques
+   de fondo —lo más caro de componer— y sin sombras grandes. Los spinners
+   se conservan: son la única señal de "cargando". */
+html[data-perf] *:not(.animate-spin),
+html[data-perf] *:not(.animate-spin)::before,
+html[data-perf] *:not(.animate-spin)::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+html[data-perf] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html[data-perf] .shadow-xl,
+html[data-perf] .shadow-2xl {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12) !important;
+}
+html[data-perf] .blur-xl,
+html[data-perf] .blur-2xl,
+html[data-perf] .blur-3xl {
+  display: none !important;
+}

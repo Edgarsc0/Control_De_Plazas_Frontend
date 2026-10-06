@@ -16,6 +16,7 @@ import { nombreCortoRol } from '@/utils/catalogosUnUa';
 const COLUMNS = [
     { key: 'email', label: 'Correo', width: 270, visible: true },
     { key: 'acceso', label: 'Acceso', width: 130, visible: true },
+    { key: 'aviso', label: 'Aviso de confidencialidad', width: 190, visible: true },
     { key: 'ua_nombre', label: 'UA', width: 170, visible: true },
     { key: 'estado', label: 'Estado', width: 150, visible: true },
     { key: 'pagina', label: 'Página actual', width: 230, visible: true },
@@ -86,6 +87,7 @@ export default function UsersGrid({
                 id: entry.id,
                 email: entry.email,
                 acceso: accesoLabel(entry),
+                aviso: entry.terminos_aceptados_at ? 'Aceptado' : 'Pendiente',
                 ua_nombre: entry.ua_nombre || '',
                 estado: sessions.length > 0 ? 'Activo' : 'Sin sesión',
                 pagina: sessions.map(pageLabel).join(' | '),
@@ -116,6 +118,7 @@ export default function UsersGrid({
                     id: `vacio-${role.id}`,
                     email: 'Sin usuario asignado',
                     acceso: '',
+                    aviso: '',
                     ua_nombre: role.name,
                     estado: '',
                     pagina: '',
@@ -174,6 +177,25 @@ export default function UsersGrid({
                         </span>
                     </td>
                 );
+            case 'aviso': {
+                const fecha = entry.terminos_aceptados_at ? new Date(entry.terminos_aceptados_at) : null;
+                return (
+                    <td
+                        key={col.key}
+                        {...base}
+                        title={fecha ? `Aceptó el aviso el ${fecha.toLocaleString('es-MX')}` : 'Todavía no acepta el aviso de confidencialidad: se le pedirá al entrar'}
+                        className={cellClassName({ isSelected })}
+                    >
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                            fecha
+                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        }`}>
+                            {fecha ? `Aceptado · ${fecha.toLocaleDateString('es-MX')}` : 'Pendiente'}
+                        </span>
+                    </td>
+                );
+            }
             case 'ua_nombre':
                 return (
                     <td key={col.key} {...base} className={cellClassName({ isSelected, muted: !value })}>
@@ -285,7 +307,7 @@ export default function UsersGrid({
 
     return (
         <AdminDataGrid
-            storageKey="roles_admin_usuarios"
+            storageKey="roles_admin_usuarios_v2"
             columns={COLUMNS}
             rows={rows}
             getRowId={(row) => row.id}
