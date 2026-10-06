@@ -1,7 +1,7 @@
 import { confirmarDescargaExcel } from '@/lib/excelAudit';
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Zoom } from "@/components/shared/Reveal";
-import { LayoutDashboard, Filter, Check, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, AlertCircle, ChevronsUpDown, ChevronsDownUp, TrendingUp, Layers, CirclePlus, CircleMinus, EyeOff } from "lucide-react";
+import { LayoutDashboard, Filter, Check, ChevronLeft, ChevronRight, ChevronDown, Minus, Download, FilterX, FileText, FileEdit, Users, AlertCircle, ChevronsUpDown, ChevronsDownUp, TrendingUp, Layers, CirclePlus, CircleMinus, EyeOff, Loader2, Lock } from "lucide-react";
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import { PlantillaService } from '@/services/plantilla.service';
@@ -10,6 +10,10 @@ import HistoricoLineChart from "./HistoricoLineChart";
 import DesgloseJerarquicoCharts from "./DesgloseJerarquicoCharts";
 import DetalleVacantesTablas from "./DetalleVacantesTablas";
 import EmployeesModal from "../../shared/EmployeesModal";
+import WidgetFrame from "@/app/dashboard/tablero/_components/personalizable/WidgetFrame";
+import EstatusPosicionesUaWidget from "@/app/dashboard/tablero/_components/personalizable/widgets/EstatusPosicionesUaWidget";
+import { ELEMENTOS_CUADROS_VACANCIA, prefijoTipoCuadrosVacancia } from "@/app/dashboard/tablero/_components/personalizable/widgets/cuadrosVacanciaElementos";
+import { alturaFila, posicionEnPx, tamanoEnPx } from "@/app/dashboard/tablero/_components/personalizable/gridGeometry";
 
 // Modo widget (`only`): sin animación de entrada ni div envolvente, para que la
 // cadena de alturas (h-full) llegue intacta hasta la gráfica.
@@ -172,54 +176,15 @@ function HistoricoChartCard({
 
 // Skeleton de carga: usado como fallback de <Suspense> (ver
 // CuadrosVacanciaSection en ClientComponent.jsx) mientras resuelve la promesa
-// de datos secundarios. Reproduce la silueta real del tab (4 KPIs, tabla de
-// cuadro y 3 tarjetas de gráfica histórica) en vez del spinner genérico que
-// usan otros tabs secundarios, para que el layout no salte al llegar los datos.
+// de datos secundarios. La vista completa ahora es el tablero fijo de 3
+// escritorios (ver CuadrosVacanciaEscritorios, al final de este archivo),
+// pantalla completa sin scroll de documento — el fallback reproduce ese mismo
+// alto (h-stack-nav-dvh/h-stack-dvh + pt-9) para que no haya salto al llegar
+// los datos.
 export function CuadrosVacanciaSkeleton() {
   return (
-    <div className="w-full flex flex-col space-y-6 animate-pulse">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-0 sm:px-4 lg:px-6">
-        {[...Array(2)].map((_, i) => (
-          <div key={i} className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
-            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
-              <div className="size-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-              <div className="space-y-2">
-                <div className="h-5 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
-                <div className="h-2.5 w-56 bg-slate-100 dark:bg-slate-800 rounded" />
-              </div>
-            </div>
-            <div className="h-[280px] w-full bg-slate-100 dark:bg-slate-800/60 rounded-2xl" />
-          </div>
-        ))}
-      </div>
-
-      <div className="w-full px-0 sm:px-4 lg:px-6">
-        <div className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
-          <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
-            <div className="size-12 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-            <div className="space-y-2">
-              <div className="h-5 w-48 bg-slate-200 dark:bg-slate-700 rounded" />
-              <div className="h-2.5 w-64 bg-slate-100 dark:bg-slate-800 rounded" />
-            </div>
-          </div>
-          <div className="h-72 w-full bg-slate-100 dark:bg-slate-800/60 rounded-2xl" />
-        </div>
-      </div>
-
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="w-full px-0 sm:px-4 lg:px-6">
-          <div className="bg-white/80 dark:bg-slate-900/80 border-y sm:border border-slate-200/50 dark:border-slate-800/50 sm:rounded-3xl p-4 sm:p-6 shadow-2xl shadow-slate-200/20 dark:shadow-black/40">
-            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800/60">
-              <div className="size-11 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-              <div className="space-y-2">
-                <div className="h-4 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
-                <div className="h-2.5 w-24 bg-slate-100 dark:bg-slate-800 rounded" />
-              </div>
-            </div>
-            <div className="h-[280px] w-full bg-slate-100 dark:bg-slate-800/60 rounded-2xl" />
-          </div>
-        </div>
-      ))}
+    <div className="w-full h-stack-nav-dvh md:h-stack-dvh md:pt-9 flex items-center justify-center">
+      <Loader2 className="size-8 text-[#621f32] dark:text-[#bc955c] animate-spin" />
     </div>
   );
 }
@@ -1323,6 +1288,23 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     }
   };
 
+  // Vista completa (sin `only`): tablero fijo de 3 escritorios, mismo layout
+  // que TableroPersonalizable pero sin edición — ver CuadrosVacanciaEscritorios
+  // más abajo en este archivo. Después de este punto no quedan más hooks: el
+  // resto de la función (el `return` de abajo) sólo corre en modo widget
+  // (`only` truthy, invocado por CuadrosVacanciaElementoWidget.jsx).
+  if (!only) {
+    return (
+      <CuadrosVacanciaEscritorios
+        cuadrosData={cuadrosData}
+        desgloseJerarquicoData={desgloseJerarquicoData}
+        ocupadosJerarquicoData={ocupadosJerarquicoData}
+        conteoPlazasSerieData={conteoPlazasSerieData}
+        sinRestriccionUN={sinRestriccionUN}
+      />
+    );
+  }
+
   return (
     <div className={only ? "w-full h-full flex flex-col" : "w-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700"}>
 
@@ -1990,6 +1972,316 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         defaultColumnKeys={PLAZAS_DETALLE_DEFAULT_COLUMN_KEYS}
         canViewPhoto={false}
       />
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Vista completa de "Cuadros de Vacancia": tablero FIJO de 3 escritorios,
+// mismo layout/geometría que TableroPersonalizable (dashboard/tablero) pero
+// sin edición — no hay arrastre, redimensión, catálogo, importar/exportar ni
+// agregar/eliminar escritorio. El layout (qué widget va en cada escritorio y
+// en qué celda) está fijo en ESCRITORIOS_FIJOS, calcado de un tablero
+// personalizable exportado (tablero-2026-10-06.json) a pedido del usuario.
+//
+// Reutiliza los MISMOS componentes que ya renderiza
+// CuadrosVacanciaElementoWidget.jsx (el widget `cv_<id>` del tablero
+// personalizable): para los elementos "tab" (plazas, ocup/vac mensual,
+// cuadro_general) se vuelve a invocar este mismo componente con `only`; para
+// "desglose"/"detalle" se usan DesgloseJerarquicoCharts/DetalleVacantesTablas,
+// ya importados arriba. `estatus_posiciones_ua` es el único widget que no es
+// `cv_*`: mismo componente que en el tablero personalizable.
+// ════════════════════════════════════════════════════════════════════════
+
+const ESCRITORIOS_FIJOS = [
+  {
+    nombre: "Cuadros de Vacancia",
+    widgets: [
+      { type: "cv_nivel_P", x: 0, y: 0, w: 4, h: 4 },
+      { type: "cv_nivel_S", x: 4, y: 0, w: 4, h: 4 },
+      { type: "cv_nivel_K", x: 8, y: 0, w: 4, h: 4 },
+      { type: "cv_nivel_D", x: 0, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_A", x: 4, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_OPERATIVOS", x: 8, y: 4, w: 4, h: 4 },
+    ],
+  },
+  {
+    nombre: "Ocupación/Vacancia Histórica",
+    widgets: [
+      { type: "cv_ocup_mensual", x: 0, y: 0, w: 5, h: 4 },
+      { type: "cv_vac_mensual", x: 0, y: 4, w: 5, h: 4 },
+      { type: "cv_plazas", x: 5, y: 0, w: 7, h: 4 },
+      { type: "cv_cuadro_general", x: 5, y: 4, w: 7, h: 4 },
+    ],
+  },
+  {
+    nombre: "Gráficas de barras",
+    widgets: [
+      { type: "cv_vac_nj", x: 0, y: 0, w: 3, h: 4 },
+      { type: "cv_ocup_nj", x: 3, y: 0, w: 3, h: 4 },
+      { type: "cv_familia", x: 6, y: 0, w: 6, h: 4 },
+      { type: "cv_vac_tabular", x: 0, y: 4, w: 3, h: 4 },
+      { type: "cv_ocup_tabular", x: 3, y: 4, w: 3, h: 4 },
+      { type: "estatus_posiciones_ua", x: 6, y: 4, w: 6, h: 4 },
+    ],
+  },
+];
+
+// Resuelve un `type` del layout fijo contra ELEMENTOS_CUADROS_VACANCIA (para
+// los `cv_<id>`) o el caso especial `estatus_posiciones_ua`. `bloqueablePorUN`
+// espeja `alcanceUnSoportado` de WIDGET_REGISTRY (dashboard/tablero): los
+// elementos que salen de `cuadro_vacancia`/`sp_conteo_plazas_historico_serie`
+// (agregados globales sin columna de unidad) no tienen nada que mostrarle a
+// un rol con alcance por Unidad de Negocio — el backend además les responde
+// 403, así que `cuadrosData`/`conteoPlazasSerieData` llegan vacíos.
+function infoWidgetFijoCV(type) {
+  if (type === "estatus_posiciones_ua") {
+    return { label: "Estatus de posiciones por unidad administrativa", bloqueablePorUN: false };
+  }
+  const elId = type.startsWith(prefijoTipoCuadrosVacancia) ? type.slice(prefijoTipoCuadrosVacancia.length) : null;
+  const el = elId ? ELEMENTOS_CUADROS_VACANCIA.find((e) => e.id === elId) : null;
+  if (!el) return { label: type, bloqueablePorUN: false };
+  return {
+    label: el.label,
+    elId: el.id,
+    origen: el.origen,
+    bloqueablePorUN: el.needs.some((n) => n === "cuadros" || n === "serie"),
+  };
+}
+
+function ContenidoWidgetFijoCV({ type, info, datos }) {
+  if (type === "estatus_posiciones_ua") return <EstatusPosicionesUaWidget />;
+  if (!info.elId) return null;
+  if (info.bloqueablePorUN && !datos.sinRestriccionUN) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center">
+        <Lock className="size-5 text-slate-400" />
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Sin datos para tu unidad</p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-[16rem]">
+          Esta gráfica sale de totales globales sin desglose por unidad administrativa.
+        </p>
+      </div>
+    );
+  }
+  if (info.origen === "tab") {
+    return <CuadrosVacanciaTab only={info.elId} cuadrosData={datos.cuadrosData} conteoPlazasSerieData={datos.conteoPlazasSerieData} />;
+  }
+  if (info.origen === "desglose") {
+    return <DesgloseJerarquicoCharts only={info.elId} data={datos.desgloseJerarquicoData} ocupadosData={datos.ocupadosJerarquicoData} />;
+  }
+  return <DetalleVacantesTablas only={info.elId} data={datos.desgloseJerarquicoData} ocupadosData={datos.ocupadosJerarquicoData} />;
+}
+
+// Marco + contenido de un widget, mismo criterio de overflow que
+// CuadrosVacanciaElementoWidget.jsx (el widget equivalente dentro del
+// tablero personalizable): las gráficas ("tab"/"nivel_*") recortan su propio
+// alto; las tablas largas (desglose/detalle sin "nivel_") llevan scroll.
+function WidgetFijoCV({ type, datos }) {
+  const info = infoWidgetFijoCV(type);
+  const compacto = info.origen === "tab" || (info.elId || "").startsWith("nivel_");
+  return (
+    <WidgetFrame label={info.label} editable={false}>
+      <div className={`w-full h-full p-2 ${compacto ? "overflow-hidden" : "overflow-auto custom-scrollbar"}`}>
+        <ContenidoWidgetFijoCV type={type} info={info} datos={datos} />
+      </div>
+    </WidgetFrame>
+  );
+}
+
+const CV_DESKTOP_QUERY = "(min-width: 768px)";
+function useEsEscritorioCV() {
+  const [esEscritorio, setEsEscritorio] = useState(null); // null = aún no se sabe (evita salto SSR)
+  useEffect(() => {
+    const mql = window.matchMedia(CV_DESKTOP_QUERY);
+    setEsEscritorio(mql.matches);
+    const handler = (e) => setEsEscritorio(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+  return esEscritorio;
+}
+
+/** Ancho/alto interiores del viewport de escritorios, reactivos (sin barras de scroll). */
+function useTamanoViewportCV() {
+  const ref = useRef(null);
+  const [tamano, setTamano] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const medir = () => setTamano((prev) => (
+      prev.width === el.clientWidth && prev.height === el.clientHeight
+        ? prev
+        : { width: el.clientWidth, height: el.clientHeight }
+    ));
+    medir();
+    const observer = new ResizeObserver(medir);
+    observer.observe(el);
+    window.addEventListener("resize", medir);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", medir);
+    };
+  }, []);
+  return [ref, tamano];
+}
+
+/**
+ * Tablero fijo de "Cuadros de Vacancia": mismo layout por escritorios que
+ * TableroPersonalizable.jsx/PersonalizableGrid.jsx (navegación horizontal,
+ * cuadrícula de 12 columnas, sin scroll vertical), pero de solo lectura — no
+ * hay arrastre, redimensión, catálogo, renombrar ni agregar/eliminar
+ * escritorio. La barra inferior solo navega entre los 3 escritorios fijos,
+ * con su nombre bien visible al centro.
+ *
+ * Vista de pantalla completa (igual que MapaTab.jsx): ocupa el alto
+ * disponible bajo PageTabBar (`h-stack-dvh md:pt-9` / `h-stack-nav-dvh` en
+ * móvil), sin scroll de documento — ver ClientComponent.jsx
+ * (isCuadrosVacanciaSubtab tratado igual que `activeTab === "mapa"`).
+ */
+function CuadrosVacanciaEscritorios({ cuadrosData, desgloseJerarquicoData, ocupadosJerarquicoData, conteoPlazasSerieData, sinRestriccionUN }) {
+  const datos = { cuadrosData, desgloseJerarquicoData, ocupadosJerarquicoData, conteoPlazasSerieData, sinRestriccionUN };
+  const esEscritorio = useEsEscritorioCV();
+
+  if (esEscritorio === null) {
+    return (
+      <div className="w-full h-stack-nav-dvh md:h-stack-dvh flex items-center justify-center">
+        <Loader2 className="size-8 text-[#621f32] dark:text-[#bc955c] animate-spin" />
+      </div>
+    );
+  }
+
+  // Móvil: lista apilada de solo lectura, agrupada por escritorio — mismo
+  // criterio que TableroPersonalizable.jsx (arrastrar/redimensionar en una
+  // pantalla táctil chica no es confiable), con el nombre del escritorio como
+  // encabezado de grupo para no perder la referencia al no poder navegar por
+  // la barra inferior.
+  if (!esEscritorio) {
+    return (
+      <div className="w-full h-stack-nav-dvh overflow-y-auto custom-scrollbar p-3 flex flex-col gap-5">
+        {ESCRITORIOS_FIJOS.map((esc, i) => (
+          <div key={i} className="flex flex-col gap-3">
+            <h3 className="px-1 text-sm font-black uppercase tracking-wider text-[#621f32] dark:text-[#bc955c]">
+              {esc.nombre}
+            </h3>
+            {esc.widgets.map((w, j) => (
+              <div key={j} className="h-[70dvh] shrink-0">
+                <WidgetFijoCV type={w.type} datos={datos} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Componente propio (no una rama más de CuadrosVacanciaEscritorios): el
+  // hook de medición (useTamanoViewportCV) engancha su ResizeObserver en un
+  // useEffect de montaje (`[]`), así que necesita montarse YA con el div a
+  // medir en su propio árbol. Si viviera aquí mismo, su primer montaje real
+  // ocurre en la rama "esEscritorio === null" (el spinner, sin ese div) y el
+  // efecto nunca vuelve a correr al cambiar de rama — el tablero quedaba con
+  // ancho/alto en 0 para siempre (bug verificado con playwright-cli: las
+  // secciones medían bien por `h-full`/el fallback `"100%"` del ancho, pero
+  // sin un solo widget hijo porque `listo` seguía en `false`). Mismo patrón
+  // que TableroPersonalizable.jsx/PersonalizableGrid.jsx, que por eso nunca
+  // lo sufrió: el grid vive en su propio componente desde el principio.
+  return <CuadrosVacanciaEscritoriosDesktop datos={datos} />;
+}
+
+function CuadrosVacanciaEscritoriosDesktop({ datos }) {
+  const [viewportRef, { width: anchoEscritorio, height: altoEscritorio }] = useTamanoViewportCV();
+  const [escritorioActivo, setEscritorioActivo] = useState(0);
+  const total = ESCRITORIOS_FIJOS.length;
+  const rowHeight = alturaFila(altoEscritorio);
+  const listo = anchoEscritorio > 0 && altoEscritorio > 0;
+
+  const irA = (indice) => {
+    const destino = Math.max(0, Math.min(indice, total - 1));
+    const cont = viewportRef.current;
+    if (cont && anchoEscritorio) cont.scrollTo({ left: destino * anchoEscritorio, behavior: "smooth" });
+    setEscritorioActivo(destino);
+  };
+
+  const nombreDe = (i) => ESCRITORIOS_FIJOS[i]?.nombre || `Escritorio ${i + 1}`;
+
+  return (
+    <div className="w-full h-stack-dvh pt-9 flex flex-col overflow-hidden">
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={viewportRef}
+          onScroll={(e) => {
+            if (!anchoEscritorio) return;
+            setEscritorioActivo(Math.round(e.currentTarget.scrollLeft / anchoEscritorio));
+          }}
+          className="escritorios-scroll h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
+        >
+          {ESCRITORIOS_FIJOS.map((esc, indice) => (
+            <section
+              key={indice}
+              className="relative shrink-0 h-full snap-start overflow-hidden"
+              style={{ width: anchoEscritorio || "100%" }}
+            >
+              {listo && esc.widgets.map((w, j) => {
+                const pos = posicionEnPx(anchoEscritorio, rowHeight, w.x, w.y);
+                const size = tamanoEnPx(anchoEscritorio, rowHeight, w.w, w.h);
+                return (
+                  <div key={j} className="absolute" style={{ ...pos, ...size }}>
+                    <WidgetFijoCV type={w.type} datos={datos} />
+                  </div>
+                );
+              })}
+            </section>
+          ))}
+        </div>
+      </div>
+
+      {/* Barra inferior: solo navegación entre escritorios (sin editar,
+          exportar/importar ni agregar/eliminar) — el nombre del escritorio
+          activo es el elemento más notorio, al centro. */}
+      <div className="shrink-0 flex items-center justify-center gap-3 py-2.5 border-t border-slate-200/70 dark:border-slate-800/70">
+        <button
+          type="button"
+          onClick={() => irA(escritorioActivo - 1)}
+          disabled={escritorioActivo === 0}
+          title="Escritorio anterior"
+          aria-label="Escritorio anterior"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+        >
+          <ChevronLeft className="size-5" />
+        </button>
+
+        <span className="px-3 py-1 text-base sm:text-lg font-black tracking-tight text-[#10243e] dark:text-white">
+          {nombreDe(escritorioActivo)}
+        </span>
+
+        <div className="flex items-center gap-1.5">
+          {ESCRITORIOS_FIJOS.map((esc, indice) => (
+            <button
+              key={indice}
+              type="button"
+              onClick={() => irA(indice)}
+              title={esc.nombre}
+              aria-label={esc.nombre}
+              aria-current={indice === escritorioActivo}
+              className={`h-2 rounded-full transition-all cursor-pointer ${indice === escritorioActivo
+                ? "w-7 bg-[#621f32] dark:bg-[#bc955c]"
+                : "w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
+                }`}
+            />
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => irA(escritorioActivo + 1)}
+          disabled={escritorioActivo >= total - 1}
+          title="Escritorio siguiente"
+          aria-label="Escritorio siguiente"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-[#621f32] dark:hover:text-[#bc955c] hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+        >
+          <ChevronRight className="size-5" />
+        </button>
+      </div>
     </div>
   );
 }

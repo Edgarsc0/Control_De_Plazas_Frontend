@@ -20,9 +20,7 @@ import {
   GitCompareArrows,
   FileSpreadsheet,
   UserCheck,
-  Building2,
-  TrendingUp,
-  Table2
+  Building2
 } from "lucide-react";
 import { useRefreshOnZafiroUpdate, useZafiroUpdates } from "@/context/ZafiroUpdatesContext";
 import { useRegisterPageTabs } from "@/context/PageTabsContext";
@@ -110,7 +108,7 @@ function useCuadrosVacanciaDatasets() {
   return datos;
 }
 
-function CuadrosVacanciaSection({ onSwitchToTablaPrincipal, activeSectionTab, setActiveSectionTab, sinRestriccionUN }) {
+function CuadrosVacanciaSection({ sinRestriccionUN }) {
   const datos = useCuadrosVacanciaDatasets();
   if (!datos) return <CuadrosVacanciaSkeleton />;
   return (
@@ -119,9 +117,6 @@ function CuadrosVacanciaSection({ onSwitchToTablaPrincipal, activeSectionTab, se
       desgloseJerarquicoData={datos.desgloseJerarquicoData}
       ocupadosJerarquicoData={datos.ocupadosJerarquicoData}
       conteoPlazasSerieData={datos.conteoPlazasSerieData}
-      onSwitchToTablaPrincipal={onSwitchToTablaPrincipal}
-      activeSectionTab={activeSectionTab}
-      setActiveSectionTab={setActiveSectionTab}
       sinRestriccionUN={sinRestriccionUN}
     />
   );
@@ -357,74 +352,15 @@ export default function PlantillaEmpleadosDetalle({
     }
   }, [authLoading, activeMapaSubTab, puedeVerMapaNacional, puedeVerTorreCaballito]);
   const [activeMovimientosSubTab, setActiveMovimientosSubTab] = useState("tabla");
-  // Si el rol no tiene la sub-pestaña activa (p. ej. solo Cuadros Vacancia y
-  // el default es "tabla"), se pasa a la primera que sí tenga.
-  useEffect(() => {
-    if (authLoading || puedeMovPos[activeMovimientosSubTab]) return;
-    const primera = Object.keys(puedeMovPos).find((id) => puedeMovPos[id]);
-    if (primera) setActiveMovimientosSubTab(primera);
-  }, [authLoading, puedeMovPos, activeMovimientosSubTab]);
+  // "Cuadros de Vacancia" es, igual que "mapa", un tab de lienzo a sangre
+  // (CuadrosVacanciaEscritorios: tablero fijo de 3 escritorios, pantalla
+  // completa, sin scroll de documento) — se trata igual que `activeTab ===
+  // "mapa"` en todos los puntos de este componente marcados con ese
+  // comentario. Ya no hay barra de sub-navegación propia a nivel de página
+  // (Tendencia Histórica / Comparativo por Barras / Cuadros): la reemplaza la
+  // navegación entre escritorios, dentro del propio tablero.
   const isCuadrosVacanciaSubtab = activeTab === "movimientos" && activeMovimientosSubTab === "cuadros";
-  // Sub-navegación interna del subtab "Cuadros de Vacancia" (Tendencia
-  // Histórica / Comparativo por Barras / Cuadros y Detalle de Vacantes) —
-  // vive aquí (no dentro de CuadrosVacanciaTab) porque la barra se renderiza
-  // a nivel de página, pegada debajo de PageTabBar, no dentro del propio tab.
-  const [activeSectionTab, setActiveSectionTab] = useState("tendencia");
-  // A un rol con alcance por UN no se le ofrece "Tendencia Histórica" (ver la
-  // barra más abajo), así que el default tiene que moverse: si no, abre el
-  // subtab en una sección que ya no existe y no ve nada.
-  useEffect(() => {
-    if (!sinRestriccionUN && !authLoading && activeSectionTab === "tendencia") {
-      setActiveSectionTab("barras");
-    }
-  }, [sinRestriccionUN, authLoading, activeSectionTab]);
-  // Borde inferior real (px, relativo al viewport) del PageTabBar fijo,
-  // medido en vivo con getBoundingClientRect().bottom — no depende de dónde
-  // arranca el flujo normal de la página (a diferencia de un padding-top
-  // Tailwind adivinado): como PageTabBar es `position:fixed`, ese valor no
-  // cambia con el scroll, así que sirve tal cual como `top` sticky de la
-  // barra de "Cuadros de Vacancia" (ver más abajo) sin necesitar además un
-  // margin-top calculado a mano. En móvil PageTabBar es `hidden` y mide
-  // (0,0,0,0), así que este valor ya sale en 0 ahí sin lógica de breakpoint
-  // aparte.
   const pageTabBarRef = useRef(null);
-  // DevTools confirmó que `position: sticky` DENTRO del wrapper `flex
-  // flex-col` de más abajo NO respeta margin-top como flujo de bloque normal
-  // (el margin-top calculado era correcto — 39.5px — pero la barra igual
-  // renderizaba mucho más abajo, pegada al contenido siguiente). Por eso la
-  // barra de "Cuadros de Vacancia" usa `position: fixed` (como PageTabBar:
-  // cero ambigüedad, no depende del contexto flex del padre) en vez de
-  // sticky. Para que el contenido de abajo (título, gráficas) no quede
-  // tapado por PageTabBar + esta barra fija, el wrapper recibe un
-  // padding-top = (borde inferior de PageTabBar + alto de esta barra) MENOS
-  // el top real del propio wrapper (S) — las tres cosas medidas con
-  // getBoundingClientRect. pageTabBarBottom/cuadrosNavHeight son coordenadas/
-  // medidas de VIEWPORT; usarlas directo como padding-top (que es relativo a
-  // S) sin restar S fue justo lo que dejó un hueco enorme la vez anterior.
-  const cuadrosSectionRef = useRef(null);
-  const cuadrosNavRef = useRef(null);
-  const [pageTabBarBottom, setPageTabBarBottom] = useState(0);
-  const [cuadrosContentPaddingTop, setCuadrosContentPaddingTop] = useState(0);
-  useEffect(() => {
-    const barEl = pageTabBarRef.current;
-    const navEl = cuadrosNavRef.current;
-    const sectionEl = cuadrosSectionRef.current;
-    if (!barEl) return;
-    const measure = () => {
-      const barBottom = barEl.getBoundingClientRect().bottom;
-      setPageTabBarBottom(barBottom);
-      const navHeight = navEl ? navEl.getBoundingClientRect().height : 0;
-      if (sectionEl) {
-        setCuadrosContentPaddingTop(Math.max(0, barBottom + navHeight - sectionEl.getBoundingClientRect().top));
-      }
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(barEl);
-    if (navEl) observer.observe(navEl);
-    if (sectionEl) observer.observe(sectionEl);
-    return () => observer.disconnect();
-  }, [isCuadrosVacanciaSubtab]);
   const [activeMovPersonalSubTab, setActiveMovPersonalSubTab] = useState("movimientos");
   const [alineacionVisited, setAlineacionVisited] = useState(false);
   useEffect(() => {
@@ -477,7 +413,7 @@ export default function PlantillaEmpleadosDetalle({
   useRefreshOnZafiroUpdate();
   // "cuadros" y "anuencia" son tarjetas de contenido (no tablas densas a todo
   // lo ancho), así que conservan el layout holgado.
-  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab !== "cuadros" && activeMovimientosSubTab !== "anuencia") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || activeTab === "catalogos_estructura";
+  const isTightLayout = activeTab === "detalle" || (activeTab === "movimientos" && activeMovimientosSubTab !== "cuadros" && activeMovimientosSubTab !== "anuencia") || activeTab === "movimientos_personal" || activeTab === "bajas" || activeTab === "mapa" || isCuadrosVacanciaSubtab || activeTab === "catalogos_estructura";
   // Subtab "rotacion": sin título ni tarjetas de stats (ver más abajo), la
   // tabla debe pegarse directo bajo el PageTabBar — mismo criterio de
   // clearance que usa MapaTab (md:pt-9), no el pt-14 de los demás subtabs
@@ -778,9 +714,10 @@ export default function PlantillaEmpleadosDetalle({
   });
 
   // Prevent page scroll on tabs con layout de canvas a sangre (altura exacta
-  // h-stack-dvh, sin scroll de documento): sólo el mapa usa esa arquitectura.
+  // h-stack-dvh, sin scroll de documento): el mapa y "Cuadros de Vacancia"
+  // (CuadrosVacanciaEscritorios) usan esa arquitectura.
   useEffect(() => {
-    if (activeTab === "mapa") {
+    if (activeTab === "mapa" || isCuadrosVacanciaSubtab) {
       document.documentElement.classList.add("overflow-hidden");
       document.body.classList.add("overflow-hidden");
     } else {
@@ -792,7 +729,7 @@ export default function PlantillaEmpleadosDetalle({
       document.documentElement.classList.remove("overflow-hidden");
       document.body.classList.remove("overflow-hidden");
     };
-  }, [activeTab]);
+  }, [activeTab, isCuadrosVacanciaSubtab]);
 
   // Window scroll clamping to prevent scrolling below the table
   useEffect(() => {
@@ -800,7 +737,7 @@ export default function PlantillaEmpleadosDetalle({
     // (no una sola card de altura fija), así que clampear el scroll de la
     // ventana a su offsetTop impedía bajar a ver contenido más abajo.
     const isAduanas = activeTab === "movimientos" && activeMovimientosSubTab === "aduanas";
-    const isTableTab = isTightLayout && activeTab !== "mapa" && !isAduanas;
+    const isTableTab = isTightLayout && activeTab !== "mapa" && !isCuadrosVacanciaSubtab && !isAduanas;
     if (!isTableTab || !activeCardRef) return;
 
     // El clamp es para la tabla sticky de DESKTOP. En móvil la lista de tarjetas
@@ -858,56 +795,17 @@ export default function PlantillaEmpleadosDetalle({
 
       {/* pt-14 sólo despeja el PageTabBar fijo (md+); en móvil esa barra está
           oculta (hidden md:flex), así que ahí no hace falta ese hueco. */}
-      {/* "mapa" se excluye: reserva su propio espacio para el PageTabBar con
-          md:pt-9 dentro de su propio contenedor (altura exacta h-stack-dvh);
-          dejar el pt-14 de aquí ENCIMA duplicaba el hueco bajo el tab bar. */}
-      {/* "cuadros" (subtab de Cuadros de Vacancia): padding-top calculado
-          = borde inferior real de PageTabBar + alto real de la barra de
-          sub-navegación fija (ambos medidos, nunca adivinados), para que el
-          título/gráficas de abajo empiecen justo debajo de las dos barras
-          fijas y no queden tapados por ellas. */}
-      <div ref={cuadrosSectionRef} className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" ? "p-0" : isRotacionSubtab ? "pt-3 md:pt-9 pb-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`} style={isCuadrosVacanciaSubtab ? { paddingTop: cuadrosContentPaddingTop, paddingBottom: 48 } : undefined}>
-        {/* Sub-navegación de "Cuadros de Vacancia": `position: fixed` (no
-            `sticky` — un `sticky` dentro del `flex flex-col` de este wrapper
-            NO respeta margin-top como flujo de bloque normal, confirmado en
-            DevTools: el margin-top calculado era correcto pero la barra
-            renderizaba muy abajo igual) — ver activeSectionTab arriba. Fija
-            en `top: pageTabBarBottom`, a todo lo ancho del viewport
-            (inset-x-0), igual que PageTabBar. z-20 para quedar por debajo de
-            PageTabBar (z-30) si algún dropdown de éste se abre encima. */}
-        {isCuadrosVacanciaSubtab && (
-          <div
-            ref={cuadrosNavRef}
-            className="fixed inset-x-0 z-20 flex border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-x-auto custom-scrollbar"
-            style={{ top: pageTabBarBottom }}
-          >
-            {[
-              // "Tendencia Histórica" sale de series ya agregadas para toda
-              // la ANAM (cuadro_vacancia y sp_conteo_plazas_historico_serie,
-              // sin columna de unidad): no hay forma de recortarla, así que
-              // no se le ofrece a un rol con alcance por UN. El resto de este
-              // subtab sí está recortado y sigue disponible.
-              ...(sinRestriccionUN ? [{ id: 'tendencia', label: 'Tendencia Histórica', icon: TrendingUp }] : []),
-              { id: 'barras', label: 'Comparativo por Barras', icon: BarChart3 },
-              { id: 'cuadros', label: 'Cuadros y Detalle de Vacantes', icon: Table2 },
-            ].map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveSectionTab(id)}
-                className={`flex-1 min-w-fit flex items-center justify-center gap-1.5 px-4 sm:px-6 py-2 sm:py-2.5 border-b-2 font-black uppercase tracking-wider text-[10px] sm:text-[11px] whitespace-nowrap transition-all cursor-pointer ${activeSectionTab === id
-                  ? 'border-[#bc955c] text-[#10243e] dark:text-[#bc955c] bg-gradient-to-b from-[#bc955c]/10 to-transparent'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                  }`}
-              >
-                <Icon className="size-3.5" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+      {/* "mapa" y "cuadros" (Cuadros de Vacancia) se excluyen: cada uno
+          reserva su propio espacio para el PageTabBar con md:pt-9 dentro de
+          su propio contenedor (altura exacta h-stack-dvh); dejar el pt-14 de
+          aquí ENCIMA duplicaba el hueco bajo el tab bar. "Cuadros de
+          Vacancia" ya no tiene una barra de sub-navegación propia a nivel de
+          página: la reemplaza la navegación entre escritorios dentro del
+          propio tablero (CuadrosVacanciaEscritorios). */}
+      <div className={`mx-auto w-full max-w-full flex flex-col items-center transition-all duration-300 ${activeTab === "mapa" || isCuadrosVacanciaSubtab ? "p-0" : isRotacionSubtab ? "pt-3 md:pt-9 pb-0" : isTightLayout ? "pt-3 md:pt-14 pb-0" : "pt-3 md:pt-14 pb-12"}`}>
         <div className={`w-full max-w-screen-xl mx-auto flex flex-col px-4 lg:px-6 transition-all duration-300 ${isTightLayout ? "gap-2" : "gap-6"}`}>
 
-          {activeTab !== "mapa" && !isRotacionSubtab && (
+          {activeTab !== "mapa" && !isCuadrosVacanciaSubtab && !isRotacionSubtab && (
             <Zoom triggerOnce>
               <div className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-8 transition-all duration-300 ${isTightLayout ? "mb-4" : "mb-12"}`}>
                 <div className="flex flex-col gap-3 w-full md:w-auto">
@@ -972,7 +870,7 @@ export default function PlantillaEmpleadosDetalle({
         {/* El tab de mapa calcula su alto exacto contra el viewport
             (`100dvh - stack - bottomnav`); el `mt-2` lo empujaba 8px y dejaba el
             borde inferior del mapa por debajo del BottomNav. */}
-        <div className={`w-full ${activeTab === "mapa" || isRotacionSubtab ? "mt-0" : "mt-2"}`} ref={tabContentRef}>
+        <div className={`w-full ${activeTab === "mapa" || isCuadrosVacanciaSubtab || isRotacionSubtab ? "mt-0" : "mt-2"}`} ref={tabContentRef}>
           {/* Tabs con estado propio (filtros, orden, scroll, datos por fetch de cliente):
               se mantienen montados una vez visitados y se ocultan con CSS al salir,
               en vez de desmontarse, para no perder su estado ni re-fetchear. */}
@@ -1014,12 +912,7 @@ export default function PlantillaEmpleadosDetalle({
           )}
           {activeTab === "movimientos" && activeMovimientosSubTab === "cuadros" && puedeMovPos.cuadros && (
             <div ref={cardRefCuadros}>
-              <CuadrosVacanciaSection
-                onSwitchToTablaPrincipal={puedeMovPos.tabla ? () => setActiveMovimientosSubTab("tabla") : undefined}
-                activeSectionTab={activeSectionTab}
-                setActiveSectionTab={setActiveSectionTab}
-                sinRestriccionUN={sinRestriccionUN}
-              />
+              <CuadrosVacanciaSection sinRestriccionUN={sinRestriccionUN} />
             </div>
           )}
           {alineacionVisited && puedeMovPos.alineacion && (
