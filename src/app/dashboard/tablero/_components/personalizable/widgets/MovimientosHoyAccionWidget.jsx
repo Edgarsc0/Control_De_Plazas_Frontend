@@ -25,9 +25,14 @@ export default function MovimientosHoyAccionWidget({ config, onConfigChange }) {
   const { items, total } = enMotivos ? porMotivo : porAccion;
   const cargando = cargandoAuth || cargandoAcciones || (enMotivos && cargandoMotivos);
 
-  const mostrarLeyenda = width >= 300 && height >= 150;
-  const diametro = Math.min(mostrarLeyenda ? width - 190 : width, height);
-  const mostrarCentro = diametro >= 110;
+  const horizontal = width >= 300 && height >= 150;
+  // Angosto: muy estrecho para leyenda lateral pero con alto suficiente para apilar pie + leyenda.
+  const vertical = !horizontal && width >= 140 && width < 300 && height >= 220;
+  const mostrarLeyenda = horizontal || vertical;
+  const diametro = vertical
+    ? Math.min(width - 16, Math.max(80, Math.round((height - 70) * 0.6)))
+    : Math.min(horizontal ? width - 190 : width, height);
+  const mostrarCentro = diametro >= (vertical ? 90 : 110);
 
   let contenido;
   if (!cargandoAuth && !permitido) {
@@ -46,7 +51,10 @@ export default function MovimientosHoyAccionWidget({ config, onConfigChange }) {
   } else {
     contenido = (
       <>
-        <div className="relative flex-1 h-full min-w-0">
+        <div
+          className={`relative min-w-0 ${vertical ? "w-full shrink-0" : "flex-1 h-full"}`}
+          style={vertical ? { height: diametro + 10 } : undefined}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -77,7 +85,7 @@ export default function MovimientosHoyAccionWidget({ config, onConfigChange }) {
           )}
         </div>
         {mostrarLeyenda && (
-          <ul className="flex flex-col gap-0.5 shrink-0 w-44 overflow-y-auto max-h-full">
+          <ul className={`flex flex-col gap-0.5 overflow-y-auto ${vertical ? "w-full flex-1 min-h-0" : "shrink-0 w-44 max-h-full"}`}>
             {items.map((i) => (
               <li key={i.name}>
                 <button
@@ -101,7 +109,7 @@ export default function MovimientosHoyAccionWidget({ config, onConfigChange }) {
   }
 
   return (
-    <div ref={ref} className="relative w-full h-full min-h-0 flex items-center gap-2 p-2">
+    <div ref={ref} className={`relative w-full h-full min-h-0 flex ${vertical ? "flex-col" : "items-center"} gap-2 p-2`}>
       {enMotivos && permitido && (
         <button
           type="button"
