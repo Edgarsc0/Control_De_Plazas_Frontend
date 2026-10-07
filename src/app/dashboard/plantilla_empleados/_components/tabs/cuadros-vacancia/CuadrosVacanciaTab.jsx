@@ -788,6 +788,279 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
     }
   };
 
+  // PDF del tablero fijo de escritorios (CuadrosVacanciaEscritorios, más
+  // abajo en este archivo): a diferencia de handleGeneratePdf (arquitectura
+  // vieja, solo alcanzable en modo widget `only`, pensada para el tab
+  // Tendencia/Barras que ya no se renderiza desde la vista completa), este
+  // handler no necesita forzar el montaje de nada — los 3 escritorios ya
+  // están TODOS montados a la vez (solo se navega con scroll horizontal), así
+  // que las gráficas con `data-pdf-chart` (HistoricoChartCard/
+  // DesgloseJerarquicoCharts, ambas invocadas vía `only` por WidgetFijoCV) ya
+  // están en el DOM al hacer clic. Los cuadros (Cuadro General, los 7 niveles
+  // y Observaciones) van como tablas reales (autoTable) recalculadas aquí con
+  // la misma lógica de DetalleVacantesTablas.jsx (buildTableData/
+  // buildNumericTableData/mergeVacOcupBreakdown), no como captura de pantalla
+  // — esos widgets llevan scroll interno propio y una imagen solo mostraría
+  // lo que cupiera en su recuadro, no el cuadro completo.
+  const handleGenerateTableroPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+      const usableW = pageW - margin * 2;
+
+      const azulMarino = [16, 36, 62];
+      const dorado = [188, 149, 92];
+      const grisClaro = [245, 245, 248];
+      const blanco = [255, 255, 255];
+
+      let lastUpdateText = '';
+      try {
+        const resp = await PlantillaService.getUltimaActualizacion();
+        if (resp.ok) {
+          const res = await resp.json();
+          if (res && res.fecha) {
+            const d = new Date(res.fecha);
+            const day = String(d.getDate()).padStart(2, '0');
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const yr = d.getFullYear();
+            let hrs = d.getHours();
+            const mins = String(d.getMinutes()).padStart(2, '0');
+            const ampm = hrs >= 12 ? 'PM' : 'AM';
+            hrs = hrs % 12 || 12;
+            lastUpdateText = `Última actualización: ${day}/${mo}/${yr} ${String(hrs).padStart(2, '0')}:${mins} ${ampm}`;
+          }
+        }
+      } catch (e) { /* silenciar */ }
+
+      const drawPageHeader = (title) => {
+        pdf.setFillColor(...azulMarino);
+        pdf.rect(0, 0, pageW, 18, 'F');
+        pdf.setFillColor(...dorado);
+        pdf.rect(0, 18, pageW, 1.5, 'F');
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(14);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(title, margin, 12);
+        const fecha = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(fecha, pageW - margin, 9, { align: 'right' });
+        if (lastUpdateText) {
+          pdf.setTextColor(...dorado);
+          pdf.setFontSize(7.5);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text(lastUpdateText, pageW - margin, 15, { align: 'right' });
+        }
+      };
+
+      const drawPageFooter = (pageNum, totalPages) => {
+        pdf.setFillColor(...dorado);
+        pdf.rect(0, pageH - 8, pageW, 8, 'F');
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(`Página ${pageNum} de ${totalPages}`, pageW / 2, pageH - 3, { align: 'center' });
+        pdf.text('Reporte de Cuadros de Vacancia', margin, pageH - 3);
+      };
+
+      const tableStyles = {
+        headStyles: { fillColor: azulMarino, textColor: blanco, fontStyle: 'bold', fontSize: 8, halign: 'center', cellPadding: 3 },
+        bodyStyles: { fontSize: 8, halign: 'center', cellPadding: 2.5, textColor: [50, 50, 50] },
+        alternateRowStyles: { fillColor: grisClaro },
+        styles: { lineColor: dorado, lineWidth: 0.3 },
+        tableLineColor: dorado,
+        tableLineWidth: 0.3,
+      };
+
+      // ── Página 1: Cuadro de Vacancia General (histórico) ──
+      drawPageHeader('Cuadros de Vacancia — Histórico de Ocupación');
+      autoTable(pdf, {
+        startY: 24,
+        head: [['Año', 'QNA', 'Ocp. Permanente', 'Ocp. Eventual', 'Total Ocupadas', 'Vac. Permanente', 'Vac. Eventual', 'Total Vacantes', 'Total Permanente', 'Total Eventual', 'Total']],
+        body: filteredData.map(row => [
+          getYear(row.fecha), formatDate(row.fecha),
+          formatNumber(row.ocupadas_permanente), formatNumber(row.ocupadas_eventual), formatNumber(row.ocupadas_total),
+          formatNumber(row.vacantes_permanente), formatNumber(row.vacantes_eventual), formatNumber(row.vacantes_total),
+          formatNumber(row.total_permanente), formatNumber(row.total_eventual), formatNumber(row.total),
+        ]),
+        ...tableStyles,
+        margin: { left: margin, right: margin },
+      });
+
+      // ── Páginas por nivel (J, K, A, S, D, P, Operativos): mismos conteos
+      // que NivelPlazaTable, recalculados aquí sobre desgloseJerarquicoData
+      // (vacancia) / ocupadosJerarquicoData (ocupación). ──
+      const classifyPosLocal = (pos) => {
+        const p = (pos || '').trim();
+        if (p.startsWith('103')) return 'permanente';
+        if (p.startsWith('2026')) return 'nuevaCreacion';
+        return 'eventual';
+      };
+      const buildLevelCounts = (sourceData, levelKey) => {
+        const rows = (sourceData || []).filter(item => {
+          const nivel = (item.Nivel || '').trim();
+          return levelKey === 'OPERATIVOS' ? (nivel.length > 0 && /^\d/.test(nivel)) : nivel.toUpperCase().startsWith(levelKey);
+        });
+        const byNivel = {};
+        rows.forEach(item => {
+          const nivel = (item.Nivel || '').trim();
+          const pos = (item['Posición'] || '').trim();
+          if (!byNivel[nivel]) byNivel[nivel] = { nivel, eventual: 0, nuevaCreacion: 0, permanente: 0 };
+          byNivel[nivel][classifyPosLocal(pos)] += 1;
+        });
+        return Object.values(byNivel).sort((a, b) => a.nivel.localeCompare(b.nivel, undefined, { numeric: true }));
+      };
+      const mergeLevel = (vacRows, ocupRows) => {
+        const byNivel = {};
+        const ensure = (n) => {
+          if (!byNivel[n]) byNivel[n] = { nivel: n, evOcup: 0, evVac: 0, ncOcup: 0, ncVac: 0, pmOcup: 0, pmVac: 0 };
+          return byNivel[n];
+        };
+        vacRows.forEach(r => { const row = ensure(r.nivel); row.evVac = r.eventual; row.ncVac = r.nuevaCreacion; row.pmVac = r.permanente; });
+        ocupRows.forEach(r => { const row = ensure(r.nivel); row.evOcup = r.eventual; row.ncOcup = r.nuevaCreacion; row.pmOcup = r.permanente; });
+        return Object.values(byNivel).sort((a, b) => a.nivel.localeCompare(b.nivel, undefined, { numeric: true }));
+      };
+
+      const NIVELES_PDF = [
+        { key: 'J', label: 'Nivel J' }, { key: 'K', label: 'Nivel K' }, { key: 'A', label: 'Nivel A' },
+        { key: 'S', label: 'Nivel S' }, { key: 'D', label: 'Nivel D' }, { key: 'P', label: 'Enlaces P' },
+        { key: 'OPERATIVOS', label: 'Niveles Operativos' },
+      ];
+      const nivelHead = [['Nivel', 'Evt. Ocup', 'Evt. Vac', 'Evt.N.C. Ocup', 'Evt.N.C. Vac', 'Perm. Ocup', 'Perm. Vac', 'Total Ocup', 'Total Vac']];
+
+      NIVELES_PDF.forEach(({ key, label }) => {
+        const merged = mergeLevel(buildLevelCounts(desgloseJerarquicoData, key), buildLevelCounts(ocupadosJerarquicoData, key));
+        if (merged.length === 0) return;
+        const totales = merged.reduce((acc, r) => ({
+          evOcup: acc.evOcup + r.evOcup, evVac: acc.evVac + r.evVac,
+          ncOcup: acc.ncOcup + r.ncOcup, ncVac: acc.ncVac + r.ncVac,
+          pmOcup: acc.pmOcup + r.pmOcup, pmVac: acc.pmVac + r.pmVac,
+        }), { evOcup: 0, evVac: 0, ncOcup: 0, ncVac: 0, pmOcup: 0, pmVac: 0 });
+        pdf.addPage();
+        drawPageHeader(`Vacancia y Ocupación — ${label}`);
+        autoTable(pdf, {
+          startY: 24,
+          head: nivelHead,
+          body: [
+            ...merged.map(r => [r.nivel, formatNumber(r.evOcup), formatNumber(r.evVac), formatNumber(r.ncOcup), formatNumber(r.ncVac), formatNumber(r.pmOcup), formatNumber(r.pmVac), formatNumber(r.evOcup + r.ncOcup + r.pmOcup), formatNumber(r.evVac + r.ncVac + r.pmVac)]),
+            ['Total', formatNumber(totales.evOcup), formatNumber(totales.evVac), formatNumber(totales.ncOcup), formatNumber(totales.ncVac), formatNumber(totales.pmOcup), formatNumber(totales.pmVac), formatNumber(totales.evOcup + totales.ncOcup + totales.pmOcup), formatNumber(totales.evVac + totales.ncVac + totales.pmVac)],
+          ],
+          ...tableStyles,
+          bodyStyles: { ...tableStyles.bodyStyles },
+          didParseCell: (hookData) => {
+            if (hookData.row.index === merged.length) {
+              hookData.cell.styles.fontStyle = 'bold';
+              hookData.cell.styles.fillColor = [230, 225, 220];
+            }
+          },
+          margin: { left: margin, right: margin },
+        });
+      });
+
+      // ── Página de Observaciones (Vacancia | Ocupación): mismo criterio que
+      // DetalleVacantesTablas.jsx (Contratación Base / OIC / Titulares de
+      // Aduanas). ──
+      const calcObs = (sourceData) => {
+        let base = 0, oic = 0, titulares = 0;
+        const totalSet = new Set();
+        (sourceData || []).forEach((item, idx) => {
+          const isBase = (item['TIPO DE CONTRATACIÓN'] || '').trim() === 'SAT_BSE';
+          const isOic = (item['Unidad de Negocio'] || '').trim() === 'Organo Interno de Control';
+          const isTitular = (item['Nombre Puesto Funcional'] || '').trim().toUpperCase().startsWith('ADMINISTRADOR DE ADUANA');
+          if (isBase) base++;
+          if (isOic) oic++;
+          if (isTitular) titulares++;
+          if (isBase || isOic || isTitular) totalSet.add(idx);
+        });
+        return { base, oic, titulares, total: totalSet.size };
+      };
+      const obsVac = calcObs(desgloseJerarquicoData);
+      const obsOcup = calcObs(ocupadosJerarquicoData);
+      pdf.addPage();
+      drawPageHeader('Observaciones — Vacancia y Ocupación');
+      autoTable(pdf, {
+        startY: 24,
+        head: [['Observaciones Vacancia', 'Total']],
+        body: [
+          ['Contratación Base', formatNumber(obsVac.base)],
+          ['Órgano Interno de Control', formatNumber(obsVac.oic)],
+          ['Titulares de Aduanas', formatNumber(obsVac.titulares)],
+          ['Total', formatNumber(obsVac.total)],
+        ],
+        ...tableStyles,
+        margin: { left: margin, right: margin },
+        tableWidth: usableW / 2 - 4,
+      });
+      autoTable(pdf, {
+        startY: 24,
+        head: [['Observaciones Ocupación', 'Total']],
+        body: [
+          ['Contratación Base', formatNumber(obsOcup.base)],
+          ['Órgano Interno de Control', formatNumber(obsOcup.oic)],
+          ['Titulares de Aduanas', formatNumber(obsOcup.titulares)],
+          ['Total', formatNumber(obsOcup.total)],
+        ],
+        ...tableStyles,
+        margin: { left: pageW / 2 + 4, right: margin },
+        tableWidth: usableW / 2 - 4,
+      });
+
+      // ── Gráficas: los 3 escritorios ya están todos montados a la vez (solo
+      // se navega con scroll horizontal, no con render condicional), así que
+      // las 8 gráficas con `data-pdf-chart` ya están en el DOM sin necesidad
+      // de forzar ningún montaje. Orden = orden de los widgets en
+      // ESCRITORIOS_FIJOS (escritorio "Ocupación/Vacancia Histórica" primero,
+      // luego "Gráficas de barras"). ──
+      const chartTitles = [
+        'Ocupación Histórica (Mensual)', 'Vacancia Histórica (Mensual)', 'Plazas Totales vs Activas vs Inactivas',
+        'Vacantes por Nivel Jerárquico', 'Ocupación por Nivel Jerárquico', 'Ocupadas vs Vacantes por Familia de Nivel',
+        'Vacantes por Nivel Tabular', 'Ocupación por Nivel Tabular',
+      ];
+      const chartEls = document.querySelectorAll('[data-pdf-chart]');
+      for (let i = 0; i < chartEls.length; i++) {
+        pdf.addPage();
+        drawPageHeader(chartTitles[i] || 'Gráfica');
+        const dataUrl = await toPng(chartEls[i], { backgroundColor: '#ffffff', pixelRatio: 3 });
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise(resolve => { img.onload = resolve; });
+        const ratio = img.width / img.height;
+        const startY = 24;
+        const footerSpace = 12;
+        const availableH = pageH - startY - footerSpace;
+        let imgW = usableW;
+        let imgH = imgW / ratio;
+        if (imgH > availableH) {
+          imgH = availableH;
+          imgW = imgH * ratio;
+        }
+        const x = (pageW - imgW) / 2;
+        const y = startY + (availableH - imgH) / 2;
+        pdf.addImage(dataUrl, 'PNG', x, y, imgW, imgH);
+      }
+
+      const totalPages = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        drawPageFooter(i, totalPages);
+      }
+
+      pdf.save(`cuadro_vacancia_${new Date().getTime()}.pdf`);
+    } catch (err) {
+      console.error('Error generando PDF del tablero de Cuadros de Vacancia:', err);
+      alert('Hubo un error al generar el PDF.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   const handleGeneratePdf = async () => {
     // Los 10 charts con data-pdf-chart (5 de "Tendencia Histórica" + 5 de
     // "Comparativo por Barras") se mantienen montados mientras isGeneratingPdf
@@ -1301,6 +1574,10 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         ocupadosJerarquicoData={ocupadosJerarquicoData}
         conteoPlazasSerieData={conteoPlazasSerieData}
         sinRestriccionUN={sinRestriccionUN}
+        onExportExcel={handleExportExcel}
+        isExportingExcel={isExportingExcel}
+        onGeneratePdf={handleGenerateTableroPdf}
+        isGeneratingPdf={isGeneratingPdf}
       />
     );
   }
@@ -1996,13 +2273,24 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 const ESCRITORIOS_FIJOS = [
   {
     nombre: "Cuadros de Vacancia",
+    // Único escritorio con scroll vertical (`scroll: true`): tiene más filas
+    // de las que caben en pantalla (Cuadro general + niveles J/K/A/S/D/P/
+    // Operativos + Observaciones Vacancia/Ocupación, 4 filas de 12 columnas),
+    // a diferencia de los otros 2 escritorios que siguen sin scroll de
+    // documento. Ver el `overflow-y-auto` condicional en
+    // CuadrosVacanciaEscritoriosDesktop más abajo.
+    scroll: true,
     widgets: [
-      { type: "cv_nivel_P", x: 0, y: 0, w: 4, h: 4 },
-      { type: "cv_nivel_S", x: 4, y: 0, w: 4, h: 4 },
-      { type: "cv_nivel_K", x: 8, y: 0, w: 4, h: 4 },
-      { type: "cv_nivel_D", x: 0, y: 4, w: 4, h: 4 },
-      { type: "cv_nivel_A", x: 4, y: 4, w: 4, h: 4 },
-      { type: "cv_nivel_OPERATIVOS", x: 8, y: 4, w: 4, h: 4 },
+      { type: "cv_cuadro_general", x: 0, y: 0, w: 12, h: 4 },
+      { type: "cv_nivel_J", x: 0, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_K", x: 4, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_A", x: 8, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_S", x: 0, y: 8, w: 4, h: 4 },
+      { type: "cv_nivel_D", x: 4, y: 8, w: 4, h: 4 },
+      { type: "cv_nivel_P", x: 8, y: 8, w: 4, h: 4 },
+      { type: "cv_nivel_OPERATIVOS", x: 0, y: 12, w: 4, h: 4 },
+      { type: "cv_obs_vacancia", x: 4, y: 12, w: 4, h: 4 },
+      { type: "cv_obs_ocupacion", x: 8, y: 12, w: 4, h: 4 },
     ],
   },
   {
@@ -2138,7 +2426,7 @@ function useTamanoViewportCV() {
  * móvil), sin scroll de documento — ver ClientComponent.jsx
  * (isCuadrosVacanciaSubtab tratado igual que `activeTab === "mapa"`).
  */
-function CuadrosVacanciaEscritorios({ cuadrosData, desgloseJerarquicoData, ocupadosJerarquicoData, conteoPlazasSerieData, sinRestriccionUN }) {
+function CuadrosVacanciaEscritorios({ cuadrosData, desgloseJerarquicoData, ocupadosJerarquicoData, conteoPlazasSerieData, sinRestriccionUN, onExportExcel, isExportingExcel, onGeneratePdf, isGeneratingPdf }) {
   const datos = { cuadrosData, desgloseJerarquicoData, ocupadosJerarquicoData, conteoPlazasSerieData, sinRestriccionUN };
   const esEscritorio = useEsEscritorioCV();
 
@@ -2158,6 +2446,36 @@ function CuadrosVacanciaEscritorios({ cuadrosData, desgloseJerarquicoData, ocupa
   if (!esEscritorio) {
     return (
       <div className="w-full h-stack-nav-dvh overflow-y-auto custom-scrollbar p-3 flex flex-col gap-5">
+        {sinRestriccionUN && (onExportExcel || onGeneratePdf) && (
+          <div className="self-end flex items-center gap-2">
+            {onGeneratePdf && (
+              <button
+                type="button"
+                onClick={onGeneratePdf}
+                disabled={isGeneratingPdf}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8c2d4a] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+              >
+                {isGeneratingPdf
+                  ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  : <FileText className="size-3.5" />}
+                <span>{isGeneratingPdf ? 'Generando...' : 'PDF'}</span>
+              </button>
+            )}
+            {onExportExcel && (
+              <button
+                type="button"
+                onClick={onExportExcel}
+                disabled={isExportingExcel}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] text-white px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+              >
+                {isExportingExcel
+                  ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  : <Download className="size-3.5" />}
+                <span>{isExportingExcel ? 'Generando...' : 'Excel'}</span>
+              </button>
+            )}
+          </div>
+        )}
         {ESCRITORIOS_FIJOS.map((esc, i) => (
           <div key={i} className="flex flex-col gap-3">
             <h3 className="px-1 text-sm font-black uppercase tracking-wider text-[#621f32] dark:text-[#bc955c]">
@@ -2185,10 +2503,19 @@ function CuadrosVacanciaEscritorios({ cuadrosData, desgloseJerarquicoData, ocupa
   // sin un solo widget hijo porque `listo` seguía en `false`). Mismo patrón
   // que TableroPersonalizable.jsx/PersonalizableGrid.jsx, que por eso nunca
   // lo sufrió: el grid vive en su propio componente desde el principio.
-  return <CuadrosVacanciaEscritoriosDesktop datos={datos} />;
+  return (
+    <CuadrosVacanciaEscritoriosDesktop
+      datos={datos}
+      onExportExcel={onExportExcel}
+      isExportingExcel={isExportingExcel}
+      onGeneratePdf={onGeneratePdf}
+      isGeneratingPdf={isGeneratingPdf}
+      sinRestriccionUN={sinRestriccionUN}
+    />
+  );
 }
 
-function CuadrosVacanciaEscritoriosDesktop({ datos }) {
+function CuadrosVacanciaEscritoriosDesktop({ datos, onExportExcel, isExportingExcel, onGeneratePdf, isGeneratingPdf, sinRestriccionUN }) {
   const [viewportRef, { width: anchoEscritorio, height: altoEscritorio }] = useTamanoViewportCV();
   const [escritorioActivo, setEscritorioActivo] = useState(0);
   const total = ESCRITORIOS_FIJOS.length;
@@ -2218,7 +2545,7 @@ function CuadrosVacanciaEscritoriosDesktop({ datos }) {
           {ESCRITORIOS_FIJOS.map((esc, indice) => (
             <section
               key={indice}
-              className="relative shrink-0 h-full snap-start overflow-hidden"
+              className={`relative shrink-0 h-full snap-start ${esc.scroll ? "overflow-y-auto overflow-x-hidden custom-scrollbar" : "overflow-hidden"}`}
               style={{ width: anchoEscritorio || "100%" }}
             >
               {listo && esc.widgets.map((w, j) => {
@@ -2235,10 +2562,46 @@ function CuadrosVacanciaEscritoriosDesktop({ datos }) {
         </div>
       </div>
 
-      {/* Barra inferior: solo navegación entre escritorios (sin editar,
+      {/* Barra inferior: navegación entre escritorios (sin editar,
           exportar/importar ni agregar/eliminar) — el nombre del escritorio
-          activo es el elemento más notorio, al centro. */}
-      <div className="shrink-0 flex items-center justify-center gap-3 py-2.5 border-t border-slate-200/70 dark:border-slate-800/70">
+          activo es el elemento más notorio, al centro. El botón de Excel
+          (membretado, con el detalle completo del Cuadro de Vacancia) va
+          aparte, a la derecha — reutiliza handleExportExcel/
+          generateCuadroVacanciaExcel, hasta ahora solo alcanzable desde el
+          modo widget (`only='cuadro_general'`) del tablero personalizable. */}
+      <div className="shrink-0 relative flex items-center justify-center gap-3 py-2.5 border-t border-slate-200/70 dark:border-slate-800/70">
+        {sinRestriccionUN && (onExportExcel || onGeneratePdf) && (
+          <div className="absolute right-3 flex items-center gap-2">
+            {onGeneratePdf && (
+              <button
+                type="button"
+                onClick={onGeneratePdf}
+                disabled={isGeneratingPdf}
+                title="Descargar PDF con todos los cuadros y gráficas de Cuadros de Vacancia"
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#621f32] to-[#8c2d4a] hover:from-[#7a2740] hover:to-[#a33658] text-white px-3.5 py-2 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+              >
+                {isGeneratingPdf
+                  ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  : <FileText className="size-3.5" />}
+                <span>{isGeneratingPdf ? 'Generando...' : 'PDF'}</span>
+              </button>
+            )}
+            {onExportExcel && (
+              <button
+                type="button"
+                onClick={onExportExcel}
+                disabled={isExportingExcel}
+                title="Descargar Excel membretado con el detalle del Cuadro de Vacancia"
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#10243e] to-[#1a3b63] hover:from-[#152e4f] hover:to-[#1f4a7a] text-white px-3.5 py-2 rounded-xl font-bold uppercase tracking-wider text-[10px] transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+              >
+                {isExportingExcel
+                  ? <div className="size-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  : <Download className="size-3.5" />}
+                <span>{isExportingExcel ? 'Generando...' : 'Excel'}</span>
+              </button>
+            )}
+          </div>
+        )}
         <button
           type="button"
           onClick={() => irA(escritorioActivo - 1)}
