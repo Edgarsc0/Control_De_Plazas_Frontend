@@ -1,12 +1,15 @@
 import { addExcelLetterhead } from './excelLetterhead';
 
-// ARGB color constants — un solo color fuerte (guinda, el mismo del membrete
-// institucional) para toda jerarquía visual; dorado queda solo como acento
-// fino (bordes, resaltados tenues), nunca como fill de bloque.
+// ARGB color constants — un solo color fuerte (azul marino, el mismo tono
+// que el encabezado de los PDF de este mismo reporte) para toda jerarquía
+// visual; dorado queda solo como acento fino (bordes, resaltados tenues),
+// nunca como fill de bloque. Los nombres de las claves (GUINDA*) se
+// conservan tal cual para no tocar cada sitio que las usa — solo cambió el
+// tono que representan.
 const C = {
-  GUINDA:      'FF621F32',  // color institucional fuerte — headers, títulos, totales
-  GUINDA_OSC:  'FF3D131F',  // guinda oscurecido — jerarquía de títulos de sección (I./II./III.)
-  GUINDA_LINK: 'FF8C2F49',  // guinda medio — hipervínculos (misma familia, no azul)
+  GUINDA:      'FF10243E',  // azul marino institucional — headers, títulos, totales (igual que drawPageHeader del PDF)
+  GUINDA_OSC:  'FF0A1A2E',  // azul marino oscurecido — jerarquía de títulos de sección (I./II./III.)
+  GUINDA_LINK: 'FF2E5890',  // azul medio — hipervínculos (misma familia, legible sobre blanco)
   DORADO:      'FFBC955C',  // acento — solo bordes y resaltados sutiles
   BLANCO:      'FFFFFFFF',
   GRIS:        'FFF8FAFC',  // slate-50 — fila alterna
