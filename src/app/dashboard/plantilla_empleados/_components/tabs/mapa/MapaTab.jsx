@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/map";
 import { VacantesService } from "@/services/vacantes.service";
 import EmpleadosTableModal from "@/components/shared/EmpleadosTableModal";
+import EmpleadosPuntoLista from "./EmpleadosPuntoLista";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/config/permissions";
 
@@ -228,7 +229,11 @@ export default function MapaTab({ distribucionGeografica = [], compacto = false 
         </div>
 
         {/* Map: ocupa el espacio real restante, ya no queda tapado por el header */}
-        <div className="flex-1 w-full overflow-hidden relative">
+        {/* select-none + onDragStart: si quedaba texto del mapa seleccionado
+            (conteos, atribución), el navegador iniciaba su arrastre nativo
+            —la "copia sombreada" que se salía del widget— en vez de mover
+            el mapa. */}
+        <div className="flex-1 w-full overflow-hidden relative select-none" onDragStart={(e) => e.preventDefault()}>
           <Map ref={mapRef} theme="light" viewport={{ center: [-102.55, 23.63], zoom: 4.8 }} className="w-full h-full">
             {distribucionGeografica.map((loc, idx) => {
               let markerBg = "from-[#bc955c] to-[#621f32]";
@@ -364,8 +369,22 @@ export default function MapaTab({ distribucionGeografica = [], compacto = false 
       </div>
 
       {/* Detalle nominal del punto — mismo modal que Torre Caballito, con su
-          columna de ojo para abrir el expediente de cada persona. */}
-      {(empleadosPunto || cargandoPunto) && (
+          columna de ojo para abrir el expediente de cada persona. En el widget
+          del tablero (`compacto`) va como lista de tarjetas en un portal: la
+          celda del widget recorta cualquier modal que se pinte dentro. */}
+      {(empleadosPunto || cargandoPunto) && compacto && (
+        <EmpleadosPuntoLista
+          data={empleadosPunto}
+          loading={cargandoPunto}
+          title={tituloPunto}
+          onClose={() => {
+            setEmpleadosPunto(null);
+            setCargandoPunto(false);
+          }}
+          canViewPhoto={canViewFotoGeografia}
+        />
+      )}
+      {(empleadosPunto || cargandoPunto) && !compacto && (
         <EmpleadosTableModal
           data={empleadosPunto}
           loading={cargandoPunto}

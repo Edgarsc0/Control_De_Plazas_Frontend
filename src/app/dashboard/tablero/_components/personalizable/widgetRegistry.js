@@ -106,7 +106,10 @@ export const WIDGET_REGISTRY = {
   },
   estados_nomina: {
     type: "estados_nomina",
-    permisos: [P.VIEW_PLANTILLA_ESTATUS_NOMINA],
+    // También con el permiso de Detalle (espejo de `view_permission` en
+    // EmpleadosEstatusPorNivelUaView): quien ve la plantilla de su unidad ya
+    // puede contar estos mismos estatus y vacantes.
+    permisos: [P.VIEW_PLANTILLA_ESTATUS_NOMINA, P.VIEW_PLANTILLA_DETALLE],
     // EmpleadosEstatusPorNivelUaView agrega por petición sobre grupos que
     // llevan cd_un, así que estos conteos ya salen recortados por unidad.
     alcanceUnSoportado: true,
@@ -121,7 +124,7 @@ export const WIDGET_REGISTRY = {
   },
   plazas_por_ua: {
     type: "plazas_por_ua",
-    permisos: [P.VIEW_PLANTILLA_ESTATUS_NOMINA],
+    permisos: [P.VIEW_PLANTILLA_ESTATUS_NOMINA, P.VIEW_PLANTILLA_DETALLE],
     // Mismo endpoint que estados_nomina (ver estatusNominaData.js): las UA
     // que no son de su unidad ni siquiera llegan al cliente.
     alcanceUnSoportado: true,
@@ -139,7 +142,7 @@ export const WIDGET_REGISTRY = {
     // Mismas fuentes que "Ocupadas vs Vacantes por familia de nivel" (desglose_jerarquico y
     // desglose_jerarquico_ocupados): mismo permiso, y ambas recortan sus filas por UN.
     // Esas fuentes pertenecen a las sub-pestañas Cuadros Vacancia y Aduanas.
-    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS, P.VIEW_PLANTILLA_MOV_POSICIONES_ADUANAS],
+    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS, P.VIEW_PLANTILLA_MOV_POSICIONES_ADUANAS, P.VIEW_PLANTILLA_DETALLE],
     alcanceUnSoportado: true,
     enCatalogo: true,
     label: "Estatus de posiciones por unidad administrativa",
@@ -165,8 +168,11 @@ export const WIDGET_REGISTRY = {
   },
   movimientos_hoy_accion: {
     type: "movimientos_hoy_accion",
-    permisos: [P.VIEW_PLANTILLA_MOVIMIENTOS],
-    // MovimientosPersonalStatsView agrega ya recortado por UN.
+    // Con solo el permiso de Detalle el backend amarra la consulta a lo
+    // capturado hoy (ver _solo_movimientos_de_hoy): alcanza para este widget,
+    // no para el histórico del tab Movimientos.
+    permisos: [P.VIEW_PLANTILLA_MOVIMIENTOS, P.VIEW_PLANTILLA_DETALLE],
+    // MovimientosPersonalStatsView agrega ya recortado por UN y UA.
     alcanceUnSoportado: true,
     enCatalogo: true,
     label: "Movimientos de hoy por acción",
@@ -179,8 +185,8 @@ export const WIDGET_REGISTRY = {
   },
   movimientos_hoy_detalle: {
     type: "movimientos_hoy_detalle",
-    permisos: [P.VIEW_PLANTILLA_MOVIMIENTOS],
-    // Mismo endpoint que movimientos_hoy_accion, ya recortado por UN.
+    permisos: [P.VIEW_PLANTILLA_MOVIMIENTOS, P.VIEW_PLANTILLA_DETALLE],
+    // Mismo endpoint que movimientos_hoy_accion, ya recortado por UN y UA.
     alcanceUnSoportado: true,
     enCatalogo: true,
     label: "Movimientos de hoy (detalle)",
@@ -429,7 +435,16 @@ for (const el of ELEMENTOS_CUADROS_VACANCIA) {
   const type = `${prefijoTipoCuadrosVacancia}${el.id}`;
   WIDGET_REGISTRY[type] = {
     type,
-    permisos: [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS],
+    // Los elementos que solo usan `desglose_jerarquico` (vacancia y ocupación
+    // por nivel) también se abren con el permiso de Detalle: el backend los
+    // recorta por UN, UA y columnas igual que la plantilla que ese rol ya ve.
+    // Los históricos ("cuadros"/"serie") siguen pidiendo la sub-pestaña.
+    permisos: el.needs.some((n) => n === "cuadros" || n === "serie")
+      ? [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS]
+      : [P.VIEW_PLANTILLA_MOV_POSICIONES_CUADROS, P.VIEW_PLANTILLA_DETALLE],
+    // "Vacancia y Ocupación — Nivel X": solo si la plantilla del usuario
+    // tiene plazas de esa familia (ver useFamiliasNivel).
+    familiaNivel: el.id.startsWith("nivel_") ? el.id.slice("nivel_".length) : null,
     // Depende de la fuente del elemento, no del módulo:
     //   · "cuadros" (`cuadro_vacancia`) y "serie"
     //     (`sp_conteo_plazas_historico_serie`) son tablas ya agregadas que no
@@ -509,11 +524,15 @@ export const WIDGETS_DE_CATALOGO = Object.values(WIDGET_REGISTRY).filter((w) => 
  * @param {object} def - Entrada de WIDGET_REGISTRY.
  * @param {(codenames: string[]) => boolean} hasAnyPermission - De `useAuth()`.
  * @param {string[]|null} unScope - `null` = rol sin restricción por UN.
+ * @param {Set<string>|null} [familiasNivel] - Familias de nivel presentes en la
+ *   plantilla del usuario; `null` = no filtrar.
  * @returns {boolean}
  */
-export function puedeUsarWidget(def, hasAnyPermission, unScope) {
+export function puedeUsarWidget(def, hasAnyPermission, unScope, familiasNivel = null) {
   if (!def) return false;
   if (def.permisos?.length && !hasAnyPermission(def.permisos)) return false;
   if (unScope !== null && !def.alcanceUnSoportado) return false;
+  // `familiasNivel` (useFamiliasNivel): null = sin filtro.
+  if (def.familiaNivel && familiasNivel && !familiasNivel.has(def.familiaNivel)) return false;
   return true;
 }

@@ -8,6 +8,7 @@ import { Check, ChevronLeft, ChevronRight, LayoutGrid, Lock, Pencil, Plus, Trash
 import WidgetFrame from "./WidgetFrame";
 import ConfirmModal from "@/components/shared/ConfirmModal";
 import { WIDGET_REGISTRY, puedeUsarWidget } from "./widgetRegistry";
+import { useFamiliasNivel } from "./widgets/useFamiliasNivel";
 import { useAuth } from "@/hooks/useAuth";
 import {
   GRID_COLS,
@@ -192,6 +193,7 @@ export default function PersonalizableGrid({
   const [viewportRef, { width: anchoEscritorio, height: altoEscritorio }] = useTamanoContenedor();
   const saveTimerRef = useRef(null);
   const { hasAnyPermission, unScope, isLoading: authCargando } = useAuth();
+  const familiasNivel = useFamiliasNivel();
 
   // Un widget guardado en el tablero puede dejar de estar permitido (le
   // quitaron el permiso al rol, o el rol pasó a tener alcance por Unidad de
@@ -199,8 +201,8 @@ export default function PersonalizableGrid({
   // —pediría datos que el backend va a negar— pero tampoco se borra del
   // layout: se muestra bloqueado, para que al recuperar el acceso vuelva solo.
   const widgetPermitido = useCallback(
-    (tipo) => authCargando || puedeUsarWidget(WIDGET_REGISTRY[tipo], hasAnyPermission, unScope),
-    [authCargando, hasAnyPermission, unScope]
+    (tipo) => authCargando || puedeUsarWidget(WIDGET_REGISTRY[tipo], hasAnyPermission, unScope, familiasNivel),
+    [authCargando, hasAnyPermission, unScope, familiasNivel]
   );
 
   // Espejo de `widgets` para que el efecto del arrastre lea siempre el valor
@@ -343,7 +345,7 @@ export default function PersonalizableGrid({
     [rowHeight]
   );
   const dragConfig = useMemo(() => ({ handle: ".widget-drag-handle" }), []);
-  const resizeConfig = useMemo(() => ({ enabled: true, handles: ["se"] }), []);
+  const resizeConfig = useMemo(() => ({ enabled: true, handles: ["se", "sw", "ne", "nw"] }), []);
 
   const irAEscritorio = useCallback((indice) => {
     const cont = viewportRef.current;

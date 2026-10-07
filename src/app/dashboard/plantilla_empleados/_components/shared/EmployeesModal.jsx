@@ -1493,7 +1493,7 @@ export const EmployeeRecordModal = ({ isOpen, onClose, record, columns, fieldCli
 // universo completo de ALL_AVAILABLE_COLUMNS. Pensado para datasets que no
 // traen todos los campos de empleado (p.ej. desglose_jerarquico, que es de
 // plazas): sin esto, el selector listaría columnas que siempre salen vacías.
-export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, cdUa = null, categoryTabs = null, rows = null, rowsLoading = false, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
+export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua, cdUa = null, categoryTabs = null, initialCategoryIdx = 0, rows = null, rowsLoading = false, title = null, defaultColumnKeys = null, restrictColumnsTo = null, canViewPhoto = true, fotoPermissionCodename = null }) {
     const isLocalMode = Array.isArray(rows);
     const [isExportFotosModalOpen, setIsExportFotosModalOpen] = useState(false);
     const [isExportingConFotos, setIsExportingConFotos] = useState(false);
@@ -1546,7 +1546,10 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     // categoría (eso recrearía effectiveEstatus y, si viviera en el mismo
     // efecto que dispara el fetch, se pisaría a sí mismo de vuelta a la 0).
     useEffect(() => {
-        if (open) setActiveCategoryIdx(0);
+        // `initialCategoryIdx`: categoría con la que abre (la barra que se
+        // pulsó en la gráfica); sin ella, la primera.
+        if (open) setActiveCategoryIdx(initialCategoryIdx || 0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const [rowData, setRowData] = useState([]);

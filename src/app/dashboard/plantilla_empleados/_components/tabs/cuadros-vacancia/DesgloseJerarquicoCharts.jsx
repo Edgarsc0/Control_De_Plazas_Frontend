@@ -97,6 +97,13 @@ const SEGMENT_META = {
 
 // Colores de las Ocupadas (variantes de verde), separados de los de Vacantes
 // para que las 3 divisiones se distingan a simple vista dentro de la barra.
+// Tipo de tramo de la gráfica -> modalidad de VACANCIA_CATEGORY_TABS.
+const MODALIDAD_POR_TIPO = {
+  permanente: 'Permanentes',
+  eventual: 'Eventuales',
+  nuevaCreacion: 'Eventuales Nueva Creación',
+};
+
 const OCUPADA_SEGMENT_META = {
   permanente: { label: 'Ocupadas Permanentes', color: '#2f855a' },
   eventual: { label: 'Ocupadas Eventuales', color: '#57b788' },
@@ -826,8 +833,26 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
   const [employeesModalOpen, setEmployeesModalOpen] = useState(false);
   const [employeesModalNivel, setEmployeesModalNivel] = useState(null);
 
-  const handleDrill3BarClick = useCallback((barData) => {
+  const [employeesModalCategoria, setEmployeesModalCategoria] = useState(0);
+
+  // `grupo` ("ocup" | "vac") e `idx` identifican el tramo de la barra que se
+  // pulsó: el modal abre ya en esa categoría (p. ej. Ocupadas · Eventuales
+  // Nueva Creación) en vez de en la primera de la lista.
+  const handleDrill3BarClick = useCallback((barData, grupo = null, idx = 0) => {
     if (!barData || !barData.name) return;
+    const fila = barData.payload || barData;
+    const tramos = [
+      ...(fila.ocupSegments || []).map((t) => ({ ...t, tipo: 'Ocupadas' })),
+      ...(fila.segments || []).map((t) => ({ ...t, tipo: 'Vacantes' })),
+    ];
+    const delGrupo = grupo === 'ocup' ? fila.ocupSegments : grupo === 'vac' ? fila.segments : null;
+    const pulsado = delGrupo?.[idx] ? { ...delGrupo[idx], tipo: grupo === 'ocup' ? 'Ocupadas' : 'Vacantes' } : null;
+    // Un clic en el fondo de la columna (o en un tramo en cero) cae en el
+    // primer tramo que sí tenga plazas.
+    const tramo = pulsado?.value > 0 ? pulsado : tramos.find((t) => t.value > 0 && MODALIDAD_POR_TIPO[t.type]);
+    const estatus = tramo && MODALIDAD_POR_TIPO[tramo.type] ? `${tramo.tipo} ${MODALIDAD_POR_TIPO[tramo.type]}` : null;
+    const categoria = VACANCIA_CATEGORY_TABS.findIndex((t) => t.estatus === estatus);
+    setEmployeesModalCategoria(categoria >= 0 ? categoria : 0);
     // El backend espera "SIN NIVEL" (no "Vacío", que es solo la etiqueta de UI)
     // para el grupo de posiciones sin nivel asignado.
     const nivelParam = barData.name === 'Vacío' ? 'SIN NIVEL' : barData.name;
@@ -1598,7 +1623,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     dataKey="ocupSeg0"
                     stackId="familia"
                     background={{ fill: 'transparent', cursor: 'pointer' }}
-                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    onClick={drillFamily3 ? (d) => handleDrill3BarClick(d, 'ocup', 0) : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={80}
@@ -1612,7 +1637,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <Bar
                     dataKey="ocupSeg1"
                     stackId="familia"
-                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    onClick={drillFamily3 ? (d) => handleDrill3BarClick(d, 'ocup', 1) : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={140}
@@ -1626,7 +1651,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <Bar
                     dataKey="ocupSeg2"
                     stackId="familia"
-                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    onClick={drillFamily3 ? (d) => handleDrill3BarClick(d, 'ocup', 2) : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={200}
@@ -1641,7 +1666,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                     dataKey="seg0"
                     stackId="familia"
                     background={{ fill: 'transparent', cursor: 'pointer' }}
-                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    onClick={drillFamily3 ? (d) => handleDrill3BarClick(d, 'vac', 0) : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={260}
@@ -1658,7 +1683,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <Bar
                     dataKey="seg1"
                     stackId="familia"
-                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    onClick={drillFamily3 ? (d) => handleDrill3BarClick(d, 'vac', 1) : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={320}
@@ -1672,7 +1697,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
                   <Bar
                     dataKey="seg2"
                     stackId="familia"
-                    onClick={drillFamily3 ? handleDrill3BarClick : handleFamily3BarClick}
+                    onClick={drillFamily3 ? (d) => handleDrill3BarClick(d, 'vac', 2) : handleFamily3BarClick}
                     style={{ cursor: 'pointer' }}
                     isAnimationActive={!forExport}
                     animationBegin={380}
@@ -1743,6 +1768,7 @@ export default function DesgloseJerarquicoCharts({ data = [], ocupadosData = [],
         onOpenChange={setEmployeesModalOpen}
         nivel={employeesModalNivel}
         categoryTabs={VACANCIA_CATEGORY_TABS}
+        initialCategoryIdx={employeesModalCategoria}
         canViewPhoto={canViewFotoMovPosiciones}
         fotoPermissionCodename="view_plantilla_mov_posiciones_foto"
       />

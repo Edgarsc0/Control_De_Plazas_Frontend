@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { GripVertical, LayoutGrid, Search, Sparkles, X } from "lucide-react";
 import { gsap } from "gsap";
 import { WIDGETS_DE_CATALOGO, GRUPOS_CATALOGO, puedeUsarWidget } from "./widgetRegistry";
+import { useFamiliasNivel } from "./widgets/useFamiliasNivel";
 import { metaDeWidget } from "./widgetCatalogoMeta";
 import WidgetPreview from "./WidgetPreview";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,11 +49,12 @@ export default function WidgetStoreModal({ usedTypes, onIniciarArrastre, onClose
   const cerrandoRef = useRef(false);
   const q = normalizar(busqueda);
   const { hasAnyPermission, unScope, isLoading: authCargando } = useAuth();
+  const familiasNivel = useFamiliasNivel();
 
   // Solo los módulos que este rol puede usar de verdad (ver `puedeUsarWidget`).
   const disponibles = useMemo(
-    () => (authCargando ? [] : WIDGETS_DE_CATALOGO.filter((w) => puedeUsarWidget(w, hasAnyPermission, unScope))),
-    [authCargando, hasAnyPermission, unScope]
+    () => (authCargando ? [] : WIDGETS_DE_CATALOGO.filter((w) => puedeUsarWidget(w, hasAnyPermission, unScope, familiasNivel))),
+    [authCargando, hasAnyPermission, unScope, familiasNivel]
   );
 
   const filtros = useMemo(() => {

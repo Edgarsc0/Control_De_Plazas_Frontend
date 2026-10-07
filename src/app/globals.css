@@ -515,3 +515,13 @@ html[data-perf] .blur-2xl,
 html[data-perf] .blur-3xl {
   display: none !important;
 }
+
+/* Tablero personalizable: los widgets se redimensionan desde las 4 esquinas.
+   Las asas de ARRIBA se achican para no tapar el botón de cerrar ni el asa
+   de arrastre de la barra de título. */
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  width: 12px;
+  height: 12px;
+  z-index: 5;
+}
