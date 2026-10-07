@@ -919,7 +919,14 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           formatNumber(row.total_permanente), formatNumber(row.total_eventual), formatNumber(row.total),
         ]),
         ...tableStyles,
-        margin: { left: margin, right: margin },
+        // `margin.top` importa aunque la tabla empiece en `startY: cursorY`:
+        // si autoTable tiene que partirla sola a mitad de tabla (muchas
+        // filas), la página nueva que crea internamente reanuda el
+        // encabezado de columnas en `margin.top`, NO en `startY` (ese solo
+        // aplica a la primera página) — sin esto caía en ~20mm, encima de la
+        // franja azul/dorada de drawPageHeader (0-19.5mm) y quedaba
+        // ilegible.
+        margin: { top: 24, left: margin, right: margin },
         didDrawPage: onAutoPage,
       });
       cursorY = pdf.lastAutoTable.finalY + 10;
@@ -995,7 +1002,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
               hookData.cell.styles.fillColor = [230, 225, 220];
             }
           },
-          margin: { left: margin, right: margin },
+          margin: { top: 24, left: margin, right: margin },
           didDrawPage: onAutoPage,
         });
         cursorY = pdf.lastAutoTable.finalY + 8;
@@ -1033,7 +1040,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           ['Total', formatNumber(obsVac.total)],
         ],
         ...tableStyles,
-        margin: { left: margin, right: margin },
+        margin: { top: 24, left: margin, right: margin },
         tableWidth: usableW / 2 - 4,
         didDrawPage: onAutoPage,
       });
@@ -1048,7 +1055,7 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           ['Total', formatNumber(obsOcup.total)],
         ],
         ...tableStyles,
-        margin: { left: pageW / 2 + 4, right: margin },
+        margin: { top: 24, left: pageW / 2 + 4, right: margin },
         tableWidth: usableW / 2 - 4,
         didDrawPage: onAutoPage,
       });
