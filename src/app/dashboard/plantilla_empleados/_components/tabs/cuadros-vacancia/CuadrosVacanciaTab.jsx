@@ -879,10 +879,38 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         tableLineWidth: 0.3,
       };
 
-      // ── Página 1: Cuadro de Vacancia General (histórico) ──
-      drawPageHeader('Cuadros de Vacancia — Histórico de Ocupación');
+      // ── Tablas: una sola página de encabezado ("Cuadros de Vacancia —
+      // Reporte Completo") y de ahí en adelante se van empacando varias
+      // tablas por página (Cuadro General, niveles, observaciones) con un
+      // cursor vertical — en vez de una página completa por tabla, que
+      // dejaba a niveles chicos (p.ej. Nivel J, con 1 sola fila) perdidos en
+      // una página casi vacía. `ensureRoom` solo pasa de página cuando la
+      // tabla que sigue de verdad no cabe; `didDrawPage` reimprime el
+      // encabezado institucional si autoTable igual tiene que partir una
+      // tabla larga a la mitad. ──
+      const REPORT_TITLE = 'Cuadros de Vacancia — Reporte Completo';
+      let cursorY = 24;
+      drawPageHeader(REPORT_TITLE);
+      const onAutoPage = () => drawPageHeader(REPORT_TITLE);
+      const ensureRoom = (minH) => {
+        if (cursorY + minH > pageH - 14) {
+          pdf.addPage();
+          drawPageHeader(REPORT_TITLE);
+          cursorY = 24;
+        }
+      };
+      const sectionLabel = (text) => {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10.5);
+        pdf.setTextColor(...azulMarino);
+        pdf.text(text, margin, cursorY);
+        cursorY += 5;
+      };
+
+      // ── Cuadro de Vacancia General (histórico) ──
+      sectionLabel('Cuadro de Vacancia — Histórico de Ocupación');
       autoTable(pdf, {
-        startY: 24,
+        startY: cursorY,
         head: [['Año', 'QNA', 'Ocp. Permanente', 'Ocp. Eventual', 'Total Ocupadas', 'Vac. Permanente', 'Vac. Eventual', 'Total Vacantes', 'Total Permanente', 'Total Eventual', 'Total']],
         body: filteredData.map(row => [
           getYear(row.fecha), formatDate(row.fecha),
@@ -892,9 +920,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         ]),
         ...tableStyles,
         margin: { left: margin, right: margin },
+        didDrawPage: onAutoPage,
       });
+      cursorY = pdf.lastAutoTable.finalY + 10;
 
-      // ── Páginas por nivel (J, K, A, S, D, P, Operativos): mismos conteos
+      // ── Niveles (J, K, A, S, D, P, Operativos): mismos conteos
       // que NivelPlazaTable, recalculados aquí sobre desgloseJerarquicoData
       // (vacancia) / ocupadosJerarquicoData (ocupación). ──
       const classifyPosLocal = (pos) => {
@@ -943,10 +973,15 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
           ncOcup: acc.ncOcup + r.ncOcup, ncVac: acc.ncVac + r.ncVac,
           pmOcup: acc.pmOcup + r.pmOcup, pmVac: acc.pmVac + r.pmVac,
         }), { evOcup: 0, evVac: 0, ncOcup: 0, ncVac: 0, pmOcup: 0, pmVac: 0 });
-        pdf.addPage();
-        drawPageHeader(`Vacancia y Ocupación — ${label}`);
+        // Alto estimado: rótulo + encabezado + filas + total — si no cabe en
+        // lo que queda de la página actual, recién ahí se pasa de página
+        // (nunca una página nueva "porque sí" por tabla, a diferencia de
+        // antes).
+        const estH = 5 + 9 + (merged.length + 1) * 7.5 + 4;
+        ensureRoom(estH);
+        sectionLabel(`Vacancia y Ocupación — ${label}`);
         autoTable(pdf, {
-          startY: 24,
+          startY: cursorY,
           head: nivelHead,
           body: [
             ...merged.map(r => [r.nivel, formatNumber(r.evOcup), formatNumber(r.evVac), formatNumber(r.ncOcup), formatNumber(r.ncVac), formatNumber(r.pmOcup), formatNumber(r.pmVac), formatNumber(r.evOcup + r.ncOcup + r.pmOcup), formatNumber(r.evVac + r.ncVac + r.pmVac)]),
@@ -961,7 +996,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
             }
           },
           margin: { left: margin, right: margin },
+          didDrawPage: onAutoPage,
         });
+        cursorY = pdf.lastAutoTable.finalY + 8;
       });
 
       // ── Página de Observaciones (Vacancia | Ocupación): mismo criterio que
@@ -983,10 +1020,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
       };
       const obsVac = calcObs(desgloseJerarquicoData);
       const obsOcup = calcObs(ocupadosJerarquicoData);
-      pdf.addPage();
-      drawPageHeader('Observaciones — Vacancia y Ocupación');
+      ensureRoom(5 + 9 + 4 * 7.5 + 4);
+      sectionLabel('Observaciones — Vacancia y Ocupación');
+      const obsStartY = cursorY;
       autoTable(pdf, {
-        startY: 24,
+        startY: obsStartY,
         head: [['Observaciones Vacancia', 'Total']],
         body: [
           ['Contratación Base', formatNumber(obsVac.base)],
@@ -997,9 +1035,11 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         ...tableStyles,
         margin: { left: margin, right: margin },
         tableWidth: usableW / 2 - 4,
+        didDrawPage: onAutoPage,
       });
+      const obsVacFinalY = pdf.lastAutoTable.finalY;
       autoTable(pdf, {
-        startY: 24,
+        startY: obsStartY,
         head: [['Observaciones Ocupación', 'Total']],
         body: [
           ['Contratación Base', formatNumber(obsOcup.base)],
@@ -1010,7 +1050,9 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
         ...tableStyles,
         margin: { left: pageW / 2 + 4, right: margin },
         tableWidth: usableW / 2 - 4,
+        didDrawPage: onAutoPage,
       });
+      cursorY = Math.max(obsVacFinalY, pdf.lastAutoTable.finalY) + 10;
 
       // ── Gráficas: los 3 escritorios ya están todos montados a la vez (solo
       // se navega con scroll horizontal, no con render condicional), así que
