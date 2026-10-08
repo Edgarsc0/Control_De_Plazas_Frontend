@@ -1501,7 +1501,10 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     const { toast } = useToast();
     const isCategoryMode = Array.isArray(categoryTabs) && categoryTabs.length > 0;
     const [activeCategoryIdx, setActiveCategoryIdx] = useState(0);
-    const effectiveEstatus = isCategoryMode ? categoryTabs[activeCategoryIdx]?.estatus : estatus;
+    // "Total": todas las plazas del nivel (ocupadas + vacantes, las 3
+    // modalidades) — el número que rotula la barra completa de la gráfica.
+    const [verTotal, setVerTotal] = useState(false);
+    const effectiveEstatus = isCategoryMode ? (verTotal ? "Total" : categoryTabs[activeCategoryIdx]?.estatus) : estatus;
 
     // Descompone `categoryTabs` en dos dimensiones (tipo: "Ocupadas"/"Vacantes" +
     // modalidad: "Permanentes"/"Eventuales"/"Eventuales Nueva Creación") a partir
@@ -1535,11 +1538,11 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
 
     const handleTipoChange = (tipo) => {
         const idx = categoryMatrix?.map[`${tipo}|${currentModalidad}`];
-        if (idx !== undefined) setActiveCategoryIdx(idx);
+        if (idx !== undefined) { setActiveCategoryIdx(idx); setVerTotal(false); }
     };
     const handleModalidadChange = (modalidad) => {
         const idx = categoryMatrix?.map[`${currentTipo}|${modalidad}`];
-        if (idx !== undefined) setActiveCategoryIdx(idx);
+        if (idx !== undefined) { setActiveCategoryIdx(idx); setVerTotal(false); }
     };
 
     // Reset de pestaña solo al abrir/cerrar el modal — no en cada cambio de
@@ -1548,7 +1551,7 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
     useEffect(() => {
         // `initialCategoryIdx`: categoría con la que abre (la barra que se
         // pulsó en la gráfica); sin ella, la primera.
-        if (open) setActiveCategoryIdx(initialCategoryIdx || 0);
+        if (open) { setActiveCategoryIdx(initialCategoryIdx || 0); setVerTotal(false); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
@@ -2101,6 +2104,19 @@ export default function EmployeesModal({ open, onOpenChange, nivel, estatus, ua,
                                 ))}
                             </SelectContent>
                         </Select>
+                        <button
+                            type="button"
+                            onClick={() => setVerTotal(v => !v)}
+                            aria-pressed={verTotal}
+                            title="Todas las plazas del nivel: ocupadas y vacantes"
+                            className={`h-8 px-3 rounded-lg border text-[11px] font-black uppercase transition-all cursor-pointer ${
+                                verTotal
+                                    ? 'bg-[#621f32] border-[#621f32] text-white shadow-sm dark:bg-[#bc955c] dark:border-[#bc955c] dark:text-slate-950'
+                                    : 'bg-white dark:bg-slate-900 border-[#621f32]/20 dark:border-slate-800 text-[#621f32] dark:text-[#bc955c] hover:bg-[#621f32]/5'
+                            }`}
+                        >
+                            Total
+                        </button>
                     </div>
                 ) : (
                     <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
