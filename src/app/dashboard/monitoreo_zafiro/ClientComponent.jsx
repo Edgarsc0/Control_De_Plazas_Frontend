@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useZafiroEnCursoRealtime } from '@/hooks/useZafiroEnCursoRealtime';
 import { clearAllDatasets } from '@/lib/plantillaBrowserCache';
+import ToleranciasPanel from './ToleranciasPanel';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 function StatusBadge({ status, errorMessage }) {
@@ -520,6 +521,9 @@ export default function ClientComponent() {
             />
           </div>
         )}
+
+        {/* ── Tolerancia de baja de registros por consulta ── */}
+        <ToleranciasPanel />
 
         {/* ── Duración promedio por hora (solo casos exitosos) ── */}
         <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/80 shadow-lg bg-white dark:bg-slate-950 p-6">
