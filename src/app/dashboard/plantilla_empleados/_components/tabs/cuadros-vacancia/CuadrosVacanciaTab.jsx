@@ -2322,24 +2322,24 @@ export default function CuadrosVacanciaTab({ cuadrosData = [], desgloseJerarquic
 const ESCRITORIOS_FIJOS = [
   {
     nombre: "Cuadros de Vacancia",
-    // Único escritorio con scroll vertical (`scroll: true`): tiene más filas
-    // de las que caben en pantalla (Cuadro general + niveles J/K/A/S/D/P/
-    // Operativos + Observaciones Vacancia/Ocupación, 4 filas de 12 columnas),
-    // a diferencia de los otros 2 escritorios que siguen sin scroll de
-    // documento. Ver el `overflow-y-auto` condicional en
-    // CuadrosVacanciaEscritoriosDesktop más abajo.
-    scroll: true,
+    // Los seis cuadros por nivel caben en pantalla (2 filas de 3), sin scroll.
+    // El Cuadro de Vacancia General ya no va aquí: sigue en el escritorio
+    // "Ocupación/Vacancia Histórica".
     widgets: [
-      { type: "cv_cuadro_general", x: 0, y: 0, w: 12, h: 4 },
-      { type: "cv_nivel_J", x: 0, y: 4, w: 4, h: 4 },
-      { type: "cv_nivel_K", x: 4, y: 4, w: 4, h: 4 },
-      { type: "cv_nivel_A", x: 8, y: 4, w: 4, h: 4 },
-      { type: "cv_nivel_S", x: 0, y: 8, w: 4, h: 4 },
-      { type: "cv_nivel_D", x: 4, y: 8, w: 4, h: 4 },
-      { type: "cv_nivel_P", x: 8, y: 8, w: 4, h: 4 },
-      { type: "cv_nivel_OPERATIVOS", x: 0, y: 12, w: 4, h: 4 },
-      { type: "cv_obs_vacancia", x: 4, y: 12, w: 4, h: 4 },
-      { type: "cv_obs_ocupacion", x: 8, y: 12, w: 4, h: 4 },
+      { type: "cv_nivel_J", x: 0, y: 0, w: 4, h: 4 },
+      { type: "cv_nivel_K", x: 4, y: 0, w: 4, h: 4 },
+      { type: "cv_nivel_A", x: 8, y: 0, w: 4, h: 4 },
+      { type: "cv_nivel_S", x: 0, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_D", x: 4, y: 4, w: 4, h: 4 },
+      { type: "cv_nivel_P", x: 8, y: 4, w: 4, h: 4 },
+    ],
+  },
+  {
+    nombre: "Operativos y Observaciones",
+    widgets: [
+      { type: "cv_nivel_OPERATIVOS", x: 0, y: 0, w: 6, h: 8 },
+      { type: "cv_obs_vacancia", x: 6, y: 0, w: 6, h: 4 },
+      { type: "cv_obs_ocupacion", x: 6, y: 4, w: 6, h: 4 },
     ],
   },
   {
